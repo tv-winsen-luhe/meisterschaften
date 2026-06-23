@@ -9,6 +9,12 @@ html {
   scroll-behavior: smooth;
 }
 
+/* Safety net: never let a long display word force horizontal overflow */
+.sect__headline,
+.hero__title {
+  overflow-wrap: break-word;
+}
+
 @media (prefers-reduced-motion: reduce) {
   html {
     scroll-behavior: auto;
@@ -38,7 +44,7 @@ html {
 
   /* Type scale — canonical display and section-headline sizes */
   --text-display: clamp(72px, 14vw, 180px);
-  --text-h2: clamp(56px, 10vw, 120px);
+  --text-h2: clamp(44px, 10vw, 120px);
 
   /* Semantic aliases */
   --color-surface: #ffffff;
