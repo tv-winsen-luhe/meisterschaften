@@ -7,7 +7,7 @@ mit Online-Anmeldung und öffentlicher, live wachsender Teilnehmerliste.
 
 ## Tech
 
-- [Astro 6](https://astro.build/) — statische Site, zero client JS by default
+- [Astro 7](https://astro.build/) — statische Site, zero client JS by default
 - [Tailwind CSS 4](https://tailwindcss.com/) via `@tailwindcss/vite`
 - TypeScript (strict)
 - pnpm, Node 24

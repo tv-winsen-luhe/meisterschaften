@@ -23,7 +23,7 @@ and TSV Winsen (22./23. August 2026). Unlike the sibling `matchday` site, this o
 
 ## Tech Stack
 
-- **Astro 6** static site generator (zero client JS by default)
+- **Astro 7** static site generator (zero client JS by default, Vite 8)
 - **Tailwind CSS 4** via Vite plugin (configured in `astro.config.ts`)
 - **TypeScript** strict mode (extends `astro/tsconfigs/strict`)
 - **pnpm** package manager, **Node 24**
