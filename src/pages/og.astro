@@ -10,23 +10,27 @@ import logoSvg from '@/assets/logo.svg'
     <title>OG Image</title>
   </head>
   <body class="og-canvas relative h-[630px] w-[1200px] overflow-hidden bg-clay font-sans text-white antialiased">
-    <div class="relative z-10 flex h-[630px] w-[1200px] flex-col px-16 py-14">
-      <img src={logoSvg.src} alt="" width="220" height="220" class="absolute top-14 right-16 block" />
+    <div class="relative z-10 flex h-[630px] w-[1200px] flex-col justify-between px-16 py-14">
+      <!-- Top: who & what, opposite the crest -->
+      <div class="flex items-start justify-between gap-10">
+        <div class="flex flex-col gap-2.5">
+          <span class="text-[21px] font-bold tracking-[0.22em] uppercase opacity-90">Vereinsmeisterschaft</span>
+          <span class="text-[40px] leading-none font-black tracking-[-0.02em]">TV &amp; TSV Winsen</span>
+        </div>
+        <img src={logoSvg.src} alt="" width="150" height="150" class="block shrink-0" />
+      </div>
 
-      <div class="mt-auto flex items-end justify-between gap-10">
-        <h1 class="m-0 text-[118px] leading-[0.84] font-black tracking-[-0.05em] uppercase">
+      <!-- Bottom: the title, full width, with the date beneath -->
+      <div>
+        <h1 class="m-0 text-[100px] leading-[0.82] font-black tracking-[-0.05em] whitespace-nowrap uppercase">
           <span class="block">Winsener</span>
           <span class="block text-clay [-webkit-text-stroke:4px_#fff] [paint-order:stroke_fill]">
             Meisterschaften<span class="text-neon [-webkit-text-stroke:4px_var(--color-neon)]">.</span>
           </span>
         </h1>
-        <div class="flex shrink-0 flex-col items-end pb-3">
-          <span class="mb-3 text-[20px] font-semibold tracking-[0.22em] uppercase">Sa / So</span>
-          <span class="text-[64px] leading-[0.85] font-black tracking-[-0.04em]">22.-23.08.</span>
-          <span
-            class="text-[64px] leading-[0.85] font-black tracking-[-0.04em] text-clay [-webkit-text-stroke:3px_#fff] [paint-order:stroke_fill]"
-            >2026</span
-          >
+        <div class="mt-8 flex items-baseline gap-5">
+          <span class="text-[20px] font-bold tracking-[0.2em] uppercase opacity-90">Sa / So</span>
+          <span class="text-[46px] leading-none font-black tracking-[-0.03em]">22.–23.08.2026</span>
         </div>
       </div>
     </div>
