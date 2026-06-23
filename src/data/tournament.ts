@@ -21,7 +21,7 @@ const TOURNAMENT_START = new Date('2026-08-22T09:00:00+02:00')
 const SIGNUP_DEADLINE = new Date('2026-08-19T23:59:00+02:00')
 
 export const venue = {
-  organisation: 'TV Winsen/Luhe von 1913 e.V.',
+  organisation: 'TV Winsen von 1913 e.V.',
   street: 'Luhdorfer Str. 47a',
   cityLine: '21423 Winsen (Luhe)',
   mapsUrl: 'https://maps.app.goo.gl/rndtuka3qNptRi2E7'
@@ -48,7 +48,7 @@ export const competitions: readonly Competition[] = [
     label: 'Herren',
     audience: 'Du spielst Punktspiele, trainierst regelmäßig und willst dich mit den Stärksten messen.',
     blurb:
-      'Das Hauptfeld — offen für alle. Hier treten die stärksten Spieler an und hier wird der Winsener Meister ausgespielt.',
+      'Das Hauptfeld — offen für alle. Hier treten die stärksten Spielenden an und hier wird der Winsener Meister ausgespielt.',
     title: 'Winsener Meister Herren',
     status: 'open',
     selectable: true
@@ -59,8 +59,8 @@ export const competitions: readonly Competition[] = [
     label: 'Herren Challenger',
     audience: 'Du spielst eher zum Spaß, bist Wieder- oder Einsteiger und hast keine oder eine hohe Leistungsklasse.',
     blurb:
-      'Das geschützte Feld: Stärkere Spieler sind nicht zugelassen, hier zählt das Match statt der Abschuss. Keine LK? Dann zählst du als LK 25 — und bist hier genau richtig.',
-    requirement: 'Nur ab LK 20 · klubunabhängig',
+      'Das geschützte Feld: Wer besser als LK 20 ist, spielt im Hauptfeld und ist hier nicht zugelassen — so zählt das Match statt der Abschuss. Keine LK? Dann zählst du als LK 25 und bist genau richtig.',
+    requirement: 'LK 20+',
     title: 'Winsener Meister Herren Challenger',
     status: 'open',
     selectable: true
@@ -71,10 +71,10 @@ export const competitions: readonly Competition[] = [
     label: 'Damen',
     audience: '',
     blurb:
-      'Eine Damen-Konkurrenz ist in Planung — ein Wettkampffeld um die Winsener Meisterin sowie ein geselliges Zweitformat. Details nach den Vorgesprächen Anfang Juli.',
+      'In Planung als Pendant zu den Herren: ein Damen-Einzel um die Winsener Meisterin — und, je nach Interesse, ein eigenes geselliges Damen-Format. Was zusammenkommt, klären wir bei den Vorgesprächen Anfang Juli.',
     title: 'Winsener Meisterin',
     status: 'planned',
-    selectable: false
+    selectable: true
   }
 ] as const
 
@@ -101,16 +101,16 @@ const sdParts = partsOf(SIGNUP_DEADLINE)
 /** Tournament weekend (Sat/Sun). */
 export const tournament = {
   start: TOURNAMENT_START,
-  /** "22./23." */
-  shortRange: '22./23.',
+  /** "22.-23." */
+  shortRange: '22.-23.',
   /** "2026" */
   year: '2026',
-  /** "22./23.08." */
-  shortRangeNumeric: '22./23.08.',
-  /** "22./23.08.2026" */
-  long: '22./23.08.2026',
-  /** "Sa/So, 22./23.08.2026" */
-  longWithWeekdays: 'Sa/So, 22./23.08.2026',
+  /** "22.-23.08." */
+  shortRangeNumeric: '22.-23.08.',
+  /** "22.-23.08.2026" */
+  long: '22.-23.08.2026',
+  /** "Sa/So, 22.-23.08.2026" */
+  longWithWeekdays: 'Sa/So, 22.-23.08.2026',
   /** "09:00" — Saturday start time */
   startTime: '09:00',
   saturday: { weekday: 'Samstag', short: '22.08.' },
@@ -128,9 +128,9 @@ export const signupDeadline = {
 /** Key facts for the "Auf einen Blick" strip. */
 export const facts = {
   date: `${tournament.longWithWeekdays} · Start Sa ${tournament.startTime}`,
-  venue: 'Tennisanlage TV Winsen/Luhe · 6 Sandplätze',
-  organizer: 'TV Winsen/Luhe & TSV Winsen',
-  eligibility: 'Mitglieder von TV Winsen/Luhe und TSV Winsen',
+  venue: 'Tennisanlage TV Winsen · 6 Sandplätze',
+  organizer: 'TV Winsen & TSV Winsen',
+  eligibility: 'Mitglieder von TV Winsen und TSV Winsen ab 15 Jahren',
   scoring: 'Vereinsintern — keine LK-Wertung',
   format: 'K.O. mit Nebenrunde · 2 Gewinnsätze, bei 1:1 Match-Tie-Break bis 10',
   seeding: 'Setzung nach Leistungsklasse (nuLiga)',

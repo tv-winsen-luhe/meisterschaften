@@ -4,6 +4,7 @@ import { competitions } from '@/data/tournament'
 // Open competitions only; Hauptfeld (mens) = seeding board, Challenger = friendly list.
 const openCompetitions = competitions.filter(c => c.status === 'open')
 const layoutFor = (slug: string) => (slug === 'mens' ? 'board' : 'list')
+const womens = competitions.find(c => c.id === 'womens')
 ---
 
 <div class="participants" data-participants>
@@ -25,11 +26,32 @@ const layoutFor = (slug: string) => (slug === 'mens' ? 'board' : 'list')
             <li class="pl-skeleton" aria-hidden="true" />
             <li class="pl-skeleton" aria-hidden="true" />
           </ol>
-          <p class="pl-empty" data-empty hidden>
-            Noch niemand — sei die/der Erste.
-          </p>
+          <div class="pl-empty" data-empty hidden>
+            <p class="pl-empty__line" data-empty-line>
+              Noch niemand im Feld — sei die/der Erste.
+            </p>
+            <button type="button" class="pl-empty__cta" data-signup-open data-empty-cta>
+              Jetzt anmelden <span aria-hidden="true">→</span>
+            </button>
+          </div>
         </section>
       ))
+    }
+    {
+      womens && (
+        <section class="pl-group pl-tbd bg-surface-alt p-6 md:col-span-2 md:p-7">
+          <div class="pl-tbd__head">
+            <div>
+              <h3 class="pl-group__title">{womens.label}</h3>
+              <p class="pl-group__sub">Pendant zu den Herren</p>
+            </div>
+            <span class="pl-tbd__tag">In Planung</span>
+          </div>
+          <p class="pl-tbd__note">
+            Das Feld folgt, sobald die Damen-Konkurrenz steht — nach den Vorgesprächen Anfang Juli.
+          </p>
+        </section>
+      )
     }
   </div>
   <p class="pl-status reveal mt-4 text-[13px] leading-[1.6] opacity-60" data-status>
@@ -38,6 +60,10 @@ const layoutFor = (slug: string) => (slug === 'mens' ? 'board' : 'list')
 </div>
 
 <style is:global>
+  /* Panels are always light — pin text to navy so a clay section's white text doesn't bleed in */
+  .pl-group {
+    color: var(--color-navy);
+  }
   .pl-group__head {
     display: flex;
     align-items: flex-start;
@@ -62,6 +88,31 @@ const layoutFor = (slug: string) => (slug === 'mens' ? 'board' : 'list')
     letter-spacing: 0.04em;
     text-transform: uppercase;
     color: rgba(12, 30, 58, 0.5);
+  }
+
+  /* Damen placeholder — planned field, hinted as TBD */
+  .pl-tbd__head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+  }
+  .pl-tbd__tag {
+    flex-shrink: 0;
+    border: 1.5px solid rgba(12, 30, 58, 0.25);
+    padding: 5px 10px;
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: rgba(12, 30, 58, 0.5);
+  }
+  .pl-tbd__note {
+    margin: 12px 0 0;
+    max-width: 62ch;
+    font-size: 14px;
+    line-height: 1.55;
+    color: rgba(12, 30, 58, 0.55);
   }
   .pl-group__count {
     flex-shrink: 0;
@@ -177,11 +228,50 @@ const layoutFor = (slug: string) => (slug === 'mens' ? 'board' : 'list')
   }
 
   .pl-empty {
-    margin: 14px 0 0;
-    font-size: 14px;
-    font-weight: 600;
-    line-height: 1.5;
-    color: rgba(12, 30, 58, 0.55);
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 16px;
+    margin: 18px 0 0;
+    padding: 22px;
+    border: 1.5px dashed rgba(12, 30, 58, 0.22);
+  }
+  .pl-empty__line {
+    margin: 0;
+    font-size: 15px;
+    font-weight: 700;
+    line-height: 1.4;
+    letter-spacing: -0.01em;
+    color: var(--color-navy);
+  }
+  .pl-empty__cta {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    background: var(--color-neon);
+    color: var(--color-navy);
+    font-family: inherit;
+    font-size: 13px;
+    font-weight: 800;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+    padding: 11px 20px;
+    border: none;
+    cursor: pointer;
+    transition:
+      background 0.2s,
+      transform 0.2s;
+  }
+  .pl-empty__cta:hover {
+    background: #e0ff4d;
+    transform: translateY(-1px);
+  }
+  .pl-empty__cta:focus-visible {
+    outline: 2px solid var(--color-navy);
+    outline-offset: 3px;
+  }
+  .pl-empty__cta[hidden] {
+    display: none;
   }
   .participants.is-error .pl-list,
   .participants.is-error .pl-empty {
@@ -256,9 +346,12 @@ const layoutFor = (slug: string) => (slug === 'mens' ? 'board' : 'list')
         group.querySelector<HTMLElement>('[data-count]')!.textContent = '·'
         const empty = group.querySelector<HTMLElement>('[data-empty]')!
         empty.hidden = false
-        empty.textContent = 'Teilnehmerliste folgt in Kürze.'
+        const line = empty.querySelector<HTMLElement>('[data-empty-line]')
+        if (line) line.textContent = 'Teilnehmendenliste folgt in Kürze.'
+        const cta = empty.querySelector<HTMLElement>('[data-empty-cta]')
+        if (cta) cta.hidden = true
       })
-      if (statusEl) statusEl.textContent = 'Die öffentliche Teilnehmerliste wird in Kürze freigeschaltet.'
+      if (statusEl) statusEl.textContent = 'Die öffentliche Teilnehmendenliste wird in Kürze freigeschaltet.'
       return
     }
 
@@ -280,6 +373,10 @@ const layoutFor = (slug: string) => (slug === 'mens' ? 'board' : 'list')
       list.innerHTML = ''
       if (entries.length === 0) {
         empty.hidden = false
+        const line = empty.querySelector<HTMLElement>('[data-empty-line]')
+        if (line) line.textContent = 'Noch niemand im Feld — sei die/der Erste.'
+        const cta = empty.querySelector<HTMLElement>('[data-empty-cta]')
+        if (cta) cta.hidden = false
         return
       }
       empty.hidden = true
@@ -299,7 +396,7 @@ const layoutFor = (slug: string) => (slug === 'mens' ? 'board' : 'list')
       root.querySelectorAll<HTMLElement>('.pl-skeleton').forEach(el => el.remove())
       const statusEl = root.querySelector<HTMLElement>('[data-status]')
       if (statusEl)
-        statusEl.textContent = 'Die Teilnehmerliste lässt sich gerade nicht laden. Bitte später erneut versuchen.'
+        statusEl.textContent = 'Die Teilnehmendenliste lässt sich gerade nicht laden. Bitte später erneut versuchen.'
     }
   }
 

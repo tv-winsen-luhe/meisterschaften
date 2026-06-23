@@ -21,9 +21,10 @@ const labelClass = 'mb-3 block text-[10px] font-bold tracking-[0.2em] uppercase 
         </p>
       </div>
 
-      <div>
+      <div class="flex flex-col items-start gap-2">
         <span class={labelClass}>Kontakt</span>
         <a href={`mailto:${contactEmail}`} class={linkClass}>{contactEmail}</a>
+        <a href={`${base}abmelden`} class={linkClass}>Anmeldung zurückziehen</a>
       </div>
 
       <div class="flex flex-col items-start gap-2 md:items-end">

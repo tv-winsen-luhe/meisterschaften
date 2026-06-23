@@ -7,9 +7,9 @@ interface Env {
   ADMIN_TOKEN: string
 }
 
-const COMPETITIONS = ['mens', 'mens-challenger'] as const
+const COMPETITIONS = ['mens', 'mens-challenger', 'womens'] as const
 const CLUBS = ['TV Winsen/Luhe', 'TSV Winsen'] as const
-const STATUS = ['new', 'confirmed', 'hidden'] as const
+const STATUS = ['new', 'confirmed', 'hidden', 'cancelled'] as const
 const DEFAULT_LK = '25.0'
 
 // nuLiga LK-Vereinsranglisten (TNB) — eine Seite pro Verein, listet Spieler-ID + LK.
@@ -33,6 +33,7 @@ export default {
 
     try {
       if (path === '/api/register' && method === 'POST') return await handleRegister(request, env)
+      if (path === '/api/cancel' && method === 'POST') return await handleCancel(request, env)
       if (path === '/api/participants' && method === 'GET') return await handleParticipants(env)
       if (path === '/admin' && method === 'GET') return adminPage()
       if (path === '/api/admin/list' && method === 'GET') return await handleAdminList(request, env)
@@ -114,6 +115,34 @@ async function handleRegister(request: Request, env: Env): Promise<Response> {
     .run()
 
   return json({ ok: true })
+}
+
+async function handleCancel(request: Request, env: Env): Promise<Response> {
+  let body: Record<string, unknown>
+  try {
+    body = (await request.json()) as Record<string, unknown>
+  } catch {
+    return json({ error: 'Ungültige Anfrage.' }, 400)
+  }
+
+  // Honeypot: bots fill the hidden field → silently "succeed".
+  if (str(body.website)) return json({ ok: true, cancelled: 0 })
+
+  const email = str(body.email)
+  const lastName = str(body.last_name)
+
+  if (!email || !isEmail(email)) return json({ error: 'Bitte gib die E-Mail-Adresse deiner Anmeldung an.' }, 400)
+  if (!lastName) return json({ error: 'Bitte gib deinen Nachnamen an.' }, 400)
+
+  // Cancel every still-active entry that matches email + last name (case-insensitive).
+  const result = await env.DB.prepare(
+    `UPDATE registrations SET status = 'cancelled'
+      WHERE email = ? COLLATE NOCASE AND last_name = ? COLLATE NOCASE AND status IN ('new', 'confirmed')`
+  )
+    .bind(email, lastName)
+    .run()
+
+  return json({ ok: true, cancelled: result.meta?.changes ?? 0 })
 }
 
 async function handleParticipants(env: Env): Promise<Response> {
@@ -387,7 +416,7 @@ const ADMIN_HTML = `<!doctype html>
   <div id="list"></div>
 </main>
 <script>
-  const KONK = { 'mens': 'Herren', 'mens-challenger': 'Herren Challenger' }
+  const KONK = { 'mens': 'Herren', 'mens-challenger': 'Herren Challenger', 'womens': 'Damen' }
   let TOKEN = sessionStorage.getItem('admin_token') || new URLSearchParams(location.search).get('token') || ''
 
   const el = id => document.getElementById(id)
@@ -417,7 +446,7 @@ const ADMIN_HTML = `<!doctype html>
   function counts(rows){
     const conf = rows.filter(r=>r.status==='confirmed')
     const by = k => conf.filter(r=>r.competition===k).length
-    el('counts').textContent = 'Bestätigt: ' + conf.length + ' (Herren ' + by('mens') + ' · Challenger ' + by('mens-challenger') + ') · Gesamt ' + rows.length
+    el('counts').textContent = 'Bestätigt: ' + conf.length + ' (Herren ' + by('mens') + ' · Challenger ' + by('mens-challenger') + ' · Damen ' + by('womens') + ') · Gesamt ' + rows.length
   }
 
   function render(rows){
@@ -448,7 +477,7 @@ const ADMIN_HTML = `<!doctype html>
       + '<label>Spieler-ID</label><input class="pid" type="text" inputmode="numeric" maxlength="8" placeholder="8-stellig" />'
       + '<label class="noid"><input type="checkbox" class="cb-noid" /> keine ID</label>'
       + '<label>LK</label><input class="lk" type="text" inputmode="decimal" placeholder="—" />'
-      + '<label>Feld</label><select class="konk"><option value="mens">Herren</option><option value="mens-challenger">Herren Challenger</option></select>'
+      + '<label>Feld</label><select class="konk"><option value="mens">Herren</option><option value="mens-challenger">Herren Challenger</option><option value="womens">Damen</option></select>'
       + '<button class="btn-primary act-confirm">Bestätigen</button>'
       + '<button class="btn-hide act-hide">Verstecken</button>'
       + '</div>'

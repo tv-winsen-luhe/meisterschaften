@@ -7,7 +7,7 @@ import MarkerHighlight from '@/components/marker-highlight.astro'
 import SignupModal from '@/components/signup-modal.astro'
 import TournamentBracket from '@/components/tournament-bracket.astro'
 import ParticipantList from '@/components/participant-list.astro'
-import { competitions, contactEmail, entryFee, facts, signupDeadline, tournament } from '@/data/tournament'
+import { competitions, contactEmail, entryFee, signupDeadline, tournament } from '@/data/tournament'
 
 const sectClass = 'sect border-t border-navy py-20 focus:outline-none md:py-[120px]'
 const catBadgeClass =
@@ -19,26 +19,26 @@ const mens = competitions.find(c => c.id === 'mens')!
 const challenger = competitions.find(c => c.id === 'mens-challenger')!
 const womens = competitions.find(c => c.id === 'womens')!
 
-const factRows: [string, string][] = [
-  ['Termin', facts.date],
-  ['Ort', facts.venue],
-  ['Teilnahme', facts.eligibility],
-  ['Wertung', facts.scoring],
-  ['Startgeld', facts.entryFee],
-  ['Anmeldeschluss', facts.deadline]
-]
-
-const reglement = [
-  '2 Gewinnsätze · Match-Tie-Break bis 10',
-  'Setzung nach Leistungsklasse',
-  'Vereinsintern — keine LK-Wertung',
-  'Spielbälle werden gestellt'
+const reglement: { label: string; value: string; link?: { href: string; label: string } }[] = [
+  { label: 'Modus', value: 'K.O. mit Nebenrunde — mind. 2 Matches' },
+  { label: 'Zählweise', value: '2 Gewinnsätze, bei 1:1 Match-Tie-Break bis 10' },
+  { label: 'Pro Tag', value: 'Höchstens 2 Einzel' },
+  { label: 'Konkurrenz', value: 'Einzel — Hauptfeld & Challenger' },
+  { label: 'Setzung', value: 'Nach Leistungsklasse' },
+  {
+    label: 'Wertung',
+    value: 'Vereinsintern, keine LK-Wertung',
+    link: { href: 'https://matchday.tennisverein-winsen.de', label: 'Um LK-Punkte spielen? → Matchday Winsen' }
+  }
 ]
 
 const saturday = [
-  ['09:00 · Check-in', 'Startgeld zahlen, Spielplan abholen, einspielen.'],
+  [
+    'Ab 09:00 · Erste Spiele',
+    'Es geht los. Deine Spielzeit kennst du vorab aus dem Spielplan — sei einfach rechtzeitig vor deinem Match da, Startgeld zahlst du beim Check-in.'
+  ],
   ['Vormittag', 'Vorrunden Herren & Challenger — die Nebenrunde startet, niemand fliegt nach einem Match raus.'],
-  ['Nachmittag', 'Viertelfinale & Nebenrunden. Anlage voll, Grill an, Zuschauen erwünscht.'],
+  ['Nachmittag', 'Viertelfinale & Nebenrunden. Gastronomie offen, Zuschauen erwünscht.'],
   ['Abend', 'Ausklang auf der Terrasse.']
 ]
 const sunday = [
@@ -50,16 +50,19 @@ const sunday = [
 
 <Layout
   title="Winsener Meisterschaften 2026 — Vereinsmeisterschaft TV & TSV Winsen"
-  description="Die Winsener Meisterschaften 2026 — die Vereinsmeisterschaft von TV Winsen/Luhe und TSV Winsen am 22./23.08. Herren, Herren Challenger, Damen in Planung. Jetzt anmelden."
-  ogTitle="Winsener Meisterschaften 2026 — 22./23.08."
+  description="Die Winsener Meisterschaften 2026 — die Vereinsmeisterschaft von TV Winsen und TSV Winsen am 22.-23.08. Herren, Herren Challenger, Damen in Planung. Jetzt anmelden."
+  ogTitle="Winsener Meisterschaften 2026 — 22.-23.08."
   ogDescription="Die Vereinsmeisterschaft von TV & TSV Winsen. K.O. mit Nebenrunde, alle Titel an einem Wochenende. Jetzt anmelden."
   bodyClass="bg-surface-alt"
   chrome="event"
   headerAnchors={[
+    { href: '#event', label: 'Event' },
     { href: '#competitions', label: 'Konkurrenzen' },
     { href: '#participants', label: 'Wer ist dabei' },
     { href: '#format', label: 'Modus' },
-    { href: '#weekend', label: 'Ablauf' }
+    { href: '#weekend', label: 'Ablauf' },
+    { href: '#drumherum', label: 'Drumherum' },
+    { href: '#faq', label: 'FAQ' }
   ]}
   headerCta={{ href: '#', label: 'Anmelden' }}
 >
@@ -86,17 +89,22 @@ const sunday = [
       </div>
 
       <div class="mt-16 ml-auto max-w-[48ch] max-[700px]:ml-0">
-        <p class="enter enter--4 m-0 text-[17px] leading-[1.6] font-medium">
+        <div class="enter enter--4 mb-5 flex flex-wrap items-center gap-x-3 gap-y-2">
+          <span class="bg-navy px-2.5 py-1 text-[11px] font-black tracking-[0.15em] text-white uppercase">Neu 2026</span
+          >
+          <span class="text-[13px] font-bold tracking-[0.01em]">Ein Wochenende. Voller Spielplan. Volle Anlage.</span>
+        </div>
+        <p class="enter enter--5 m-0 text-[17px] leading-[1.6] font-medium">
           Die Vereinsmeisterschaft.<br />
           TV &amp; TSV Winsen, ein Wochenende.<br />
-          Alle Titel, eine Anlage.
+          Für alle, die spielen wollen.
         </p>
-        <p class="enter enter--5 mt-3 text-[13px] leading-[1.6] opacity-70">
-          K.O. mit Nebenrunde — niemand fliegt nach einem Match raus. Für Mitglieder beider Vereine, mit Rahmenprogramm
-          für die ganze Familie.
+        <p class="enter enter--6 mt-3 text-[13px] leading-[1.6] opacity-70">
+          Ob ehrgeizig oder gesellig — mit Nebenrunde fliegt niemand nach einem Match raus. Offen für Mitglieder beider
+          Vereine, mit Zeit auf der Terrasse.
         </p>
 
-        <div class="enter enter--6 mt-8">
+        <div class="enter enter--7 mt-8">
           <span class="mb-3 block text-[11px] font-bold tracking-[0.18em] uppercase opacity-65">
             Anmeldung bis {signupDeadline.short}
           </span>
@@ -112,51 +120,44 @@ const sunday = [
     <section id="event" class:list={[sectClass]} tabindex="-1">
       <SectionHeader
         eyebrow="Das Event"
-        headline={['Zwei Vereine,', 'ein Titel.']}
-        note="Ein Wochenende, an dem die ganze Anlage voll ist: TV Winsen/Luhe und TSV Winsen spielen gemeinsam ihre Titelträger aus. Echte Matches, gute Stimmung, Rahmenprogramm — kein leeres Event, sondern der Verein, der lebt."
+        headline={['Zwei Vereine,', 'eine Anlage.']}
+        note="Zwei Tage, an denen TV Winsen und TSV Winsen gemeinsam auf einer Anlage spielen — vom ehrgeizigen Punktspiel bis zum lockeren Match. Eine Einladung an den ganzen Verein: echte Matches, Zeit auf der Terrasse und die Titel am Sonntag."
       />
 
-      <div class="cat-grid grid grid-cols-3 gap-0.5 bg-navy p-0.5 max-[900px]:grid-cols-1">
-        <Card variant="light" minHeight={300} stagger={0}>
-          <span class={catBadgeClass}>Stimmung</span>
-          <h3 class="mt-6 mb-3 text-[clamp(22px,6cqw,30px)] leading-[1.05] font-black tracking-[-0.03em]">
-            Volle Anlage,<br />echte Matches
+      <div class="grid grid-cols-1 gap-y-8 md:grid-cols-[1.25fr_1fr] md:gap-x-12 md:gap-y-0">
+        <!-- Leitfeld: die Kernbotschaft, als farbiger Anker -->
+        <div class="reveal flex flex-col justify-center gap-3.5 bg-navy p-8 text-white md:p-10">
+          <span class="text-[11px] font-bold tracking-[0.2em] text-neon uppercase">Für jedes Niveau</span>
+          <h3 class="text-[clamp(30px,4.6vw,46px)] leading-[0.95] font-black tracking-[-0.03em] uppercase">
+            Ehrgeizig<br />oder locker
           </h3>
-          <p class="m-0 text-[13px] leading-[1.6] opacity-70">
-            Zwei Tage Turnier auf allen Plätzen, Zuschauer:innen ausdrücklich willkommen — endlich wieder mitbekommen,
-            wer spielt.
+          <p class="m-0 max-w-[40ch] text-[14px] leading-[1.6] text-white/75">
+            Hauptfeld für die Ambitionierten, geschütztes Challenger-Feld für alle anderen — alle finden ihr Match.
           </p>
-        </Card>
-        <Card variant="blue" minHeight={300} stagger={1}>
-          <span class={catBadgeClass}>Sportlich</span>
-          <h3 class="mt-6 mb-3 text-[clamp(22px,6cqw,30px)] leading-[1.05] font-black tracking-[-0.03em]">
-            Miss dich mit<br />den Besten
-          </h3>
-          <p class="m-0 text-[13px] leading-[1.6] opacity-80">
-            Hauptfeld für die Ambitionierten, geschütztes Challenger-Feld für alle anderen — jede:r findet sein Match.
-          </p>
-        </Card>
-        <Card variant="clay-textured" minHeight={300} stagger={2}>
-          <span class={catBadgeInvClass}>Drumherum</span>
-          <h3 class="mt-6 mb-3 text-[clamp(22px,6cqw,30px)] leading-[1.05] font-black tracking-[-0.03em] text-white">
-            Mehr als<br />Tennis
-          </h3>
-          <p class="m-0 text-[13px] leading-[1.6] text-white/80">
-            Kinderprogramm, Grillen & Gastronomie auf der Terrasse, gemeinsame Siegerehrung am Sonntag.
-          </p>
-        </Card>
-      </div>
+        </div>
 
-      <dl class="reveal mt-10 grid grid-cols-1 border-t border-navy/15">
-        {
-          factRows.map(([label, value]) => (
-            <div class="flex flex-col gap-1 border-b border-navy/15 py-4 md:flex-row md:items-baseline md:gap-8">
-              <dt class="w-[170px] shrink-0 text-[11px] font-bold tracking-[0.16em] uppercase opacity-50">{label}</dt>
-              <dd class="m-0 text-[15px] leading-[1.5] font-medium">{value}</dd>
-            </div>
-          ))
-        }
-      </dl>
+        <!-- Zwei begleitende Punkte: offen, von Haarlinien geführt -->
+        <div class="flex flex-col">
+          <div class="reveal border-t-2 border-navy py-6 md:py-7">
+            <span class="text-[11px] font-bold tracking-[0.18em] uppercase opacity-50">Dabei sein</span>
+            <h4 class="mt-3 mb-2 text-[clamp(18px,2.2vw,22px)] leading-[1.1] font-black tracking-[-0.02em]">
+              Zwei Tage, echte Matches
+            </h4>
+            <p class="m-0 text-[13px] leading-[1.6] opacity-70">
+              Turnier über zwei Tage — Zuschauende ausdrücklich willkommen. Komm vorbei und schau, wer spielt.
+            </p>
+          </div>
+          <div class="reveal border-t-2 border-navy py-6 md:py-7">
+            <span class="text-[11px] font-bold tracking-[0.18em] uppercase opacity-50">Atmosphäre</span>
+            <h4 class="mt-3 mb-2 text-[clamp(18px,2.2vw,22px)] leading-[1.1] font-black tracking-[-0.02em]">
+              Volle Anlage
+            </h4>
+            <p class="m-0 text-[13px] leading-[1.6] opacity-70">
+              Das Wochenende lebt davon, dass alle da sind — Spielende wie Zuschauende. Genau das hat zuletzt gefehlt.
+            </p>
+          </div>
+        </div>
+      </div>
     </section>
 
     <!-- Konkurrenzen -->
@@ -164,34 +165,15 @@ const sunday = [
       <SectionHeader
         eyebrow="Konkurrenzen"
         headline={['Wähl dein', 'Feld.']}
-        note="Du entscheidest bei der Anmeldung selbst, in welchem Feld du spielst — und musst deine Leistungsklasse dafür nicht kennen."
+        note="Bei den Herren starten wir dieses Jahr mit zwei Einzel-Feldern. Du entscheidest bei der Anmeldung selbst, in welchem du spielst, und musst deine Leistungsklasse dafür nicht kennen."
       />
 
-      <!-- Welches Feld ist meins? -->
-      <div class="reveal mb-10 grid grid-cols-1 gap-0.5 bg-navy p-0.5 md:grid-cols-2">
-        <div class="bg-surface-alt p-6">
-          <span class="text-[11px] font-bold tracking-[0.16em] uppercase opacity-50">Welches Feld ist meins?</span>
-          <p class="mt-3 mb-0 text-[15px] leading-[1.55]">
-            <strong class="font-bold">Punktspiele, ambitioniert, willst die Besten?</strong><br />
-            <span class="opacity-70">→ Hauptfeld (Herren).</span>
-          </p>
-        </div>
-        <div class="bg-surface-alt p-6">
-          <span class="text-[11px] font-bold tracking-[0.16em] uppercase opacity-50">&nbsp;</span>
-          <p class="mt-3 mb-0 text-[15px] leading-[1.55]">
-            <strong class="font-bold">Freizeit, Wieder- oder Einsteiger, keine/hohe LK?</strong><br />
-            <span class="opacity-70">→ Herren Challenger.</span>
-          </p>
-        </div>
-      </div>
-
       <div class="cat-grid grid grid-cols-3 gap-0.5 bg-navy p-0.5 max-[900px]:grid-cols-1">
-        <Card variant="light" minHeight={420} stagger={0}>
+        <Card variant="light" stagger={0}>
           <span class={catBadgeClass}>Hauptfeld</span>
-          <div class="my-5 flex flex-col">
-            <span class="text-[clamp(34px,13cqw,64px)] leading-[0.85] font-black tracking-[-0.04em] uppercase"
-              >{mens.label}</span
-            >
+          <div class="my-5 flex flex-col gap-1 uppercase">
+            <span class="text-[clamp(11px,2.8cqw,15px)] font-bold tracking-[0.18em] opacity-55">Einzel</span>
+            <span class="text-[clamp(34px,13cqw,64px)] leading-[0.85] font-black tracking-[-0.04em]">{mens.label}</span>
           </div>
           <p class="m-0 text-[13px] leading-[1.6] font-semibold">{mens.audience}</p>
           <p class="mt-2 mb-0 text-[13px] leading-[1.6] opacity-65">{mens.blurb}</p>
@@ -199,12 +181,12 @@ const sunday = [
             Titel: {mens.title}
           </p>
         </Card>
-        <Card variant="blue" minHeight={420} stagger={1}>
-          <span class={catBadgeClass}>Einsteiger & Freizeit</span>
+        <Card variant="blue" stagger={1}>
+          <span class={catBadgeInvClass}>Einsteiger & Freizeit</span>
           <div class="my-5 flex flex-col gap-1 uppercase">
-            <span class="text-[clamp(11px,2.8cqw,15px)] font-bold tracking-[0.18em] opacity-85">Herren</span>
-            <span class="text-[clamp(30px,11cqw,52px)] leading-[0.85] font-black tracking-[-0.04em]">
-              <MarkerHighlight brush={3}>Challenger</MarkerHighlight>
+            <span class="text-[clamp(11px,2.8cqw,15px)] font-bold tracking-[0.18em] opacity-85">Einzel</span>
+            <span class="text-[clamp(30px,11cqw,52px)] leading-[0.85] font-black tracking-[-0.04em] text-navy">
+              <MarkerHighlight brush={3}>Herren Challenger</MarkerHighlight>
             </span>
           </div>
           <p class="m-0 text-[13px] leading-[1.6] font-semibold">{challenger.audience}</p>
@@ -213,7 +195,7 @@ const sunday = [
             {challenger.requirement}
           </p>
         </Card>
-        <Card variant="clay-textured" minHeight={420} stagger={2}>
+        <Card variant="dark" stagger={2}>
           <span class={catBadgeInvClass}>In Planung</span>
           <div class="my-5 flex flex-col">
             <span
@@ -227,16 +209,10 @@ const sunday = [
           </p>
         </Card>
       </div>
-
-      <p class="reveal mt-6 max-w-[64ch] text-[13px] leading-[1.6] opacity-60">
-        <strong class="font-semibold opacity-100">Was ist die LK?</strong> Die Leistungsklasse (LK 1 bis 25) misst deine Spielstärke
-        — 25 ist der Einstieg. Du musst sie nicht kennen: Für die Setzung ziehen wir sie aus nuLiga; ohne Eintrag zählst du
-        als LK 25.
-      </p>
     </section>
 
     <!-- Wer ist dabei -->
-    <section id="participants" class:list={[sectClass]} tabindex="-1">
+    <section id="participants" class:list={[sectClass, 'sect--clay']} tabindex="-1">
       <SectionHeader
         eyebrow="Wer ist dabei"
         headline={['Das', 'Feld.']}
@@ -254,13 +230,28 @@ const sunday = [
       />
       <TournamentBracket />
 
-      <div class="reveal mt-10 flex flex-wrap gap-2.5">
+      <dl class="reveal mt-10 grid grid-cols-1 gap-x-12 md:grid-cols-2">
         {
-          reglement.map(r => (
-            <span class="border-[1.5px] border-navy/20 px-3.5 py-2 text-[12px] font-bold tracking-[0.02em]">{r}</span>
+          reglement.map(({ label, value, link }) => (
+            <div class="flex flex-col gap-1 border-t border-navy/15 py-4 sm:flex-row sm:gap-6">
+              <dt class="text-[11px] font-bold tracking-[0.18em] uppercase opacity-45 sm:w-[110px] sm:shrink-0 sm:pt-0.5">
+                {label}
+              </dt>
+              <dd class="m-0 text-[14px] leading-[1.5] font-semibold">
+                {value}
+                {link && (
+                  <a
+                    href={link.href}
+                    class="mt-1.5 block text-[12px] font-medium text-navy/60 underline underline-offset-2 transition-colors hover:text-navy"
+                  >
+                    {link.label}
+                  </a>
+                )}
+              </dd>
+            </div>
           ))
         }
-      </div>
+      </dl>
     </section>
 
     <!-- Der Ablauf -->
@@ -268,7 +259,7 @@ const sunday = [
       <SectionHeader
         eyebrow="Der Ablauf"
         headline={['Das', 'Wochenende.']}
-        note="Über zwei Tage, Start Samstag 09:00. Der exakte Spielplan mit Uhrzeiten und Live-Ergebnissen erscheint ab 19.08. hier."
+        note="Über zwei Tage. Die ersten Spiele starten Samstag um 09:00 — deine genauen Spielzeiten stehen vorab im Spielplan (ab 19.08. hier, am Wochenende mit Live-Ergebnissen). Du musst also nicht den ganzen Tag auf der Anlage sein."
       />
 
       <div class="grid grid-cols-1 gap-0.5 bg-navy p-0.5 md:grid-cols-2">
@@ -307,26 +298,77 @@ const sunday = [
       </div>
     </section>
 
+    <!-- Drumherum -->
+    <section id="drumherum" class:list={[sectClass]} tabindex="-1">
+      <SectionHeader
+        eyebrow="Drumherum"
+        headline={['Mehr als', 'Tennis.']}
+        note="Gründe zu bleiben, auch wenn du gerade nicht selbst auf dem Platz stehst — damit aus zwei Spieltagen ein Wochenende wird."
+      />
+
+      <div class="grid grid-cols-1 gap-0.5 bg-navy p-0.5 md:grid-cols-3">
+        <div class="reveal bg-surface-alt p-6 md:p-8">
+          <span class="text-[11px] font-bold tracking-[0.18em] uppercase opacity-45">Gastronomie</span>
+          <h3 class="mt-3 mb-2 text-[clamp(18px,2.2vw,22px)] leading-[1.1] font-black tracking-[-0.02em]">
+            Terrasse &amp; Verpflegung
+          </h3>
+          <p class="m-0 text-[13px] leading-[1.6] opacity-70">
+            Essen und Trinken über beide Tage. Platz, um zwischen den Matches zu sitzen, zuzuschauen und sich neben dem
+            Platz zu sehen.
+          </p>
+        </div>
+        <div class="reveal bg-surface-alt p-6 md:p-8">
+          <span class="text-[11px] font-bold tracking-[0.18em] uppercase opacity-45">Für Familien</span>
+          <h3 class="mt-3 mb-2 text-[clamp(18px,2.2vw,22px)] leading-[1.1] font-black tracking-[-0.02em]">
+            Kinderprogramm
+          </h3>
+          <p class="m-0 text-[13px] leading-[1.6] opacity-70">
+            Etwas für den Nachwuchs, damit auch die Familie einen Grund hat mitzukommen — und das Wochenende für alle
+            funktioniert.
+          </p>
+        </div>
+        <div class="reveal bg-surface-alt p-6 md:p-8">
+          <span class="text-[11px] font-bold tracking-[0.18em] uppercase opacity-45">Sonntag</span>
+          <h3 class="mt-3 mb-2 text-[clamp(18px,2.2vw,22px)] leading-[1.1] font-black tracking-[-0.02em]">
+            Gemeinsame Siegerehrung
+          </h3>
+          <p class="m-0 text-[13px] leading-[1.6] opacity-70">
+            Alle Titel zum Abschluss zusammen — der Moment, in dem die Winsener Meister gefeiert werden, statt dass
+            jeder einzeln nach Hause fährt.
+          </p>
+        </div>
+      </div>
+    </section>
+
     <!-- FAQ -->
     <section id="faq" class:list={[sectClass]} tabindex="-1">
-      <SectionHeader eyebrow="FAQ" headline={['Noch', 'Fragen?']} />
+      <SectionHeader eyebrow="FAQ" headline={['Gut zu', 'wissen.']} />
 
       <div class="reveal max-w-[720px]">
         <FaqItem question="Wer darf mitmachen?">
-          Alle Mitglieder von TV Winsen/Luhe und TSV Winsen. Die Herren-Konkurrenz ist offen für alle, das
-          Challenger-Feld für Freizeit-/Einsteiger und Spieler ab LK 20. Eine Damen-Konkurrenz ist in Planung.
+          Alle Mitglieder von TV Winsen und TSV Winsen ab 15 Jahren. Die Herren-Konkurrenz ist offen für alle, das
+          Challenger-Feld für Freizeit-/Einsteiger und Spielende ab LK 20. Eine Damen-Konkurrenz ist in Planung.
         </FaqItem>
         <FaqItem question="Brauche ich eine Spieler-ID oder muss ich meine LK kennen?">
           Nein. Du gibst nur Namen, Verein und Konkurrenz an. Die Leistungsklasse ergänzen wir für die Setzung intern
           aus nuLiga — auch ohne nuLiga-Konto kannst du melden.
         </FaqItem>
+        <FaqItem question="Was ist die LK (Leistungsklasse)?">
+          Die LK (1 bis 25) misst deine Spielstärke — LK 1 ist Spitze, LK 25 der Einstieg. Du musst sie nicht kennen:
+          Für die Setzung ziehen wir sie aus nuLiga, ohne Eintrag zählst du als LK 25.
+        </FaqItem>
+        <FaqItem question="Einzel oder Doppel?">
+          Bei den Herren starten wir dieses Jahr mit dem Einzel — im Hauptfeld und im Challenger. Ein Doppel kann in den
+          kommenden Jahren dazukommen, gehört diesmal aber noch nicht zum Programm.
+        </FaqItem>
         <FaqItem question="Was ist die Nebenrunde?">
-          Wer in der ersten Runde verliert, ist nicht raus, sondern spielt in der Nebenrunde weiter. So hat jede:r mehr
-          als ein Match.
+          Wer in der ersten Runde verliert, ist nicht raus, sondern spielt in der Nebenrunde weiter — so sind dir
+          mindestens zwei Matches sicher. Mehr als zwei Einzel pro Tag spielt aber niemand.
         </FaqItem>
         <FaqItem question="Was ist das Challenger-Feld?">
-          Das geschützte Feld für Freizeit- und Einsteiger sowie alle ab LK 20. Stärkere Spieler sind nicht zugelassen —
-          ausgeglichene Matches statt Abschüsse. Der Gewinner ist Winsener Meister Herren Challenger.
+          Das geschützte Feld für Freizeit- und Einsteiger sowie alle ab LK 20. Wer besser als LK 20 ist (also LK 1–19),
+          spielt im Hauptfeld und darf hier nicht antreten — so gibt es ausgeglichene Matches statt Abschüsse. Gewonnen
+          wird der Titel Winsener Meister Herren Challenger.
         </FaqItem>
         <FaqItem question="Was kostet die Teilnahme?">
           {entryFee} € Startgeld pro Person, bar vor Ort beim Check-in. Spielbälle werden gestellt.
@@ -338,6 +380,11 @@ const sunday = [
         <FaqItem question="Was passiert bei Regen?">
           Das Turnier findet bei fast jedem Wetter statt — Sand verträgt einiges. Bei stärkerem Regen kann das
           Spielformat verkürzt werden; zwei Plätze haben Flutlicht für den Abend.
+        </FaqItem>
+        <FaqItem question="Wie melde ich mich wieder ab?">
+          Pläne geändert? Über die{' '}
+          <a href="/abmelden" class="font-semibold text-navy underline-offset-2">Abmelde-Seite</a> ziehst du deine Anmeldung
+          mit E-Mail und Nachname selbst zurück. Alternativ genügt eine kurze Nachricht an uns.
         </FaqItem>
         <FaqItem question="Ich habe noch Fragen.">
           Schreib uns an
@@ -492,7 +539,8 @@ const sunday = [
   }
   .sect.is-visible .sect__headline-clip {
     opacity: 1;
-    clip-path: inset(0 0 0 0);
+    /* negative top inset so umlaut dots (Ä/Ö/Ü) aren't sheared by the clip box */
+    clip-path: inset(-0.22em 0 0 0);
   }
 
   /* Scroll reveal */
@@ -530,6 +578,9 @@ const sunday = [
   }
   .enter--6 {
     animation-delay: 0.85s;
+  }
+  .enter--7 {
+    animation-delay: 1s;
   }
 
   @keyframes enterUp {
@@ -627,6 +678,12 @@ const sunday = [
     background: rgba(255, 255, 255, 0.32);
   }
   .sect--clay .final-cta__outline {
+    -webkit-text-stroke-color: #fff;
+    color: var(--color-clay);
+  }
+
+  /* Outlined section headline on clay: white stroke, clay fill (hollow) */
+  .sect--clay .sect__headline .text-stroke-ink {
     -webkit-text-stroke-color: #fff;
     color: var(--color-clay);
   }

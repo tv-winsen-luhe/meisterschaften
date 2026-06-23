@@ -1,5 +1,7 @@
 ---
-import { signupCompetitions, entryFee, contactEmail, signupDeadline } from '@/data/tournament'
+import { signupCompetitions, entryFee, signupDeadline } from '@/data/tournament'
+import tvLogo from '@/assets/logo.svg'
+import tsvLogo from '@/assets/tsv-winsen.png'
 ---
 
 <dialog id="signup-dialog" class="signup-dialog" aria-labelledby="signup-title">
@@ -10,12 +12,10 @@ import { signupCompetitions, entryFee, contactEmail, signupDeadline } from '@/da
 
     <span class="signup-eyebrow">Anmeldung</span>
     <h2 id="signup-title" class="signup-heading" tabindex="-1">Sei dabei.</h2>
+    <p class="signup-deadline">Anmeldeschluss {signupDeadline.long}</p>
 
     <form id="signup-form" class="signup-form" novalidate>
-      <p class="signup-intro">
-        Verbindliche Anmeldung. Keine Spieler-ID und keine Kenntnis deiner Leistungsklasse nötig — die LK ziehen wir für
-        die Setzung intern aus nuLiga. Startgeld {entryFee} € bar vor Ort beim Check-in.
-      </p>
+      <p class="signup-intro">Startgeld {entryFee} € bar vor Ort beim Check-in.</p>
 
       <fieldset class="signup-field">
         <legend class="signup-label">Konkurrenz</legend>
@@ -26,15 +26,14 @@ import { signupCompetitions, entryFee, contactEmail, signupDeadline } from '@/da
                 <input type="radio" name="competition" value={c.slug} required checked={i === 0} />
                 <span class="competition-option__body">
                   <span class="competition-option__label">{c.label}</span>
-                  {c.requirement && <span class="competition-option__hint">{c.requirement}</span>}
+                  <span class="competition-option__hint">{c.requirement || ' '}</span>
                 </span>
               </label>
             ))
           }
         </div>
         <p class="signup-hint">
-          Unsicher? Challenger ist das geschützte Feld für Freizeit-/Einsteiger und alle ab LK 20 — die Turnierleitung
-          prüft das und ordnet dich notfalls richtig zu.
+          Unsicher? Challenger ist das geschützte Feld für Freizeit-/Einsteiger und alle ab LK 20.
         </p>
       </fieldset>
 
@@ -69,11 +68,13 @@ import { signupCompetitions, entryFee, contactEmail, signupDeadline } from '@/da
         <legend class="signup-label">Verein</legend>
         <div class="signup-grid-2">
           <label class="competition-option">
-            <input type="radio" name="club" value="TV Winsen/Luhe" required checked />
-            <span class="competition-option__body"><span class="competition-option__label">TV Winsen/Luhe</span></span>
+            <input type="radio" name="club" value="TV Winsen" required checked />
+            <span class="club-logo"><img src={tvLogo.src} alt="" width="28" height="28" loading="lazy" /></span>
+            <span class="competition-option__body"><span class="competition-option__label">TV Winsen</span></span>
           </label>
           <label class="competition-option">
             <input type="radio" name="club" value="TSV Winsen" required />
+            <span class="club-logo"><img src={tsvLogo.src} alt="" width="28" height="28" loading="lazy" /></span>
             <span class="competition-option__body"><span class="competition-option__label">TSV Winsen</span></span>
           </label>
         </div>
@@ -93,7 +94,7 @@ import { signupCompetitions, entryFee, contactEmail, signupDeadline } from '@/da
           />
         </div>
         <div class="signup-field">
-          <label class="signup-label" for="phone">Handy <span class="signup-label__opt">optional</span></label>
+          <label class="signup-label" for="phone">Mobilnummer <span class="signup-label__opt">optional</span></label>
           <input class="signup-input" type="tel" id="phone" name="phone" maxlength="40" autocomplete="tel" />
           <p class="signup-hint">Für kurzfristige Infos per WhatsApp.</p>
         </div>
@@ -113,22 +114,18 @@ import { signupCompetitions, entryFee, contactEmail, signupDeadline } from '@/da
       <label class="signup-consent">
         <input type="checkbox" name="consent" value="yes" required />
         <span>
-          Ich melde mich verbindlich an und bin einverstanden, dass mein <strong
-            >Name, mein Verein, meine Konkurrenz und meine Leistungsklasse</strong
-          > auf dieser Turnier-Website öffentlich angezeigt werden. Meine Kontaktdaten nutzt die Turnierleitung nur zur Organisation.
+          Ich bin einverstanden, dass mein <strong>Name, mein Verein, meine Konkurrenz und meine Leistungsklasse</strong
+          > auf dieser Turnier-Website öffentlich angezeigt werden. Meine Kontaktdaten nutzt die Turnierleitung nur zur Organisation.{
+            ' '
+          }
           <a href="/datenschutz" class="signup-consent__link">Datenschutz</a>
         </span>
       </label>
 
       <div class="signup-actions">
-        <button type="submit" class="cta-primary signup-submit">Anmeldung absenden</button>
+        <button type="submit" class="cta-primary signup-submit">Verbindlich anmelden</button>
         <p class="signup-error" role="alert" hidden></p>
       </div>
-
-      <p class="signup-foot">
-        Anmeldeschluss <strong>{signupDeadline.long}</strong>. Formular geht nicht? Schreib uns an
-        <a href={`mailto:${contactEmail}`}>{contactEmail}</a>.
-      </p>
     </form>
 
     <div class="signup-success" hidden>
@@ -136,8 +133,9 @@ import { signupCompetitions, entryFee, contactEmail, signupDeadline } from '@/da
       <h3 class="signup-success__title">Danke, <span data-success-name>du</span>!</h3>
       <p class="signup-success__text">
         Deine Anmeldung ist eingegangen. Die Turnierleitung übernimmt dich in den Spielplan und meldet sich, falls noch
-        etwas fehlt. Sobald wir dich bestätigt haben, tauchst du in der Teilnehmerliste auf. Startgeld {entryFee} € bringst
-        du bar zum Check-in mit.
+        etwas fehlt. Sobald wir dich bestätigt haben, tauchst du in der Teilnehmendenliste auf. Startgeld {entryFee} € bringst
+        du bar zum Check-in mit. Pläne ändern sich? Du kannst dich jederzeit wieder{' '}
+        <a href="/abmelden" class="signup-consent__link">abmelden</a>.
       </p>
       <div class="signup-success__actions">
         <button type="button" class="cta-primary" data-signup-close>Schließen</button>
@@ -237,7 +235,7 @@ import { signupCompetitions, entryFee, contactEmail, signupDeadline } from '@/da
     margin-bottom: 10px;
   }
   .signup-heading {
-    margin: 0 0 20px;
+    margin: 0 0 10px;
     font-size: clamp(30px, 7vw, 44px);
     line-height: 0.9;
     letter-spacing: -0.035em;
@@ -245,11 +243,19 @@ import { signupCompetitions, entryFee, contactEmail, signupDeadline } from '@/da
     text-transform: uppercase;
     outline: none;
   }
+  .signup-deadline {
+    margin: 0 0 24px;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--color-neon);
+  }
 
   .signup-form {
     display: flex;
     flex-direction: column;
-    gap: 22px;
+    gap: 16px;
   }
   .signup-intro {
     margin: 0;
@@ -261,7 +267,7 @@ import { signupCompetitions, entryFee, contactEmail, signupDeadline } from '@/da
   .signup-grid-2 {
     display: grid;
     grid-template-columns: 1fr;
-    gap: 8px 18px;
+    gap: 8px 12px;
   }
   @media (min-width: 480px) {
     .signup-grid-2 {
@@ -300,7 +306,7 @@ import { signupCompetitions, entryFee, contactEmail, signupDeadline } from '@/da
     color: #fff;
     font: inherit;
     font-size: 15px;
-    padding: 12px 14px;
+    padding: 10px 13px;
     transition:
       border-color 0.18s ease,
       background 0.18s ease;
@@ -318,10 +324,11 @@ import { signupCompetitions, entryFee, contactEmail, signupDeadline } from '@/da
   .competition-option {
     position: relative;
     display: flex;
+    align-items: center;
     cursor: pointer;
     background: rgba(255, 255, 255, 0.06);
     border: 1.5px solid rgba(255, 255, 255, 0.16);
-    padding: 13px 15px;
+    padding: 9px 14px;
     transition:
       border-color 0.18s ease,
       background 0.18s ease;
@@ -330,6 +337,23 @@ import { signupCompetitions, entryFee, contactEmail, signupDeadline } from '@/da
     position: absolute;
     opacity: 0;
     pointer-events: none;
+  }
+  .club-logo {
+    flex-shrink: 0;
+    width: 28px;
+    height: 28px;
+    margin-right: 11px;
+    border-radius: 50%;
+    background: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+  }
+  .club-logo img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
   }
   .competition-option__body {
     display: flex;
@@ -498,7 +522,7 @@ import { signupCompetitions, entryFee, contactEmail, signupDeadline } from '@/da
     successPanel.hidden = true
     if (submitBtn) {
       submitBtn.disabled = false
-      submitBtn.textContent = 'Anmeldung absenden'
+      submitBtn.textContent = 'Verbindlich anmelden'
     }
     if (errorEl) errorEl.hidden = true
   }
@@ -561,7 +585,7 @@ import { signupCompetitions, entryFee, contactEmail, signupDeadline } from '@/da
           errorEl.hidden = false
         }
         submitBtn.disabled = false
-        submitBtn.textContent = 'Anmeldung absenden'
+        submitBtn.textContent = 'Verbindlich anmelden'
       }
     })
   }
