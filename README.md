@@ -19,15 +19,21 @@ mit Online-Anmeldung und öffentlicher, live wachsender Teilnehmerliste.
 ```
 meisterschaften.tennisverein-winsen.de  →  ein Worker
   ├─ statische Astro-Seite (dist/ als Assets)
-  ├─ POST /api/anmeldung      Anmeldung speichern (status='neu')
-  ├─ GET  /api/teilnehmer     öffentliche, bestätigte Liste (Name, Verein, Konkurrenz, LK)
+  ├─ POST /api/register       Anmeldung speichern (status='new')
+  ├─ POST /api/cancel         Selbst-Abmeldung (E-Mail + Nachname → status='cancelled')
+  ├─ GET  /api/participants   öffentliche, bestätigte Liste (Name, Verein, Konkurrenz, LK)
   ├─ GET  /admin              token-geschützte Admin-Seite (bestätigen, LK setzen, verstecken)
+  ├─ POST /api/admin/*        Admin-API (list, update, refresh-lk)
   ├─ GET  /export?token=…     CSV aller Anmeldungen
-  └─ D1   Tabelle „meldungen"
+  └─ D1   Tabelle „registrations"
 ```
 
+- Konkurrenzen: **Herren**, **Herren Challenger** (geschützt, ab LK 20) und **Damen** (in Planung,
+  aber bereits im Formular wählbar).
 - Anmeldungen erscheinen **erst nach Bestätigung** durch die Turnierleitung öffentlich
   (Confirm-Gate). Das Bestätigen im Admin ist zugleich der Übertrag in nuTurnier.
+- **Abmeldung:** Mitglieder ziehen ihre Anmeldung selbst über `/abmelden` zurück (Abgleich aus
+  E-Mail + Nachname, Status `cancelled` → fällt sofort aus der öffentlichen Liste).
 - Die **LK** wird nicht abgefragt, sondern beim Bestätigen im Admin gesetzt (Default `25.0`).
 - Kill-Switch `PUBLIC_LIST_ENABLED` (in `wrangler.toml`) schaltet die öffentliche Liste an/aus.
 
