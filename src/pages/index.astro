@@ -663,6 +663,10 @@ const sunday = [
     box-shadow: 0 0 0 100vmax var(--color-clay);
     clip-path: inset(0 -100vmax);
     border-top-color: transparent;
+    /* Contain the full-bleed noise ::before so it can't widen the page on mobile
+       (iOS doesn't reliably honor overflow-x:clip on html/body). box-shadow is
+       not clipped by overflow, so the clay band still bleeds full-width. */
+    overflow: clip;
   }
   .sect--clay::before {
     content: '';
