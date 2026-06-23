@@ -1,17 +1,19 @@
-export type CompetitionStatus = 'offen' | 'geplant'
+export type CompetitionStatus = 'open' | 'planned'
 
 export interface Competition {
   id: string
-  /** Wert, der im Anmeldeformular und in der D1-Spalte `konkurrenz` landet. */
-  value: string
+  /** Slug stored in the form, the D1 `competition` column and `data-` attributes. */
+  slug: string
   label: string
-  /** Kurzbeschreibung für die Konkurrenz-Card. */
+  /** Self-identification one-liner for the "which field is mine?" framing. */
+  audience: string
+  /** Short description for the competition card. */
   blurb: string
-  /** Teilnahmevoraussetzung (z. B. LK-Grenze) — optional. */
-  voraussetzung?: string
-  titel: string
+  /** Formal entry requirement (e.g. LK limit) — optional, shown as small print. */
+  requirement?: string
+  title: string
   status: CompetitionStatus
-  /** Im Anmeldeformular auswählbar? (Damen ist „in Planung" → false) */
+  /** Selectable in the signup form? (Damen is "in Planung" → false) */
   selectable: boolean
 }
 
@@ -30,51 +32,54 @@ export const venueAddress = `${venue.street}, ${venue.cityLine}`
 
 export const contactEmail = 'sportwart@tennisverein-winsen.de'
 
-/** Startgeld pro Person, bar vor Ort, in EUR. */
-export const startgeld = 5
+/** Entry fee per person, cash on site, in EUR. */
+export const entryFee = 5
 
-/** Default-LK für Teilnehmer ohne nuLiga-Eintrag (wird im Admin gesetzt). */
+/** Default LK for participants without a nuLiga entry (set in admin). */
 export const defaultLk = '25.0'
 
-/** LK-Obergrenze des Challenger-Felds (Schutz nach oben). */
+/** LK threshold of the Challenger field (protected upwards). */
 export const challengerMinLk = 20
 
 export const competitions: readonly Competition[] = [
   {
-    id: 'herren',
-    value: 'herren',
+    id: 'mens',
+    slug: 'mens',
     label: 'Herren',
+    audience: 'Du spielst Punktspiele, trainierst regelmäßig und willst dich mit den Stärksten messen.',
     blurb:
-      'Das Hauptfeld — offen für alle Herren von TV Winsen/Luhe und TSV Winsen. Hier wird der Winsener Meister ausgespielt.',
-    titel: 'Winsener Meister Herren',
-    status: 'offen',
+      'Das Hauptfeld — offen für alle. Hier treten die stärksten Spieler an und hier wird der Winsener Meister ausgespielt.',
+    title: 'Winsener Meister Herren',
+    status: 'open',
     selectable: true
   },
   {
-    id: 'herren-challenger',
-    value: 'herren-challenger',
+    id: 'mens-challenger',
+    slug: 'mens-challenger',
     label: 'Herren Challenger',
+    audience: 'Du spielst eher zum Spaß, bist Wieder- oder Einsteiger und hast keine oder eine hohe Leistungsklasse.',
     blurb:
-      'Das geschützte Feld: nur für Spieler mit Leistungsklasse 20 oder höher. Stärkere Spieler sind nicht zugelassen — hier zählt das Match, nicht der Abschuss.',
-    voraussetzung: 'Nur LK 20+ · klubunabhängig',
-    titel: 'Winsener Meister Herren Challenger',
-    status: 'offen',
+      'Das geschützte Feld: Stärkere Spieler sind nicht zugelassen, hier zählt das Match statt der Abschuss. Keine LK? Dann zählst du als LK 25 — und bist hier genau richtig.',
+    requirement: 'Nur ab LK 20 · klubunabhängig',
+    title: 'Winsener Meister Herren Challenger',
+    status: 'open',
     selectable: true
   },
   {
-    id: 'damen',
-    value: 'damen',
+    id: 'womens',
+    slug: 'womens',
     label: 'Damen',
+    audience: '',
     blurb:
       'Eine Damen-Konkurrenz ist in Planung — ein Wettkampffeld um die Winsener Meisterin sowie ein geselliges Zweitformat. Details nach den Vorgesprächen Anfang Juli.',
-    titel: 'Winsener Meisterin',
-    status: 'geplant',
+    title: 'Winsener Meisterin',
+    status: 'planned',
     selectable: false
   }
 ] as const
 
-/** Im Formular auswählbare Konkurrenzen (Damen noch nicht). */
-export const signupKonkurrenzen = competitions.filter(c => c.selectable)
+/** Competitions selectable in the signup form (Damen not yet). */
+export const signupCompetitions = competitions.filter(c => c.selectable)
 
 const TZ = 'Europe/Berlin'
 
@@ -93,15 +98,11 @@ const partsOf = (d: Date) => {
 
 const sdParts = partsOf(SIGNUP_DEADLINE)
 
-/** Turnier-Wochenende (Sa/So). */
+/** Tournament weekend (Sat/Sun). */
 export const tournament = {
   start: TOURNAMENT_START,
   /** "22./23." */
   shortRange: '22./23.',
-  /** "August" */
-  month: 'August',
-  /** "08" — Monat numerisch */
-  monthNum: '08',
   /** "2026" */
   year: '2026',
   /** "22./23.08." */
@@ -110,10 +111,10 @@ export const tournament = {
   long: '22./23.08.2026',
   /** "Sa/So, 22./23.08.2026" */
   longWithWeekdays: 'Sa/So, 22./23.08.2026',
-  /** "09:00" — Startzeit Samstag */
+  /** "09:00" — Saturday start time */
   startTime: '09:00',
-  saturday: { weekday: 'Samstag', short: '22.08.', date: '22. August' },
-  sunday: { weekday: 'Sonntag', short: '23.08.', date: '23. August' }
+  saturday: { weekday: 'Samstag', short: '22.08.' },
+  sunday: { weekday: 'Sonntag', short: '23.08.' }
 }
 
 export const signupDeadline = {
@@ -124,13 +125,15 @@ export const signupDeadline = {
   long: `${sdParts.day}.${sdParts.month}.${sdParts.year}`
 }
 
-/** Eckdaten für die Fakten-Tabelle. */
+/** Key facts for the "Auf einen Blick" strip. */
 export const facts = {
-  veranstalter: 'TV Winsen/Luhe (gemeinsam mit TSV Winsen)',
-  teilnahme: 'Mitglieder von TV Winsen/Luhe und TSV Winsen',
-  wertung: 'Vereinsinternes Turnier — keine LK-Wertung',
-  courts: '6 Sandplätze',
-  modus: 'K.O.-System mit Nebenrunde',
-  zaehlweise: 'Zwei Gewinnsätze, bei 1:1 Match-Tie-Break bis 10',
-  setzung: 'nach aktueller Leistungsklasse (nuLiga)'
+  date: `${tournament.longWithWeekdays} · Start Sa ${tournament.startTime}`,
+  venue: 'Tennisanlage TV Winsen/Luhe · 6 Sandplätze',
+  organizer: 'TV Winsen/Luhe & TSV Winsen',
+  eligibility: 'Mitglieder von TV Winsen/Luhe und TSV Winsen',
+  scoring: 'Vereinsintern — keine LK-Wertung',
+  format: 'K.O. mit Nebenrunde · 2 Gewinnsätze, bei 1:1 Match-Tie-Break bis 10',
+  seeding: 'Setzung nach Leistungsklasse (nuLiga)',
+  entryFee: `${entryFee} € pro Person, bar vor Ort`,
+  deadline: `${signupDeadline.long} — Auslosung direkt danach`
 } as const

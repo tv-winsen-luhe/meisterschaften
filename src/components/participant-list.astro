@@ -1,0 +1,310 @@
+---
+import { competitions } from '@/data/tournament'
+
+// Open competitions only; Hauptfeld (mens) = seeding board, Challenger = friendly list.
+const openCompetitions = competitions.filter(c => c.status === 'open')
+const layoutFor = (slug: string) => (slug === 'mens' ? 'board' : 'list')
+---
+
+<div class="participants" data-participants>
+  <div class="participants__grid grid grid-cols-1 gap-0.5 bg-navy p-0.5 md:grid-cols-2">
+    {
+      openCompetitions.map(c => (
+        <section class="pl-group bg-surface-alt p-6 md:p-7" data-group={c.slug} data-layout={layoutFor(c.slug)}>
+          <header class="pl-group__head">
+            <div>
+              <h3 class="pl-group__title">{c.label}</h3>
+              {c.requirement && <p class="pl-group__sub">{c.requirement}</p>}
+            </div>
+            <span class="pl-group__count">
+              <span data-count>·</span>
+            </span>
+          </header>
+          <ol class="pl-list" data-list>
+            <li class="pl-skeleton" aria-hidden="true" />
+            <li class="pl-skeleton" aria-hidden="true" />
+            <li class="pl-skeleton" aria-hidden="true" />
+          </ol>
+          <p class="pl-empty" data-empty hidden>
+            Noch niemand — sei die/der Erste.
+          </p>
+        </section>
+      ))
+    }
+  </div>
+  <p class="pl-status reveal mt-4 text-[13px] leading-[1.6] opacity-60" data-status>
+    Alle bestätigten Anmeldungen, laufend aktualisiert. Im Hauptfeld nach Leistungsklasse gesetzt.
+  </p>
+</div>
+
+<style is:global>
+  .pl-group__head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+    border-bottom: 1px solid rgba(12, 30, 58, 0.15);
+    padding-bottom: 14px;
+    margin-bottom: 4px;
+  }
+  .pl-group__title {
+    margin: 0;
+    font-size: clamp(22px, 5vw, 30px);
+    line-height: 0.9;
+    font-weight: 900;
+    letter-spacing: -0.03em;
+    text-transform: uppercase;
+  }
+  .pl-group__sub {
+    margin: 6px 0 0;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: rgba(12, 30, 58, 0.5);
+  }
+  .pl-group__count {
+    flex-shrink: 0;
+    display: inline-flex;
+    align-items: baseline;
+    gap: 4px;
+    font-size: clamp(34px, 9vw, 52px);
+    line-height: 0.8;
+    font-weight: 900;
+    letter-spacing: -0.04em;
+    font-variant-numeric: tabular-nums;
+    color: var(--color-navy);
+  }
+  .pl-group__count::after {
+    content: 'dabei';
+    align-self: flex-end;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    opacity: 0.45;
+    transform: translateY(-2px);
+  }
+
+  .pl-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+  .pl-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 0;
+    border-bottom: 1px solid rgba(12, 30, 58, 0.1);
+  }
+  .pl-row:last-child {
+    border-bottom: none;
+  }
+  .pl-rank {
+    flex-shrink: 0;
+    width: 1.8em;
+    font-size: 13px;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    font-variant-numeric: tabular-nums;
+    color: rgba(12, 30, 58, 0.4);
+  }
+  .pl-avatar {
+    flex-shrink: 0;
+    width: 34px;
+    height: 34px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    background: var(--color-navy);
+    color: #fff;
+    font-size: 12px;
+    font-weight: 800;
+    letter-spacing: 0.02em;
+  }
+  .pl-name {
+    flex: 1;
+    min-width: 0;
+    font-size: 15px;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .pl-club {
+    flex-shrink: 0;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    opacity: 0.45;
+  }
+  .pl-lk {
+    flex-shrink: 0;
+    min-width: 4.4em;
+    text-align: right;
+    font-size: 12px;
+    font-weight: 800;
+    letter-spacing: -0.01em;
+    font-variant-numeric: tabular-nums;
+    color: var(--color-blue);
+  }
+  .pl-lk--pending {
+    color: rgba(12, 30, 58, 0.35);
+    font-weight: 700;
+  }
+
+  .pl-skeleton {
+    height: 18px;
+    margin: 14px 0;
+    border-radius: 2px;
+    background: linear-gradient(90deg, rgba(12, 30, 58, 0.08), rgba(12, 30, 58, 0.04));
+    animation: pl-pulse 1.3s ease-in-out infinite;
+  }
+  .pl-skeleton:nth-child(2) {
+    width: 84%;
+  }
+  .pl-skeleton:nth-child(3) {
+    width: 66%;
+  }
+  @keyframes pl-pulse {
+    50% {
+      opacity: 0.4;
+    }
+  }
+
+  .pl-empty {
+    margin: 14px 0 0;
+    font-size: 14px;
+    font-weight: 600;
+    line-height: 1.5;
+    color: rgba(12, 30, 58, 0.55);
+  }
+  .participants.is-error .pl-list,
+  .participants.is-error .pl-empty {
+    display: none;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .pl-skeleton {
+      animation: none;
+    }
+  }
+</style>
+
+<script>
+  type Entry = { first_name: string; last_name: string; club: string; competition: string; lk: string | null }
+  type ApiResponse = { enabled: boolean; participants: Entry[] }
+
+  const root = document.querySelector<HTMLElement>('[data-participants]')
+
+  function clubShort(v: string) {
+    if (v.includes('TSV')) return 'TSV'
+    if (v.includes('TV')) return 'TV'
+    return v
+  }
+  function initials(first: string, last: string) {
+    return ((first[0] ?? '') + (last[0] ?? '')).toUpperCase()
+  }
+
+  function row(entry: Entry, layout: string, rank: number): HTMLLIElement {
+    const li = document.createElement('li')
+    li.className = 'pl-row'
+
+    if (layout === 'board') {
+      const r = document.createElement('span')
+      r.className = 'pl-rank'
+      r.textContent = String(rank)
+      li.appendChild(r)
+    }
+
+    const avatar = document.createElement('span')
+    avatar.className = 'pl-avatar'
+    avatar.textContent = initials(entry.first_name, entry.last_name)
+    li.appendChild(avatar)
+
+    const name = document.createElement('span')
+    name.className = 'pl-name'
+    name.textContent = `${entry.first_name} ${entry.last_name}`.trim()
+    li.appendChild(name)
+
+    const club = document.createElement('span')
+    club.className = 'pl-club'
+    club.textContent = clubShort(entry.club)
+    li.appendChild(club)
+
+    if (layout === 'board') {
+      const lk = document.createElement('span')
+      lk.className = entry.lk ? 'pl-lk' : 'pl-lk pl-lk--pending'
+      lk.textContent = entry.lk ? `LK ${entry.lk}` : 'LK folgt'
+      li.appendChild(lk)
+    }
+
+    return li
+  }
+
+  function render(data: ApiResponse) {
+    if (!root) return
+    const statusEl = root.querySelector<HTMLElement>('[data-status]')
+
+    if (!data.enabled) {
+      root.querySelectorAll<HTMLElement>('[data-group]').forEach(group => {
+        group.querySelector<HTMLElement>('[data-list]')!.innerHTML = ''
+        group.querySelector<HTMLElement>('[data-count]')!.textContent = '·'
+        const empty = group.querySelector<HTMLElement>('[data-empty]')!
+        empty.hidden = false
+        empty.textContent = 'Teilnehmerliste folgt in Kürze.'
+      })
+      if (statusEl) statusEl.textContent = 'Die öffentliche Teilnehmerliste wird in Kürze freigeschaltet.'
+      return
+    }
+
+    const byComp = new Map<string, Entry[]>()
+    for (const e of data.participants) {
+      const arr = byComp.get(e.competition) ?? []
+      arr.push(e)
+      byComp.set(e.competition, arr)
+    }
+
+    root.querySelectorAll<HTMLElement>('[data-group]').forEach(group => {
+      const slug = group.dataset.group!
+      const layout = group.dataset.layout || 'list'
+      const entries = byComp.get(slug) ?? []
+      const list = group.querySelector<HTMLElement>('[data-list]')!
+      const empty = group.querySelector<HTMLElement>('[data-empty]')!
+      group.querySelector<HTMLElement>('[data-count]')!.textContent = String(entries.length)
+
+      list.innerHTML = ''
+      if (entries.length === 0) {
+        empty.hidden = false
+        return
+      }
+      empty.hidden = true
+      entries.forEach((e, i) => list.appendChild(row(e, layout, i + 1)))
+    })
+  }
+
+  async function load() {
+    if (!root) return
+    try {
+      const res = await fetch('/api/participants', { headers: { accept: 'application/json' } })
+      if (!res.ok) throw new Error('bad status')
+      render((await res.json()) as ApiResponse)
+    } catch {
+      root.classList.add('is-error')
+      root.querySelectorAll<HTMLElement>('[data-count]').forEach(el => (el.textContent = '·'))
+      root.querySelectorAll<HTMLElement>('.pl-skeleton').forEach(el => el.remove())
+      const statusEl = root.querySelector<HTMLElement>('[data-status]')
+      if (statusEl)
+        statusEl.textContent = 'Die Teilnehmerliste lässt sich gerade nicht laden. Bitte später erneut versuchen.'
+    }
+  }
+
+  load()
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') load()
+  })
+</script>

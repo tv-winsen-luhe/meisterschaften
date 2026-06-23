@@ -29,5 +29,9 @@ binding = "DB"
 database_name = "winsener-meisterschaften"
 database_id = "93cf5f66-b7d2-4adb-802c-31c63cb3f23c"
 
+# Wöchentlicher LK-Sync aus nuLiga: Montag 05:00 UTC.
+[triggers]
+crons = ["0 5 * * 1"]
+
 # ADMIN_TOKEN ist ein Secret (nicht hier ablegen):
 #   wrangler secret put ADMIN_TOKEN

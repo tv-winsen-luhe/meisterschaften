@@ -55,10 +55,10 @@ const home = import.meta.env.BASE_URL || '/'
             </nav>
           )}
 
-          <span class="site-header__eyebrow">Stadtmeisterschaft</span>
+          <span class="site-header__eyebrow">Vereinsmeisterschaft</span>
 
           {cta && (
-            <a href={cta.href} class="cta-primary cta-primary--sm site-header__cta">
+            <a href={cta.href} class="cta-primary cta-primary--sm site-header__cta" data-signup-open>
               {cta.label}
             </a>
           )}

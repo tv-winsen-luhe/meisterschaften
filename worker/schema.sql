@@ -1,20 +1,22 @@
--- Schema der Anmeldungs-Datenbank (Cloudflare D1).
--- Anlegen via MCP (d1_database_query) oder lokal:
+-- Schema of the registrations database (Cloudflare D1).
+-- Apply via MCP (d1_database_query) or locally:
 --   wrangler d1 execute winsener-meisterschaften --remote --file=worker/schema.sql
 
-CREATE TABLE IF NOT EXISTS meldungen (
+CREATE TABLE IF NOT EXISTS registrations (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   created_at TEXT NOT NULL,
-  konkurrenz TEXT NOT NULL,
-  vorname TEXT NOT NULL,
-  nachname TEXT NOT NULL,
-  verein TEXT NOT NULL,
+  competition TEXT NOT NULL,
+  first_name TEXT NOT NULL,
+  last_name TEXT NOT NULL,
+  club TEXT NOT NULL,
   email TEXT NOT NULL,
-  handy TEXT,
-  anmerkung TEXT,
+  phone TEXT,
+  note TEXT,
+  player_id TEXT,
   lk TEXT,
-  status TEXT NOT NULL DEFAULT 'neu',
+  status TEXT NOT NULL DEFAULT 'new',
   ip TEXT
 );
 
-CREATE INDEX IF NOT EXISTS idx_meldungen_status ON meldungen (status);
+CREATE INDEX IF NOT EXISTS idx_registrations_status ON registrations (status);
+CREATE INDEX IF NOT EXISTS idx_registrations_player_id ON registrations (player_id);

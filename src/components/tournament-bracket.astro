@@ -1,0 +1,292 @@
+---
+// Illustrative bracket: 8-player main draw + consolation round (Nebenrunde),
+// with a highlighted "Du" path that branches into the Nebenrunde on a R1 loss.
+// Geometry is computed here so the SVG stays maintainable.
+
+const BOX_W = 56
+const BOX_H = 24
+const COL_W = 196
+
+interface Node {
+  x: number
+  cy: number
+}
+
+function buildBracket(entrants: number, x0: number, y0: number, areaH: number): Node[][] {
+  const rounds: Node[][] = []
+  let count = entrants
+  let r = 0
+  while (true) {
+    const x = x0 + r * COL_W
+    const nodes: Node[] = []
+    for (let i = 0; i < count; i++) nodes.push({ x, cy: y0 + (areaH * (i + 0.5)) / count })
+    rounds.push(nodes)
+    if (count === 1) break
+    count = count / 2
+    r++
+  }
+  return rounds
+}
+
+interface Conn {
+  r: number
+  pts: string
+  du: boolean
+}
+
+function buildConnectors(rounds: Node[][], duWinnerChildIdx: number[]): Conn[] {
+  const lines: Conn[] = []
+  for (let r = 0; r < rounds.length - 1; r++) {
+    for (let i = 0; i < rounds[r].length; i++) {
+      const child = rounds[r][i]
+      const parent = rounds[r + 1][Math.floor(i / 2)]
+      const cx = child.x + BOX_W
+      const px = parent.x
+      const midX = (cx + px) / 2
+      lines.push({
+        r,
+        pts: `${cx},${child.cy} ${midX},${child.cy} ${midX},${parent.cy} ${px},${parent.cy}`,
+        du: duWinnerChildIdx[r] === i
+      })
+    }
+  }
+  return lines
+}
+
+const main = buildBracket(8, 12, 30, 300)
+// Du sits at main round-0 index 1; winner path: child idx 1 → 0 → 0.
+const mainConn = buildConnectors(main, [1, 0, 0])
+const neben = buildBracket(4, 12, 392, 150)
+const nebenConn = buildConnectors(neben, [-1, -1])
+
+const duMain = main[0][1]
+const duNeben = neben[0][0]
+// Loser branch: from Du's R1 box down into the Nebenrunde.
+const loserPath = `${duMain.x + BOX_W / 2},${duMain.cy + BOX_H / 2} ${duMain.x + BOX_W / 2},${duNeben.cy} ${duNeben.x},${duNeben.cy}`
+
+const seedLabel = (i: number) => (i === 1 ? 'DU' : String(i + 1))
+const mainHeaders = ['Viertelfinale', 'Halbfinale', 'Finale', 'Sieger']
+const nebenHeaders = ['Runde 1', 'Runde 2', 'Finale']
+
+const VB_W = main[3][0].x + BOX_W + 16
+const VB_H = 560
+---
+
+<figure class="bracket reveal" aria-hidden="true">
+  <svg class="bracket__svg" viewBox={`0 0 ${VB_W} ${VB_H}`} role="img" aria-label="Beispiel-Turnierbaum">
+    <!-- section labels -->
+    <text class="bracket__section" x="12" y="14">Hauptrunde</text>
+    <text class="bracket__section bracket__section--neben" x="12" y="376"
+      >Nebenrunde — niemand fliegt nach einem Match raus</text
+    >
+
+    <!-- round headers -->
+    {
+      main.map((_, r) => (
+        <text class="bracket__round" x={main[r][0].x + BOX_W / 2} y="26">
+          {mainHeaders[r]}
+        </text>
+      ))
+    }
+    {
+      neben.map((_, r) => (
+        <text class="bracket__round" x={neben[r][0].x + BOX_W / 2} y="388">
+          {nebenHeaders[r]}
+        </text>
+      ))
+    }
+
+    <!-- connectors -->
+    {
+      mainConn.map(c => (
+        <polyline
+          class:list={['bracket__line', c.du && 'bracket__line--du']}
+          points={c.pts}
+          pathLength="1"
+          style={`--r:${c.r}`}
+        />
+      ))
+    }
+    {nebenConn.map(c => <polyline class="bracket__line" points={c.pts} pathLength="1" style={`--r:${c.r}`} />)}
+    <!-- loser branch -->
+    <polyline class="bracket__line bracket__line--loser" points={loserPath} pathLength="1" style="--r:1"></polyline>
+
+    <!-- main nodes -->
+    {
+      main.map((round, r) =>
+        round.map((n, i) => {
+          const isDu = r === 0 && i === 1
+          const isWinPath = (r === 1 && i === 0) || (r === 2 && i === 0)
+          const isChamp = r === 3
+          return (
+            <g
+              class:list={[
+                'bracket__node',
+                (isDu || isWinPath || isChamp) && 'bracket__node--du',
+                isChamp && 'bracket__node--champ'
+              ]}
+              style={`--r:${r}`}
+            >
+              <rect x={n.x} y={n.cy - BOX_H / 2} width={BOX_W} height={BOX_H} rx="3" />
+              <text x={n.x + BOX_W / 2} y={n.cy + 4}>
+                {r === 0 ? seedLabel(i) : isChamp ? '★' : ''}
+              </text>
+            </g>
+          )
+        })
+      )
+    }
+
+    <!-- neben nodes -->
+    {
+      neben.map((round, r) =>
+        round.map((n, i) => {
+          const isDu = r === 0 && i === 0
+          const isFinal = r === neben.length - 1
+          return (
+            <g class:list={['bracket__node', isDu && 'bracket__node--du']} style={`--r:${r + 1}`}>
+              <rect x={n.x} y={n.cy - BOX_H / 2} width={BOX_W} height={BOX_H} rx="3" />
+              <text x={n.x + BOX_W / 2} y={n.cy + 4}>
+                {isDu ? 'DU' : isFinal ? '★' : ''}
+              </text>
+            </g>
+          )
+        })
+      )
+    }
+  </svg>
+
+  <figcaption class="bracket__caption">
+    Beispiel-Raster. Verlierst du dein erstes Match, geht es für dich in der Nebenrunde weiter — Herren und Herren
+    Challenger laufen nach demselben Modus, nur mit anderen Spielern.
+  </figcaption>
+</figure>
+
+<style>
+  .bracket {
+    margin: 0;
+    width: 100%;
+  }
+  .bracket__svg {
+    width: 100%;
+    height: auto;
+    overflow: visible;
+  }
+
+  .bracket__section {
+    font-size: 12px;
+    font-weight: 800;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    fill: var(--color-navy);
+    opacity: 0.6;
+  }
+  .bracket__section--neben {
+    fill: var(--color-clay);
+    opacity: 0.85;
+  }
+  .bracket__round {
+    font-size: 9.5px;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    fill: var(--color-navy);
+    opacity: 0.4;
+    text-anchor: middle;
+  }
+
+  .bracket__line {
+    fill: none;
+    stroke: var(--color-navy);
+    stroke-opacity: 0.28;
+    stroke-width: 1.5;
+    stroke-dasharray: 1;
+    stroke-dashoffset: 1;
+    transition: stroke-dashoffset 0.6s ease;
+    transition-delay: calc(var(--r, 0) * 0.18s + 0.15s);
+  }
+  .bracket__line--du {
+    stroke: var(--color-blue);
+    stroke-opacity: 1;
+    stroke-width: 2.5;
+  }
+  .bracket__line--loser {
+    stroke: var(--color-clay);
+    stroke-opacity: 0.9;
+    stroke-width: 2;
+    stroke-dasharray: 5 4;
+    /* dashed line: animate opacity instead of dashoffset */
+    stroke-dashoffset: 0;
+    opacity: 0;
+    transition: opacity 0.5s ease;
+    transition-delay: 0.7s;
+  }
+
+  .bracket__node rect {
+    fill: #fff;
+    stroke: var(--color-navy);
+    stroke-opacity: 0.3;
+    stroke-width: 1.5;
+  }
+  .bracket__node text {
+    font-size: 11px;
+    font-weight: 800;
+    fill: var(--color-navy);
+    text-anchor: middle;
+  }
+  .bracket__node--du rect {
+    fill: var(--color-navy);
+    stroke: var(--color-navy);
+    stroke-opacity: 1;
+  }
+  .bracket__node--du text {
+    fill: var(--color-neon);
+  }
+  .bracket__node--champ rect {
+    fill: var(--color-clay);
+    stroke: var(--color-clay);
+  }
+  .bracket__node--champ text {
+    fill: #fff;
+  }
+
+  .bracket__node {
+    opacity: 0;
+    transform: translateX(-6px);
+    transition:
+      opacity 0.45s ease,
+      transform 0.45s ease;
+    transition-delay: calc(var(--r, 0) * 0.18s);
+  }
+
+  .bracket.is-visible .bracket__line {
+    stroke-dashoffset: 0;
+  }
+  .bracket.is-visible .bracket__line--loser {
+    opacity: 1;
+  }
+  .bracket.is-visible .bracket__node {
+    opacity: 1;
+    transform: translateX(0);
+  }
+
+  .bracket__caption {
+    margin-top: 18px;
+    max-width: 54ch;
+    font-size: 13px;
+    line-height: 1.6;
+    color: var(--color-navy);
+    opacity: 0.7;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .bracket__line,
+    .bracket__line--loser,
+    .bracket__node {
+      transition: none;
+      stroke-dashoffset: 0;
+      opacity: 1;
+      transform: none;
+    }
+  }
+</style>
