@@ -8,7 +8,7 @@ interface Env {
 }
 
 const COMPETITIONS = ['mens', 'mens-challenger', 'womens'] as const
-const CLUBS = ['TV Winsen/Luhe', 'TSV Winsen'] as const
+const CLUBS = ['TV Winsen', 'TSV Winsen'] as const
 const STATUS = ['new', 'confirmed', 'hidden', 'cancelled'] as const
 const DEFAULT_LK = '25.0'
 
