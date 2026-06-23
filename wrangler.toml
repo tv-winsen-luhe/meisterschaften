@@ -1,0 +1,33 @@
+name = "winsener-meisterschaften"
+main = "worker/index.ts"
+compatibility_date = "2025-06-01"
+
+# Account „TV Winsen / Luhe" — hier liegen Zone + D1.
+account_id = "6c1790809a262006030d64a4a604a948"
+
+# Custom Domain: wrangler legt beim Deploy den (proxied) DNS-Record und das
+# TLS-Zertifikat automatisch an. Zone muss auf demselben Account liegen (tut sie).
+[[routes]]
+pattern = "meisterschaften.tennisverein-winsen.de"
+custom_domain = true
+
+# Statische Astro-Seite (dist/) wird als Assets ausgeliefert; der Worker-Code
+# (worker/index.ts) läuft nur für Requests, die KEINER statischen Datei entsprechen
+# (also /api/*, /admin, /export). Same-origin → kein CORS nötig.
+[assets]
+directory = "./dist"
+binding = "ASSETS"
+
+[vars]
+# Kill-Switch für die öffentliche Teilnehmerliste. "true" = sichtbar, alles andere = aus.
+PUBLIC_LIST_ENABLED = "true"
+
+# D1-Datenbank für die Anmeldungen. database_id nach `wrangler d1 create` bzw.
+# aus dem Cloudflare-Dashboard eintragen (wird per MCP angelegt).
+[[d1_databases]]
+binding = "DB"
+database_name = "winsener-meisterschaften"
+database_id = "93cf5f66-b7d2-4adb-802c-31c63cb3f23c"
+
+# ADMIN_TOKEN ist ein Secret (nicht hier ablegen):
+#   wrangler secret put ADMIN_TOKEN

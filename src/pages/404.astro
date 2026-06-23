@@ -1,0 +1,29 @@
+---
+import Layout from '@/layouts/default.astro'
+import logoSvg from '@/assets/logo.svg'
+---
+
+<Layout title="Nicht gefunden — Winsener Meisterschaften 2026" bodyClass="bg-surface-alt" chrome="none">
+  <div
+    class="mx-auto flex min-h-dvh max-w-[1280px] flex-col items-center justify-center px-5 py-20 text-center text-navy md:px-10 md:py-[120px]"
+  >
+    <img src={logoSvg.src} alt="TV Winsen/Luhe von 1913 e.V." width="120" height="120" class="mb-10 shrink-0" />
+
+    <span class="mb-6 block text-[11px] font-bold tracking-[0.2em] uppercase opacity-45">Fehler 404</span>
+
+    <h1 class="m-0 mb-8 text-h2 leading-[0.85] font-black tracking-[-0.05em] uppercase [&>span]:block">
+      <span>Diese Seite</span>
+      <span class="text-surface-alt text-stroke-ink max-md:[-webkit-text-stroke-width:1.5px]">ist im Aus.</span>
+    </h1>
+
+    <p class="mb-10 max-w-[48ch] text-[15px] leading-[1.6] opacity-70">
+      Der Aufschlag ging leider daneben. Zurück zu den Winsener Meisterschaften?
+    </p>
+
+    <a
+      href={import.meta.env.BASE_URL}
+      class="inline-block bg-neon px-7 py-3.5 text-sm font-extrabold tracking-[0.02em] text-navy uppercase no-underline transition-colors duration-200 hover:bg-[#e0ff4d] focus-visible:outline-2 focus-visible:outline-offset-[3px] focus-visible:outline-navy"
+      >Zur Startseite</a
+    >
+  </div>
+</Layout>

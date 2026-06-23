@@ -1,0 +1,32 @@
+---
+interface Props {
+  eyebrow: string
+  headline?: [string, string]
+  note?: string
+}
+
+const { eyebrow, headline, note } = Astro.props
+const eyebrowClass = 'sect__eyebrow mb-6 block text-[11px] font-bold uppercase tracking-[0.2em] opacity-45'
+---
+
+{
+  headline ? (
+    <Fragment>
+      <span class:list={['reveal', eyebrowClass]}>{eyebrow}</span>
+      <h2 class="sect__headline m-0 mb-8 text-h2 leading-[0.85] font-black tracking-[-0.05em] uppercase [&>span]:block">
+        <span class="sect__headline-clip" style="--i:0">
+          {headline[0]}
+        </span>
+        <span
+          class="sect__headline-clip text-surface-alt text-stroke-ink max-md:[-webkit-text-stroke-width:1.5px]"
+          style="--i:1"
+        >
+          {headline[1]}
+        </span>
+      </h2>
+    </Fragment>
+  ) : (
+    <h2 class:list={['reveal', eyebrowClass]}>{eyebrow}</h2>
+  )
+}
+{note && <p class="mb-14 max-w-[48ch] text-[15px] leading-[1.6] opacity-70">{note}</p>}

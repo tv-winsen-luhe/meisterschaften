@@ -1,0 +1,79 @@
+---
+import '../styles/global.css'
+import faviconUrl from '@/assets/signet.svg'
+import SiteHeader from '@/components/site-header.astro'
+import SiteFooter from '@/components/site-footer.astro'
+
+interface Anchor {
+  href: string
+  label: string
+}
+
+interface Props {
+  title?: string
+  description?: string
+  ogTitle?: string
+  ogDescription?: string
+  ogImage?: string
+  ogImageAlt?: string
+  ogLocale?: string
+  bodyClass?: string
+  chrome?: 'event' | 'legal' | 'none'
+  headerAnchors?: Anchor[]
+  headerCta?: { href: string; label: string }
+}
+
+const {
+  title = 'Tennisverein Winsen (Luhe) von 1913 e.V.',
+  description,
+  ogTitle,
+  ogDescription,
+  ogImage,
+  ogImageAlt = 'Winsener Meisterschaften 2026 — Stadtmeisterschaft am 22./23. August',
+  ogLocale = 'de_DE',
+  bodyClass,
+  chrome = 'event',
+  headerAnchors,
+  headerCta
+} = Astro.props
+
+const canonicalUrl = Astro.site ? new URL(Astro.url.pathname, Astro.site).toString() : Astro.url.toString()
+---
+
+<html lang="de">
+  <head>
+    <meta charset="utf-8" />
+    <link rel="icon" type="image/svg+xml" href={faviconUrl.src} />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="canonical" href={canonicalUrl} />
+    {description && <meta name="description" content={description} />}
+    <meta property="og:site_name" content="Winsener Meisterschaften" />
+    <meta property="og:url" content={canonicalUrl} />
+    <meta property="og:type" content="website" />
+    {ogLocale && <meta property="og:locale" content={ogLocale} />}
+    {ogTitle && <meta property="og:title" content={ogTitle} />}
+    {ogDescription && <meta property="og:description" content={ogDescription} />}
+    {
+      ogImage && (
+        <>
+          <meta property="og:image" content={ogImage} />
+          <meta property="og:image:type" content="image/jpeg" />
+          <meta property="og:image:width" content="1200" />
+          <meta property="og:image:height" content="630" />
+          <meta property="og:image:alt" content={ogImageAlt} />
+        </>
+      )
+    }
+    <meta name="twitter:card" content="summary_large_image" />
+    {ogTitle && <meta name="twitter:title" content={ogTitle} />}
+    {ogDescription && <meta name="twitter:description" content={ogDescription} />}
+    {ogImage && <meta name="twitter:image" content={ogImage} />}
+    {ogImage && <meta name="twitter:image:alt" content={ogImageAlt} />}
+    <title>{title}</title>
+  </head>
+  <body class:list={['font-sans text-text antialiased', bodyClass]}>
+    {chrome !== 'none' && <SiteHeader variant={chrome} anchors={headerAnchors} cta={headerCta} />}
+    <main id="main"><slot /></main>
+    {chrome !== 'none' && <SiteFooter />}
+  </body>
+</html>

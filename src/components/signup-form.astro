@@ -1,0 +1,430 @@
+---
+import { signupKonkurrenzen, startgeld, contactEmail, signupDeadline } from '@/data/tournament'
+---
+
+<div class="signup-card relative overflow-hidden bg-surface-dark p-7 text-white md:p-10">
+  <form id="signup-form" class="signup-form" novalidate>
+    <p class="signup-form__intro m-0 mb-8 max-w-[52ch] text-sm leading-[1.6] text-white/70">
+      Verbindliche Anmeldung. Keine Spieler-ID und keine Kenntnis deiner Leistungsklasse nötig — die LK ziehen wir für
+      die Setzung intern aus nuLiga. Startgeld {startgeld} € bar vor Ort beim Check-in.
+    </p>
+
+    <fieldset class="signup-field">
+      <legend class="signup-label">Konkurrenz</legend>
+      <div class="grid grid-cols-1 gap-0.5 sm:grid-cols-2">
+        {
+          signupKonkurrenzen.map((c, i) => (
+            <label class="konk-option">
+              <input type="radio" name="konkurrenz" value={c.value} required checked={i === 0} />
+              <span class="konk-option__body">
+                <span class="konk-option__label">{c.label}</span>
+                {c.voraussetzung && <span class="konk-option__hint">{c.voraussetzung}</span>}
+              </span>
+            </label>
+          ))
+        }
+      </div>
+      <p class="signup-hint">
+        Challenger ist nur für LK 20+ — die Turnierleitung prüft das anhand nuLiga und ordnet dich notfalls dem
+        Hauptfeld zu.
+      </p>
+    </fieldset>
+
+    <div class="grid grid-cols-1 gap-x-5 gap-y-6 sm:grid-cols-2">
+      <div class="signup-field">
+        <label class="signup-label" for="vorname">Vorname</label>
+        <input
+          class="signup-input"
+          type="text"
+          id="vorname"
+          name="vorname"
+          maxlength="60"
+          autocomplete="given-name"
+          required
+        />
+      </div>
+      <div class="signup-field">
+        <label class="signup-label" for="nachname">Nachname</label>
+        <input
+          class="signup-input"
+          type="text"
+          id="nachname"
+          name="nachname"
+          maxlength="60"
+          autocomplete="family-name"
+          required
+        />
+      </div>
+    </div>
+
+    <fieldset class="signup-field">
+      <legend class="signup-label">Verein</legend>
+      <div class="grid grid-cols-1 gap-0.5 sm:grid-cols-2">
+        <label class="konk-option">
+          <input type="radio" name="verein" value="TV Winsen/Luhe" required checked />
+          <span class="konk-option__body"><span class="konk-option__label">TV Winsen/Luhe</span></span>
+        </label>
+        <label class="konk-option">
+          <input type="radio" name="verein" value="TSV Winsen" required />
+          <span class="konk-option__body"><span class="konk-option__label">TSV Winsen</span></span>
+        </label>
+      </div>
+    </fieldset>
+
+    <div class="grid grid-cols-1 gap-x-5 gap-y-6 sm:grid-cols-2">
+      <div class="signup-field">
+        <label class="signup-label" for="email">E-Mail</label>
+        <input
+          class="signup-input"
+          type="email"
+          id="email"
+          name="email"
+          maxlength="120"
+          autocomplete="email"
+          required
+        />
+      </div>
+      <div class="signup-field">
+        <label class="signup-label" for="handy">Handy <span class="signup-label__opt">optional</span></label>
+        <input class="signup-input" type="tel" id="handy" name="handy" maxlength="40" autocomplete="tel" />
+        <p class="signup-hint">Für kurzfristige Infos per WhatsApp.</p>
+      </div>
+    </div>
+
+    <div class="signup-field">
+      <label class="signup-label" for="anmerkung">Anmerkung <span class="signup-label__opt">optional</span></label>
+      <textarea class="signup-input" id="anmerkung" name="anmerkung" maxlength="500" rows="2"></textarea>
+    </div>
+
+    <!-- Honeypot — von Menschen nicht sichtbar, von Bots gern ausgefüllt -->
+    <div class="signup-hp" aria-hidden="true">
+      <label for="website">Website (bitte frei lassen)</label>
+      <input type="text" id="website" name="website" tabindex="-1" autocomplete="off" />
+    </div>
+
+    <label class="signup-consent">
+      <input type="checkbox" name="einwilligung" value="ja" required />
+      <span>
+        Ich melde mich verbindlich an und bin einverstanden, dass mein <strong
+          >Name, mein Verein, meine Konkurrenz und meine Leistungsklasse</strong
+        > auf dieser Turnier-Website öffentlich angezeigt werden. Meine Kontaktdaten nutzt die Turnierleitung nur zur Organisation.
+        <a href="/datenschutz" class="signup-consent__link">Datenschutz</a>
+      </span>
+    </label>
+
+    <div class="signup-actions">
+      <button type="submit" class="cta-primary signup-submit">Anmeldung absenden</button>
+      <p class="signup-error" role="alert" hidden></p>
+    </div>
+  </form>
+
+  <div class="signup-success" hidden>
+    <span class="signup-success__mark" aria-hidden="true">✓</span>
+    <h3 class="signup-success__title">Danke, <span data-success-name>du</span>!</h3>
+    <p class="signup-success__text">
+      Deine Anmeldung ist eingegangen. Die Turnierleitung übernimmt dich in den Spielplan und meldet sich, falls noch
+      etwas fehlt. Sobald wir dich bestätigt haben, taucht dein Name oben in der Teilnehmerliste auf. Startgeld {
+        startgeld
+      } € bringst du bar zum Check-in mit.
+    </p>
+    <button type="button" class="cta-secondary signup-success__again" data-signup-again>Weitere Person anmelden</button>
+  </div>
+</div>
+
+<p class="mt-4 text-[13px] leading-[1.6] opacity-65">
+  Anmeldeschluss <strong class="font-bold">{signupDeadline.long}</strong>. Funktioniert das Formular bei dir nicht?
+  Schreib uns an
+  <a href={`mailto:${contactEmail}`} class="font-semibold underline underline-offset-2">{contactEmail}</a>.
+</p>
+
+<style>
+  .signup-card {
+    isolation: isolate;
+  }
+  .signup-card::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='320' height='320'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='1.15' numOctaves='2' seed='7' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.55 0'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>");
+    mix-blend-mode: overlay;
+    opacity: 0.14;
+  }
+
+  .signup-form {
+    display: flex;
+    flex-direction: column;
+    gap: 28px;
+  }
+  .signup-field {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    border: none;
+    padding: 0;
+    margin: 0;
+    min-width: 0;
+  }
+  .signup-label {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: rgba(255, 255, 255, 0.55);
+    padding: 0;
+  }
+  .signup-label__opt {
+    margin-left: 6px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    opacity: 0.6;
+    text-transform: none;
+  }
+
+  .signup-input {
+    width: 100%;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1.5px solid rgba(255, 255, 255, 0.16);
+    color: #fff;
+    font: inherit;
+    font-size: 15px;
+    padding: 12px 14px;
+    transition:
+      border-color 0.18s ease,
+      background 0.18s ease;
+  }
+  .signup-input::placeholder {
+    color: rgba(255, 255, 255, 0.4);
+  }
+  .signup-input:focus {
+    outline: none;
+    border-color: var(--color-neon);
+    background: rgba(255, 255, 255, 0.1);
+  }
+  textarea.signup-input {
+    resize: vertical;
+    min-height: 56px;
+  }
+
+  /* Radio cards (Konkurrenz, Verein) */
+  .konk-option {
+    position: relative;
+    display: flex;
+    cursor: pointer;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1.5px solid rgba(255, 255, 255, 0.16);
+    padding: 14px 16px;
+    transition:
+      border-color 0.18s ease,
+      background 0.18s ease;
+  }
+  .konk-option input {
+    position: absolute;
+    opacity: 0;
+    pointer-events: none;
+  }
+  .konk-option__body {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+  }
+  .konk-option__label {
+    font-weight: 800;
+    font-size: 16px;
+    letter-spacing: -0.01em;
+  }
+  .konk-option__hint {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    color: rgba(255, 255, 255, 0.55);
+  }
+  .konk-option:hover {
+    border-color: rgba(255, 255, 255, 0.4);
+  }
+  .konk-option:has(input:checked) {
+    border-color: var(--color-neon);
+    background: rgba(206, 255, 0, 0.12);
+  }
+  .konk-option:has(input:focus-visible) {
+    outline: 2px solid var(--color-neon);
+    outline-offset: 2px;
+  }
+
+  .signup-hint {
+    margin: 2px 0 0;
+    font-size: 12px;
+    line-height: 1.5;
+    color: rgba(255, 255, 255, 0.5);
+  }
+
+  .signup-hp {
+    position: absolute;
+    left: -9999px;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+  }
+
+  .signup-consent {
+    display: flex;
+    gap: 12px;
+    align-items: flex-start;
+    font-size: 13px;
+    line-height: 1.55;
+    color: rgba(255, 255, 255, 0.75);
+    cursor: pointer;
+  }
+  .signup-consent input {
+    margin-top: 3px;
+    width: 18px;
+    height: 18px;
+    flex-shrink: 0;
+    accent-color: var(--color-neon);
+  }
+  .signup-consent strong {
+    color: #fff;
+    font-weight: 700;
+  }
+  .signup-consent__link {
+    color: var(--color-neon);
+    text-decoration: underline;
+    text-underline-offset: 2px;
+    white-space: nowrap;
+  }
+
+  .signup-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 16px;
+  }
+  .signup-submit[disabled] {
+    opacity: 0.55;
+    cursor: progress;
+  }
+  .signup-error {
+    margin: 0;
+    font-size: 13px;
+    font-weight: 600;
+    color: #ffb4a0;
+  }
+
+  /* Success panel */
+  .signup-success {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 14px;
+  }
+  .signup-success__mark {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 48px;
+    height: 48px;
+    background: var(--color-neon);
+    color: var(--color-navy);
+    font-size: 26px;
+    font-weight: 900;
+  }
+  .signup-success__title {
+    margin: 0;
+    font-size: clamp(26px, 6vw, 38px);
+    line-height: 0.95;
+    letter-spacing: -0.03em;
+    font-weight: 900;
+    text-transform: uppercase;
+  }
+  .signup-success__text {
+    margin: 0;
+    max-width: 52ch;
+    font-size: 15px;
+    line-height: 1.6;
+    color: rgba(255, 255, 255, 0.75);
+  }
+  .signup-success__again {
+    color: var(--color-neon);
+    opacity: 0.9;
+  }
+  .signup-success__again:hover {
+    opacity: 1;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .signup-input,
+    .konk-option {
+      transition: none;
+    }
+  }
+</style>
+
+<script>
+  const form = document.getElementById('signup-form') as HTMLFormElement | null
+  const card = form?.closest('.signup-card') as HTMLElement | null
+  const successPanel = card?.querySelector<HTMLElement>('.signup-success') ?? null
+  const errorEl = form?.querySelector<HTMLElement>('.signup-error') ?? null
+  const submitBtn = form?.querySelector<HTMLButtonElement>('.signup-submit') ?? null
+  const nameSlot = card?.querySelector<HTMLElement>('[data-success-name]') ?? null
+  const againBtn = card?.querySelector<HTMLButtonElement>('[data-signup-again]') ?? null
+
+  function showError(msg: string) {
+    if (!errorEl) return
+    errorEl.textContent = msg
+    errorEl.hidden = false
+  }
+
+  if (form && submitBtn) {
+    form.addEventListener('submit', async e => {
+      e.preventDefault()
+      if (errorEl) errorEl.hidden = true
+
+      if (!form.checkValidity()) {
+        form.reportValidity()
+        return
+      }
+
+      const data = Object.fromEntries(new FormData(form).entries())
+      submitBtn.disabled = true
+      submitBtn.textContent = 'Wird gesendet …'
+
+      try {
+        const res = await fetch('/api/anmeldung', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify(data)
+        })
+        if (!res.ok) {
+          const body = await res.json().catch(() => ({}))
+          throw new Error((body as { error?: string }).error || 'Fehler beim Senden.')
+        }
+        if (nameSlot) nameSlot.textContent = String(data.vorname || 'du')
+        form.hidden = true
+        if (successPanel) successPanel.hidden = false
+        successPanel?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      } catch (err) {
+        showError(
+          err instanceof Error && err.message
+            ? err.message
+            : 'Das hat gerade nicht geklappt. Bitte versuch es erneut oder schreib uns eine Mail.'
+        )
+        submitBtn.disabled = false
+        submitBtn.textContent = 'Anmeldung absenden'
+      }
+    })
+  }
+
+  if (againBtn && form && successPanel) {
+    againBtn.addEventListener('click', () => {
+      form.reset()
+      form.hidden = false
+      successPanel.hidden = true
+      if (submitBtn) {
+        submitBtn.disabled = false
+        submitBtn.textContent = 'Anmeldung absenden'
+      }
+      form.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    })
+  }
+</script>

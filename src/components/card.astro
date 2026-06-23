@@ -1,0 +1,30 @@
+---
+interface Props {
+  variant?: 'light' | 'dark' | 'blue' | 'clay' | 'clay-textured'
+  minHeight?: number
+  stagger?: number
+  class?: string
+}
+
+const { variant = 'light', minHeight, stagger, class: className } = Astro.props
+
+const variantClass = {
+  light: 'bg-surface-alt text-navy',
+  dark: 'bg-surface-dark text-white',
+  blue: 'bg-blue text-navy',
+  clay: 'bg-clay text-white',
+  'clay-textured': 'cat-card--clay bg-clay text-white'
+}[variant]
+
+const styleParts: string[] = []
+if (minHeight !== undefined) styleParts.push(`min-height: ${minHeight}px`)
+if (stagger !== undefined) styleParts.push(`--i: ${stagger}`)
+const style = styleParts.length ? styleParts.join('; ') : undefined
+---
+
+<div
+  class:list={['stagger @container relative flex flex-col overflow-hidden p-7', variantClass, className]}
+  style={style}
+>
+  <slot />
+</div>

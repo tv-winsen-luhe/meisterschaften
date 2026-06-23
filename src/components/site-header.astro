@@ -1,0 +1,281 @@
+---
+import logoSvg from '@/assets/logo.svg'
+import signetSvg from '@/assets/signet.svg'
+
+interface Anchor {
+  href: string
+  label: string
+}
+
+interface Props {
+  variant?: 'event' | 'legal'
+  anchors?: Anchor[]
+  cta?: { href: string; label: string }
+}
+
+const { variant = 'event', anchors = [], cta } = Astro.props
+const home = import.meta.env.BASE_URL || '/'
+---
+
+{
+  variant === 'event' && (
+    <>
+      <a href="#main" class="skip-link">
+        Direkt zum Inhalt
+      </a>
+      <div class="site-header__sentinel" aria-hidden="true" />
+      <header class="site-header site-header--event enter enter--1">
+        <div class="site-header__inner mx-auto flex max-w-[1280px] items-center gap-4 px-5 md:px-10">
+          <a href={home} class="site-header__brand" aria-label="TV Winsen/Luhe — Startseite">
+            <img
+              src={logoSvg.src}
+              alt="TV Winsen/Luhe von 1913 e.V."
+              width="64"
+              height="64"
+              class="site-header__logo site-header__logo--full"
+            />
+            <img
+              src={signetSvg.src}
+              alt=""
+              width="28"
+              height="28"
+              class="site-header__logo site-header__logo--signet"
+              aria-hidden="true"
+            />
+            <span class="site-header__brand-text">Winsener Meisterschaften</span>
+          </a>
+
+          {anchors.length > 0 && (
+            <nav class="site-header__nav" aria-label="Seitenabschnitte">
+              {anchors.map(a => (
+                <a href={a.href} class="site-header__nav-link">
+                  {a.label}
+                </a>
+              ))}
+            </nav>
+          )}
+
+          <span class="site-header__eyebrow">Stadtmeisterschaft</span>
+
+          {cta && (
+            <a href={cta.href} class="cta-primary cta-primary--sm site-header__cta">
+              {cta.label}
+            </a>
+          )}
+        </div>
+      </header>
+    </>
+  )
+}
+
+{
+  variant === 'legal' && (
+    <header class="site-header site-header--legal">
+      <div class="site-header__inner mx-auto flex max-w-[1280px] items-center gap-3 px-5 md:px-10">
+        <a href={home} class="site-header__back">
+          &larr; Zurück
+        </a>
+        <img src={signetSvg.src} alt="TV Winsen/Luhe" width="24" height="24" class="shrink-0" />
+        <span class="text-sm font-black tracking-[0.04em]">TV Winsen/Luhe</span>
+      </div>
+    </header>
+  )
+}
+
+<style is:global>
+  /* Skip-link */
+  .skip-link {
+    position: absolute;
+    top: -100%;
+    left: 1rem;
+    z-index: 100;
+    background: var(--color-neon);
+    color: var(--color-navy);
+    padding: 10px 20px;
+    font-size: 13px;
+    font-weight: 800;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+    text-decoration: none;
+  }
+  .skip-link:focus-visible {
+    top: 1rem;
+    outline: 2px solid var(--color-navy);
+    outline-offset: 3px;
+  }
+
+  /* Sentinel — observed to detect scroll past top */
+  .site-header__sentinel {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 1px;
+    pointer-events: none;
+  }
+
+  /* Event header — sticky on all viewports; condenses when scrolled past the sentinel */
+  .site-header--event {
+    position: sticky;
+    top: 0;
+    z-index: 50;
+    background-color: transparent;
+    border-bottom: 1px solid var(--color-navy);
+    transition:
+      background-color 0.3s ease,
+      backdrop-filter 0.3s ease,
+      padding 0.3s ease,
+      border-color 0.3s ease;
+    padding-block: 18px;
+  }
+
+  .site-header--event .site-header__inner {
+    transition: gap 0.3s ease;
+  }
+
+  .site-header__brand {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    text-decoration: none;
+    color: var(--color-navy);
+  }
+  .site-header__brand:focus-visible {
+    outline: 2px solid var(--color-navy);
+    outline-offset: 3px;
+  }
+
+  .site-header__logo--full {
+    display: block;
+  }
+  .site-header__logo--signet {
+    display: none;
+  }
+  .site-header__brand-text {
+    display: none;
+    font-size: 14px;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+  }
+
+  .site-header__eyebrow {
+    margin-left: auto;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--color-navy);
+    opacity: 0.75;
+  }
+
+  .site-header--event .site-header__nav {
+    display: none;
+    margin-left: auto;
+    align-items: center;
+    gap: 28px;
+  }
+  .site-header__nav-link {
+    font-size: 14px;
+    font-weight: 500;
+    letter-spacing: -0.005em;
+    color: var(--color-navy);
+    text-decoration: none;
+    opacity: 0.65;
+    transition: opacity 0.2s ease;
+  }
+  .site-header__nav-link:hover {
+    opacity: 1;
+  }
+  .site-header__nav-link:focus-visible {
+    outline: 2px solid var(--color-navy);
+    outline-offset: 3px;
+    opacity: 1;
+  }
+
+  .site-header--event .site-header__cta {
+    display: none;
+  }
+
+  /* Stuck (condensed) state — brand swap applies on all viewports */
+  .site-header--event.is-stuck {
+    background-color: rgb(245 245 245 / 0.92);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    padding-block: 10px;
+  }
+  .site-header--event.is-stuck .site-header__logo--full {
+    display: none;
+  }
+  .site-header--event.is-stuck .site-header__logo--signet {
+    display: block;
+  }
+  .site-header--event.is-stuck .site-header__eyebrow {
+    display: none;
+  }
+  .site-header--event.is-stuck .site-header__brand-text {
+    display: inline-block;
+  }
+  .site-header--event.is-stuck .site-header__cta {
+    display: inline-block;
+  }
+
+  /* Mobile stuck: no nav to anchor the right side, so push CTA right directly. */
+  @media (max-width: 767px) {
+    .site-header--event.is-stuck .site-header__cta {
+      margin-left: auto;
+    }
+  }
+
+  /* Nav only fits in stuck state on md+ */
+  @media (min-width: 768px) {
+    .site-header--event.is-stuck .site-header__nav {
+      display: flex;
+    }
+  }
+
+  /* Legal header */
+  .site-header--legal {
+    border-bottom: 1px solid var(--color-navy);
+    padding-block: 16px;
+  }
+  .site-header__back {
+    margin-right: auto;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: rgb(12 30 58 / 0.55);
+    text-decoration: none;
+    transition: color 0.2s ease;
+  }
+  .site-header__back:hover {
+    color: var(--color-navy);
+  }
+  .site-header__back:focus-visible {
+    outline: 2px solid var(--color-navy);
+    outline-offset: 3px;
+    color: var(--color-navy);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .site-header--event,
+    .site-header--event .site-header__inner {
+      transition: none;
+    }
+  }
+</style>
+
+<script>
+  const sentinel = document.querySelector<HTMLElement>('.site-header__sentinel')
+  const header = document.querySelector<HTMLElement>('.site-header--event')
+
+  if (sentinel && header && 'IntersectionObserver' in window) {
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        header.classList.toggle('is-stuck', !entry.isIntersecting)
+      },
+      { threshold: 0 }
+    )
+    observer.observe(sentinel)
+  }
+</script>

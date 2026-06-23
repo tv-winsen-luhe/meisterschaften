@@ -1,0 +1,734 @@
+---
+import Layout from '@/layouts/default.astro'
+import SectionHeader from '@/components/section-header.astro'
+import Card from '@/components/card.astro'
+import NumberedStep from '@/components/numbered-step.astro'
+import FaqItem from '@/components/faq-item.astro'
+import SignupForm from '@/components/signup-form.astro'
+import TeilnehmerListe from '@/components/teilnehmer-liste.astro'
+import MarkerHighlight from '@/components/marker-highlight.astro'
+import logoSvg from '@/assets/logo.svg'
+import {
+  competitions,
+  contactEmail,
+  facts,
+  signupDeadline,
+  startgeld,
+  tournament,
+  venue,
+  venueAddress
+} from '@/data/tournament'
+
+const sectClass = 'sect border-t border-navy py-20 focus:outline-none md:py-[120px]'
+const catBadgeClass =
+  'self-start border-[1.5px] border-navy px-2.5 py-1 text-[11px] font-black uppercase tracking-[0.15em]'
+const catBadgeInvClass =
+  'self-start border-[1.5px] border-white/40 px-2.5 py-1 text-[11px] font-black uppercase tracking-[0.15em] text-white'
+
+const factRows: [string, string][] = [
+  ['Termin', `${tournament.longWithWeekdays} · Start Samstag ${tournament.startTime}`],
+  ['Ort', `Tennisanlage TV Winsen/Luhe · ${facts.courts}`],
+  ['Veranstalter', facts.veranstalter],
+  ['Teilnahme', facts.teilnahme],
+  ['Wertung', facts.wertung],
+  ['Anmeldeschluss', `${signupDeadline.long} — Auslosung direkt danach`],
+  ['Startgeld', `${startgeld} € pro Person, bar vor Ort`]
+]
+
+const herren = competitions.find(c => c.id === 'herren')!
+const challenger = competitions.find(c => c.id === 'herren-challenger')!
+const damen = competitions.find(c => c.id === 'damen')!
+---
+
+<Layout
+  title="Winsener Meisterschaften 2026 — Stadtmeisterschaft TV & TSV Winsen"
+  description="Die Winsener Meisterschaften 2026 — Stadtmeisterschaft von TV Winsen/Luhe und TSV Winsen am 22./23.08. Herren, Herren Challenger, Damen in Planung. Jetzt anmelden."
+  ogTitle="Winsener Meisterschaften 2026 — 22./23.08."
+  ogDescription="Stadtmeisterschaft von TV & TSV Winsen. K.O. mit Nebenrunde, alle Titel an einem Wochenende. Jetzt anmelden."
+  bodyClass="bg-surface-alt"
+  chrome="event"
+  headerAnchors={[
+    { href: '#konkurrenzen', label: 'Konkurrenzen' },
+    { href: '#modus', label: 'Modus' },
+    { href: '#teilnehmer', label: 'Wer ist dabei' },
+    { href: '#zeitplan', label: 'Zeitplan' },
+    { href: '#ort', label: 'Ort' }
+  ]}
+  headerCta={{ href: '#anmeldung', label: 'Anmelden' }}
+>
+  <div class="mx-auto max-w-[1280px] px-5 pt-6 text-navy md:px-10 md:pt-8">
+    <!-- Hero -->
+    <section class="flex min-h-dvh flex-col justify-center pt-16 pb-[72px] md:pt-24 md:pb-[104px]">
+      <div class="enter enter--1 mb-6 flex items-baseline justify-end gap-3.5 max-[700px]:justify-start">
+        <span class="text-[11px] font-semibold tracking-[0.18em] uppercase opacity-70">Sa &amp; So</span>
+        <span class="text-[clamp(30px,5vw,54px)] leading-none font-black tracking-[-0.03em]"
+          >{tournament.shortRangeNumeric}</span
+        >
+        <span
+          class="text-[clamp(30px,5vw,54px)] leading-none font-black tracking-[-0.03em] text-surface-alt text-stroke-ink-sm"
+          >{tournament.year}</span
+        >
+      </div>
+      <h1 class="hero__title m-0 text-[clamp(40px,9vw,118px)] leading-[0.84] font-black tracking-[-0.05em] uppercase">
+        <span class="enter enter--2">Winsener</span>
+        <span
+          class="hero__title--outline enter enter--3 text-surface-alt text-stroke-ink max-md:[-webkit-text-stroke-width:1.5px]"
+          >Meister&shy;schaften<span class="inline text-neon text-stroke-volt max-md:[-webkit-text-stroke-width:1.5px]"
+            >.</span
+          ></span
+        >
+      </h1>
+
+      <div class="mt-16 ml-auto max-w-[46ch] max-[700px]:ml-0">
+        <p class="enter enter--4 m-0 text-[17px] leading-[1.6] font-medium">
+          Die Stadtmeisterschaft.<br />
+          TV &amp; TSV Winsen, ein Wochenende.<br />
+          Alle Titel, eine Anlage.
+        </p>
+        <p class="enter enter--5 mt-3 text-[13px] leading-[1.6] opacity-70">
+          K.O. mit Nebenrunde — niemand fliegt nach einem Match raus. Zuschauen und Rahmenprogramm für die ganze
+          Familie.
+        </p>
+
+        <div class="enter enter--6 mt-8">
+          <span class="mb-3 block text-[11px] font-bold tracking-[0.18em] uppercase opacity-65">
+            Anmeldung bis {signupDeadline.short}
+          </span>
+          <div class="flex flex-wrap items-center gap-6">
+            <a href="#anmeldung" class="cta-primary">Jetzt anmelden</a>
+            <a href="#teilnehmer" class="cta-secondary">Wer ist dabei? <span aria-hidden="true">&darr;</span></a>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Worum geht's -->
+    <section id="worum" class:list={[sectClass]} tabindex="-1">
+      <SectionHeader
+        eyebrow="Stadtmeisterschaft TV + TSV"
+        headline={['Zwei Vereine,', 'ein Titel.']}
+        note="Die Winsener Meisterschaften sind die gemeinsame Stadtmeisterschaft von TV Winsen/Luhe und TSV Winsen — ein kompaktes Turnierwochenende, an dem alle Titelträger:innen ausgespielt werden. Vereinsintern, ohne LK-Wertung, mit Nebenrunde, damit niemand nach nur einem Match nach Hause fährt."
+      />
+
+      <dl class="reveal grid grid-cols-1 gap-0 border-t border-navy/15">
+        {
+          factRows.map(([label, value]) => (
+            <div class="flex flex-col gap-1 border-b border-navy/15 py-4 md:flex-row md:items-baseline md:gap-8">
+              <dt class="w-[200px] shrink-0 text-[11px] font-bold tracking-[0.16em] uppercase opacity-50">{label}</dt>
+              <dd class="m-0 text-[15px] leading-[1.5] font-medium">{value}</dd>
+            </div>
+          ))
+        }
+      </dl>
+    </section>
+
+    <!-- Konkurrenzen -->
+    <section id="konkurrenzen" class:list={[sectClass]} tabindex="-1">
+      <SectionHeader
+        eyebrow="Konkurrenzen"
+        headline={['Wähl dein', 'Feld.']}
+        note="Du entscheidest bei der Anmeldung selbst, in welchem Feld du spielst. Die LK-20-Grenze des Challenger-Felds gilt klubunabhängig für TV wie TSV."
+      />
+
+      <div class="cat-grid grid grid-cols-3 gap-0.5 bg-navy p-0.5 max-[900px]:grid-cols-1">
+        <!-- Herren -->
+        <Card variant="light" minHeight={440} stagger={0}>
+          <span class={catBadgeClass}>Hauptfeld</span>
+          <div class="my-6 flex flex-1 flex-col">
+            <span
+              class="flex flex-1 items-center justify-center text-center text-[clamp(40px,16cqw,84px)] leading-[0.85] font-black tracking-[-0.04em] uppercase"
+              >{herren.label}</span
+            >
+          </div>
+          <div class="mt-auto border-t border-navy/15 pt-4">
+            <p class="m-0 text-[13px] leading-[1.6] opacity-70">{herren.blurb}</p>
+            <p class="m-0 mt-3 text-[10px] leading-[1.6] font-bold tracking-[0.16em] uppercase opacity-45">
+              Titel: {herren.titel}
+            </p>
+          </div>
+        </Card>
+
+        <!-- Challenger -->
+        <Card variant="blue" minHeight={440} stagger={1}>
+          <span class={catBadgeClass}>LK 20+</span>
+          <div class="my-6 flex flex-1 flex-col items-center justify-center gap-2 text-center uppercase">
+            <span class="text-[clamp(11px,2.8cqw,15px)] font-bold tracking-[0.18em] opacity-85">Herren</span>
+            <span class="text-[clamp(36px,15cqw,72px)] leading-[0.85] font-black tracking-[-0.04em]">
+              <MarkerHighlight brush={3}>Challenger</MarkerHighlight>
+            </span>
+          </div>
+          <div class="mt-auto border-t border-navy/20 pt-4">
+            <p class="m-0 text-[13px] leading-[1.6] opacity-80">{challenger.blurb}</p>
+            <p class="m-0 mt-3 text-[10px] leading-[1.6] font-bold tracking-[0.16em] uppercase opacity-55">
+              Titel: {challenger.titel}
+            </p>
+          </div>
+        </Card>
+
+        <!-- Damen (in Planung) -->
+        <Card variant="clay-textured" minHeight={440} stagger={2}>
+          <span class={catBadgeInvClass}>In Planung</span>
+          <div class="my-6 flex flex-1 flex-col">
+            <span
+              class="flex flex-1 items-center justify-center text-center text-[clamp(40px,16cqw,84px)] leading-[0.85] font-black tracking-[-0.04em] text-white uppercase"
+              >{damen.label}</span
+            >
+          </div>
+          <div class="mt-auto border-t border-white/25 pt-4">
+            <p class="m-0 text-[13px] leading-[1.6] text-white/80">{damen.blurb}</p>
+            <p class="m-0 mt-3 text-[10px] leading-[1.6] font-bold tracking-[0.16em] text-white/65 uppercase">
+              Details nach Anfang Juli
+            </p>
+          </div>
+        </Card>
+      </div>
+    </section>
+
+    <!-- Modus & Reglement -->
+    <section id="modus" class:list={[sectClass]} tabindex="-1">
+      <SectionHeader
+        eyebrow="Modus & Reglement"
+        headline={['So wird', 'gespielt.']}
+        note="Sportlich vollwertig, aber so getaktet, dass alle Titel in ein Wochenende passen."
+      />
+
+      <div class="flex flex-col gap-12 md:max-w-[760px]">
+        <NumberedStep num="01" title="K.O. mit Nebenrunde">
+          Gespielt wird im K.O.-System — aber mit Nebenrunde: Wer in der ersten Runde verliert, spielt weiter. Jede:r
+          hat mehr als ein Match, niemand steht nach 20 Minuten wieder am Auto.
+        </NumberedStep>
+        <NumberedStep num="02" title="Zwei Gewinnsätze, dann Match-Tie-Break">
+          Es geht über zwei Gewinnsätze. Steht es 1:1 nach Sätzen, entscheidet ein
+          <span class="font-bold text-blue opacity-100">Match-Tie-Break bis 10</span>. Bei Schlechtwetter kann das
+          Format verkürzt werden — gespielt wird bei fast jedem Wetter.
+        </NumberedStep>
+        <NumberedStep num="03" title="Setzung nach LK — ungewertet">
+          Die Auslosung erfolgt objektiv nach aktueller Leistungsklasse (Quelle nuLiga), nicht nach Meldereihenfolge.
+          Das Turnier selbst ist <span class="font-bold text-clay opacity-100">ungewertet</span> — die LK dient nur der Setzung.
+        </NumberedStep>
+        <NumberedStep num="04" title="Du wählst dein Feld">
+          Bei der Anmeldung wählst du selbst deine Konkurrenz. Eine Spieler-ID oder Kenntnis deiner LK ist nicht nötig —
+          die ergänzen wir intern.
+        </NumberedStep>
+      </div>
+    </section>
+
+    <!-- Zeitplan -->
+    <section id="zeitplan" class:list={[sectClass]} tabindex="-1">
+      <SectionHeader
+        eyebrow="Zeitplan (vorläufig)"
+        note="Über das Wochenende verteilt, abhängig von den Meldezahlen. Samstag Start 09:00."
+      />
+
+      <div class="reveal grid grid-cols-1 gap-0.5 bg-navy p-0.5 md:grid-cols-2">
+        <div class="bg-surface-alt p-6 md:p-7">
+          <span class="block text-[11px] font-bold tracking-[0.18em] uppercase opacity-50">
+            {tournament.saturday.weekday} · {tournament.saturday.short}
+          </span>
+          <ul class="mt-4 flex flex-col gap-3 text-[15px] leading-[1.5]">
+            <li>
+              <strong class="font-bold">Vormittag/Mittag</strong> — Vorrunden Herren &amp; Challenger (Achtel-/Viertelfinale),
+              Nebenrunde
+            </li>
+            <li><strong class="font-bold">Nachmittag</strong> — Viertelfinale, Nebenrunden</li>
+          </ul>
+        </div>
+        <div class="bg-surface-alt p-6 md:p-7">
+          <span class="block text-[11px] font-bold tracking-[0.18em] uppercase opacity-50">
+            {tournament.sunday.weekday} · {tournament.sunday.short}
+          </span>
+          <ul class="mt-4 flex flex-col gap-3 text-[15px] leading-[1.5]">
+            <li><strong class="font-bold">Vormittag</strong> — Halbfinals</li>
+            <li><strong class="font-bold">Nachmittag</strong> — Spiele um Platz 3</li>
+            <li><strong class="font-bold">später Nachmittag</strong> — Finals &amp; Siegerehrung</li>
+          </ul>
+        </div>
+      </div>
+
+      <p class="reveal mt-6 max-w-[60ch] text-sm leading-[1.6] opacity-70">
+        Der genaue Spielplan mit Gegner, Uhrzeit und Platz wird nach Anmeldeschluss aus der Setzliste erstellt und
+        <strong class="font-semibold">ab {signupDeadline.short} hier veröffentlicht</strong> — mit Live-Ergebnissen am Turnierwochenende.
+      </p>
+    </section>
+
+    <!-- Wer ist dabei -->
+    <section id="teilnehmer" class:list={[sectClass]} tabindex="-1">
+      <SectionHeader
+        eyebrow="Wer ist dabei"
+        headline={['Das', 'Feld.']}
+        note="Alle bestätigten Anmeldungen, sortiert nach Leistungsklasse — die stärksten zuerst. Du willst wissen, gegen wen es geht? Hier siehst du das Feld wachsen."
+      />
+      <TeilnehmerListe />
+    </section>
+
+    <!-- Anmeldung -->
+    <section id="anmeldung" class:list={[sectClass]} tabindex="-1">
+      <SectionHeader
+        eyebrow="Anmeldung"
+        headline={['Sei', 'dabei.']}
+        note={`Verbindliche Anmeldung über das Formular. Anmeldeschluss ${signupDeadline.long}.`}
+      />
+      <SignupForm />
+    </section>
+
+    <!-- Ort & Anfahrt -->
+    <section id="ort" class:list={[sectClass, 'sect--clay']} tabindex="-1">
+      <SectionHeader eyebrow="Ort & Anfahrt" />
+      <div class="reveal mb-14">
+        <span class="block text-h2 leading-[0.85] font-black tracking-[-0.05em] uppercase">6 Sand</span>
+        <span
+          class="venue__hero-sub block text-h2 leading-[0.85] font-black tracking-[-0.05em] text-surface-alt uppercase text-stroke-ink max-md:[-webkit-text-stroke-width:1.5px]"
+          >plätze<span class="inline text-neon text-stroke-volt max-md:[-webkit-text-stroke-width:1.5px]">.</span></span
+        >
+      </div>
+
+      <div class="reveal flex items-start justify-between gap-16 max-md:flex-col max-md:gap-10">
+        <div class="flex-1">
+          <img src={logoSvg.src} alt={venue.organisation} width="120" height="120" class="mb-5 block" />
+          <address class="mb-5 text-[15px] not-italic opacity-80">{venueAddress}</address>
+          <p class="m-0 mb-1 text-sm leading-[1.6] opacity-80">Clubhaus mit Terrasse und Gastronomie</p>
+          <p class="m-0 mb-1 text-sm leading-[1.6] opacity-80">
+            Zuschauen ist jederzeit möglich — freie Sicht auf die Plätze.
+          </p>
+          <a
+            href={venue.mapsUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            class="mt-5 inline-block text-sm font-bold text-white underline underline-offset-[3px] transition-opacity duration-200 hover:opacity-60 focus-visible:outline-2 focus-visible:outline-offset-[3px] focus-visible:outline-navy"
+          >
+            Route in Google Maps &nearr;
+          </a>
+        </div>
+
+        <div class="w-[320px] shrink-0 max-md:w-full max-md:max-w-[360px]">
+          <span class="mb-3 block text-[10px] font-semibold tracking-[0.14em] uppercase opacity-80"
+            >So findest du uns</span
+          >
+          <div class="flex flex-col">
+            <div class="flex items-baseline gap-5 border-b border-white/20 py-2.5">
+              <span
+                class="flex min-w-10 shrink-0 items-center justify-center text-[32px] leading-none font-black tracking-[-0.03em] text-clay [-webkit-text-stroke:1.5px_rgba(255,255,255,0.8)] [paint-order:stroke_fill]"
+                >1</span
+              >
+              <span class="text-sm font-medium">Parke auf der Wiese des Schützenvereins</span>
+            </div>
+            <div class="flex items-baseline gap-5 border-b border-white/20 py-2.5">
+              <span
+                class="flex min-w-10 shrink-0 items-center justify-center text-[32px] leading-none font-black tracking-[-0.03em] text-clay [-webkit-text-stroke:1.5px_rgba(255,255,255,0.8)] [paint-order:stroke_fill]"
+                >2</span
+              >
+              <span class="text-sm font-medium">Rechts am Schützenverein vorbei</span>
+            </div>
+            <div class="flex items-baseline gap-5 border-b border-white/20 py-2.5">
+              <span
+                class="flex min-w-10 shrink-0 items-center justify-center text-[32px] leading-none font-black tracking-[-0.03em] text-clay [-webkit-text-stroke:1.5px_rgba(255,255,255,0.8)] [paint-order:stroke_fill]"
+                >3</span
+              >
+              <span class="text-sm font-medium">Dem Weg durch den Wald folgen (~2 Min)</span>
+            </div>
+            <div class="flex items-baseline gap-5 py-2.5">
+              <span
+                class="flex min-w-10 shrink-0 items-center justify-center text-[32px] leading-none font-black tracking-[-0.03em] text-clay [-webkit-text-stroke:1.5px_rgba(255,255,255,0.8)] [paint-order:stroke_fill]"
+                >&check;</span
+              >
+              <span class="text-sm font-medium">Tennisanlage & Clubhaus</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Rahmenprogramm -->
+    <section id="rahmenprogramm" class:list={[sectClass]} tabindex="-1">
+      <SectionHeader
+        eyebrow="Rahmenprogramm"
+        note="Mehr als Tennis — ein Wochenende für den ganzen Verein. (Details folgen.)"
+      />
+      <div class="cat-grid grid grid-cols-3 gap-0.5 bg-navy p-0.5 max-[900px]:grid-cols-1">
+        <Card variant="light" minHeight={220} stagger={0}>
+          <span class={catBadgeClass}>Familie</span>
+          <h3 class="mt-6 mb-2 text-[22px] font-extrabold tracking-[-0.02em]">Kinderprogramm</h3>
+          <p class="m-0 text-[13px] leading-[1.6] opacity-70">
+            Betreuung &amp; Spiel am Turnierwochenende (in Planung, evtl. „Egons-Mobil").
+          </p>
+        </Card>
+        <Card variant="light" minHeight={220} stagger={1}>
+          <span class={catBadgeClass}>Anlage</span>
+          <h3 class="mt-6 mb-2 text-[22px] font-extrabold tracking-[-0.02em]">Verpflegung &amp; Gastro</h3>
+          <p class="m-0 text-[13px] leading-[1.6] opacity-70">
+            Essen und Trinken auf der Anlage. Zuschauer:innen ausdrücklich willkommen.
+          </p>
+        </Card>
+        <Card variant="light" minHeight={220} stagger={2}>
+          <span class={catBadgeClass}>Sonntag</span>
+          <h3 class="mt-6 mb-2 text-[22px] font-extrabold tracking-[-0.02em]">Siegerehrung</h3>
+          <p class="m-0 text-[13px] leading-[1.6] opacity-70">
+            Gemeinsame Siegerehrung am Sonntag, wenn alle Titel vergeben sind.
+          </p>
+        </Card>
+      </div>
+    </section>
+
+    <!-- FAQ -->
+    <section id="faq" class:list={[sectClass]} tabindex="-1">
+      <SectionHeader eyebrow="FAQ" headline={['Noch', 'Fragen?']} />
+
+      <div class="reveal max-w-[720px]">
+        <FaqItem question="Wer darf mitmachen?">
+          Alle Mitglieder von TV Winsen/Luhe und TSV Winsen. Die Herren-Konkurrenz ist offen für alle, das
+          Challenger-Feld nur für Spieler mit LK 20 oder höher. Eine Damen-Konkurrenz ist in Planung.
+        </FaqItem>
+        <FaqItem question="Brauche ich eine Spieler-ID oder muss ich meine LK kennen?">
+          Nein. Du gibst nur deinen Namen, deinen Verein und deine Konkurrenz an. Die Leistungsklasse ziehen wir für die
+          Setzung intern aus nuLiga — auch ohne nuLiga-/mybigpoint-Konto kannst du melden.
+        </FaqItem>
+        <FaqItem question="Was ist die Nebenrunde?">
+          Wer in der ersten Runde verliert, ist nicht raus, sondern spielt in der Nebenrunde weiter. So hat jede:r mehr
+          als ein Match — genau das, was eine Vereinsmeisterschaft lebendig macht.
+        </FaqItem>
+        <FaqItem question="Was ist das Challenger-Feld?">
+          Ein eigenes, nach oben geschütztes Feld für Spieler mit LK 20+. Stärkere Spieler sind nicht zugelassen — so
+          gibt es ausgeglichene Matches statt Abschüsse. Der Gewinner ist Winsener Meister Herren Challenger, ein
+          eigenständiger Titel.
+        </FaqItem>
+        <FaqItem question="Was kostet die Teilnahme?">
+          {startgeld} € Startgeld pro Person, bar vor Ort beim Check-in. Spielbälle werden gestellt.
+        </FaqItem>
+        <FaqItem question="Wie wird gespielt?">
+          K.O. mit Nebenrunde, zwei Gewinnsätze, bei 1:1 ein Match-Tie-Break bis 10. Gesetzt wird nach LK; das Turnier
+          selbst ist ungewertet.
+        </FaqItem>
+        <FaqItem question="Wann steht der Spielplan?">
+          Nach Anmeldeschluss ({signupDeadline.long}) wird ausgelost. Der Spielplan mit Gegner, Uhrzeit und Platz
+          erscheint danach hier auf der Website — am Turnierwochenende mit Live-Ergebnissen.
+        </FaqItem>
+        <FaqItem question="Gibt es eine Damen-Konkurrenz?">
+          In Planung: ein Wettkampffeld um die Winsener Meisterin sowie ein geselliges Zweitformat. Die Details stehen
+          nach den Vorgesprächen Anfang Juli fest und werden dann hier ergänzt.
+        </FaqItem>
+        <FaqItem question="Was passiert bei Regen?">
+          Das Turnier findet bei fast jedem Wetter statt — Sand verträgt einiges. Bei stärkerem Regen oder Zeitverzug
+          kann das Spielformat verkürzt werden; zwei Plätze haben Flutlicht für den Abend.
+        </FaqItem>
+        <FaqItem question="Kann ich zuschauen, ohne zu spielen?">
+          Klar. Zuschauer:innen sind ausdrücklich willkommen, freie Sicht auf die Plätze, Clubhaus mit Gastronomie ist
+          offen.
+        </FaqItem>
+        <FaqItem question="Ich habe noch Fragen.">
+          Schreib uns an
+          <a href={`mailto:${contactEmail}`} class="font-semibold text-navy underline-offset-2">{contactEmail}</a>.
+        </FaqItem>
+      </div>
+    </section>
+
+    <!-- Abschluss-CTA -->
+    <section
+      class:list={[
+        sectClass,
+        'sect--clay sect--cta flex flex-col items-center py-40 text-center max-md:py-[120px] md:py-40'
+      ]}
+    >
+      <div class="reveal flex flex-col items-center text-center">
+        <span
+          class="final-cta__eyebrow sect__eyebrow mb-10 block min-w-[280px] text-[11px] font-bold tracking-[0.2em] uppercase opacity-45"
+          >{tournament.longWithWeekdays}</span
+        >
+        <h2
+          class="final-cta__headline m-0 mb-8 text-[clamp(48px,9vw,120px)] leading-[0.85] font-black tracking-[-0.05em] uppercase [&>span]:block"
+        >
+          <span>Spiel um den</span>
+          <span class="final-cta__outline text-surface-alt text-stroke-ink max-md:[-webkit-text-stroke-width:1.5px]"
+            >Titel.</span
+          >
+        </h2>
+        <p class="final-cta__sub mb-8 text-[15px] leading-[1.6] opacity-70">
+          Fehlt nur noch dein Name. Anmeldung bis {signupDeadline.long}.
+        </p>
+        <a href="#anmeldung" class="cta-primary">Jetzt anmelden</a>
+      </div>
+    </section>
+  </div>
+</Layout>
+
+<style is:global>
+  /* CTA buttons — reused with :hover, :focus-visible states */
+  .cta-primary {
+    display: inline-block;
+    background: var(--color-neon);
+    color: var(--color-navy);
+    font-family: inherit;
+    font-weight: 800;
+    font-size: 14px;
+    letter-spacing: 0.02em;
+    padding: 14px 28px;
+    border: none;
+    cursor: pointer;
+    text-decoration: none;
+    text-transform: uppercase;
+    transition:
+      background 0.2s,
+      transform 0.2s;
+  }
+  .cta-primary:hover {
+    background: #e0ff4d;
+    transform: translateY(-1px);
+  }
+  .cta-primary:focus-visible {
+    outline: 2px solid var(--color-navy);
+    outline-offset: 3px;
+  }
+  .cta-primary--sm {
+    padding: 8px 16px;
+    font-size: 12px;
+  }
+
+  .cta-secondary {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--color-navy);
+    opacity: 0.5;
+    text-decoration: underline;
+    text-underline-offset: 3px;
+    transition: opacity 0.2s;
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-family: inherit;
+  }
+  .cta-secondary:hover {
+    opacity: 0.8;
+  }
+  .cta-secondary:focus-visible {
+    outline: 2px solid var(--color-navy);
+    outline-offset: 3px;
+  }
+
+  /* Hero headline — block spans + clip-reveal animation hook */
+  .hero__title > span {
+    display: block;
+    will-change: clip-path;
+  }
+  .hero__title .enter {
+    animation-name: clipReveal;
+    animation-duration: 0.7s;
+  }
+
+  /* Section headline clip reveal */
+  .sect__headline-clip {
+    opacity: 0;
+    clip-path: inset(100% 0 0 0);
+    transition:
+      opacity 0.7s cubic-bezier(0.16, 1, 0.3, 1),
+      clip-path 0.7s cubic-bezier(0.16, 1, 0.3, 1);
+    transition-delay: calc(var(--i) * 0.12s);
+  }
+  .sect.is-visible .sect__headline-clip {
+    opacity: 1;
+    clip-path: inset(0 0 0 0);
+  }
+
+  /* Scroll reveal */
+  .reveal {
+    opacity: 0;
+    transform: translateY(1.5rem);
+    transition:
+      opacity 0.7s cubic-bezier(0.16, 1, 0.3, 1),
+      transform 0.7s cubic-bezier(0.16, 1, 0.3, 1);
+    transition-delay: var(--reveal-delay, 0s);
+  }
+  .reveal.is-visible {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  /* Hero entrance */
+  .enter {
+    animation: enterUp 0.8s cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+  .enter--1 {
+    animation-delay: 0.1s;
+  }
+  .enter--2 {
+    animation-delay: 0.2s;
+  }
+  .enter--3 {
+    animation-delay: 0.35s;
+  }
+  .enter--4 {
+    animation-delay: 0.55s;
+  }
+  .enter--5 {
+    animation-delay: 0.7s;
+  }
+  .enter--6 {
+    animation-delay: 0.85s;
+  }
+
+  @keyframes enterUp {
+    from {
+      opacity: 0;
+      transform: translateY(2rem);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  @keyframes clipReveal {
+    from {
+      clip-path: inset(100% 0 0 0);
+      opacity: 0;
+    }
+    to {
+      clip-path: inset(-0.2em -0.2em 0 0);
+      opacity: 1;
+    }
+  }
+
+  /* Card stagger for .cat-grid */
+  .stagger {
+    opacity: 0;
+    transform: translateY(1.5rem);
+    transition:
+      opacity 0.7s cubic-bezier(0.16, 1, 0.3, 1),
+      transform 0.7s cubic-bezier(0.16, 1, 0.3, 1);
+    transition-delay: calc(var(--i) * 0.08s);
+  }
+  .cat-grid.is-visible .stagger {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  /* Clay cat-card texture overlay */
+  .cat-card--clay::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    z-index: 0;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='320' height='320'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='1.15' numOctaves='2' seed='7' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.55 0'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>");
+    mix-blend-mode: overlay;
+    opacity: 0.5;
+  }
+  .cat-card--clay > * {
+    position: relative;
+    z-index: 1;
+  }
+
+  /* Full-bleed clay section */
+  .sect--clay {
+    position: relative;
+    background: var(--color-clay);
+    color: #fff;
+    box-shadow: 0 0 0 100vmax var(--color-clay);
+    clip-path: inset(0 -100vmax);
+    border-top-color: transparent;
+  }
+  .sect--clay::before {
+    content: '';
+    position: absolute;
+    inset: 0 -100vmax;
+    pointer-events: none;
+    z-index: 0;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='320' height='320'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='1.15' numOctaves='2' seed='7' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.55 0'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>");
+    mix-blend-mode: overlay;
+    opacity: 0.5;
+  }
+  .sect--clay > * {
+    position: relative;
+    z-index: 1;
+  }
+  .sect--clay + .sect {
+    border-top-color: transparent;
+  }
+
+  /* Clay eyebrow with flanking hairlines */
+  .sect--clay .sect__eyebrow {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    opacity: 1;
+    color: rgba(255, 255, 255, 0.85);
+  }
+  .sect--clay .sect__eyebrow::before {
+    content: '';
+    flex: 0 0 48px;
+    height: 1px;
+    background: rgba(255, 255, 255, 0.32);
+  }
+  .sect--clay .sect__eyebrow::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: rgba(255, 255, 255, 0.32);
+  }
+  .sect--clay.sect--cta .sect__eyebrow {
+    justify-content: center;
+  }
+  .sect--clay.sect--cta .sect__eyebrow::before,
+  .sect--clay.sect--cta .sect__eyebrow::after {
+    flex: 0 0 56px;
+  }
+
+  /* Outlined display text on clay: switch stroke to white, fill to clay */
+  .sect--clay .venue__hero-sub {
+    -webkit-text-stroke-color: #fff;
+    color: var(--color-clay);
+  }
+  .sect--clay .final-cta__outline {
+    -webkit-text-stroke-color: #fff;
+    color: var(--color-clay);
+  }
+
+  /* FAQ summary marker */
+  .faq__q {
+    list-style: none;
+  }
+  .faq__q::-webkit-details-marker {
+    display: none;
+  }
+  .faq__q::after {
+    content: '+';
+    font-weight: 300;
+    font-size: 24px;
+    opacity: 0.3;
+    flex-shrink: 0;
+    transition: transform 0.2s;
+  }
+  .faq__item[open] .faq__q::after {
+    content: '−';
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .enter {
+      animation: none;
+    }
+    .reveal,
+    .sect__headline-clip,
+    .stagger {
+      opacity: 1;
+      transform: none;
+      clip-path: none;
+      transition: none;
+    }
+  }
+</style>
+
+<script>
+  if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    const observer = new IntersectionObserver(
+      entries => {
+        entries.forEach(entry => {
+          if (entry.isIntersecting) {
+            entry.target.classList.add('is-visible')
+            observer.unobserve(entry.target)
+          }
+        })
+      },
+      { threshold: 0.15 }
+    )
+
+    document.querySelectorAll('.reveal, .sect, .cat-grid').forEach(el => observer.observe(el))
+  }
+</script>

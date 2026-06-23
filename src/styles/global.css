@@ -1,0 +1,74 @@
+@import 'tailwindcss';
+
+html,
+body {
+  overflow-x: clip;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+}
+
+@theme {
+  /* Primary: Navy (club color) */
+  --color-navy-light: #8b9bb1;
+  --color-navy: #0c1e3a;
+
+  /* Secondary: Blue (club accent) */
+  --color-blue-light: #c7e8fe;
+  --color-blue: #199cf9;
+
+  /* Accent: Neon (event highlight) */
+  --color-neon-light: #edff80;
+  --color-neon: #ceff00;
+
+  /* Surface: Clay (Sandplatz / Terre Battue) */
+  --color-clay-light: #e8c9b0;
+  --color-clay: #c2673b;
+
+  /* Neutrals */
+  --color-gray-light: #f5f5f5;
+  --color-gray: #737373;
+
+  /* Type scale — canonical display and section-headline sizes */
+  --text-display: clamp(72px, 14vw, 180px);
+  --text-h2: clamp(56px, 10vw, 120px);
+
+  /* Semantic aliases */
+  --color-surface: #ffffff;
+  --color-surface-alt: #f5f5f5;
+  --color-surface-dark: #060d18;
+  --color-text: #0c1e3a;
+  --color-text-muted: #525252;
+  --color-text-inverted: #ffffff;
+  --color-surface-warm: #e8c9b0;
+  --color-border: #e5e5e5;
+  --color-border-strong: #d4d4d4;
+  --color-ring: #199cf9;
+}
+
+@utility text-stroke-ink {
+  -webkit-text-stroke: 2px var(--color-navy);
+  paint-order: stroke fill;
+}
+
+@utility text-stroke-ink-sm {
+  -webkit-text-stroke: 1.5px var(--color-navy);
+  paint-order: stroke fill;
+}
+
+@utility text-stroke-volt {
+  -webkit-text-stroke: 2px var(--color-neon);
+  paint-order: stroke fill;
+}
+
+@utility section-full-bleed-clay {
+  box-shadow: 0 0 0 100vmax var(--color-clay);
+  clip-path: inset(0 -100vmax);
+}

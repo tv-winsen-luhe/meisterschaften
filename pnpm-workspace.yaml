@@ -1,0 +1,5 @@
+# Security overrides: force patched versions of transitive build-time deps
+# until upstream (vite, @astrojs/check) widen their ranges.
+overrides:
+  esbuild: '>=0.28.1'
+  yaml: '>=2.8.3'
