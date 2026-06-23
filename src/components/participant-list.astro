@@ -1,5 +1,7 @@
 ---
 import { competitions } from '@/data/tournament'
+import tvLogo from '@/assets/logo.svg'
+import tsvLogo from '@/assets/tsv-winsen.png'
 
 // Open competitions only; Hauptfeld (mens) = seeding board, Challenger = friendly list.
 const openCompetitions = competitions.filter(c => c.status === 'open')
@@ -7,20 +9,32 @@ const layoutFor = (slug: string) => (slug === 'mens' ? 'board' : 'list')
 const womens = competitions.find(c => c.id === 'womens')
 ---
 
-<div class="participants" data-participants>
+<div class="participants" data-participants data-logo-tv={tvLogo.src} data-logo-tsv={tsvLogo.src}>
   <div class="participants__grid grid grid-cols-1 gap-0.5 bg-navy p-0.5 md:grid-cols-2">
     {
       openCompetitions.map(c => (
-        <section class="pl-group bg-surface-alt p-6 md:p-7" data-group={c.slug} data-layout={layoutFor(c.slug)}>
-          <header class="pl-group__head">
-            <div>
-              <h3 class="pl-group__title">{c.label}</h3>
-              {c.requirement && <p class="pl-group__sub">{c.requirement}</p>}
-            </div>
-            <span class="pl-group__count">
-              <span data-count>·</span>
-            </span>
-          </header>
+        <section
+          class="pl-group bg-surface-alt p-6 md:p-7"
+          data-group={c.slug}
+          data-layout={layoutFor(c.slug)}
+          data-capacity={c.capacity}
+        >
+          <div class="pl-group__top">
+            <header class="pl-group__head">
+              <div>
+                <h3 class="pl-group__title">{c.label}</h3>
+                {c.requirement && <p class="pl-group__sub">{c.requirement}</p>}
+              </div>
+              <span class="pl-free" data-free-label />
+            </header>
+            {c.capacity && (
+              <div class="pl-meter" data-meter aria-hidden="true">
+                {Array.from({ length: c.capacity }).map(() => (
+                  <span class="pl-meter__seg" />
+                ))}
+              </div>
+            )}
+          </div>
           <ol class="pl-list" data-list>
             <li class="pl-skeleton" aria-hidden="true" />
             <li class="pl-skeleton" aria-hidden="true" />
@@ -28,7 +42,7 @@ const womens = competitions.find(c => c.id === 'womens')
           </ol>
           <div class="pl-empty" data-empty hidden>
             <p class="pl-empty__line" data-empty-line>
-              Noch niemand im Feld — sei die/der Erste.
+              Noch niemand im Feld — mach den Anfang.
             </p>
             <button type="button" class="pl-empty__cta" data-signup-open data-empty-cta>
               Jetzt anmelden <span aria-hidden="true">→</span>
@@ -64,14 +78,16 @@ const womens = competitions.find(c => c.id === 'womens')
   .pl-group {
     color: var(--color-navy);
   }
+  .pl-group__top {
+    border-bottom: 1px solid rgba(12, 30, 58, 0.15);
+    padding-bottom: 14px;
+    margin-bottom: 4px;
+  }
   .pl-group__head {
     display: flex;
     align-items: flex-start;
     justify-content: space-between;
     gap: 16px;
-    border-bottom: 1px solid rgba(12, 30, 58, 0.15);
-    padding-bottom: 14px;
-    margin-bottom: 4px;
   }
   .pl-group__title {
     margin: 0;
@@ -114,27 +130,36 @@ const womens = competitions.find(c => c.id === 'womens')
     line-height: 1.55;
     color: rgba(12, 30, 58, 0.55);
   }
-  .pl-group__count {
+  .pl-free {
     flex-shrink: 0;
-    display: inline-flex;
-    align-items: baseline;
-    gap: 4px;
-    font-size: clamp(34px, 9vw, 52px);
-    line-height: 0.8;
-    font-weight: 900;
-    letter-spacing: -0.04em;
-    font-variant-numeric: tabular-nums;
-    color: var(--color-navy);
-  }
-  .pl-group__count::after {
-    content: 'dabei';
-    align-self: flex-end;
-    font-size: 10px;
-    font-weight: 700;
-    letter-spacing: 0.16em;
+    padding-top: 5px;
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 0.12em;
     text-transform: uppercase;
-    opacity: 0.45;
-    transform: translateY(-2px);
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+    color: rgba(12, 30, 58, 0.6);
+  }
+  .pl-free:empty {
+    display: none;
+  }
+  .pl-meter {
+    display: flex;
+    gap: 3px;
+    margin-top: 14px;
+  }
+  .pl-meter[hidden] {
+    display: none;
+  }
+  .pl-meter__seg {
+    flex: 1;
+    height: 8px;
+    background: rgba(12, 30, 58, 0.1);
+    transition: background 0.3s ease;
+  }
+  .pl-meter__seg--filled {
+    background: var(--color-navy);
   }
 
   .pl-list {
@@ -169,11 +194,14 @@ const womens = competitions.find(c => c.id === 'womens')
     align-items: center;
     justify-content: center;
     border-radius: 50%;
-    background: var(--color-navy);
-    color: #fff;
-    font-size: 12px;
-    font-weight: 800;
-    letter-spacing: 0.02em;
+    background: #fff;
+    border: 1px solid rgba(12, 30, 58, 0.12);
+    overflow: hidden;
+  }
+  .pl-avatar img {
+    width: 72%;
+    height: 72%;
+    object-fit: contain;
   }
   .pl-name {
     flex: 1;
@@ -184,14 +212,6 @@ const womens = competitions.find(c => c.id === 'womens')
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-  }
-  .pl-club {
-    flex-shrink: 0;
-    font-size: 10px;
-    font-weight: 700;
-    letter-spacing: 0.1em;
-    text-transform: uppercase;
-    opacity: 0.45;
   }
   .pl-lk {
     flex-shrink: 0;
@@ -274,13 +294,18 @@ const womens = competitions.find(c => c.id === 'womens')
     display: none;
   }
   .participants.is-error .pl-list,
-  .participants.is-error .pl-empty {
+  .participants.is-error .pl-empty,
+  .participants.is-error .pl-meter,
+  .participants.is-error .pl-free {
     display: none;
   }
 
   @media (prefers-reduced-motion: reduce) {
     .pl-skeleton {
       animation: none;
+    }
+    .pl-meter__seg {
+      transition: none;
     }
   }
 </style>
@@ -290,15 +315,8 @@ const womens = competitions.find(c => c.id === 'womens')
   type ApiResponse = { enabled: boolean; participants: Entry[] }
 
   const root = document.querySelector<HTMLElement>('[data-participants]')
-
-  function clubShort(v: string) {
-    if (v.includes('TSV')) return 'TSV'
-    if (v.includes('TV')) return 'TV'
-    return v
-  }
-  function initials(first: string, last: string) {
-    return ((first[0] ?? '') + (last[0] ?? '')).toUpperCase()
-  }
+  const logoTv = root?.dataset.logoTv ?? ''
+  const logoTsv = root?.dataset.logoTsv ?? ''
 
   function row(entry: Entry, layout: string, rank: number): HTMLLIElement {
     const li = document.createElement('li')
@@ -313,18 +331,18 @@ const womens = competitions.find(c => c.id === 'womens')
 
     const avatar = document.createElement('span')
     avatar.className = 'pl-avatar'
-    avatar.textContent = initials(entry.first_name, entry.last_name)
+    const isTsv = entry.club.includes('TSV')
+    const logo = document.createElement('img')
+    logo.src = isTsv ? logoTsv : logoTv
+    logo.alt = isTsv ? 'TSV Winsen' : 'TV Winsen'
+    logo.loading = 'lazy'
+    avatar.appendChild(logo)
     li.appendChild(avatar)
 
     const name = document.createElement('span')
     name.className = 'pl-name'
     name.textContent = `${entry.first_name} ${entry.last_name}`.trim()
     li.appendChild(name)
-
-    const club = document.createElement('span')
-    club.className = 'pl-club'
-    club.textContent = clubShort(entry.club)
-    li.appendChild(club)
 
     if (layout === 'board') {
       const lk = document.createElement('span')
@@ -343,7 +361,10 @@ const womens = competitions.find(c => c.id === 'womens')
     if (!data.enabled) {
       root.querySelectorAll<HTMLElement>('[data-group]').forEach(group => {
         group.querySelector<HTMLElement>('[data-list]')!.innerHTML = ''
-        group.querySelector<HTMLElement>('[data-count]')!.textContent = '·'
+        const freeLabel = group.querySelector<HTMLElement>('[data-free-label]')
+        if (freeLabel) freeLabel.textContent = ''
+        const meter = group.querySelector<HTMLElement>('[data-meter]')
+        if (meter) meter.hidden = true
         const empty = group.querySelector<HTMLElement>('[data-empty]')!
         empty.hidden = false
         const line = empty.querySelector<HTMLElement>('[data-empty-line]')
@@ -368,13 +389,26 @@ const womens = competitions.find(c => c.id === 'womens')
       const entries = byComp.get(slug) ?? []
       const list = group.querySelector<HTMLElement>('[data-list]')!
       const empty = group.querySelector<HTMLElement>('[data-empty]')!
-      group.querySelector<HTMLElement>('[data-count]')!.textContent = String(entries.length)
+      const capacity = Number(group.dataset.capacity)
+      const freeLabel = group.querySelector<HTMLElement>('[data-free-label]')
+      const meter = group.querySelector<HTMLElement>('[data-meter]')
+      const segs = group.querySelectorAll<HTMLElement>('.pl-meter__seg')
+      if (Number.isFinite(capacity) && capacity > 0) {
+        if (meter) meter.hidden = false
+        const free = Math.max(0, capacity - entries.length)
+        if (freeLabel)
+          freeLabel.textContent =
+            free === 0 ? 'Ausgebucht' : free === capacity ? `${free} Plätze frei` : `Noch ${free} frei`
+        segs.forEach((s, i) => s.classList.toggle('pl-meter__seg--filled', i < entries.length))
+      } else if (freeLabel) {
+        freeLabel.textContent = entries.length ? `${entries.length} gemeldet` : ''
+      }
 
       list.innerHTML = ''
       if (entries.length === 0) {
         empty.hidden = false
         const line = empty.querySelector<HTMLElement>('[data-empty-line]')
-        if (line) line.textContent = 'Noch niemand im Feld — sei die/der Erste.'
+        if (line) line.textContent = 'Noch niemand im Feld — mach den Anfang.'
         const cta = empty.querySelector<HTMLElement>('[data-empty-cta]')
         if (cta) cta.hidden = false
         return
@@ -392,7 +426,7 @@ const womens = competitions.find(c => c.id === 'womens')
       render((await res.json()) as ApiResponse)
     } catch {
       root.classList.add('is-error')
-      root.querySelectorAll<HTMLElement>('[data-count]').forEach(el => (el.textContent = '·'))
+      root.querySelectorAll<HTMLElement>('[data-free-label]').forEach(el => (el.textContent = ''))
       root.querySelectorAll<HTMLElement>('.pl-skeleton').forEach(el => el.remove())
       const statusEl = root.querySelector<HTMLElement>('[data-status]')
       if (statusEl)

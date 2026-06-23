@@ -11,6 +11,8 @@ export interface Competition {
   blurb: string
   /** Formal entry requirement (e.g. LK limit) — optional, shown as small print. */
   requirement?: string
+  /** Max participants — drives the "Plätze frei" count on the participant list. */
+  capacity?: number
   title: string
   status: CompetitionStatus
   /** Selectable in the signup form? (Damen is "in Planung" → false) */
@@ -50,6 +52,7 @@ export const competitions: readonly Competition[] = [
     blurb:
       'Das Hauptfeld — offen für alle. Hier treten die stärksten Spielenden an und hier wird der Winsener Meister ausgespielt.',
     title: 'Winsener Meister Herren',
+    capacity: 16,
     status: 'open',
     selectable: true
   },
@@ -62,6 +65,7 @@ export const competitions: readonly Competition[] = [
       'Das geschützte Feld: Wer besser als LK 20 ist, spielt im Hauptfeld und ist hier nicht zugelassen — so zählt das Match statt der Abschuss. Keine LK? Dann zählst du als LK 25 und bist genau richtig.',
     requirement: 'LK 20+',
     title: 'Winsener Meister Herren Challenger',
+    capacity: 16,
     status: 'open',
     selectable: true
   },
