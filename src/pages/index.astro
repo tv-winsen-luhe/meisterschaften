@@ -177,9 +177,14 @@ const sunday = [
           </div>
           <p class="m-0 text-[13px] leading-[1.6] font-semibold">{mens.audience}</p>
           <p class="mt-2 mb-0 text-[13px] leading-[1.6] opacity-65">{mens.blurb}</p>
-          <p class="mt-auto pt-4 text-[10px] leading-[1.6] font-bold tracking-[0.16em] uppercase opacity-45">
-            Titel: {mens.title}
-          </p>
+          <button
+            type="button"
+            class="cta-primary mt-auto w-full text-center"
+            data-signup-open
+            data-signup-competition={mens.slug}
+          >
+            Anmelden
+          </button>
         </Card>
         <Card variant="blue" stagger={1}>
           <span class={catBadgeInvClass}>Einsteiger & Freizeit</span>
@@ -194,6 +199,14 @@ const sunday = [
           <p class="mt-auto pt-4 text-[10px] leading-[1.6] font-bold tracking-[0.16em] uppercase opacity-55">
             {challenger.requirement}
           </p>
+          <button
+            type="button"
+            class="cta-primary mt-5 w-full text-center"
+            data-signup-open
+            data-signup-competition={challenger.slug}
+          >
+            Anmelden
+          </button>
         </Card>
         <Card variant="dark" stagger={2}>
           <span class={catBadgeInvClass}>In Planung</span>
@@ -207,6 +220,14 @@ const sunday = [
           <p class="mt-auto pt-4 text-[10px] leading-[1.6] font-bold tracking-[0.16em] text-white/65 uppercase">
             Details nach Anfang Juli
           </p>
+          <button
+            type="button"
+            class="cta-primary mt-5 w-full text-center"
+            data-signup-open
+            data-signup-competition={womens.slug}
+          >
+            Anmelden
+          </button>
         </Card>
       </div>
     </section>

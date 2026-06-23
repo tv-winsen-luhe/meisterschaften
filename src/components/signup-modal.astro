@@ -527,9 +527,13 @@ import tsvLogo from '@/assets/tsv-winsen.png'
     if (errorEl) errorEl.hidden = true
   }
 
-  function openDialog() {
+  function openDialog(competition?: string) {
     if (!dialog) return
     resetForm()
+    if (competition) {
+      const radio = form?.querySelector<HTMLInputElement>(`input[name="competition"][value="${competition}"]`)
+      if (radio) radio.checked = true
+    }
     dialog.showModal()
     titleEl?.focus({ preventScroll: true })
   }
@@ -538,7 +542,7 @@ import tsvLogo from '@/assets/tsv-winsen.png'
     document.querySelectorAll<HTMLElement>('[data-signup-open]').forEach(trigger => {
       trigger.addEventListener('click', e => {
         e.preventDefault()
-        openDialog()
+        openDialog(trigger.dataset.signupCompetition || undefined)
       })
     })
     dialog.querySelectorAll<HTMLElement>('[data-signup-close]').forEach(btn => {
