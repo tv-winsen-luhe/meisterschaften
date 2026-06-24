@@ -5,6 +5,8 @@ export interface Competition {
   /** Slug stored in the form, the D1 `competition` column and `data-` attributes. */
   slug: string
   label: string
+  /** Short plain-language descriptor shown under the title (e.g. in the participant list). */
+  tagline?: string
   /** Self-identification one-liner for the "which field is mine?" framing. */
   audience: string
   /** Short description for the competition card. */
@@ -48,6 +50,7 @@ export const competitions: readonly Competition[] = [
     id: 'womens',
     slug: 'womens',
     label: 'Damen',
+    tagline: 'Hauptfeld — offen für alle, um die Winsener Meisterin',
     audience:
       'Du hast Lust, dich im Match zu messen und um den Titel mitzuspielen — egal, wie gut du dich gerade selbst einschätzt.',
     blurb:
@@ -61,6 +64,7 @@ export const competitions: readonly Competition[] = [
     id: 'mens',
     slug: 'mens',
     label: 'Herren',
+    tagline: 'Hauptfeld — offen für alle, um den Winsener Meister',
     audience: 'Du spielst Punktspiele, trainierst regelmäßig und willst dich mit den Stärksten messen.',
     blurb:
       'Das Hauptfeld — offen für alle. Hier treten die stärksten Spieler an und hier wird der Winsener Meister ausgespielt.',
@@ -73,6 +77,7 @@ export const competitions: readonly Competition[] = [
     id: 'mens-challenger',
     slug: 'mens-challenger',
     label: 'Herren Challenger',
+    tagline: 'Geschütztes Freizeit- & Einsteiger-Feld — nur ab LK 20 (bzw. ohne LK)',
     audience:
       'Du spielst eher zum Spaß, bist Wieder- oder Einsteiger oder seit Jahren gemütlich dabei und hast keine oder eine hohe Leistungsklasse.',
     blurb:
