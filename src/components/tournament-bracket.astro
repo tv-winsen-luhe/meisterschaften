@@ -2,6 +2,7 @@
 // Format-Diagramm: ein Auftaktmatch, dann gabelt sich der Weg —
 // Sieg führt in der Hauptrunde Richtung Titel, eine Niederlage in die Nebenrunde.
 // Kernbotschaft: gespielt wird in beiden Fällen weiter (niemand fliegt nach einem Match raus).
+import MarkerHighlight from '@/components/marker-highlight.astro'
 ---
 
 <figure class="draw reveal">
@@ -10,13 +11,19 @@
       <span class="draw__kicker">Auftakt</span>
       <span class="draw__start-title">Dein erstes<br />Match</span>
       <span class="draw__start-note">Alle spielen — danach teilt sich der Weg.</span>
+      <span class="draw__fork" aria-hidden="true">
+        <span class="draw__fork-arm draw__fork-arm--top"></span>
+        <span class="draw__fork-arm draw__fork-arm--bottom"></span>
+      </span>
     </div>
 
     <div class="draw__lane draw__lane--win">
       <span class="draw__tag">Sieg <span aria-hidden="true">↗</span></span>
       <h3 class="draw__lane-title">Hauptrunde</h3>
       <p class="draw__lane-text">Runde um Runde weiter — Viertelfinale, Halbfinale, Finale.</p>
-      <span class="draw__goal draw__goal--title">Spiel um den Titel <span aria-hidden="true">★</span></span>
+      <span class="draw__goal draw__goal--title">
+        <MarkerHighlight brush={3}>Spiel um den Titel</MarkerHighlight>
+      </span>
     </div>
 
     <div class="draw__lane draw__lane--lose">
@@ -30,8 +37,8 @@
   </div>
 
   <figcaption class="draw__caption">
-    So sind dir mindestens zwei Matches garantiert — mehr als zwei pro Tag werden es nicht. Herren und Herren Challenger
-    laufen nach demselben Modus.
+    Mindestens zwei Matches sind dir sicher, höchstens zwei Einzel pro Tag. Herren und Herren Challenger laufen nach
+    demselben Modus.
   </figcaption>
 </figure>
 
@@ -48,6 +55,14 @@
     background: var(--color-navy);
     padding: 2px;
   }
+
+  /* Fork connector: drawn inside the navy start block (neon on navy — no cross-background
+     contrast issue), points at both lanes. Hidden by default; only meaningful in the
+     two-column layout, where the @media rule below re-enables it. */
+  .draw__fork {
+    display: none;
+  }
+
   @media (min-width: 760px) {
     .draw__grid {
       grid-template-columns: minmax(200px, 0.85fr) 1.7fr;
@@ -56,13 +71,59 @@
         'start lose';
     }
     .draw__start {
+      position: relative;
       grid-area: start;
+      padding-right: 80px;
     }
     .draw__lane--win {
       grid-area: win;
     }
     .draw__lane--lose {
       grid-area: lose;
+    }
+
+    /* Spine from upper-lane center (25%) to lower-lane center (75%), two arms reaching right. */
+    .draw__fork {
+      display: block;
+      position: absolute;
+      top: 25%;
+      right: 24px;
+      bottom: 25%;
+      width: 40px;
+    }
+    .draw__fork::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      left: 0;
+      width: 2px;
+      background: var(--color-neon);
+    }
+    .draw__fork-arm {
+      position: absolute;
+      left: 0;
+      width: 100%;
+      height: 2px;
+      background: var(--color-neon);
+    }
+    .draw__fork-arm--top {
+      top: 0;
+    }
+    .draw__fork-arm--bottom {
+      bottom: 0;
+    }
+    /* Right-pointing chevron at each arm end, aimed across the seam into its lane. */
+    .draw__fork-arm::after {
+      content: '';
+      position: absolute;
+      top: 50%;
+      right: -1px;
+      width: 8px;
+      height: 8px;
+      border-top: 2px solid var(--color-neon);
+      border-right: 2px solid var(--color-neon);
+      transform: translateY(-50%) rotate(45deg);
     }
   }
 
@@ -148,9 +209,7 @@
     align-self: flex-start;
     margin-top: auto;
     padding-top: 0;
-    padding-bottom: 4px;
     opacity: 1;
-    border-bottom: 2px solid var(--color-neon);
   }
 
   .draw__caption {

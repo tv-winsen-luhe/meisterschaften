@@ -50,7 +50,7 @@ export const competitions: readonly Competition[] = [
     label: 'Herren',
     audience: 'Du spielst Punktspiele, trainierst regelmäßig und willst dich mit den Stärksten messen.',
     blurb:
-      'Das Hauptfeld — offen für alle. Hier treten die stärksten Spielenden an und hier wird der Winsener Meister ausgespielt.',
+      'Das Hauptfeld — offen für alle. Hier treten die stärksten Spieler an und hier wird der Winsener Meister ausgespielt.',
     title: 'Winsener Meister Herren',
     capacity: 16,
     status: 'open',
@@ -60,10 +60,10 @@ export const competitions: readonly Competition[] = [
     id: 'mens-challenger',
     slug: 'mens-challenger',
     label: 'Herren Challenger',
-    audience: 'Du spielst eher zum Spaß, bist Wieder- oder Einsteiger und hast keine oder eine hohe Leistungsklasse.',
+    audience:
+      'Du spielst eher zum Spaß, bist Wieder- oder Einsteiger oder seit Jahren gemütlich dabei und hast keine oder eine hohe Leistungsklasse.',
     blurb:
       'Das geschützte Feld: Wer besser als LK 20 ist, spielt im Hauptfeld und ist hier nicht zugelassen — so triffst du auf Gegner auf Augenhöhe. Keine LK? Dann zählst du als LK 25 und bist genau richtig.',
-    requirement: 'LK 20+',
     title: 'Winsener Meister Herren Challenger',
     capacity: 16,
     status: 'open',
