@@ -7,6 +7,9 @@ body {
 
 html {
   scroll-behavior: smooth;
+  /* Light-Design: verhindert, dass mobile Browser (Chrome/Android "Force Dark",
+     Samsung Internet) die hellen Flächen automatisch invertieren. */
+  color-scheme: only light;
 }
 
 /* Safety net: never let a long display word force horizontal overflow */
