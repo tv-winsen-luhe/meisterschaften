@@ -28,7 +28,7 @@
     "@cloudflare/workers-types": "4.20250924.0",
     "@typescript-eslint/parser": "8.61.0",
     "eslint": "10.5.0",
-    "eslint-plugin-astro": "1.7.0",
+    "eslint-plugin-astro": "2.0.0",
     "lint-staged": "17.0.7",
     "prettier": "3.8.4",
     "prettier-plugin-astro": "0.14.1",
