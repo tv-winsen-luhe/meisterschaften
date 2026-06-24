@@ -1,12 +1,14 @@
 ---
-import { competitions } from '@/data/tournament'
+import { competitions, signupDeadline } from '@/data/tournament'
 import tvLogo from '@/assets/logo.svg'
 import tsvLogo from '@/assets/tsv-winsen.png'
 
-// Open competitions only; Hauptfeld (mens) = seeding board, Challenger = friendly list.
+// Open competitions only; Hauptfeld (mens/womens) = seeding board, Challenger = friendly list.
 const openCompetitions = competitions.filter(c => c.status === 'open')
-const layoutFor = (slug: string) => (slug === 'mens' ? 'board' : 'list')
-const womens = competitions.find(c => c.id === 'womens')
+const layoutFor = (slug: string) => (slug === 'mens' || slug === 'womens' ? 'board' : 'list')
+// Provisional seeds: the strongest LKs are seeded, one per quarter of the draw
+// (16 → an 1–4, 8 → an 1–2). Final seeding/draw happens at the Auslosung.
+const seedsFor = (capacity?: number) => (capacity ? Math.floor(capacity / 4) : 0)
 ---
 
 <div class="participants" data-participants data-logo-tv={tvLogo.src} data-logo-tsv={tsvLogo.src}>
@@ -18,6 +20,7 @@ const womens = competitions.find(c => c.id === 'womens')
           data-group={c.slug}
           data-layout={layoutFor(c.slug)}
           data-capacity={c.capacity}
+          data-seeds={layoutFor(c.slug) === 'board' ? seedsFor(c.capacity) : 0}
         >
           <div class="pl-group__top">
             <header class="pl-group__head">
@@ -50,25 +53,11 @@ const womens = competitions.find(c => c.id === 'womens')
         </section>
       ))
     }
-    {
-      womens && (
-        <section class="pl-group pl-tbd bg-surface-alt p-6 md:col-span-2 md:p-7">
-          <div class="pl-tbd__head">
-            <div>
-              <h3 class="pl-group__title">{womens.label}</h3>
-              <p class="pl-group__sub">Pendant zu den Herren</p>
-            </div>
-            <span class="pl-tbd__tag">In Planung</span>
-          </div>
-          <p class="pl-tbd__note">
-            Das Feld folgt, sobald die Damen-Konkurrenz steht — nach den Vorgesprächen Anfang Juli.
-          </p>
-        </section>
-      )
-    }
   </div>
   <p class="pl-status reveal mt-4 text-[13px] leading-[1.6] opacity-60" data-status>
-    Alle bestätigten Anmeldungen, laufend aktualisiert. Im Hauptfeld nach Leistungsklasse gesetzt.
+    Alle bestätigten Anmeldungen, laufend aktualisiert. Im Hauptfeld zeigen die markierten Plätze die <strong
+      >vorläufige Setzung</strong
+    > nach Leistungsklasse — endgültige Setzung und Auslosung nach Meldeschluss am {signupDeadline.short}
   </p>
 </div>
 
@@ -96,39 +85,7 @@ const womens = competitions.find(c => c.id === 'womens')
     letter-spacing: -0.03em;
     text-transform: uppercase;
   }
-  .pl-group__sub {
-    margin: 6px 0 0;
-    font-size: 11px;
-    font-weight: 700;
-    letter-spacing: 0.04em;
-    text-transform: uppercase;
-    color: rgba(12, 30, 58, 0.5);
-  }
 
-  /* Damen placeholder — planned field, hinted as TBD */
-  .pl-tbd__head {
-    display: flex;
-    align-items: flex-start;
-    justify-content: space-between;
-    gap: 16px;
-  }
-  .pl-tbd__tag {
-    flex-shrink: 0;
-    border: 1.5px solid rgba(12, 30, 58, 0.25);
-    padding: 5px 10px;
-    font-size: 10px;
-    font-weight: 800;
-    letter-spacing: 0.16em;
-    text-transform: uppercase;
-    color: rgba(12, 30, 58, 0.5);
-  }
-  .pl-tbd__note {
-    margin: 12px 0 0;
-    max-width: 62ch;
-    font-size: 14px;
-    line-height: 1.55;
-    color: rgba(12, 30, 58, 0.55);
-  }
   .pl-free {
     flex-shrink: 0;
     padding-top: 5px;
@@ -184,6 +141,30 @@ const womens = competitions.find(c => c.id === 'womens')
     letter-spacing: -0.02em;
     font-variant-numeric: tabular-nums;
     color: rgba(12, 30, 58, 0.4);
+  }
+  .pl-rank--seed {
+    color: #fff;
+    background: var(--color-navy);
+    border-radius: 50%;
+    width: 1.7em;
+    height: 1.7em;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+  }
+  .pl-row--seed .pl-name {
+    font-weight: 800;
+  }
+  .pl-divider {
+    margin: 10px 0 2px;
+    padding-top: 12px;
+    border-top: 1px dashed rgba(12, 30, 58, 0.25);
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: rgba(12, 30, 58, 0.45);
   }
   .pl-avatar {
     flex-shrink: 0;
@@ -317,14 +298,22 @@ const womens = competitions.find(c => c.id === 'womens')
   const logoTv = root?.dataset.logoTv ?? ''
   const logoTsv = root?.dataset.logoTsv ?? ''
 
-  function row(entry: Entry, layout: string, rank: number): HTMLLIElement {
+  function divider(): HTMLLIElement {
     const li = document.createElement('li')
-    li.className = 'pl-row'
+    li.className = 'pl-divider'
+    li.textContent = 'Weitere im Feld — Platzierung wird bei der Auslosung gelost'
+    return li
+  }
+
+  function row(entry: Entry, layout: string, rank: number, isSeed: boolean): HTMLLIElement {
+    const li = document.createElement('li')
+    li.className = isSeed ? 'pl-row pl-row--seed' : 'pl-row'
 
     if (layout === 'board') {
       const r = document.createElement('span')
-      r.className = 'pl-rank'
+      r.className = isSeed ? 'pl-rank pl-rank--seed' : 'pl-rank'
       r.textContent = String(rank)
+      if (isSeed) r.title = `An ${rank} gesetzt (vorläufig)`
       li.appendChild(r)
     }
 
@@ -343,12 +332,10 @@ const womens = competitions.find(c => c.id === 'womens')
     name.textContent = `${entry.first_name} ${entry.last_name}`.trim()
     li.appendChild(name)
 
-    if (layout === 'board') {
-      const lk = document.createElement('span')
-      lk.className = entry.lk ? 'pl-lk' : 'pl-lk pl-lk--pending'
-      lk.textContent = entry.lk ? `LK ${entry.lk}` : 'LK folgt'
-      li.appendChild(lk)
-    }
+    const lk = document.createElement('span')
+    lk.className = entry.lk ? 'pl-lk' : 'pl-lk pl-lk--pending'
+    lk.textContent = entry.lk ? `LK ${entry.lk}` : 'LK folgt'
+    li.appendChild(lk)
 
     return li
   }
@@ -389,6 +376,7 @@ const womens = competitions.find(c => c.id === 'womens')
       const list = group.querySelector<HTMLElement>('[data-list]')!
       const empty = group.querySelector<HTMLElement>('[data-empty]')!
       const capacity = Number(group.dataset.capacity)
+      const seeds = Number(group.dataset.seeds) || 0
       const freeLabel = group.querySelector<HTMLElement>('[data-free-label]')
       const meter = group.querySelector<HTMLElement>('[data-meter]')
       const segs = group.querySelectorAll<HTMLElement>('.pl-meter__seg')
@@ -413,7 +401,12 @@ const womens = competitions.find(c => c.id === 'womens')
         return
       }
       empty.hidden = true
-      entries.forEach((e, i) => list.appendChild(row(e, layout, i + 1)))
+      entries.forEach((e, i) => {
+        const rank = i + 1
+        // Separate the seeded players from the rest, which get drawn at the Auslosung.
+        if (seeds > 0 && rank === seeds + 1) list.appendChild(divider())
+        list.appendChild(row(e, layout, rank, seeds > 0 && rank <= seeds))
+      })
     })
   }
 

@@ -8,7 +8,8 @@
   "scripts": {
     "dev": "astro dev",
     "check": "astro check",
-    "build": "astro check && astro build && rm -rf dist/og",
+    "check:meta": "node scripts/check-meta.mjs",
+    "build": "astro check && astro build && rm -rf dist/og && node scripts/check-meta.mjs",
     "preview": "astro preview",
     "cf-dev": "pnpm build && wrangler dev",
     "cf-deploy": "pnpm build && wrangler deploy",

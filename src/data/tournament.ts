@@ -15,7 +15,7 @@ export interface Competition {
   capacity?: number
   title: string
   status: CompetitionStatus
-  /** Selectable in the signup form? (Damen is "in Planung" → false) */
+  /** Selectable in the signup form? */
   selectable: boolean
 }
 
@@ -45,6 +45,18 @@ export const challengerMinLk = 20
 
 export const competitions: readonly Competition[] = [
   {
+    id: 'womens',
+    slug: 'womens',
+    label: 'Damen',
+    audience: 'Du spielst Punktspiele, trainierst regelmäßig und willst dich mit den Stärksten messen.',
+    blurb:
+      'Das Hauptfeld — offen für alle. Hier treten die stärksten Spielerinnen an und hier wird die Winsener Meisterin ausgespielt.',
+    title: 'Winsener Meisterin',
+    capacity: 8,
+    status: 'open',
+    selectable: true
+  },
+  {
     id: 'mens',
     slug: 'mens',
     label: 'Herren',
@@ -68,21 +80,10 @@ export const competitions: readonly Competition[] = [
     capacity: 16,
     status: 'open',
     selectable: true
-  },
-  {
-    id: 'womens',
-    slug: 'womens',
-    label: 'Damen',
-    audience: '',
-    blurb:
-      'In Planung als Pendant zu den Herren: ein Damen-Einzel um die Winsener Meisterin — und, je nach Interesse, ein eigenes geselliges Damen-Format. Was zusammenkommt, klären wir bei den Vorgesprächen Anfang Juli.',
-    title: 'Winsener Meisterin',
-    status: 'planned',
-    selectable: true
   }
 ] as const
 
-/** Competitions selectable in the signup form (Damen not yet). */
+/** Competitions selectable in the signup form. */
 export const signupCompetitions = competitions.filter(c => c.selectable)
 
 const TZ = 'Europe/Berlin'

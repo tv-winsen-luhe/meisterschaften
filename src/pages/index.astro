@@ -6,6 +6,7 @@ import FaqItem from '@/components/faq-item.astro'
 import MarkerHighlight from '@/components/marker-highlight.astro'
 import SignupModal from '@/components/signup-modal.astro'
 import TournamentBracket from '@/components/tournament-bracket.astro'
+import TournamentDraw from '@/components/tournament-draw.astro'
 import ParticipantList from '@/components/participant-list.astro'
 import { competitions, contactEmail, entryFee, signupDeadline, tournament } from '@/data/tournament'
 
@@ -23,7 +24,7 @@ const reglement: { label: string; value: string; link?: { href: string; label: s
   { label: 'Modus', value: 'K.O. mit Nebenrunde — mind. 2 Matches' },
   { label: 'Zählweise', value: '2 Gewinnsätze, bei 1:1 Match-Tie-Break bis 10' },
   { label: 'Pro Tag', value: 'Höchstens 2 Einzel' },
-  { label: 'Konkurrenz', value: 'Einzel — Hauptfeld & Challenger' },
+  { label: 'Konkurrenz', value: 'Einzel — Damen, Herren & Challenger' },
   { label: 'Setzung', value: 'Nach Leistungsklasse' },
   {
     label: 'Wertung',
@@ -39,7 +40,7 @@ const saturday = [
     'Ab 09:00 · Erste Spiele',
     'Es geht los. Deine Spielzeit kennst du vorab aus dem Spielplan — sei einfach rechtzeitig vor deinem Match da, Startgeld zahlst du beim Check-in.'
   ],
-  ['Vormittag', 'Vorrunden Herren & Challenger — die Nebenrunde startet, niemand fliegt nach einem Match raus.'],
+  ['Vormittag', 'Vorrunden Damen, Herren & Challenger — danach starten Haupt- und Nebenrunde.'],
   ['Nachmittag', 'Viertelfinale & Nebenrunden. Gastronomie offen, Zuschauen erwünscht.'],
   ['Abend', 'Ausklang auf der Terrasse.']
 ]
@@ -51,8 +52,8 @@ const sunday = [
 ---
 
 <Layout
-  title="Winsener Meisterschaften 2026 — Vereinsmeisterschaft TV & TSV Winsen"
-  description="Die Winsener Meisterschaften 2026 — die Vereinsmeisterschaft von TV Winsen und TSV Winsen am 22.-23.08. Herren, Herren Challenger, Damen in Planung. Jetzt anmelden."
+  title="Winsener Meisterschaften 2026 — Vereinsmeisterschaft"
+  description="Die Winsener Meisterschaften 2026 — Vereinsmeisterschaft von TV & TSV Winsen am 22.-23.08. Damen, Herren und Herren Challenger. Jetzt anmelden."
   ogTitle="Winsener Meisterschaften 2026 — 22.-23.08."
   ogDescription="Die Vereinsmeisterschaft von TV & TSV Winsen. K.O. mit Nebenrunde, alle Titel an einem Wochenende. Jetzt anmelden."
   bodyClass="bg-surface-alt"
@@ -61,6 +62,7 @@ const sunday = [
     { href: '#event', label: 'Event' },
     { href: '#competitions', label: 'Konkurrenzen' },
     { href: '#participants', label: 'Wer ist dabei' },
+    { href: '#draw', label: 'Draw' },
     { href: '#format', label: 'Modus' },
     { href: '#weekend', label: 'Ablauf' },
     { href: '#drumherum', label: 'Drumherum' },
@@ -102,8 +104,7 @@ const sunday = [
           Für alle, die spielen wollen.
         </p>
         <p class="enter enter--6 mt-3 text-[13px] leading-[1.6] opacity-70">
-          Ob ehrgeizig oder gesellig — mit Nebenrunde fliegt niemand nach einem Match raus. Offen für Mitglieder beider
-          Vereine, mit Zeit auf der Terrasse.
+          Ob ehrgeizig oder gesellig — offen für Mitglieder beider Vereine, mit Zeit auf der Terrasse.
         </p>
 
         <div class="enter enter--7 mt-8">
@@ -167,11 +168,30 @@ const sunday = [
       <SectionHeader
         eyebrow="Konkurrenzen"
         headline={['Wähl dein', 'Feld.']}
-        note="Bei den Herren starten wir dieses Jahr mit zwei Einzel-Feldern. Du entscheidest bei der Anmeldung selbst, in welchem du spielst, und musst deine Leistungsklasse dafür nicht kennen."
+        note="Drei Einzel-Felder: eins bei den Damen, zwei bei den Herren. Du entscheidest bei der Anmeldung selbst, in welchem du spielst, und musst deine Leistungsklasse dafür nicht kennen."
       />
 
       <div class="cat-grid grid grid-cols-3 gap-0.5 bg-navy p-0.5 max-[900px]:grid-cols-1">
-        <Card variant="light" stagger={0}>
+        <Card variant="dark" stagger={0}>
+          <span class={catBadgeInvClass}>Hauptfeld</span>
+          <div class="my-5 flex flex-col gap-1 uppercase">
+            <span class="text-[clamp(11px,2.8cqw,15px)] font-bold tracking-[0.18em] text-white/85">Einzel</span>
+            <span class="text-[clamp(34px,13cqw,64px)] leading-[0.85] font-black tracking-[-0.04em] text-white"
+              >{womens.label}</span
+            >
+          </div>
+          <p class="m-0 text-[13px] leading-[1.6] font-semibold text-white">{womens.audience}</p>
+          <p class="mt-2 mb-7 text-[13px] leading-[1.6] text-white/80">{womens.blurb}</p>
+          <button
+            type="button"
+            class="cta-primary mt-auto w-full text-center"
+            data-signup-open
+            data-signup-competition={womens.slug}
+          >
+            Anmelden
+          </button>
+        </Card>
+        <Card variant="light" stagger={1}>
           <span class={catBadgeClass}>Hauptfeld</span>
           <div class="my-5 flex flex-col gap-1 uppercase">
             <span class="text-[clamp(11px,2.8cqw,15px)] font-bold tracking-[0.18em] opacity-55">Einzel</span>
@@ -188,7 +208,7 @@ const sunday = [
             Anmelden
           </button>
         </Card>
-        <Card variant="blue" stagger={1}>
+        <Card variant="blue" stagger={2}>
           <span class={catBadgeInvClass}>Einsteiger & Freizeit</span>
           <div class="my-5 flex flex-col gap-1 uppercase">
             <span class="text-[clamp(11px,2.8cqw,15px)] font-bold tracking-[0.18em] opacity-85">Einzel</span>
@@ -207,24 +227,6 @@ const sunday = [
             Anmelden
           </button>
         </Card>
-        <Card variant="dark" stagger={2}>
-          <span class={catBadgeInvClass}>In Planung</span>
-          <div class="my-5 flex flex-col">
-            <span
-              class="text-[clamp(34px,13cqw,64px)] leading-[0.85] font-black tracking-[-0.04em] text-white uppercase"
-              >{womens.label}</span
-            >
-          </div>
-          <p class="mt-0 mb-7 text-[13px] leading-[1.6] text-white/80">{womens.blurb}</p>
-          <button
-            type="button"
-            class="cta-primary mt-auto w-full text-center"
-            data-signup-open
-            data-signup-competition={womens.slug}
-          >
-            Anmelden
-          </button>
-        </Card>
       </div>
     </section>
 
@@ -233,9 +235,19 @@ const sunday = [
       <SectionHeader
         eyebrow="Wer ist dabei"
         headline={['Das', 'Feld.']}
-        note="Schau, wer schon gemeldet ist — und wie das Feld wächst. Das Hauptfeld ist nach Leistungsklasse gesetzt."
+        note="Schau, wer schon gemeldet ist — und wer aktuell gesetzt wäre. Im Hauptfeld markieren wir die vorläufigen Setzplätze nach LK; die endgültige Setzung steht mit der Auslosung fest."
       />
       <ParticipantList />
+    </section>
+
+    <!-- Der Draw -->
+    <section id="draw" class:list={[sectClass]} tabindex="-1">
+      <SectionHeader
+        eyebrow="Auslosung"
+        headline={['Der', 'Draw.']}
+        note="Die Setzköpfe stehen schon fest und füllen sich aus dem Feld. Alle weiteren Plätze sind offen — sie werden bei der Auslosung nach Meldeschluss gelost."
+      />
+      <TournamentDraw />
     </section>
 
     <!-- Modus -->
@@ -243,7 +255,7 @@ const sunday = [
       <SectionHeader
         eyebrow="Modus"
         headline={['So wird', 'gespielt.']}
-        note="K.O.-System mit Nebenrunde: Nach dem ersten Match teilt sich der Weg — verlieren heißt hier nicht ausscheiden."
+        note="K.O.-System mit Nebenrunde — so läuft dein Weg durchs Turnier."
       />
       <TournamentBracket />
 
@@ -365,9 +377,9 @@ const sunday = [
       <div class="reveal max-w-[720px]">
         <FaqItem question="Wer darf mitmachen?">
           Alle Mitglieder von TV Winsen und TSV Winsen ab 15 Jahren. Jüngere spielen bei der Jugend-Clubmeisterschaft —
-          wer 15 oder älter ist und sich Matches zutraut, ist hier genau richtig. Die Herren-Konkurrenz ist offen für
-          alle, das Challenger-Feld für Freizeit-/Einsteiger und Spielende ab LK 20. Eine Damen-Konkurrenz ist in
-          Planung.
+          wer 15 oder älter ist und sich Matches zutraut, ist hier genau richtig. Die Damen spielen in einem eigenen
+          Hauptfeld um die Winsener Meisterin. Die Herren-Konkurrenz ist offen für alle, das Challenger-Feld für
+          Freizeit-/Einsteiger und Spielende ab LK 20.
         </FaqItem>
         <FaqItem question="Brauche ich eine Spieler-ID oder muss ich meine LK kennen?">
           Nein. Du gibst nur Namen, Verein und Konkurrenz an. Die Leistungsklasse ergänzen wir für die Setzung intern
@@ -378,8 +390,8 @@ const sunday = [
           Für die Setzung ziehen wir sie aus nuLiga, ohne Eintrag zählst du als LK 25.
         </FaqItem>
         <FaqItem question="Einzel oder Doppel?">
-          Bei den Herren starten wir dieses Jahr mit dem Einzel — im Hauptfeld und im Challenger. Ein Doppel kann in den
-          kommenden Jahren dazukommen, gehört diesmal aber noch nicht zum Programm.
+          Dieses Jahr spielen wir nur Einzel — bei den Damen, im Herren-Hauptfeld und im Challenger. Ein Doppel kann in
+          den kommenden Jahren dazukommen, gehört diesmal aber noch nicht zum Programm.
         </FaqItem>
         <FaqItem question="Was ist die Nebenrunde?">
           Wer in der ersten Runde verliert, ist nicht raus, sondern spielt in der Nebenrunde weiter — so sind dir

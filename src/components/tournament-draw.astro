@@ -1,0 +1,460 @@
+---
+import { competitions, signupDeadline } from '@/data/tournament'
+
+// Live draw per competition: the seeded players fill in from the participant feed,
+// every other slot is a "?" until the Auslosung. Challenger has a draw too — unlike
+// the participant list it is seeded here, since a draw without seeds makes no sense.
+const drawOrder = ['mens', 'mens-challenger', 'womens']
+const drawCompetitions = competitions
+  .filter(c => c.status === 'open' && c.capacity)
+  .slice()
+  .sort((a, b) => drawOrder.indexOf(a.slug) - drawOrder.indexOf(b.slug))
+---
+
+<div class="dm" data-draw>
+  <div class="dm-tabs" role="tablist" aria-label="Konkurrenz wählen">
+    {
+      drawCompetitions.map((c, i) => (
+        <button
+          type="button"
+          class="dm-tab"
+          role="tab"
+          id={`dm-tab-${c.slug}`}
+          aria-controls={`dm-panel-${c.slug}`}
+          aria-selected={i === 0 ? 'true' : 'false'}
+          data-tab={c.slug}
+          data-capacity={c.capacity}
+        >
+          {c.label}
+        </button>
+      ))
+    }
+  </div>
+
+  <div class="dm-panels" data-panels>
+    {
+      drawCompetitions.map((c, i) => (
+        <div
+          class="dm-panel"
+          role="tabpanel"
+          id={`dm-panel-${c.slug}`}
+          aria-labelledby={`dm-tab-${c.slug}`}
+          data-panel={c.slug}
+          data-capacity={c.capacity}
+          hidden={i !== 0}
+        >
+          <div class="dm-scroll" data-scroll>
+            <div class="dm-bracket" data-bracket />
+          </div>
+        </div>
+      ))
+    }
+  </div>
+
+  <p class="dm-legend" data-legend>
+    <span class="dm-legend__item">
+      <span class="dm-legend__chip dm-legend__chip--seed">1</span> gesetzt — steht fest
+    </span>
+    <span class="dm-legend__item">
+      <span class="dm-legend__chip dm-legend__chip--tbd">?</span> wird bei der Auslosung am {signupDeadline.short} gelost
+    </span>
+  </p>
+
+  <p class="dm-error">Der Draw lässt sich gerade nicht laden. Bitte später erneut versuchen.</p>
+</div>
+
+<style is:global>
+  .dm {
+    --dm-line: rgba(12, 30, 58, 0.22);
+    --dm-gap: 34px;
+  }
+
+  /* — Tabs — */
+  .dm-tabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 28px;
+  }
+  .dm-tab {
+    font-family: inherit;
+    font-size: 12px;
+    font-weight: 800;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--color-navy);
+    background: transparent;
+    border: 1.5px solid rgba(12, 30, 58, 0.25);
+    padding: 9px 16px;
+    cursor: pointer;
+    transition:
+      background 0.18s,
+      color 0.18s,
+      border-color 0.18s;
+  }
+  .dm-tab:hover {
+    border-color: var(--color-navy);
+  }
+  .dm-tab[aria-selected='true'] {
+    background: var(--color-navy);
+    color: #fff;
+    border-color: var(--color-navy);
+  }
+  .dm-tab:focus-visible {
+    outline: 2px solid var(--color-navy);
+    outline-offset: 3px;
+  }
+
+  /* — Panels / scroll — */
+  .dm-panel[hidden] {
+    display: none;
+  }
+  .dm-scroll {
+    overflow-x: auto;
+    overflow-y: hidden;
+    padding-bottom: 10px;
+    -webkit-overflow-scrolling: touch;
+  }
+  .dm-bracket {
+    display: flex;
+    align-items: stretch;
+    gap: var(--dm-gap);
+    min-width: min-content;
+  }
+
+  /* — A round column — */
+  .dm-round {
+    display: flex;
+    flex-direction: column;
+    flex: 0 0 auto;
+    width: 232px;
+  }
+  .dm-round__label {
+    flex: 0 0 auto;
+    height: 34px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 6px;
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--color-navy);
+    border-bottom: 2px solid var(--color-navy);
+  }
+  .dm-round__count {
+    margin-left: auto;
+    font-weight: 700;
+    color: rgba(12, 30, 58, 0.45);
+    font-variant-numeric: tabular-nums;
+  }
+  .dm-round__matches {
+    flex: 1 1 auto;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* — A match (two slots) — */
+  .dm-match {
+    flex: 1 1 0;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 4px;
+    position: relative;
+  }
+
+  /* Elbow connectors: each non-final match draws a horizontal stub at each slot-pair
+     centre plus half a vertical to the pair mid-point; the next round's match taps in
+     from the left. All percentage-based, so it scales to any round height. */
+  .dm-round:not(:last-child) .dm-match::after {
+    content: '';
+    position: absolute;
+    left: 100%;
+    width: calc(var(--dm-gap) / 2);
+    border-right: 2px solid var(--dm-line);
+    border-top: 0;
+    border-bottom: 0;
+  }
+  .dm-round:not(:last-child) .dm-match:nth-child(odd)::after {
+    top: 50%;
+    height: 50%;
+    border-top: 2px solid var(--dm-line);
+  }
+  .dm-round:not(:last-child) .dm-match:nth-child(even)::after {
+    bottom: 50%;
+    height: 50%;
+    border-bottom: 2px solid var(--dm-line);
+  }
+  /* incoming stub into every round after the first */
+  .dm-round:not(:first-child) .dm-match::before {
+    content: '';
+    position: absolute;
+    right: 100%;
+    top: 50%;
+    width: calc(var(--dm-gap) / 2);
+    height: 2px;
+    background: var(--dm-line);
+  }
+
+  /* — A slot — */
+  .dm-slot {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 34px;
+    padding: 5px 9px 5px 6px;
+    background: #fff;
+    border: 1.5px solid rgba(12, 30, 58, 0.14);
+  }
+  .dm-slot--seed {
+    border-color: var(--color-navy);
+  }
+  .dm-slot--tbd {
+    background: transparent;
+    border-style: dashed;
+    border-color: rgba(12, 30, 58, 0.28);
+    justify-content: center;
+  }
+
+  .dm-seedno {
+    flex-shrink: 0;
+    width: 22px;
+    height: 22px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--color-navy);
+    color: #fff;
+    font-size: 12px;
+    font-weight: 800;
+    font-variant-numeric: tabular-nums;
+    border-radius: 50%;
+  }
+  .dm-name {
+    flex: 1;
+    min-width: 0;
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .dm-lk {
+    flex-shrink: 0;
+    font-size: 11px;
+    font-weight: 800;
+    font-variant-numeric: tabular-nums;
+    color: var(--color-blue);
+  }
+  .dm-lk--pending {
+    color: rgba(12, 30, 58, 0.4);
+  }
+  .dm-q {
+    font-size: 15px;
+    font-weight: 800;
+    color: rgba(12, 30, 58, 0.4);
+  }
+
+  /* — Legend — */
+  .dm-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 24px;
+    margin: 22px 0 0;
+    font-size: 13px;
+    line-height: 1.5;
+    color: rgba(12, 30, 58, 0.7);
+  }
+  .dm-legend__item {
+    display: inline-flex;
+    align-items: center;
+    gap: 9px;
+  }
+  .dm-legend__chip {
+    flex-shrink: 0;
+    width: 22px;
+    height: 22px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    font-weight: 800;
+    border-radius: 50%;
+  }
+  .dm-legend__chip--seed {
+    background: var(--color-navy);
+    color: #fff;
+  }
+  .dm-legend__chip--tbd {
+    border: 1.5px dashed rgba(12, 30, 58, 0.4);
+    color: rgba(12, 30, 58, 0.5);
+  }
+
+  .dm.is-error .dm-panels,
+  .dm.is-error .dm-legend {
+    display: none;
+  }
+  .dm-error {
+    display: none;
+    font-size: 14px;
+    color: rgba(12, 30, 58, 0.7);
+  }
+  .dm.is-error .dm-error {
+    display: block;
+  }
+</style>
+
+<script>
+  type Entry = { first_name: string; last_name: string; club: string; competition: string; lk: string | null }
+  type ApiResponse = { enabled: boolean; participants: Entry[] }
+  type Slot = { seed: number; player: Entry } | null
+
+  // Seed positions per draw size (0-indexed first-round slot): 1 top, 2 bottom, 3 & 4 in the middle.
+  const SEED_POS: Record<number, Record<number, number>> = {
+    16: { 1: 0, 2: 15, 3: 8, 4: 7 },
+    8: { 1: 0, 2: 7 }
+  }
+  const ROUNDS: Record<number, string[]> = {
+    16: ['Achtelfinale', 'Viertelfinale', 'Halbfinale', 'Finale'],
+    8: ['Viertelfinale', 'Halbfinale', 'Finale']
+  }
+
+  const root = document.querySelector<HTMLElement>('[data-draw]')
+
+  function slotEl(slot: Slot): HTMLElement {
+    const el = document.createElement('div')
+    if (!slot) {
+      el.className = 'dm-slot dm-slot--tbd'
+      const q = document.createElement('span')
+      q.className = 'dm-q'
+      q.textContent = '?'
+      q.setAttribute('aria-label', 'Wird ausgelost')
+      el.appendChild(q)
+      return el
+    }
+
+    el.className = 'dm-slot dm-slot--seed'
+
+    const no = document.createElement('span')
+    no.className = 'dm-seedno'
+    no.textContent = String(slot.seed)
+    no.title = `An ${slot.seed} gesetzt`
+    el.appendChild(no)
+
+    const name = document.createElement('span')
+    name.className = 'dm-name'
+    name.textContent = `${slot.player.first_name} ${slot.player.last_name}`.trim()
+    el.appendChild(name)
+
+    const lk = document.createElement('span')
+    lk.className = slot.player.lk ? 'dm-lk' : 'dm-lk dm-lk--pending'
+    lk.textContent = slot.player.lk ? `LK ${slot.player.lk}` : 'LK folgt'
+    el.appendChild(lk)
+
+    return el
+  }
+
+  function buildBracket(bracket: HTMLElement, capacity: number, players: Entry[]) {
+    const rounds = ROUNDS[capacity]
+    const seedPos = SEED_POS[capacity]
+    if (!rounds || !seedPos) return
+    const seeds = Math.floor(capacity / 4)
+
+    // Place the strongest LKs (feed is already LK-sorted) at their seed positions.
+    const slots: Slot[] = Array.from({ length: capacity }, () => null)
+    players.slice(0, seeds).forEach((player, i) => {
+      const pos = seedPos[i + 1]
+      if (pos !== undefined) slots[pos] = { seed: i + 1, player }
+    })
+
+    bracket.innerHTML = ''
+    for (let r = 0; r < rounds.length; r++) {
+      const matchCount = capacity / 2 ** (r + 1)
+      const col = document.createElement('div')
+      col.className = 'dm-round'
+
+      const label = document.createElement('div')
+      label.className = 'dm-round__label'
+      label.append(rounds[r])
+      const count = document.createElement('span')
+      count.className = 'dm-round__count'
+      count.textContent = String(matchCount)
+      label.appendChild(count)
+      col.appendChild(label)
+
+      const matches = document.createElement('div')
+      matches.className = 'dm-round__matches'
+      for (let m = 0; m < matchCount; m++) {
+        const match = document.createElement('div')
+        match.className = 'dm-match'
+        if (r === 0) {
+          match.appendChild(slotEl(slots[2 * m]))
+          match.appendChild(slotEl(slots[2 * m + 1]))
+        } else {
+          match.appendChild(slotEl(null))
+          match.appendChild(slotEl(null))
+        }
+        matches.appendChild(match)
+      }
+      col.appendChild(matches)
+      bracket.appendChild(col)
+    }
+  }
+
+  function render(data: ApiResponse) {
+    if (!root) return
+    const byComp = new Map<string, Entry[]>()
+    if (data.enabled) {
+      for (const e of data.participants) {
+        const arr = byComp.get(e.competition) ?? []
+        arr.push(e)
+        byComp.set(e.competition, arr)
+      }
+    }
+    root.querySelectorAll<HTMLElement>('[data-panel]').forEach(panel => {
+      const slug = panel.dataset.panel!
+      const capacity = Number(panel.dataset.capacity)
+      const bracket = panel.querySelector<HTMLElement>('[data-bracket]')
+      if (bracket) buildBracket(bracket, capacity, byComp.get(slug) ?? [])
+    })
+  }
+
+  function initTabs() {
+    if (!root) return
+    const tabs = [...root.querySelectorAll<HTMLButtonElement>('[data-tab]')]
+    const select = (slug: string) => {
+      tabs.forEach(t => t.setAttribute('aria-selected', String(t.dataset.tab === slug)))
+      root.querySelectorAll<HTMLElement>('[data-panel]').forEach(p => (p.hidden = p.dataset.panel !== slug))
+    }
+    tabs.forEach((tab, i) => {
+      tab.addEventListener('click', () => select(tab.dataset.tab!))
+      tab.addEventListener('keydown', e => {
+        if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return
+        e.preventDefault()
+        const next = (i + (e.key === 'ArrowRight' ? 1 : tabs.length - 1)) % tabs.length
+        tabs[next].focus()
+        select(tabs[next].dataset.tab!)
+      })
+    })
+  }
+
+  async function load() {
+    if (!root) return
+    try {
+      const res = await fetch('/api/participants', { headers: { accept: 'application/json' } })
+      if (!res.ok) throw new Error('bad status')
+      render((await res.json()) as ApiResponse)
+    } catch {
+      root.classList.add('is-error')
+    }
+  }
+
+  initTabs()
+  load()
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') load()
+  })
+</script>
