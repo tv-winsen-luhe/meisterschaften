@@ -431,9 +431,11 @@ const seedsFor = (capacity?: number) => (capacity ? Math.floor(capacity / 4) : 0
       if (Number.isFinite(capacity) && capacity > 0) {
         if (meter) meter.hidden = false
         const free = Math.max(0, capacity - entries.length)
-        if (freeLabel)
+        if (freeLabel) {
+          const platz = free === 1 ? 'Platz' : 'Plätze'
           freeLabel.textContent =
-            free === 0 ? 'Ausgebucht' : free === capacity ? `${free} Plätze frei` : `Noch ${free} frei`
+            free === 0 ? 'Ausgebucht' : free === capacity ? `${free} ${platz} frei` : `Noch ${free} ${platz} frei`
+        }
         segs.forEach((s, i) => s.classList.toggle('pl-meter__seg--filled', i < entries.length))
       } else if (freeLabel) {
         freeLabel.textContent = entries.length ? `${entries.length} gemeldet` : ''
