@@ -26,12 +26,10 @@ const seedsFor = (capacity?: number) => (capacity ? Math.floor(capacity / 4) : 0
         >
           <div class="pl-group__top">
             <header class="pl-group__head">
-              <div>
-                <h3 class="pl-group__title">{c.label}</h3>
-                {c.tagline && <p class="pl-group__tagline">{c.tagline}</p>}
-              </div>
+              <h3 class="pl-group__title">{c.label}</h3>
               <span class="pl-free" data-free-label />
             </header>
+            {c.tagline && <p class="pl-group__tagline">{c.tagline}</p>}
             {c.capacity && (
               <div class="pl-meter" data-meter aria-hidden="true">
                 {Array.from({ length: c.capacity }).map(() => (
@@ -61,9 +59,7 @@ const seedsFor = (capacity?: number) => (capacity ? Math.floor(capacity / 4) : 0
         <section class="pl-group pl-group--planned bg-surface-alt p-6 md:p-7">
           <div class="pl-group__top">
             <header class="pl-group__head">
-              <div>
-                <h3 class="pl-group__title">{c.label}</h3>
-              </div>
+              <h3 class="pl-group__title">{c.label}</h3>
               <span class="pl-tag-planned">In Planung</span>
             </header>
           </div>
