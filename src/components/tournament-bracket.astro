@@ -1,6 +1,6 @@
 ---
-// Format-Diagramm: ein Auftaktmatch, dann gabelt sich der Weg —
-// Sieg führt in der Hauptrunde Richtung Titel, eine Niederlage in die Nebenrunde.
+// Format-Diagramm: alle starten in der Hauptrunde (1. Runde), dann gabelt sich der Weg —
+// ein Sieg führt in der Hauptrunde weiter Richtung Titel, eine Niederlage in die Nebenrunde.
 // Kernbotschaft: gespielt wird in beiden Fällen weiter (niemand fliegt nach einem Match raus).
 import MarkerHighlight from '@/components/marker-highlight.astro'
 ---
@@ -8,9 +8,9 @@ import MarkerHighlight from '@/components/marker-highlight.astro'
 <figure class="draw reveal">
   <div class="draw__grid">
     <div class="draw__start">
-      <span class="draw__kicker">Auftakt</span>
+      <span class="draw__kicker">Hauptrunde</span>
       <span class="draw__start-title">Dein erstes<br />Match</span>
-      <span class="draw__start-note">Alle spielen — danach teilt sich der Weg.</span>
+      <span class="draw__start-note">Alle starten in der Hauptrunde — nach dem ersten Match teilt sich der Weg.</span>
       <span class="draw__fork" aria-hidden="true">
         <span class="draw__fork-arm draw__fork-arm--top"></span>
         <span class="draw__fork-arm draw__fork-arm--bottom"></span>
@@ -19,8 +19,8 @@ import MarkerHighlight from '@/components/marker-highlight.astro'
 
     <div class="draw__lane draw__lane--win">
       <span class="draw__tag">Sieg <span aria-hidden="true">↗</span></span>
-      <h3 class="draw__lane-title">Hauptrunde</h3>
-      <p class="draw__lane-text">Runde um Runde weiter — Viertelfinale, Halbfinale, Finale.</p>
+      <h3 class="draw__lane-title">Weiter Richtung Titel</h3>
+      <p class="draw__lane-text">In der Hauptrunde Runde um Runde weiter — Viertelfinale, Halbfinale, Finale.</p>
       <span class="draw__goal draw__goal--title">
         <MarkerHighlight brush={3}>Spiel um den Titel</MarkerHighlight>
       </span>
