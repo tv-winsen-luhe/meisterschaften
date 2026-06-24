@@ -50,7 +50,7 @@ export const competitions: readonly Competition[] = [
     id: 'womens',
     slug: 'womens',
     label: 'Damen',
-    tagline: 'Hauptfeld — offen für alle, um die Winsener Meisterin',
+    tagline: 'Hauptfeld — offen für alle. Hier wird die Winsener Meisterin ausgespielt.',
     audience:
       'Du hast Lust, dich im Match zu messen und um den Titel mitzuspielen — egal, wie gut du dich gerade selbst einschätzt.',
     blurb:
@@ -64,7 +64,7 @@ export const competitions: readonly Competition[] = [
     id: 'mens',
     slug: 'mens',
     label: 'Herren',
-    tagline: 'Hauptfeld — offen für alle, um den Winsener Meister',
+    tagline: 'Hauptfeld — offen für alle. Hier wird der Winsener Meister ausgespielt.',
     audience: 'Du spielst Punktspiele, trainierst regelmäßig und willst dich mit den Stärksten messen.',
     blurb:
       'Das Hauptfeld — offen für alle. Hier treten die stärksten Spieler an und hier wird der Winsener Meister ausgespielt.',
