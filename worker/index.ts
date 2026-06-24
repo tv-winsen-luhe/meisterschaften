@@ -22,9 +22,13 @@ const CLUBS = ['TV Winsen', 'TSV Winsen'] as const
 const STATUS = ['new', 'confirmed', 'hidden', 'cancelled'] as const
 const DEFAULT_LK = '25.0'
 
-// nuLiga LK-Vereinsranglisten (TNB) — eine Seite pro Verein, listet Spieler-ID + LK.
+// nuLiga LK-Vereinsranglisten (TNB) — eine Seite pro Verein, listet Spieler-ID + LK + Name.
 const NULIGA_BASE = 'https://tnb.liga.nu/cgi-bin/WebObjects/nuLigaTENDE.woa/wa/clubRankinglistLK?federation=TNB&club='
-const NULIGA_CLUB_IDS = ['303160', '303251'] // TV Winsen/Luhe, TSV Winsen
+const CLUB_TO_NULIGA: Record<string, string> = {
+  'TV Winsen': '303160',
+  'TSV Winsen': '303251'
+}
+const NULIGA_CLUB_IDS = Object.values(CLUB_TO_NULIGA)
 
 const json = (data: unknown, status = 200) =>
   new Response(JSON.stringify(data), {
@@ -48,6 +52,7 @@ export default {
       if (path === '/admin' && method === 'GET') return adminPage()
       if (path === '/api/admin/list' && method === 'GET') return await handleAdminList(request, env)
       if (path === '/api/admin/update' && method === 'POST') return await handleAdminUpdate(request, env)
+      if (path === '/api/admin/delete' && method === 'POST') return await handleAdminDelete(request, env)
       if (path === '/api/admin/refresh-lk' && method === 'POST') return await handleRefreshLk(request, env)
       if (path === '/export' && method === 'GET') return await handleExport(request, env, url)
     } catch (err) {
@@ -133,6 +138,10 @@ async function handleRegister(request: Request, env: Env, ctx: ExecutionContext)
 
   // Sportwart benachrichtigen — im Hintergrund, damit ein Mailfehler die Anmeldung nie blockiert.
   ctx.waitUntil(notifyRegistration(env, { competition, firstName, lastName, club, email, phone, note }))
+  // Spieler-ID + LK aus nuLiga vorbefüllen, falls Name + Verein eindeutig matchen.
+  // Läuft im Hintergrund, blockt also die Anmeldung nicht und ist für den Admin
+  // bei der Freischaltung dann i. d. R. schon ausgefüllt.
+  ctx.waitUntil(autoMatchPlayer(env, { competition, firstName, lastName, club, email }))
 
   return json({ ok: true })
 }
@@ -325,6 +334,12 @@ async function handleAdminUpdate(request: Request, env: Env): Promise<Response> 
     sets.push('competition = ?')
     binds.push(c)
   }
+  if (body.club !== undefined) {
+    const c = str(body.club)
+    if (!CLUBS.includes(c as (typeof CLUBS)[number])) return json({ error: 'Bitte wähle einen gültigen Verein.' }, 400)
+    sets.push('club = ?')
+    binds.push(c)
+  }
   if (body.status !== undefined) {
     const s = str(body.status)
     if (!STATUS.includes(s as (typeof STATUS)[number])) return json({ error: 'Ungültiger Status.' }, 400)
@@ -362,34 +377,68 @@ async function handleAdminUpdate(request: Request, env: Env): Promise<Response> 
   return json({ ok: true, lkFetched })
 }
 
+async function handleAdminDelete(request: Request, env: Env): Promise<Response> {
+  if (!checkToken(request, env)) return json({ error: 'Nicht autorisiert.' }, 401)
+
+  let body: Record<string, unknown>
+  try {
+    body = (await request.json()) as Record<string, unknown>
+  } catch {
+    return json({ error: 'Ungültige Anfrage.' }, 400)
+  }
+
+  const id = Number(body.id)
+  if (!Number.isInteger(id) || id <= 0) return json({ error: 'Ungültige ID.' }, 400)
+
+  const result = await env.DB.prepare('DELETE FROM registrations WHERE id = ?').bind(id).run()
+  return json({ ok: true, deleted: result.meta?.changes ?? 0 })
+}
+
 async function handleRefreshLk(request: Request, env: Env): Promise<Response> {
   if (!checkToken(request, env)) return json({ error: 'Nicht autorisiert.' }, 401)
   const updated = await refreshLk(env)
   return json({ ok: true, updated })
 }
 
-/** Fetch both club LK pages, return a player_id → LK map (e.g. "18254646" → "14.7"). */
+interface RosterEntry {
+  player_id: string
+  lk: string
+  last_name: string
+  first_name: string
+}
+
+/** Fetch one nuLiga club ranking page and parse it into a list of players. */
+async function fetchClubRoster(clubId: string): Promise<RosterEntry[]> {
+  try {
+    const res = await fetch(NULIGA_BASE + clubId, {
+      headers: { 'user-agent': 'winsener-meisterschaften/1.0 (+vereins-tool)' }
+    })
+    if (!res.ok) return []
+    return parseClubRoster(await res.text())
+  } catch {
+    return []
+  }
+}
+
+/** Fetch all configured club rosters, indexed by nuLiga club id. */
+async function fetchAllRosters(): Promise<Record<string, RosterEntry[]>> {
+  const out: Record<string, RosterEntry[]> = {}
+  const lists = await Promise.all(NULIGA_CLUB_IDS.map(fetchClubRoster))
+  NULIGA_CLUB_IDS.forEach((id, i) => (out[id] = lists[i]))
+  return out
+}
+
+/** player_id → LK across all configured clubs. */
 async function fetchNuligaMap(): Promise<Record<string, string>> {
   const map: Record<string, string> = {}
-  for (const clubId of NULIGA_CLUB_IDS) {
-    try {
-      const res = await fetch(NULIGA_BASE + clubId, {
-        headers: { 'user-agent': 'winsener-meisterschaften/1.0 (+vereins-tool)' }
-      })
-      if (!res.ok) continue
-      const html = await res.text()
-      Object.assign(map, parseClubLk(html))
-    } catch {
-      // ignore a failing club page; the other still contributes
-    }
-  }
+  for (const entry of Object.values(await fetchAllRosters()).flat()) map[entry.player_id] = entry.lk
   return map
 }
 
-/** Parse a nuLiga clubRankinglistLK HTML page into player_id → LK (current dated value). */
-export function parseClubLk(html: string): Record<string, string> {
-  const map: Record<string, string> = {}
-  // Split into table rows; each row holds one player (8-digit id + one or more "LKx,y").
+/** Parse a nuLiga clubRankinglistLK HTML page into {player_id, lk, last_name, first_name}. */
+export function parseClubRoster(html: string): RosterEntry[] {
+  const out: RosterEntry[] = []
+  // Split into table rows; each row holds one player (8-digit id + one or more "LKx,y" + name anchor).
   const rows = html.split(/<tr[\s>]/i)
   for (const row of rows) {
     const idMatch = row.match(/\b(\d{8})\b/)
@@ -398,28 +447,112 @@ export function parseClubLk(html: string): Record<string, string> {
     if (lkMatches.length === 0) continue
     // The dated "Stichtags-LK" is the last LK in the row → the current value.
     const lk = lkMatches[lkMatches.length - 1][1].replace(',', '.')
-    map[idMatch[1]] = lk
+    // Player name lives in an <a id="e_..."> tag as "Lastname, Firstname".
+    const nameMatch = row.match(/<a [^>]*id="e_[^"]*"[^>]*>\s*([^<]+?)\s*<\/a>/)
+    if (!nameMatch) continue
+    const text = nameMatch[1].replace(/&amp;/g, '&').trim()
+    const comma = text.indexOf(',')
+    if (comma < 0) continue
+    const last_name = text.slice(0, comma).trim()
+    const first_name = text.slice(comma + 1).trim()
+    if (!last_name || !first_name) continue
+    out.push({ player_id: idMatch[1], lk, last_name, first_name })
   }
+  return out
+}
+
+/** Back-compat alias used by older callers/tests. */
+export function parseClubLk(html: string): Record<string, string> {
+  const map: Record<string, string> = {}
+  for (const e of parseClubRoster(html)) map[e.player_id] = e.lk
   return map
 }
 
-/** Refresh LK for all rows that have a player_id. Returns the number of updated rows. */
-async function refreshLk(env: Env): Promise<number> {
-  const map = await fetchNuligaMap()
-  if (Object.keys(map).length === 0) return 0
+/** Normalize names for matching: lowercase, strip diacritics, ß→ss, collapse whitespace/hyphens. */
+function normalizeName(s: string): string {
+  return s
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .replace(/ß/g, 'ss')
+    .replace(/[\s-]+/g, ' ')
+    .trim()
+}
 
-  const { results } = await env.DB.prepare(
-    "SELECT id, player_id FROM registrations WHERE player_id IS NOT NULL AND player_id != ''"
-  ).all<{ id: number; player_id: string }>()
+/** Find a unique roster entry for the given name. Returns null if none or ambiguous. */
+export function findRosterMatch(roster: RosterEntry[], firstName: string, lastName: string): RosterEntry | null {
+  const fn = normalizeName(firstName)
+  const ln = normalizeName(lastName)
+  if (!fn || !ln) return null
+  const sameLast = roster.filter(e => normalizeName(e.last_name) === ln)
+  if (sameLast.length === 0) return null
+  // First-name match: exact, or one is a leading-token prefix of the other (so "Tim" matches "Tim Moritz").
+  const matches = sameLast.filter(e => {
+    const rfn = normalizeName(e.first_name)
+    return rfn === fn || rfn.startsWith(fn + ' ') || fn.startsWith(rfn + ' ')
+  })
+  return matches.length === 1 ? matches[0] : null
+}
+
+/** Try to fill player_id + LK from nuLiga based on name + club. Updates the row if a unique match exists. */
+async function autoMatchPlayer(
+  env: Env,
+  p: { competition: string; firstName: string; lastName: string; club: string; email: string }
+): Promise<void> {
+  const clubId = CLUB_TO_NULIGA[p.club]
+  if (!clubId) return
+  const roster = await fetchClubRoster(clubId)
+  const match = findRosterMatch(roster, p.firstName, p.lastName)
+  if (!match) return
+  // Only fill when the row still has no player_id (don't clobber a manual override).
+  await env.DB.prepare(
+    `UPDATE registrations
+        SET player_id = ?, lk = ?
+      WHERE email = ? COLLATE NOCASE AND last_name = ? COLLATE NOCASE AND competition = ?
+        AND (player_id IS NULL OR player_id = '')`
+  )
+    .bind(match.player_id, match.lk, p.email, p.lastName, p.competition)
+    .run()
+}
+
+/** Refresh LK for rows with a player_id; additionally try a name-match for rows without one. */
+async function refreshLk(env: Env): Promise<number> {
+  const rosters = await fetchAllRosters()
+  const all = Object.values(rosters).flat()
+  if (all.length === 0) return 0
+  const idMap: Record<string, string> = {}
+  for (const e of all) idMap[e.player_id] = e.lk
 
   let updated = 0
-  for (const row of results ?? []) {
-    const lk = map[row.player_id]
+
+  // 1) Rows with a known player_id → just refresh LK.
+  const { results: withId } = await env.DB.prepare(
+    "SELECT id, player_id FROM registrations WHERE player_id IS NOT NULL AND player_id != ''"
+  ).all<{ id: number; player_id: string }>()
+  for (const row of withId ?? []) {
+    const lk = idMap[row.player_id]
     if (lk) {
       await env.DB.prepare('UPDATE registrations SET lk = ? WHERE id = ?').bind(lk, row.id).run()
       updated++
     }
   }
+
+  // 2) Active rows without player_id → try name-match against the club's roster.
+  const { results: noId } = await env.DB.prepare(
+    `SELECT id, first_name, last_name, club FROM registrations
+      WHERE (player_id IS NULL OR player_id = '') AND status IN ('new', 'confirmed')`
+  ).all<{ id: number; first_name: string; last_name: string; club: string }>()
+  for (const row of noId ?? []) {
+    const clubId = CLUB_TO_NULIGA[row.club]
+    if (!clubId) continue
+    const match = findRosterMatch(rosters[clubId] ?? [], row.first_name, row.last_name)
+    if (!match) continue
+    await env.DB.prepare('UPDATE registrations SET player_id = ?, lk = ? WHERE id = ?')
+      .bind(match.player_id, match.lk, row.id)
+      .run()
+    updated++
+  }
+
   return updated
 }
 
@@ -535,6 +668,8 @@ const ADMIN_HTML = `<!doctype html>
   .btn-primary:hover { filter:brightness(1.05); }
   .btn-hide { background:var(--paper); color:var(--ink); border:1.5px solid var(--line-2); padding:8px 12px; }
   .btn-hide:hover { background:#e9e9e6; }
+  .btn-del { background:transparent; color:var(--clay); border:1.5px solid var(--clay); padding:8px 12px; margin-left:4px; }
+  .btn-del:hover { background:var(--clay); color:#fff; }
   .btn-ghost { background:transparent; color:#fff; border:1.5px solid rgba(255,255,255,.35); padding:7px 12px;
     font-size:13px; text-decoration:none; display:inline-flex; align-items:center; gap:5px; }
   .btn-ghost:hover { border-color:var(--neon); color:var(--neon); }
@@ -569,7 +704,9 @@ const ADMIN_HTML = `<!doctype html>
     font-variant-numeric:tabular-nums; white-space:nowrap; }
   .seed b { font-size:9px; letter-spacing:.1em; margin-right:5px; opacity:.6; vertical-align:1px; }
   .seed.is-none { color:var(--muted); border-color:var(--line-2); }
-  .meta { font-size:13px; color:var(--muted); margin-left:auto; text-align:right; }
+  .meta { font-size:13px; color:var(--muted); margin-left:auto;
+    display:inline-flex; align-items:center; gap:6px; }
+  .club-logo { width:18px; height:18px; object-fit:contain; flex-shrink:0; }
   .warn { color:var(--clay); font-weight:800; font-size:12px; }
   .contact { font-family:var(--mono); font-size:12px; color:var(--muted); margin-top:6px; word-break:break-word; }
   .note { margin-top:6px; font-size:13px; border-left:2px solid var(--line-2); padding-left:9px; color:#444; }
@@ -603,7 +740,7 @@ const ADMIN_HTML = `<!doctype html>
   @media (max-width:560px){
     .row2 .spacer { display:none; }
     .row2 .act-confirm, .row2 .act-hide { flex:1; }
-    .meta { margin-left:0; text-align:left; flex-basis:100%; }
+    .meta { margin-left:0; flex-basis:100%; justify-content:flex-start; }
   }
 
   @media (prefers-reduced-motion: reduce) {
@@ -647,6 +784,7 @@ const ADMIN_HTML = `<!doctype html>
 <div class="toast" id="msg" role="status" aria-live="polite"></div>
 <script>
   const KONK = { 'mens':'Herren', 'mens-challenger':'Herren Challenger', 'womens':'Damen' }
+  const CLUB_LOGOS = { 'TV Winsen':'/club-logos/tv-winsen.svg', 'TSV Winsen':'/club-logos/tsv-winsen.png' }
   const STATUS_LABELS = { 'all':'Alle', 'new':'Neu', 'confirmed':'Bestätigt', 'hidden':'Versteckt', 'cancelled':'Abgemeldet' }
   const GROUP_LABELS = { 'new':'Neu — zu bestätigen', 'confirmed':'Bestätigt — öffentlich', 'hidden':'Versteckt', 'cancelled':'Abgemeldet' }
   const ORDER = { 'new':0, 'confirmed':1, 'hidden':2, 'cancelled':3 }
@@ -745,11 +883,15 @@ const ADMIN_HTML = `<!doctype html>
   function cardFor(r){
     const card = document.createElement('div')
     card.className = 'card s-' + r.status
+    const isConfirmed = r.status === 'confirmed'
     const challWarn = (r.competition==='mens-challenger' && r.lk && parseFloat(r.lk) < 20)
       ? '<span class="warn">⚠ LK &lt; 20 — Hauptfeld?</span>' : ''
     const seed = r.lk
       ? '<span class="seed"><b>LK</b>' + r.lk + '</span>'
       : '<span class="seed is-none"><b>LK</b>—</span>'
+    const primaryBtn = isConfirmed
+      ? '<button class="btn-primary act-primary">Speichern</button>'
+      : '<button class="btn-primary act-primary">Bestätigen</button>'
     card.innerHTML =
       '<div class="row1">'
       + '<span class="name"></span>'
@@ -764,13 +906,25 @@ const ADMIN_HTML = `<!doctype html>
       + '<label class="noid"><input type="checkbox" class="cb-noid" /> keine ID</label>'
       + '<label>LK</label><input class="lk" type="text" inputmode="decimal" placeholder="—" />'
       + '<label>Feld</label><select class="konk"><option value="mens">Herren</option><option value="mens-challenger">Herren Challenger</option><option value="womens">Damen</option></select>'
+      + '<label>Verein</label><select class="vrn"><option value="TV Winsen">TV Winsen</option><option value="TSV Winsen">TSV Winsen</option></select>'
       + '<span class="spacer"></span>'
-      + '<button class="btn-primary act-confirm">Bestätigen</button>'
+      + primaryBtn
       + '<button class="btn-hide act-hide">Verstecken</button>'
+      + '<button class="btn-del act-del" title="Anmeldung dauerhaft löschen">Löschen</button>'
       + '</div>'
     card.querySelector('.name').textContent = r.first_name + ' ' + r.last_name
     card.querySelector('.badge').textContent = KONK[r.competition] || r.competition
-    card.querySelector('.meta').textContent = r.club
+    const meta = card.querySelector('.meta')
+    const logoUrl = CLUB_LOGOS[r.club]
+    if(logoUrl){
+      const img = document.createElement('img')
+      img.className = 'club-logo'; img.src = logoUrl; img.alt = ''
+      img.width = 18; img.height = 18
+      meta.appendChild(img)
+    }
+    const clubLabel = document.createElement('span')
+    clubLabel.textContent = r.club
+    meta.appendChild(clubLabel)
     card.querySelector('.contact').textContent = r.email + (r.phone ? '  ·  ' + r.phone : '')
     if(r.note) card.querySelector('.note').textContent = '„' + r.note + '"'
 
@@ -778,23 +932,34 @@ const ADMIN_HTML = `<!doctype html>
     const noid = card.querySelector('.cb-noid')
     const lk = card.querySelector('.lk'); lk.value = r.lk || ''
     const konk = card.querySelector('.konk'); konk.value = r.competition
+    const vrn = card.querySelector('.vrn'); vrn.value = r.club
+
+    // Spiegelt den „keine ID"-Zustand einer bereits bestätigten Anmeldung wider,
+    // damit Speichern nicht fälschlich blockiert wird.
+    if(isConfirmed && !r.player_id){ noid.checked = true; pid.disabled = true }
 
     noid.addEventListener('change', ()=>{
       if(noid.checked){ pid.value=''; pid.disabled=true; if(!lk.value.trim()) lk.value='25.0' }
       else { pid.disabled=false }
     })
 
-    const confirm = ()=>{
+    const primary = ()=>{
       const pidVal = pid.value.trim()
       if(!pidVal && !noid.checked){ toast('Bitte Spieler-ID eintragen oder „keine ID" ankreuzen.', true); return }
-      const payload = { id:r.id, competition:konk.value, status:'confirmed' }
+      const payload = { id:r.id, competition:konk.value, club:vrn.value }
+      if(!isConfirmed) payload.status = 'confirmed'
       if(pidVal){ payload.player_id = pidVal; if(lk.value.trim()) payload.lk = lk.value.trim() }
       else { payload.player_id = ''; payload.lk = lk.value.trim() || '25.0' }
       update(payload)
     }
-    card.querySelector('.act-confirm').addEventListener('click', confirm)
-    ;[pid, lk].forEach(inp=> inp.addEventListener('keydown', e=>{ if(e.key==='Enter') confirm() }))
+    card.querySelector('.act-primary').addEventListener('click', primary)
+    ;[pid, lk].forEach(inp=> inp.addEventListener('keydown', e=>{ if(e.key==='Enter') primary() }))
     card.querySelector('.act-hide').addEventListener('click', ()=> update({ id:r.id, status:'hidden' }))
+    card.querySelector('.act-del').addEventListener('click', async ()=>{
+      if(!confirm('Anmeldung von ' + r.first_name + ' ' + r.last_name + ' wirklich löschen?\\n\\nDieser Eintrag wird endgültig aus der Datenbank entfernt.')) return
+      try { await api('/api/admin/delete', { method:'POST', body: JSON.stringify({ id:r.id }) }); toast('Gelöscht.'); load() }
+      catch(e){ toast('Löschen fehlgeschlagen.', true) }
+    })
     return card
   }
 
