@@ -389,6 +389,7 @@ const ADMIN_HTML = `<!doctype html>
   .brand { display:flex; flex-direction:column; gap:2px; min-width:0; }
   .brand__tag { font-family:var(--mono); font-size:11px; letter-spacing:.18em; text-transform:uppercase; color:var(--neon); }
   .brand h1 { margin:0; font-size:clamp(20px,3.4vw,28px); font-weight:800; letter-spacing:-.02em; line-height:1; }
+  [hidden] { display:none !important; }
   .tools { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
 
   /* ── Stat tiles: mono scoreboard cells ──────────────────────────────────── */
