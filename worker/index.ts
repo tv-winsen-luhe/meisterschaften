@@ -43,7 +43,7 @@ export default {
 
     try {
       if (path === '/api/register' && method === 'POST') return await handleRegister(request, env, ctx)
-      if (path === '/api/cancel' && method === 'POST') return await handleCancel(request, env)
+      if (path === '/api/cancel' && method === 'POST') return await handleCancel(request, env, ctx)
       if (path === '/api/participants' && method === 'GET') return await handleParticipants(env)
       if (path === '/admin' && method === 'GET') return adminPage()
       if (path === '/api/admin/list' && method === 'GET') return await handleAdminList(request, env)
@@ -147,26 +147,23 @@ interface RegistrationNotice {
   note: string
 }
 
-/** Schickt eine Telegram-Nachricht über eine neue Anmeldung (kostenlos, keine DNS-Änderung). */
-async function notifyRegistration(env: Env, r: RegistrationNotice): Promise<void> {
+interface CancelledRow {
+  first_name: string
+  last_name: string
+  club: string
+  email: string
+  competition: string
+}
+
+const ADMIN_URL = 'https://meisterschaften.tennisverein-winsen.de/admin'
+
+// HTML-escapen, da wir parse_mode=HTML nutzen (Namen/Anmerkung können & < > enthalten).
+const escapeHtml = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+
+/** Schickt eine Telegram-Nachricht (kostenlos, keine DNS-Änderung). Fehler werden nur geloggt. */
+async function sendTelegram(env: Env, text: string): Promise<void> {
   // Kein Token / keine Chat-ID konfiguriert (z. B. lokal) → still überspringen.
   if (!env.TELEGRAM_BOT_TOKEN || !env.TELEGRAM_CHAT_ID) return
-
-  const konk = COMPETITION_LABELS[r.competition] ?? r.competition
-  // HTML-escapen, da wir parse_mode=HTML nutzen (Namen/Anmerkung können & < > enthalten).
-  const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-  const text = [
-    '🎾 <b>Neue Anmeldung</b> — Winsener Meisterschaften 2026',
-    '',
-    `<b>Name:</b> ${esc(`${r.firstName} ${r.lastName}`)}`,
-    `<b>Konkurrenz:</b> ${esc(konk)}`,
-    `<b>Verein:</b> ${esc(r.club)}`,
-    `<b>E-Mail:</b> ${esc(r.email)}`,
-    ...(r.phone ? [`<b>Telefon:</b> ${esc(r.phone)}`] : []),
-    ...(r.note ? ['', `<b>Anmerkung:</b> ${esc(r.note)}`] : []),
-    '',
-    'Status: neu — zum Bestätigen: https://meisterschaften.tennisverein-winsen.de/admin'
-  ].join('\n')
 
   try {
     const res = await fetch(`https://api.telegram.org/bot${env.TELEGRAM_BOT_TOKEN}/sendMessage`, {
@@ -179,14 +176,50 @@ async function notifyRegistration(env: Env, r: RegistrationNotice): Promise<void
         disable_web_page_preview: true
       })
     })
-    // Telegram-Fehler darf die Anmeldung nicht beeinflussen — nur loggen.
     if (!res.ok) console.error('Telegram-Benachrichtigung fehlgeschlagen:', res.status, await res.text())
   } catch (err) {
     console.error('Telegram-Benachrichtigung fehlgeschlagen:', String(err))
   }
 }
 
-async function handleCancel(request: Request, env: Env): Promise<Response> {
+/** Telegram-Nachricht über eine neue Anmeldung. */
+async function notifyRegistration(env: Env, r: RegistrationNotice): Promise<void> {
+  const konk = COMPETITION_LABELS[r.competition] ?? r.competition
+  const text = [
+    '🎾 <b>Neue Anmeldung</b> — Winsener Meisterschaften 2026',
+    '',
+    `<b>Name:</b> ${escapeHtml(`${r.firstName} ${r.lastName}`)}`,
+    `<b>Konkurrenz:</b> ${escapeHtml(konk)}`,
+    `<b>Verein:</b> ${escapeHtml(r.club)}`,
+    `<b>E-Mail:</b> ${escapeHtml(r.email)}`,
+    ...(r.phone ? [`<b>Telefon:</b> ${escapeHtml(r.phone)}`] : []),
+    ...(r.note ? ['', `<b>Anmerkung:</b> ${escapeHtml(r.note)}`] : []),
+    '',
+    `Status: neu — zum Bestätigen: ${ADMIN_URL}`
+  ].join('\n')
+  await sendTelegram(env, text)
+}
+
+/** Telegram-Nachricht über eine Abmeldung (eine Person kann mehrere Konkurrenzen abmelden). */
+async function notifyCancellation(env: Env, rows: CancelledRow[]): Promise<void> {
+  if (rows.length === 0) return
+
+  const first = rows[0]
+  const konks = rows.map(r => COMPETITION_LABELS[r.competition] ?? r.competition).join(', ')
+  const text = [
+    '🚫 <b>Abmeldung</b> — Winsener Meisterschaften 2026',
+    '',
+    `<b>Name:</b> ${escapeHtml(`${first.first_name} ${first.last_name}`)}`,
+    `<b>Konkurrenz${rows.length > 1 ? 'en' : ''}:</b> ${escapeHtml(konks)}`,
+    `<b>Verein:</b> ${escapeHtml(first.club)}`,
+    `<b>E-Mail:</b> ${escapeHtml(first.email)}`,
+    '',
+    `In der Verwaltung: ${ADMIN_URL}`
+  ].join('\n')
+  await sendTelegram(env, text)
+}
+
+async function handleCancel(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
   let body: Record<string, unknown>
   try {
     body = (await request.json()) as Record<string, unknown>
@@ -203,6 +236,15 @@ async function handleCancel(request: Request, env: Env): Promise<Response> {
   if (!email || !isEmail(email)) return json({ error: 'Bitte gib die E-Mail-Adresse deiner Anmeldung an.' }, 400)
   if (!lastName) return json({ error: 'Bitte gib deinen Nachnamen an.' }, 400)
 
+  // Welche aktiven Einträge werden gleich abgemeldet? (Vorher lesen, um den
+  // Sportwart mit Details benachrichtigen zu können.)
+  const { results: toCancel } = await env.DB.prepare(
+    `SELECT first_name, last_name, club, email, competition FROM registrations
+      WHERE email = ? COLLATE NOCASE AND last_name = ? COLLATE NOCASE AND status IN ('new', 'confirmed')`
+  )
+    .bind(email, lastName)
+    .all<CancelledRow>()
+
   // Cancel every still-active entry that matches email + last name (case-insensitive).
   const result = await env.DB.prepare(
     `UPDATE registrations SET status = 'cancelled'
@@ -211,7 +253,10 @@ async function handleCancel(request: Request, env: Env): Promise<Response> {
     .bind(email, lastName)
     .run()
 
-  return json({ ok: true, cancelled: result.meta?.changes ?? 0 })
+  const cancelled = result.meta?.changes ?? 0
+  if (cancelled > 0) ctx.waitUntil(notifyCancellation(env, toCancel ?? []))
+
+  return json({ ok: true, cancelled })
 }
 
 async function handleParticipants(env: Env): Promise<Response> {
