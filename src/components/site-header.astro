@@ -156,6 +156,7 @@ const home = import.meta.env.BASE_URL || '/'
     font-size: 14px;
     font-weight: 700;
     letter-spacing: -0.01em;
+    line-height: 1.15;
   }
 
   .site-header__eyebrow {
@@ -223,6 +224,19 @@ const home = import.meta.env.BASE_URL || '/'
   @media (max-width: 1023px) {
     .site-header--event.is-stuck .site-header__cta {
       margin-left: auto;
+    }
+    /* Let the brand shrink and the title wrap so it can't overflow the viewport
+       (iOS Safari still scrolls horizontally past a sticky element, even with
+       overflow-x: clip on the root). The CTA then sits flush to the right edge. */
+    .site-header--event.is-stuck .site-header__brand {
+      min-width: 0;
+    }
+    .site-header--event.is-stuck .site-header__brand-text {
+      white-space: normal;
+      overflow-wrap: break-word;
+    }
+    .site-header--event.is-stuck .site-header__cta {
+      flex-shrink: 0;
     }
   }
 
