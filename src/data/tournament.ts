@@ -48,9 +48,10 @@ export const competitions: readonly Competition[] = [
     id: 'womens',
     slug: 'womens',
     label: 'Damen',
-    audience: 'Du spielst Punktspiele, trainierst regelmäßig und willst dich mit den Stärksten messen.',
+    audience:
+      'Du hast Lust, dich im Match zu messen und um den Titel mitzuspielen — egal, wie gut du dich gerade selbst einschätzt.',
     blurb:
-      'Das Hauptfeld — offen für alle. Hier treten die stärksten Spielerinnen an und hier wird die Winsener Meisterin ausgespielt.',
+      'Das Hauptfeld — offen für alle. Hier wird die Winsener Meisterin ausgespielt. Du musst dafür weder in einer Mannschaft spielen noch deine Leistungsklasse kennen.',
     title: 'Winsener Meisterin',
     capacity: 8,
     status: 'open',
@@ -80,6 +81,17 @@ export const competitions: readonly Competition[] = [
     capacity: 16,
     status: 'open',
     selectable: true
+  },
+  {
+    id: 'womens-challenger',
+    slug: 'womens-challenger',
+    label: 'Damen Freizeit',
+    audience: 'Du spielst vor allem zum Spaß und fürs Miteinander — Wettkampf muss nicht im Vordergrund stehen.',
+    blurb:
+      'Ein lockeres, geselliges Damen-Feld ohne Titeldruck. Wie das Format genau aussieht, besprechen wir bei den Gesprächen am 02.07.',
+    title: '',
+    status: 'planned',
+    selectable: false
   }
 ] as const
 

@@ -19,6 +19,7 @@ const catBadgeInvClass =
 const mens = competitions.find(c => c.id === 'mens')!
 const challenger = competitions.find(c => c.id === 'mens-challenger')!
 const womens = competitions.find(c => c.id === 'womens')!
+const womensFreizeit = competitions.find(c => c.id === 'womens-challenger')!
 
 const reglement: { label: string; value: string; link?: { href: string; label: string } }[] = [
   { label: 'Modus', value: 'K.O. mit Nebenrunde — mind. 2 Matches' },
@@ -168,7 +169,7 @@ const sunday = [
       <SectionHeader
         eyebrow="Konkurrenzen"
         headline={['Wähl dein', 'Feld.']}
-        note="Drei Einzel-Felder: eins bei den Damen, zwei bei den Herren. Du entscheidest bei der Anmeldung selbst, in welchem du spielst, und musst deine Leistungsklasse dafür nicht kennen."
+        note="Drei Felder stehen schon fest — eins bei den Damen, zwei bei den Herren —, ein Damen-Freizeit-Feld ist in Planung. Du wählst bei der Anmeldung selbst dein Feld und musst deine Leistungsklasse dafür nicht kennen."
       />
 
       <div class="cat-grid grid grid-cols-3 gap-0.5 bg-navy p-0.5 max-[900px]:grid-cols-1">
@@ -226,6 +227,28 @@ const sunday = [
           >
             Anmelden
           </button>
+        </Card>
+        <Card variant="light" stagger={3} class="col-span-full">
+          <div class="flex flex-col gap-5 md:flex-row md:items-center md:justify-between md:gap-12">
+            <div class="flex flex-col gap-3">
+              <span
+                class="self-start border-[1.5px] border-dashed border-navy/45 px-2.5 py-1 text-[11px] font-black tracking-[0.15em] text-navy/55 uppercase"
+                >In Planung</span
+              >
+              <span
+                class="text-[clamp(28px,9cqw,46px)] leading-[0.85] font-black tracking-[-0.04em] uppercase opacity-75"
+                >{womensFreizeit.label}</span
+              >
+            </div>
+            <div class="md:max-w-[48ch]">
+              <p class="m-0 text-[14px] leading-[1.6] font-semibold opacity-80">
+                Ein lockeres, geselliges Damen-Feld zum Mitspielen — ohne Titeldruck, der Spaß steht im Vordergrund.
+              </p>
+              <p class="mt-2 text-[13px] leading-[1.6] opacity-60">
+                Wie das Format genau aussieht, besprechen wir am 02.07. — Details folgen.
+              </p>
+            </div>
+          </div>
         </Card>
       </div>
     </section>
