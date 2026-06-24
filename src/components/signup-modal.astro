@@ -189,9 +189,17 @@ import tsvLogo from '@/assets/tsv-winsen.png'
     width: min(560px, calc(100vw - 24px));
     max-width: 100%;
     max-height: calc(100dvh - 24px);
+    /* Bei zu hohem Inhalt scrollt das Modal selbst; overscroll-contain verhindert,
+       dass die Scroll-Geste am oberen/unteren Rand auf den Hintergrund durchschlägt. */
+    overflow-y: auto;
+    overscroll-behavior: contain;
   }
   .signup-dialog::backdrop {
     background: rgba(12, 30, 58, 0.85);
+  }
+  /* Hintergrund-Scroll sperren, solange das Modal offen ist (showModal() tut das nicht von selbst). */
+  html.signup-lock {
+    overflow: hidden;
   }
   .signup-dialog[open] {
     animation: signup-in 0.2s ease;
@@ -656,10 +664,26 @@ import tsvLogo from '@/assets/tsv-winsen.png'
       if (radio) radio.checked = true
     }
     dialog.showModal()
+    document.documentElement.classList.add('signup-lock')
     titleEl?.focus({ preventScroll: true })
   }
 
+  // Hintergrund-Scroll freigeben. Wird in jedem Schließ-Pfad explizit aufgerufen
+  // (Button, Backdrop) und zusätzlich am close-Event (deckt Esc ab).
+  const unlockScroll = () => document.documentElement.classList.remove('signup-lock')
+
+  function closeDialog() {
+    if (!dialog) return
+    unlockScroll()
+    dialog.close()
+  }
+
   if (dialog) {
+    // Nur entsperren, wenn der Dialog wirklich zu ist — verhindert, dass ein
+    // verspätetes close-Event (Schließen → schnelles Wieder-Öffnen) den Lock killt.
+    dialog.addEventListener('close', () => {
+      if (!dialog.open) unlockScroll()
+    })
     document.querySelectorAll<HTMLElement>('[data-signup-open]').forEach(trigger => {
       trigger.addEventListener('click', e => {
         e.preventDefault()
@@ -667,10 +691,10 @@ import tsvLogo from '@/assets/tsv-winsen.png'
       })
     })
     dialog.querySelectorAll<HTMLElement>('[data-signup-close]').forEach(btn => {
-      btn.addEventListener('click', () => dialog.close())
+      btn.addEventListener('click', closeDialog)
     })
     dialog.addEventListener('click', e => {
-      if (e.target === dialog) dialog.close()
+      if (e.target === dialog) closeDialog()
     })
     dialog.querySelector<HTMLElement>('[data-signup-again]')?.addEventListener('click', resetForm)
   }
