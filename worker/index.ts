@@ -367,71 +367,197 @@ const ADMIN_HTML = `<!doctype html>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <meta name="robots" content="noindex" />
-<title>Admin — Winsener Meisterschaften</title>
+<title>Anmeldungen — Winsener Meisterschaften 2026</title>
 <style>
-  :root { --navy:#0c1e3a; --neon:#ceff00; --blue:#199cf9; --warn:#c2673b; }
+  :root {
+    --navy:#0c1e3a; --navy-deep:#060d18; --neon:#ceff00; --blue:#199cf9; --clay:#c2673b;
+    --paper:#f1f1ee; --card:#ffffff; --line:#e5e5e5; --line-2:#d4d4d4; --ink:#0c1e3a; --muted:#6b7280;
+    --ui: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+    --mono: ui-monospace, SFMono-Regular, 'SF Mono', 'JetBrains Mono', Menlo, monospace;
+  }
   * { box-sizing: border-box; }
-  body { margin:0; font-family: ui-sans-serif, system-ui, sans-serif; background:#f5f5f5; color:var(--navy); }
-  header { background:var(--navy); color:#fff; padding:16px 20px; position:sticky; top:0; z-index:5; }
-  header h1 { margin:0; font-size:16px; letter-spacing:0.04em; text-transform:uppercase; }
-  header .counts { margin-top:6px; font-size:13px; opacity:.85; }
-  header .tools { margin-top:10px; display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
-  main { padding:16px; max-width:1100px; margin:0 auto; }
-  .gate { display:flex; gap:8px; flex-wrap:wrap; align-items:center; padding:16px; background:#fff; border:1px solid #ddd; }
-  .gate input { flex:1; min-width:200px; padding:10px; font:inherit; border:1.5px solid #ccc; }
-  button { font:inherit; font-weight:700; cursor:pointer; border:none; padding:8px 12px; }
-  .btn-primary { background:var(--neon); color:var(--navy); }
-  .btn-hide { background:#e5e5e5; color:var(--navy); }
-  .btn-ghost { background:transparent; color:#fff; border:1.5px solid rgba(255,255,255,.4); }
-  .msg { padding:10px 0; font-size:13px; font-weight:600; min-height:20px; }
-  .group { margin:22px 0 8px; font-size:13px; font-weight:800; letter-spacing:.1em; text-transform:uppercase; opacity:.6; }
-  .card { background:#fff; border:1px solid #ddd; padding:12px; margin-bottom:8px; }
-  .card.s-confirmed { border-left:4px solid var(--neon); }
-  .card.s-hidden { opacity:.5; }
-  .card.s-cancelled { opacity:.45; border-left:4px solid var(--warn); }
-  .card.s-new { border-left:4px solid var(--blue); }
-  .row1 { display:flex; flex-wrap:wrap; gap:8px 14px; align-items:baseline; }
-  .name { font-size:17px; font-weight:800; }
-  .meta { font-size:12px; opacity:.6; }
-  .badge { font-size:10px; font-weight:800; letter-spacing:.1em; text-transform:uppercase; padding:2px 7px; border:1.5px solid currentColor; }
-  .warn { color:var(--warn); font-weight:800; font-size:12px; }
-  .row2 { display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin-top:10px; }
-  .row2 label { font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.08em; opacity:.6; }
-  .row2 input, .row2 select { padding:7px 9px; font:inherit; border:1.5px solid #ccc; }
-  .row2 input.pid { width:110px; }
-  .row2 input.lk { width:70px; }
-  .noid { display:inline-flex; gap:5px; align-items:center; opacity:.8; }
-  .contact { font-size:12px; opacity:.7; margin-top:6px; }
-  a.export { color:var(--blue); font-size:13px; }
+  html { -webkit-text-size-adjust: 100%; }
+  body { margin:0; font-family:var(--ui); background:var(--paper); color:var(--ink); line-height:1.45;
+    background-image: linear-gradient(var(--line) 1px, transparent 1px); background-size:100% 44px;
+    background-attachment:fixed; }
+
+  /* ── Header: navy chrome with a single neon baseline (court line) ───────── */
+  header { background:linear-gradient(180deg,var(--navy),var(--navy-deep)); color:#fff;
+    position:sticky; top:0; z-index:20; border-bottom:3px solid var(--neon); }
+  .head-bar { max-width:1120px; margin:0 auto; padding:14px 20px;
+    display:flex; align-items:center; justify-content:space-between; gap:16px; flex-wrap:wrap; }
+  .brand { display:flex; flex-direction:column; gap:2px; min-width:0; }
+  .brand__tag { font-family:var(--mono); font-size:11px; letter-spacing:.18em; text-transform:uppercase; color:var(--neon); }
+  .brand h1 { margin:0; font-size:clamp(20px,3.4vw,28px); font-weight:800; letter-spacing:-.02em; line-height:1; }
+  .tools { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+
+  /* ── Stat tiles: mono scoreboard cells ──────────────────────────────────── */
+  .stats { max-width:1120px; margin:0 auto; padding:0 20px 16px;
+    display:grid; grid-template-columns:repeat(6,1fr); gap:8px; }
+  .tile { background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.14); padding:9px 11px;
+    display:flex; flex-direction:column; gap:2px; }
+  .tile__n { font-family:var(--mono); font-size:24px; font-weight:700; line-height:1; font-variant-numeric:tabular-nums; }
+  .tile__l { font-size:10px; letter-spacing:.14em; text-transform:uppercase; color:rgba(255,255,255,.62); font-weight:700; }
+  .tile.is-new .tile__n { color:var(--blue); }
+  .tile.is-conf { border-color:var(--neon); background:rgba(206,255,0,.1); }
+  .tile.is-conf .tile__n { color:var(--neon); }
+  .tile.sub { background:transparent; }
+  .tile.sub .tile__n { font-size:19px; color:rgba(255,255,255,.9); }
+  @media (max-width:720px){ .stats { grid-template-columns:repeat(3,1fr); } }
+
+  /* ── Filter bar ──────────────────────────────────────────────────────────── */
+  .filterbar { position:sticky; top:0; z-index:10; background:var(--card); border-bottom:1px solid var(--line-2);
+    box-shadow:0 1px 0 rgba(12,30,58,.04); }
+  .filterbar-inner { max-width:1120px; margin:0 auto; padding:9px 20px;
+    display:flex; align-items:center; gap:12px; flex-wrap:wrap; }
+  .tabs { display:flex; gap:2px; flex-wrap:wrap; }
+  .tab { background:transparent; border:none; cursor:pointer; font:inherit; color:var(--muted);
+    font-size:13px; font-weight:700; padding:7px 11px; border-bottom:3px solid transparent; }
+  .tab:hover { color:var(--ink); }
+  .tab.is-active { color:var(--ink); border-bottom-color:var(--neon); }
+  .tab__c { font-family:var(--mono); font-size:11px; font-weight:700; opacity:.7; margin-left:3px; }
+  .search { margin-left:auto; flex:1; min-width:160px; max-width:320px; padding:8px 11px; font:inherit; font-size:13px;
+    border:1.5px solid var(--line-2); background:var(--paper); color:var(--ink); }
+  .search::placeholder { color:var(--muted); }
+
+  /* ── Buttons ─────────────────────────────────────────────────────────────── */
+  button, .btn { font:inherit; font-weight:700; cursor:pointer; border:none; transition:transform .08s ease, filter .12s ease; }
+  button:active { transform:translateY(1px); }
+  .btn-primary { background:var(--neon); color:var(--navy); padding:8px 14px; letter-spacing:.01em; }
+  .btn-primary:hover { filter:brightness(1.05); }
+  .btn-hide { background:var(--paper); color:var(--ink); border:1.5px solid var(--line-2); padding:8px 12px; }
+  .btn-hide:hover { background:#e9e9e6; }
+  .btn-ghost { background:transparent; color:#fff; border:1.5px solid rgba(255,255,255,.35); padding:7px 12px;
+    font-size:13px; text-decoration:none; display:inline-flex; align-items:center; gap:5px; }
+  .btn-ghost:hover { border-color:var(--neon); color:var(--neon); }
+
+  /* ── Layout ──────────────────────────────────────────────────────────────── */
+  main { padding:20px; max-width:1120px; margin:0 auto; }
+
+  .gate { max-width:420px; margin:8vh auto 0; background:var(--card); border:1px solid var(--line-2);
+    border-top:4px solid var(--neon); padding:26px 24px; }
+  .gate__tag { font-family:var(--mono); font-size:11px; letter-spacing:.18em; text-transform:uppercase; color:var(--clay); }
+  .gate h2 { margin:6px 0 18px; font-size:21px; font-weight:800; letter-spacing:-.02em; }
+  .gate__field { display:flex; gap:8px; }
+  .gate input { flex:1; min-width:0; padding:11px; font:inherit; border:1.5px solid var(--line-2); background:var(--paper); }
+  .gatemsg { margin-top:12px; font-size:13px; font-weight:700; color:var(--clay); min-height:18px; }
+
+  .group { margin:26px 0 10px; font-family:var(--mono); font-size:12px; font-weight:700; letter-spacing:.12em;
+    text-transform:uppercase; color:var(--muted); display:flex; align-items:center; gap:10px; }
+  .group::after { content:''; flex:1; height:1px; background:var(--line-2); }
+
+  /* ── Card: registration as a draw-sheet entry, status = court sideline ───── */
+  .card { position:relative; background:var(--card); border:1px solid var(--line); border-left:5px solid var(--line-2);
+    padding:13px 16px 14px; margin-bottom:8px; }
+  .card.s-new { border-left-color:var(--blue); }
+  .card.s-confirmed { border-left-color:var(--neon); }
+  .card.s-hidden { border-left-color:var(--line-2); opacity:.6; }
+  .card.s-cancelled { border-left-color:var(--clay); opacity:.62; }
+  .row1 { display:flex; flex-wrap:wrap; gap:8px 12px; align-items:center; }
+  .name { font-size:17px; font-weight:800; letter-spacing:-.01em; }
+  .badge { font-size:10px; font-weight:800; letter-spacing:.12em; text-transform:uppercase; padding:3px 8px;
+    border:1.5px solid var(--ink); }
+  .seed { font-family:var(--mono); font-size:13px; font-weight:700; padding:2px 9px; border:1.5px solid var(--ink);
+    font-variant-numeric:tabular-nums; white-space:nowrap; }
+  .seed b { font-size:9px; letter-spacing:.1em; margin-right:5px; opacity:.6; vertical-align:1px; }
+  .seed.is-none { color:var(--muted); border-color:var(--line-2); }
+  .meta { font-size:13px; color:var(--muted); margin-left:auto; text-align:right; }
+  .warn { color:var(--clay); font-weight:800; font-size:12px; }
+  .contact { font-family:var(--mono); font-size:12px; color:var(--muted); margin-top:6px; word-break:break-word; }
+  .note { margin-top:6px; font-size:13px; border-left:2px solid var(--line-2); padding-left:9px; color:#444; }
+
+  .row2 { display:flex; flex-wrap:wrap; gap:8px 10px; align-items:center; margin-top:12px;
+    padding-top:12px; border-top:1px dashed var(--line-2); }
+  .row2 label { font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.1em; color:var(--muted); }
+  .row2 input, .row2 select { padding:7px 9px; font:inherit; font-size:14px; border:1.5px solid var(--line-2); background:#fff; }
+  .row2 input { font-family:var(--mono); }
+  .row2 input.pid { width:118px; }
+  .row2 input.lk { width:72px; text-align:center; }
+  .noid { display:inline-flex; gap:5px; align-items:center; color:var(--muted); font-weight:700; cursor:pointer; }
+  .noid input { accent-color:var(--clay); }
+  .spacer { flex:1; min-width:0; }
+
+  .empty { text-align:center; color:var(--muted); padding:48px 16px; font-size:15px; }
+
+  :focus-visible { outline:2.5px solid var(--blue); outline-offset:1px; }
+
+  /* ── Toast ───────────────────────────────────────────────────────────────── */
+  .toast { position:fixed; left:50%; bottom:22px; transform:translateX(-50%) translateY(8px);
+    background:var(--navy); color:#fff; padding:11px 18px; font-size:14px; font-weight:700;
+    border-left:4px solid var(--neon); box-shadow:0 8px 24px rgba(12,30,58,.28); z-index:50;
+    opacity:0; pointer-events:none; transition:opacity .18s ease, transform .18s ease; }
+  .toast.show { opacity:1; transform:translateX(-50%) translateY(0); }
+  .toast.err { border-left-color:var(--clay); }
+
+  @keyframes rise { from { opacity:0; transform:translateY(6px); } to { opacity:1; transform:none; } }
+  .card, .group { animation:rise .22s ease both; }
+
+  @media (max-width:560px){
+    .row2 .spacer { display:none; }
+    .row2 .act-confirm, .row2 .act-hide { flex:1; }
+    .meta { margin-left:0; text-align:left; flex-basis:100%; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, .card, .group, .toast { animation:none !important; transition:none !important; }
+  }
 </style>
 </head>
 <body>
 <header>
-  <h1>Winsener Meisterschaften — Anmeldungen</h1>
-  <div class="counts" id="counts"></div>
-  <div class="tools" id="tools" hidden>
-    <button class="btn-ghost" id="refresh">LK aus nuLiga aktualisieren</button>
-    <a class="export btn-ghost" id="exportlink" href="#" target="_blank" rel="noopener" style="color:#fff;text-decoration:none">CSV-Export ↧</a>
+  <div class="head-bar">
+    <div class="brand">
+      <span class="brand__tag">Winsener Meisterschaften 2026</span>
+      <h1>Anmeldungen</h1>
+    </div>
+    <div class="tools" id="tools" hidden>
+      <button class="btn-ghost" id="refresh">↻ LK aus nuLiga</button>
+      <a class="btn-ghost" id="exportlink" href="#" target="_blank" rel="noopener">CSV-Export ↧</a>
+      <button class="btn-ghost" id="logout">Abmelden</button>
+    </div>
   </div>
+  <div class="stats" id="stats" hidden></div>
 </header>
+<div class="filterbar" id="filterbar" hidden>
+  <div class="filterbar-inner">
+    <div class="tabs" id="tabs"></div>
+    <input class="search" id="search" type="search" placeholder="Name, E-Mail, Verein, ID …" autocomplete="off" />
+  </div>
+</div>
 <main>
   <div class="gate" id="gate">
-    <input id="token" type="password" placeholder="Admin-Token" autocomplete="off" />
-    <button class="btn-primary" id="login">Anmelden</button>
-    <span class="msg" id="gatemsg"></span>
+    <span class="gate__tag">Vereinsintern</span>
+    <h2>Admin-Anmeldung</h2>
+    <div class="gate__field">
+      <input id="token" type="password" placeholder="Admin-Token" autocomplete="off" />
+      <button class="btn-primary" id="login">Anmelden</button>
+    </div>
+    <div class="gatemsg" id="gatemsg"></div>
   </div>
-  <div class="msg" id="msg"></div>
   <div id="list"></div>
 </main>
+<div class="toast" id="msg" role="status" aria-live="polite"></div>
 <script>
-  const KONK = { 'mens': 'Herren', 'mens-challenger': 'Herren Challenger', 'womens': 'Damen' }
+  const KONK = { 'mens':'Herren', 'mens-challenger':'Herren Challenger', 'womens':'Damen' }
+  const STATUS_LABELS = { 'all':'Alle', 'new':'Neu', 'confirmed':'Bestätigt', 'hidden':'Versteckt', 'cancelled':'Abgemeldet' }
+  const GROUP_LABELS = { 'new':'Neu — zu bestätigen', 'confirmed':'Bestätigt — öffentlich', 'hidden':'Versteckt', 'cancelled':'Abgemeldet' }
+  const ORDER = { 'new':0, 'confirmed':1, 'hidden':2, 'cancelled':3 }
+
   let TOKEN = sessionStorage.getItem('admin_token') || new URLSearchParams(location.search).get('token') || ''
+  let ALL = []
+  let FILTER = 'all'
+  let QUERY = ''
 
   const el = id => document.getElementById(id)
-  function setMsg(t){ el('msg').textContent = t; if(t) setTimeout(()=>{ if(el('msg').textContent===t) el('msg').textContent='' }, 4000) }
+  let toastT
+  function toast(t, isErr){
+    const m = el('msg'); m.textContent = t; m.className = 'toast show' + (isErr ? ' err' : '')
+    clearTimeout(toastT); toastT = setTimeout(()=>{ m.className = 'toast' + (isErr ? ' err' : '') }, 3200)
+  }
 
-  async function api(path, opts={}){
-    const res = await fetch(path, { ...opts, headers: { 'content-type':'application/json', 'x-admin-token': TOKEN, ...(opts.headers||{}) } })
+  async function api(path, opts){
+    opts = opts || {}
+    const res = await fetch(path, { ...opts, headers: { 'content-type':'application/json', 'x-admin-token':TOKEN, ...(opts.headers||{}) } })
     if(res.status === 401) throw new Error('unauthorized')
     if(!res.ok) throw new Error('Fehler ' + res.status)
     return res.json()
@@ -441,89 +567,149 @@ const ADMIN_HTML = `<!doctype html>
     let data
     try { data = await api('/api/admin/list') }
     catch(e){
-      if(String(e.message)==='unauthorized'){ el('gate').style.display='flex'; el('gatemsg').textContent='Token ungültig.'; return }
-      setMsg('Konnte nicht laden.'); return
+      if(String(e.message)==='unauthorized'){ showGate('Token ungültig.'); return }
+      toast('Konnte nicht laden.', true); return
     }
     el('gate').style.display='none'
     el('tools').hidden = false
+    el('stats').hidden = false
+    el('filterbar').hidden = false
     sessionStorage.setItem('admin_token', TOKEN)
     el('exportlink').href = '/export?token=' + encodeURIComponent(TOKEN)
-    render(data.registrations || [])
+    ALL = data.registrations || []
+    render()
   }
 
-  function counts(rows){
-    const conf = rows.filter(r=>r.status==='confirmed')
+  function showGate(msg){
+    el('gate').style.display='block'
+    el('tools').hidden = true; el('stats').hidden = true; el('filterbar').hidden = true
+    el('list').innerHTML = ''
+    el('gatemsg').textContent = msg || ''
+  }
+
+  function tile(label, val, cls){
+    return '<div class="tile ' + (cls||'') + '"><span class="tile__n">' + val + '</span><span class="tile__l">' + label + '</span></div>'
+  }
+  function renderStats(){
+    const conf = ALL.filter(r=>r.status==='confirmed')
+    const neu = ALL.filter(r=>r.status==='new').length
     const by = k => conf.filter(r=>r.competition===k).length
-    el('counts').textContent = 'Bestätigt: ' + conf.length + ' (Herren ' + by('mens') + ' · Challenger ' + by('mens-challenger') + ' · Damen ' + by('womens') + ') · Gesamt ' + rows.length
+    el('stats').innerHTML =
+      tile('Gesamt', ALL.length) +
+      tile('Neu', neu, 'is-new') +
+      tile('Bestätigt', conf.length, 'is-conf') +
+      tile('Herren', by('mens'), 'sub') +
+      tile('Challenger', by('mens-challenger'), 'sub') +
+      tile('Damen', by('womens'), 'sub')
+  }
+  function renderTabs(){
+    const cnt = s => s==='all' ? ALL.length : ALL.filter(r=>r.status===s).length
+    el('tabs').innerHTML = ['all','new','confirmed','hidden','cancelled'].map(s=>
+      '<button class="tab' + (FILTER===s ? ' is-active' : '') + '" data-f="' + s + '">' +
+        STATUS_LABELS[s] + '<span class="tab__c">' + cnt(s) + '</span></button>'
+    ).join('')
+    el('tabs').querySelectorAll('.tab').forEach(b=> b.addEventListener('click', ()=>{ FILTER=b.dataset.f; render() }))
   }
 
-  function render(rows){
-    counts(rows)
-    const order = { 'new':0, 'confirmed':1, 'hidden':2, 'cancelled':3 }
-    rows.sort((a,b)=> (order[a.status]-order[b.status]) || a.created_at.localeCompare(b.created_at))
-    const list = el('list'); list.innerHTML=''
+  function render(){
+    renderStats(); renderTabs()
+    const q = QUERY.trim().toLowerCase()
+    let rows = ALL.slice()
+    if(FILTER !== 'all') rows = rows.filter(r=> r.status===FILTER)
+    if(q) rows = rows.filter(r=> (r.first_name + ' ' + r.last_name + ' ' + r.email + ' ' + r.club + ' ' + (r.player_id||'')).toLowerCase().includes(q))
+    rows.sort((a,b)=> (ORDER[a.status]-ORDER[b.status]) || a.created_at.localeCompare(b.created_at))
+
+    const list = el('list'); list.innerHTML = ''
+    if(!ALL.length){ list.innerHTML = '<p class="empty">Noch keine Anmeldungen. Die Liste füllt sich, sobald jemand das Formular abschickt.</p>'; return }
+    if(!rows.length){ list.innerHTML = '<p class="empty">Keine Treffer für diesen Filter.</p>'; return }
+
     let lastStatus = null
-    const labels = { 'new':'Neu — zu bestätigen', 'confirmed':'Bestätigt (öffentlich)', 'hidden':'Versteckt', 'cancelled':'Abgemeldet' }
+    const grouped = (FILTER === 'all')
     for(const r of rows){
-      if(r.status !== lastStatus){ const h=document.createElement('div'); h.className='group'; h.textContent=labels[r.status]||r.status; list.appendChild(h); lastStatus=r.status }
+      if(grouped && r.status !== lastStatus){
+        const h = document.createElement('div'); h.className='group'; h.textContent = GROUP_LABELS[r.status] || r.status
+        list.appendChild(h); lastStatus = r.status
+      }
       list.appendChild(cardFor(r))
     }
-    if(!rows.length){ list.innerHTML='<p>Noch keine Anmeldungen.</p>' }
   }
 
   function cardFor(r){
     const card = document.createElement('div')
     card.className = 'card s-' + r.status
     const challWarn = (r.competition==='mens-challenger' && r.lk && parseFloat(r.lk) < 20)
-      ? '<span class="warn">⚠ LK &lt; 20 — gehört ins Hauptfeld?</span>' : ''
+      ? '<span class="warn">⚠ LK &lt; 20 — Hauptfeld?</span>' : ''
+    const seed = r.lk
+      ? '<span class="seed"><b>LK</b>' + r.lk + '</span>'
+      : '<span class="seed is-none"><b>LK</b>—</span>'
     card.innerHTML =
-      '<div class="row1"><span class="name"></span>'
+      '<div class="row1">'
+      + '<span class="name"></span>'
       + '<span class="badge"></span>'
-      + '<span class="meta"></span>' + challWarn + '</div>'
+      + seed + challWarn
+      + '<span class="meta"></span>'
+      + '</div>'
       + '<div class="contact"></div>'
+      + (r.note ? '<div class="note"></div>' : '')
       + '<div class="row2">'
       + '<label>Spieler-ID</label><input class="pid" type="text" inputmode="numeric" maxlength="8" placeholder="8-stellig" />'
       + '<label class="noid"><input type="checkbox" class="cb-noid" /> keine ID</label>'
       + '<label>LK</label><input class="lk" type="text" inputmode="decimal" placeholder="—" />'
       + '<label>Feld</label><select class="konk"><option value="mens">Herren</option><option value="mens-challenger">Herren Challenger</option><option value="womens">Damen</option></select>'
+      + '<span class="spacer"></span>'
       + '<button class="btn-primary act-confirm">Bestätigen</button>'
       + '<button class="btn-hide act-hide">Verstecken</button>'
       + '</div>'
     card.querySelector('.name').textContent = r.first_name + ' ' + r.last_name
     card.querySelector('.badge').textContent = KONK[r.competition] || r.competition
-    card.querySelector('.meta').textContent = r.club + (r.note ? ' · „' + r.note + '"' : '')
-    card.querySelector('.contact').textContent = r.email + (r.phone ? ' · ' + r.phone : '')
+    card.querySelector('.meta').textContent = r.club
+    card.querySelector('.contact').textContent = r.email + (r.phone ? '  ·  ' + r.phone : '')
+    if(r.note) card.querySelector('.note').textContent = '„' + r.note + '"'
+
     const pid = card.querySelector('.pid'); pid.value = r.player_id || ''
     const noid = card.querySelector('.cb-noid')
     const lk = card.querySelector('.lk'); lk.value = r.lk || ''
     const konk = card.querySelector('.konk'); konk.value = r.competition
-    card.querySelector('.act-confirm').addEventListener('click', ()=>{
+
+    noid.addEventListener('change', ()=>{
+      if(noid.checked){ pid.value=''; pid.disabled=true; if(!lk.value.trim()) lk.value='25.0' }
+      else { pid.disabled=false }
+    })
+
+    const confirm = ()=>{
       const pidVal = pid.value.trim()
-      if(!pidVal && !noid.checked){ setMsg('Bitte Spieler-ID eintragen oder „keine ID" ankreuzen.'); return }
-      const payload = { id: r.id, competition: konk.value, status: 'confirmed' }
+      if(!pidVal && !noid.checked){ toast('Bitte Spieler-ID eintragen oder „keine ID" ankreuzen.', true); return }
+      const payload = { id:r.id, competition:konk.value, status:'confirmed' }
       if(pidVal){ payload.player_id = pidVal; if(lk.value.trim()) payload.lk = lk.value.trim() }
       else { payload.player_id = ''; payload.lk = lk.value.trim() || '25.0' }
       update(payload)
-    })
+    }
+    card.querySelector('.act-confirm').addEventListener('click', confirm)
+    ;[pid, lk].forEach(inp=> inp.addEventListener('keydown', e=>{ if(e.key==='Enter') confirm() }))
     card.querySelector('.act-hide').addEventListener('click', ()=> update({ id:r.id, status:'hidden' }))
     return card
   }
 
   async function update(payload){
-    try { await api('/api/admin/update', { method:'POST', body: JSON.stringify(payload) }); setMsg('Gespeichert.'); load() }
-    catch(e){ setMsg('Fehler beim Speichern.') }
+    try {
+      const r = await api('/api/admin/update', { method:'POST', body: JSON.stringify(payload) })
+      toast(r && r.lkFetched ? 'Gespeichert · LK ' + r.lkFetched + ' geholt.' : 'Gespeichert.')
+      load()
+    } catch(e){ toast('Fehler beim Speichern.', true) }
   }
 
   el('refresh').addEventListener('click', async ()=>{
-    setMsg('Aktualisiere LK aus nuLiga …')
-    try { const r = await api('/api/admin/refresh-lk', { method:'POST' }); setMsg(r.updated + ' LK aktualisiert.'); load() }
-    catch(e){ setMsg('LK-Update fehlgeschlagen.') }
+    toast('Aktualisiere LK aus nuLiga …')
+    try { const r = await api('/api/admin/refresh-lk', { method:'POST' }); toast(r.updated + ' LK aktualisiert.'); load() }
+    catch(e){ toast('LK-Update fehlgeschlagen.', true) }
   })
+  el('logout').addEventListener('click', ()=>{ sessionStorage.removeItem('admin_token'); TOKEN=''; showGate('') })
 
+  el('search').addEventListener('input', e=>{ QUERY = e.target.value; render() })
   el('login').addEventListener('click', ()=>{ TOKEN = el('token').value.trim(); if(TOKEN) load() })
   el('token').addEventListener('keydown', e=>{ if(e.key==='Enter'){ TOKEN = el('token').value.trim(); if(TOKEN) load() } })
 
-  if(TOKEN) load(); else el('gate').style.display='flex'
+  if(TOKEN) load(); else showGate('')
 </script>
 </body>
 </html>`
