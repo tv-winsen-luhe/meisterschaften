@@ -169,7 +169,7 @@ const sunday = [
       <SectionHeader
         eyebrow="Konkurrenzen"
         headline={['Wähl dein', 'Feld.']}
-        note="Drei Felder stehen schon fest — eins bei den Damen, zwei bei den Herren —, ein Damen-Freizeit-Feld ist in Planung. Du wählst bei der Anmeldung selbst dein Feld und musst deine Leistungsklasse dafür nicht kennen."
+        note={`Drei Felder stehen schon fest — eins bei den Damen, zwei bei den Herren —, ein Damen-Freizeit-Feld ist in Planung. Du wählst bei der Anmeldung selbst dein Feld und musst deine Leistungsklasse dafür nicht kennen. Startgeld: ${entryFee} € pro Person, bar vor Ort beim Check-in.`}
       />
 
       <div class="cat-grid grid grid-cols-3 gap-0.5 bg-navy p-0.5 max-[900px]:grid-cols-1">
@@ -469,7 +469,7 @@ const sunday = [
           >
         </h2>
         <p class="final-cta__sub mb-8 text-[15px] leading-[1.6] opacity-70">
-          Fehlt nur noch dein Name. Anmeldung bis {signupDeadline.long}.
+          Fehlt nur noch dein Name. {entryFee} € Startgeld pro Person, bar vor Ort. Anmeldung bis {signupDeadline.long}.
         </p>
         <button type="button" class="cta-primary" data-signup-open>Jetzt anmelden</button>
       </div>
