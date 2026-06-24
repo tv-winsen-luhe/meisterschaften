@@ -21,6 +21,9 @@ const COMPETITION_LABELS: Record<string, string> = {
 const CLUBS = ['TV Winsen', 'TSV Winsen'] as const
 const STATUS = ['new', 'confirmed', 'hidden', 'cancelled'] as const
 const DEFAULT_LK = '25.0'
+// Challenger ist nach oben geschützt: nur LK >= 20 (schwächere Spieler:innen).
+// Eine LK darunter ist zu stark → Hinweis Richtung Hauptfeld.
+const CHALLENGER_MIN_LK = 20
 
 // nuLiga LK-Vereinsranglisten (TNB) — eine Seite pro Verein, listet Spieler-ID + LK + Name.
 const NULIGA_BASE = 'https://tnb.liga.nu/cgi-bin/WebObjects/nuLigaTENDE.woa/wa/clubRankinglistLK?federation=TNB&club='
@@ -136,12 +139,20 @@ async function handleRegister(request: Request, env: Env, ctx: ExecutionContext)
       .run()
   }
 
-  // Sportwart benachrichtigen — im Hintergrund, damit ein Mailfehler die Anmeldung nie blockiert.
-  ctx.waitUntil(notifyRegistration(env, { competition, firstName, lastName, club, email, phone, note }))
-  // Spieler-ID + LK aus nuLiga vorbefüllen, falls Name + Verein eindeutig matchen.
-  // Läuft im Hintergrund, blockt also die Anmeldung nicht und ist für den Admin
-  // bei der Freischaltung dann i. d. R. schon ausgefüllt.
-  ctx.waitUntil(autoMatchPlayer(env, { competition, firstName, lastName, club, email }))
+  // Im Hintergrund (blockt die Anmeldung nie): erst LK aus nuLiga matchen
+  // (füllt Spieler-ID/LK für den Admin vor), dann den Sportwart benachrichtigen —
+  // inkl. LK und, falls ein:e Challenger-Spieler:in zu stark ist, einem Hinweis.
+  ctx.waitUntil(
+    (async () => {
+      let lk: string | null = null
+      try {
+        lk = await autoMatchPlayer(env, { competition, firstName, lastName, club, email })
+      } catch {
+        // nuLiga nicht erreichbar o. Ä. → ohne LK benachrichtigen
+      }
+      await notifyRegistration(env, { competition, firstName, lastName, club, email, phone, note, lk })
+    })()
+  )
 
   return json({ ok: true })
 }
@@ -154,6 +165,8 @@ interface RegistrationNotice {
   email: string
   phone: string
   note: string
+  /** Aus nuLiga gematchte LK (falls eindeutig), sonst null. */
+  lk?: string | null
 }
 
 interface CancelledRow {
@@ -194,6 +207,9 @@ async function sendTelegram(env: Env, text: string): Promise<void> {
 /** Telegram-Nachricht über eine neue Anmeldung. */
 async function notifyRegistration(env: Env, r: RegistrationNotice): Promise<void> {
   const konk = COMPETITION_LABELS[r.competition] ?? r.competition
+  // Zu stark fürs (nach oben geschützte) Challenger-Feld?
+  const lkNum = r.lk ? parseFloat(r.lk) : NaN
+  const tooStrongForChallenger = r.competition === 'mens-challenger' && !isNaN(lkNum) && lkNum < CHALLENGER_MIN_LK
   const text = [
     '🎾 <b>Neue Anmeldung</b> — Winsener Meisterschaften 2026',
     '',
@@ -202,6 +218,10 @@ async function notifyRegistration(env: Env, r: RegistrationNotice): Promise<void
     `<b>Verein:</b> ${escapeHtml(r.club)}`,
     `<b>E-Mail:</b> ${escapeHtml(r.email)}`,
     ...(r.phone ? [`<b>Telefon:</b> ${escapeHtml(r.phone)}`] : []),
+    ...(r.lk ? [`<b>LK (nuLiga):</b> ${escapeHtml(r.lk)}`] : []),
+    ...(tooStrongForChallenger
+      ? ['', `⚠️ <b>LK ${escapeHtml(r.lk!)} &lt; ${CHALLENGER_MIN_LK}</b> — evtl. Hauptfeld statt Challenger.`]
+      : []),
     ...(r.note ? ['', `<b>Anmerkung:</b> ${escapeHtml(r.note)}`] : []),
     '',
     `Status: neu — zum Bestätigen: ${ADMIN_URL}`
@@ -499,12 +519,12 @@ export function findRosterMatch(roster: RosterEntry[], firstName: string, lastNa
 async function autoMatchPlayer(
   env: Env,
   p: { competition: string; firstName: string; lastName: string; club: string; email: string }
-): Promise<void> {
+): Promise<string | null> {
   const clubId = CLUB_TO_NULIGA[p.club]
-  if (!clubId) return
+  if (!clubId) return null
   const roster = await fetchClubRoster(clubId)
   const match = findRosterMatch(roster, p.firstName, p.lastName)
-  if (!match) return
+  if (!match) return null
   // Only fill when the row still has no player_id (don't clobber a manual override).
   await env.DB.prepare(
     `UPDATE registrations
@@ -514,6 +534,7 @@ async function autoMatchPlayer(
   )
     .bind(match.player_id, match.lk, p.email, p.lastName, p.competition)
     .run()
+  return match.lk
 }
 
 /** Refresh LK for rows with a player_id; additionally try a name-match for rows without one. */
@@ -947,6 +968,12 @@ const ADMIN_HTML = `<!doctype html>
     const primary = ()=>{
       const pidVal = pid.value.trim()
       if(!pidVal && !noid.checked){ toast('Bitte Spieler-ID eintragen oder „keine ID" ankreuzen.', true); return }
+      // Eligibility: Challenger ist nach oben geschützt (ab LK 20). Eine LK darunter
+      // ist zu stark → ausdrücklich bestätigen lassen (oder Feld wechseln).
+      const lkNum = parseFloat(lk.value.trim())
+      if(konk.value === 'mens-challenger' && !isNaN(lkNum) && lkNum < 20){
+        if(!confirm('LK ' + lk.value.trim() + ' ist stark fürs Challenger-Feld (geschützt ab LK 20).\\n\\n' + r.first_name + ' ' + r.last_name + ' trotzdem im Challenger bestätigen? Sonst oben das Feld auf „Herren" stellen.')) return
+      }
       const payload = { id:r.id, competition:konk.value, club:vrn.value }
       if(!isConfirmed) payload.status = 'confirmed'
       if(pidVal){ payload.player_id = pidVal; if(lk.value.trim()) payload.lk = lk.value.trim() }
