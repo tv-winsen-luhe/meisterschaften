@@ -97,22 +97,29 @@ async function handleRegister(request: Request, env: Env): Promise<Response> {
       return json({ error: 'Zu viele Anmeldungen in kurzer Zeit. Bitte versuch es später erneut.' }, 429)
   }
 
-  await env.DB.prepare(
-    `INSERT INTO registrations (created_at, competition, first_name, last_name, club, email, phone, note, status, ip)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'new', ?)`
+  const now = new Date().toISOString()
+
+  // If this person previously cancelled the same competition, revive that row
+  // instead of inserting a second one (keeps their player_id/LK linkage and
+  // avoids a confusing duplicate in the admin list).
+  const revived = await env.DB.prepare(
+    `UPDATE registrations
+        SET status = 'new', created_at = ?, first_name = ?, last_name = ?, club = ?,
+            phone = ?, note = ?, ip = ?
+      WHERE email = ? COLLATE NOCASE AND last_name = ? COLLATE NOCASE
+        AND competition = ? AND status = 'cancelled'`
   )
-    .bind(
-      new Date().toISOString(),
-      competition,
-      firstName,
-      lastName,
-      club,
-      email,
-      phone || null,
-      note || null,
-      ip || null
-    )
+    .bind(now, firstName, lastName, club, phone || null, note || null, ip || null, email, lastName, competition)
     .run()
+
+  if ((revived.meta?.changes ?? 0) === 0) {
+    await env.DB.prepare(
+      `INSERT INTO registrations (created_at, competition, first_name, last_name, club, email, phone, note, status, ip)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'new', ?)`
+    )
+      .bind(now, competition, firstName, lastName, club, email, phone || null, note || null, ip || null)
+      .run()
+  }
 
   return json({ ok: true })
 }
@@ -381,6 +388,7 @@ const ADMIN_HTML = `<!doctype html>
   .card { background:#fff; border:1px solid #ddd; padding:12px; margin-bottom:8px; }
   .card.s-confirmed { border-left:4px solid var(--neon); }
   .card.s-hidden { opacity:.5; }
+  .card.s-cancelled { opacity:.45; border-left:4px solid var(--warn); }
   .card.s-new { border-left:4px solid var(--blue); }
   .row1 { display:flex; flex-wrap:wrap; gap:8px 14px; align-items:baseline; }
   .name { font-size:17px; font-weight:800; }
@@ -451,11 +459,11 @@ const ADMIN_HTML = `<!doctype html>
 
   function render(rows){
     counts(rows)
-    const order = { 'new':0, 'confirmed':1, 'hidden':2 }
+    const order = { 'new':0, 'confirmed':1, 'hidden':2, 'cancelled':3 }
     rows.sort((a,b)=> (order[a.status]-order[b.status]) || a.created_at.localeCompare(b.created_at))
     const list = el('list'); list.innerHTML=''
     let lastStatus = null
-    const labels = { 'new':'Neu — zu bestätigen', 'confirmed':'Bestätigt (öffentlich)', 'hidden':'Versteckt' }
+    const labels = { 'new':'Neu — zu bestätigen', 'confirmed':'Bestätigt (öffentlich)', 'hidden':'Versteckt', 'cancelled':'Abgemeldet' }
     for(const r of rows){
       if(r.status !== lastStatus){ const h=document.createElement('div'); h.className='group'; h.textContent=labels[r.status]||r.status; list.appendChild(h); lastStatus=r.status }
       list.appendChild(cardFor(r))
