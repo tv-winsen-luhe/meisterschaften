@@ -5,6 +5,8 @@ import tsvLogo from '@/assets/tsv-winsen.png'
 
 // Open competitions only; Hauptfeld (mens/womens) = seeding board, Challenger = friendly list.
 const openCompetitions = competitions.filter(c => c.status === 'open')
+// Planned competitions get a quiet "in Planung" tile so the field is hinted at, not listed.
+const plannedCompetitions = competitions.filter(c => c.status === 'planned')
 const layoutFor = (slug: string) => (slug === 'mens' || slug === 'womens' ? 'board' : 'list')
 // Provisional seeds: the strongest LKs are seeded, one per quarter of the draw
 // (16 → an 1–4, 8 → an 1–2). Final seeding/draw happens at the Auslosung.
@@ -53,6 +55,21 @@ const seedsFor = (capacity?: number) => (capacity ? Math.floor(capacity / 4) : 0
         </section>
       ))
     }
+    {
+      plannedCompetitions.map(c => (
+        <section class="pl-group pl-group--planned bg-surface-alt p-6 md:p-7">
+          <div class="pl-group__top">
+            <header class="pl-group__head">
+              <div>
+                <h3 class="pl-group__title">{c.label}</h3>
+              </div>
+              <span class="pl-tag-planned">In Planung</span>
+            </header>
+          </div>
+          <p class="pl-planned__note">Ein geselliges Feld zum Mitspielen — Format folgt nach dem 02.07.</p>
+        </section>
+      ))
+    }
   </div>
   <p class="pl-status reveal mt-4 text-[13px] leading-[1.6] opacity-60" data-status>
     Alle bestätigten Anmeldungen, laufend aktualisiert. Im Hauptfeld zeigen die markierten Plätze die <strong
@@ -84,6 +101,29 @@ const seedsFor = (capacity?: number) => (capacity ? Math.floor(capacity / 4) : 0
     font-weight: 900;
     letter-spacing: -0.03em;
     text-transform: uppercase;
+  }
+
+  /* Planned field: a quiet teaser tile, not a live list */
+  .pl-group--planned .pl-group__title {
+    opacity: 0.5;
+  }
+  .pl-tag-planned {
+    flex-shrink: 0;
+    padding: 5px 10px;
+    border: 1.5px dashed rgba(12, 30, 58, 0.4);
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    white-space: nowrap;
+    color: rgba(12, 30, 58, 0.55);
+  }
+  .pl-planned__note {
+    margin: 16px 0 0;
+    font-size: 14px;
+    line-height: 1.55;
+    font-weight: 600;
+    color: rgba(12, 30, 58, 0.6);
   }
 
   .pl-free {
