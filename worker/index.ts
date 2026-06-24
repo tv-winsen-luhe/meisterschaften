@@ -445,8 +445,9 @@ export function parseClubRoster(html: string): RosterEntry[] {
     if (!idMatch) continue
     const lkMatches = [...row.matchAll(/LK\s*(\d{1,2}[.,]\d)/gi)]
     if (lkMatches.length === 0) continue
-    // The dated "Stichtags-LK" is the last LK in the row → the current value.
-    const lk = lkMatches[lkMatches.length - 1][1].replace(',', '.')
+    // The first LK in the row is the dedicated "LK" column → the current value.
+    // Any further LKs are the dated "Stichtags-LK" history (older snapshots) and must be ignored.
+    const lk = lkMatches[0][1].replace(',', '.')
     // Player name lives in an <a id="e_..."> tag as "Lastname, Firstname".
     const nameMatch = row.match(/<a [^>]*id="e_[^"]*"[^>]*>\s*([^<]+?)\s*<\/a>/)
     if (!nameMatch) continue

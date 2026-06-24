@@ -1,0 +1,16 @@
+BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//TV Winsen//Winsener Meisterschaften 2026//DE
+CALSCALE:GREGORIAN
+METHOD:PUBLISH
+BEGIN:VEVENT
+UID:winsener-meisterschaften-2026@meisterschaften.tennisverein-winsen.de
+DTSTAMP:20260101T000000Z
+DTSTART;VALUE=DATE:20260822
+DTEND;VALUE=DATE:20260824
+SUMMARY:Winsener Meisterschaften 2026
+DESCRIPTION:Stadtmeisterschaft von TV Winsen/Luhe und TSV Winsen. Start Samstag 09:00 Uhr. Startgeld 5 EUR bar vor Ort beim Check-in.\nAlle Infos: https://meisterschaften.tennisverein-winsen.de
+LOCATION:Tennisanlage TV Winsen\, Luhdorfer Str. 47a\, 21423 Winsen (Luhe)
+URL:https://meisterschaften.tennisverein-winsen.de
+END:VEVENT
+END:VCALENDAR

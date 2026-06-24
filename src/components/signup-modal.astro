@@ -1,5 +1,5 @@
 ---
-import { signupCompetitions, entryFee, signupDeadline } from '@/data/tournament'
+import { signupCompetitions, entryFee, signupDeadline, tournament } from '@/data/tournament'
 import tvLogo from '@/assets/logo.svg'
 import tsvLogo from '@/assets/tsv-winsen.png'
 ---
@@ -10,9 +10,11 @@ import tsvLogo from '@/assets/tsv-winsen.png'
       <span aria-hidden="true">&times;</span>
     </button>
 
-    <span class="signup-eyebrow">Anmeldung</span>
-    <h2 id="signup-title" class="signup-heading" tabindex="-1">Sei dabei.</h2>
-    <p class="signup-deadline">Anmeldeschluss {signupDeadline.long}</p>
+    <div class="signup-head" data-signup-head>
+      <span class="signup-eyebrow">Anmeldung</span>
+      <h2 id="signup-title" class="signup-heading" tabindex="-1">Sei dabei.</h2>
+      <p class="signup-deadline">Anmeldeschluss {signupDeadline.long}</p>
+    </div>
 
     <form id="signup-form" class="signup-form" novalidate>
       <p class="signup-intro"><strong>Startgeld {entryFee} €</strong> bar vor Ort beim Check-in.</p>
@@ -130,17 +132,49 @@ import tsvLogo from '@/assets/tsv-winsen.png'
 
     <div class="signup-success" hidden>
       <span class="signup-success__mark" aria-hidden="true">✓</span>
-      <h3 class="signup-success__title">Danke, <span data-success-name>du</span>!</h3>
-      <p class="signup-success__text">
-        Deine Anmeldung ist eingegangen. Die Turnierleitung übernimmt dich in den Spielplan und meldet sich, falls noch
-        etwas fehlt. Sobald wir dich bestätigt haben, tauchst du in der Teilnehmendenliste auf. Startgeld {entryFee} € bringst
-        du bar zum Check-in mit. Pläne ändern sich? Du kannst dich jederzeit wieder{' '}
-        <a href="/abmelden" class="signup-consent__link">abmelden</a>.
+      <h3 class="signup-success__title" tabindex="-1">Danke, <span data-success-name>du</span>!</h3>
+      <p class="signup-success__lead">
+        Deine Anmeldung ist eingegangen. Sobald die Turnierleitung dich bestätigt hat, tauchst du in der
+        Teilnehmendenliste auf — bei Rückfragen melden wir uns.
       </p>
+
+      <dl class="signup-success__facts">
+        <div>
+          <dt>Termin</dt>
+          <dd>{tournament.longWithWeekdays} · Start Sa {tournament.startTime}</dd>
+        </div>
+        <div>
+          <dt>Startgeld</dt>
+          <dd>{entryFee} € bar vor Ort beim Check-in</dd>
+        </div>
+      </dl>
+
       <div class="signup-success__actions">
-        <button type="button" class="cta-primary" data-signup-close>Schließen</button>
-        <button type="button" class="cta-secondary" data-signup-again>Weitere Person anmelden</button>
+        <a class="cta-primary signup-success__cal" href="/winsener-meisterschaften-2026.ics" download>
+          <svg
+            class="signup-success__cal-ico"
+            viewBox="0 0 24 24"
+            width="17"
+            height="17"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="square"
+            aria-hidden="true"
+          >
+            <rect x="3" y="4.5" width="18" height="16"></rect>
+            <line x1="3" y1="9" x2="21" y2="9"></line>
+            <line x1="8" y1="2.5" x2="8" y2="6.5"></line>
+            <line x1="16" y1="2.5" x2="16" y2="6.5"></line>
+          </svg>
+          Termin im Kalender speichern
+        </a>
       </div>
+
+      <p class="signup-success__foot">
+        Pläne ändern sich? Du kannst dich jederzeit wieder <a href="/abmelden">abmelden</a>. Oder{' '}
+        <button type="button" class="signup-success__again" data-signup-again>weitere Person anmelden</button>.
+      </p>
     </div>
   </div>
 </dialog>
@@ -463,43 +497,120 @@ import tsvLogo from '@/assets/tsv-winsen.png'
     display: flex;
     flex-direction: column;
     align-items: flex-start;
-    gap: 14px;
+    gap: 18px;
+    padding-top: 4px;
   }
   .signup-success__mark {
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 48px;
-    height: 48px;
+    width: 52px;
+    height: 52px;
     background: var(--color-neon);
     color: var(--color-navy);
-    font-size: 26px;
+    font-size: 28px;
     font-weight: 900;
   }
   .signup-success__title {
     margin: 0;
-    font-size: clamp(26px, 6vw, 38px);
+    font-size: clamp(28px, 6vw, 40px);
     line-height: 0.95;
     letter-spacing: -0.03em;
     font-weight: 900;
     text-transform: uppercase;
+    outline: none;
   }
-  .signup-success__text {
+  .signup-success__lead {
     margin: 0;
-    max-width: 52ch;
+    max-width: 50ch;
     font-size: 15px;
-    line-height: 1.6;
+    line-height: 1.65;
     color: rgba(255, 255, 255, 0.75);
   }
+  .signup-success__facts {
+    margin: 6px 0 0;
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    border-top: 1px solid rgba(255, 255, 255, 0.12);
+  }
+  .signup-success__facts > div {
+    display: grid;
+    grid-template-columns: 120px 1fr;
+    gap: 6px 16px;
+    align-items: baseline;
+    padding: 11px 0;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+  }
+  .signup-success__facts dt {
+    margin: 0;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: rgba(255, 255, 255, 0.55);
+  }
+  .signup-success__facts dd {
+    margin: 0;
+    font-size: 14px;
+    line-height: 1.5;
+    color: rgba(255, 255, 255, 0.92);
+  }
+  .signup-success__facts a {
+    color: var(--color-neon);
+    text-decoration: underline;
+    text-underline-offset: 2px;
+  }
+  @media (max-width: 419px) {
+    .signup-success__facts > div {
+      grid-template-columns: 1fr;
+      gap: 2px;
+    }
+  }
   .signup-success__actions {
+    width: 100%;
     display: flex;
     flex-wrap: wrap;
-    gap: 16px;
+    gap: 12px 20px;
     align-items: center;
+    margin-top: 4px;
   }
-  .signup-success__actions .cta-secondary {
-    color: var(--color-neon);
-    opacity: 0.9;
+  /* a.…__cal beats .cta-primary (equal specificity, bundle order) so the icon row wins. */
+  a.signup-success__cal {
+    display: flex;
+    width: 100%;
+    align-items: center;
+    justify-content: center;
+    gap: 9px;
+  }
+  .signup-success__cal-ico {
+    flex-shrink: 0;
+    margin-top: -1px;
+  }
+  .signup-success__foot {
+    margin: 0;
+    font-size: 13px;
+    line-height: 1.6;
+    color: rgba(255, 255, 255, 0.5);
+  }
+  .signup-success__foot a,
+  .signup-success__again {
+    color: rgba(255, 255, 255, 0.75);
+    text-decoration: underline;
+    text-underline-offset: 3px;
+    transition: color 0.18s ease;
+  }
+  .signup-success__again {
+    background: none;
+    border: none;
+    padding: 0;
+    font: inherit;
+    cursor: pointer;
+  }
+  .signup-success__foot a:hover,
+  .signup-success__again:hover {
+    color: #fff;
   }
 
   @media (prefers-reduced-motion: reduce) {
@@ -521,11 +632,14 @@ import tsvLogo from '@/assets/tsv-winsen.png'
   const submitBtn = form?.querySelector<HTMLButtonElement>('.signup-submit') ?? null
   const titleEl = dialog?.querySelector<HTMLElement>('#signup-title') ?? null
   const nameSlot = dialog?.querySelector<HTMLElement>('[data-success-name]') ?? null
+  const headEl = dialog?.querySelector<HTMLElement>('[data-signup-head]') ?? null
+  const successTitle = dialog?.querySelector<HTMLElement>('.signup-success__title') ?? null
 
   function resetForm() {
     if (!form || !successPanel) return
     form.reset()
     form.hidden = false
+    if (headEl) headEl.hidden = false
     successPanel.hidden = true
     if (submitBtn) {
       submitBtn.disabled = false
@@ -586,7 +700,9 @@ import tsvLogo from '@/assets/tsv-winsen.png'
         }
         if (nameSlot) nameSlot.textContent = String(data.first_name || 'du')
         form.hidden = true
+        if (headEl) headEl.hidden = true
         if (successPanel) successPanel.hidden = false
+        successTitle?.focus({ preventScroll: true })
       } catch (err) {
         if (errorEl) {
           errorEl.textContent =
