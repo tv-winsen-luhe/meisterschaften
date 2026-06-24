@@ -22,6 +22,11 @@ binding = "ASSETS"
 # Kill-Switch für die öffentliche Teilnehmerliste. "true" = sichtbar, alles andere = aus.
 PUBLIC_LIST_ENABLED = "true"
 
+# Telegram-Benachrichtigung bei neuen Anmeldungen (kostenlos, keine DNS-Änderung).
+# Chat-ID = Ziel-Chat/Gruppe (von @userinfobot o. ä. ablesen). Der Bot-Token ist
+# ein Secret:  wrangler secret put TELEGRAM_BOT_TOKEN
+TELEGRAM_CHAT_ID = "8767513426"
+
 # D1-Datenbank für die Anmeldungen. database_id nach `wrangler d1 create` bzw.
 # aus dem Cloudflare-Dashboard eintragen (wird per MCP angelegt).
 [[d1_databases]]

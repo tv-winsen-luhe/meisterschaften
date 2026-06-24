@@ -5,9 +5,19 @@ interface Env {
   ASSETS: Fetcher
   PUBLIC_LIST_ENABLED: string
   ADMIN_TOKEN: string
+  // Telegram-Benachrichtigung bei neuen Anmeldungen. Optional: fehlen Token/Chat
+  // (z. B. lokal), wird die Benachrichtigung still übersprungen.
+  // TELEGRAM_BOT_TOKEN ist ein Secret, TELEGRAM_CHAT_ID eine Var (siehe wrangler.toml).
+  TELEGRAM_BOT_TOKEN?: string
+  TELEGRAM_CHAT_ID?: string
 }
 
 const COMPETITIONS = ['mens', 'mens-challenger', 'womens'] as const
+const COMPETITION_LABELS: Record<string, string> = {
+  mens: 'Herren',
+  'mens-challenger': 'Herren Challenger',
+  womens: 'Damen'
+}
 const CLUBS = ['TV Winsen', 'TSV Winsen'] as const
 const STATUS = ['new', 'confirmed', 'hidden', 'cancelled'] as const
 const DEFAULT_LK = '25.0'
@@ -26,13 +36,13 @@ const isEmail = (v: string) => /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(v)
 const str = (v: unknown): string => (typeof v === 'string' ? v.trim() : '')
 
 export default {
-  async fetch(request: Request, env: Env): Promise<Response> {
+  async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     const url = new URL(request.url)
     const path = url.pathname
     const method = request.method
 
     try {
-      if (path === '/api/register' && method === 'POST') return await handleRegister(request, env)
+      if (path === '/api/register' && method === 'POST') return await handleRegister(request, env, ctx)
       if (path === '/api/cancel' && method === 'POST') return await handleCancel(request, env)
       if (path === '/api/participants' && method === 'GET') return await handleParticipants(env)
       if (path === '/admin' && method === 'GET') return adminPage()
@@ -54,7 +64,7 @@ export default {
   }
 }
 
-async function handleRegister(request: Request, env: Env): Promise<Response> {
+async function handleRegister(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
   let body: Record<string, unknown>
   try {
     body = (await request.json()) as Record<string, unknown>
@@ -121,7 +131,59 @@ async function handleRegister(request: Request, env: Env): Promise<Response> {
       .run()
   }
 
+  // Sportwart benachrichtigen — im Hintergrund, damit ein Mailfehler die Anmeldung nie blockiert.
+  ctx.waitUntil(notifyRegistration(env, { competition, firstName, lastName, club, email, phone, note }))
+
   return json({ ok: true })
+}
+
+interface RegistrationNotice {
+  competition: string
+  firstName: string
+  lastName: string
+  club: string
+  email: string
+  phone: string
+  note: string
+}
+
+/** Schickt eine Telegram-Nachricht über eine neue Anmeldung (kostenlos, keine DNS-Änderung). */
+async function notifyRegistration(env: Env, r: RegistrationNotice): Promise<void> {
+  // Kein Token / keine Chat-ID konfiguriert (z. B. lokal) → still überspringen.
+  if (!env.TELEGRAM_BOT_TOKEN || !env.TELEGRAM_CHAT_ID) return
+
+  const konk = COMPETITION_LABELS[r.competition] ?? r.competition
+  // HTML-escapen, da wir parse_mode=HTML nutzen (Namen/Anmerkung können & < > enthalten).
+  const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+  const text = [
+    '🎾 <b>Neue Anmeldung</b> — Winsener Meisterschaften 2026',
+    '',
+    `<b>Name:</b> ${esc(`${r.firstName} ${r.lastName}`)}`,
+    `<b>Konkurrenz:</b> ${esc(konk)}`,
+    `<b>Verein:</b> ${esc(r.club)}`,
+    `<b>E-Mail:</b> ${esc(r.email)}`,
+    ...(r.phone ? [`<b>Telefon:</b> ${esc(r.phone)}`] : []),
+    ...(r.note ? ['', `<b>Anmerkung:</b> ${esc(r.note)}`] : []),
+    '',
+    'Status: neu — zum Bestätigen: https://meisterschaften.tennisverein-winsen.de/admin'
+  ].join('\n')
+
+  try {
+    const res = await fetch(`https://api.telegram.org/bot${env.TELEGRAM_BOT_TOKEN}/sendMessage`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        chat_id: env.TELEGRAM_CHAT_ID,
+        text,
+        parse_mode: 'HTML',
+        disable_web_page_preview: true
+      })
+    })
+    // Telegram-Fehler darf die Anmeldung nicht beeinflussen — nur loggen.
+    if (!res.ok) console.error('Telegram-Benachrichtigung fehlgeschlagen:', res.status, await res.text())
+  } catch (err) {
+    console.error('Telegram-Benachrichtigung fehlgeschlagen:', String(err))
+  }
 }
 
 async function handleCancel(request: Request, env: Env): Promise<Response> {
