@@ -62,7 +62,7 @@ export const competitions: readonly Competition[] = [
     label: 'Herren Challenger',
     audience: 'Du spielst eher zum Spaß, bist Wieder- oder Einsteiger und hast keine oder eine hohe Leistungsklasse.',
     blurb:
-      'Das geschützte Feld: Wer besser als LK 20 ist, spielt im Hauptfeld und ist hier nicht zugelassen — so zählt das Match statt der Abschuss. Keine LK? Dann zählst du als LK 25 und bist genau richtig.',
+      'Das geschützte Feld: Wer besser als LK 20 ist, spielt im Hauptfeld und ist hier nicht zugelassen — so triffst du auf Gegner auf Augenhöhe. Keine LK? Dann zählst du als LK 25 und bist genau richtig.',
     requirement: 'LK 20+',
     title: 'Winsener Meister Herren Challenger',
     capacity: 16,
