@@ -316,14 +316,23 @@ export const AdminApp = () => {
   )
 }
 
-const Tile = ({ label, value, cls }: { label: string; value: number; cls?: string }) => (
+interface TileProps {
+  label: string
+  value: number
+  cls?: string
+}
+const Tile = ({ label, value, cls }: TileProps) => (
   <div className={`tile ${cls ?? ''}`}>
     <span className="tile__n">{value}</span>
     <span className="tile__l">{label}</span>
   </div>
 )
 
-const Toast = ({ text, err }: { text: string; err: boolean }) => (
+interface ToastProps {
+  text: string
+  err: boolean
+}
+const Toast = ({ text, err }: ToastProps) => (
   <div className={`toast show${err ? 'err' : ''}`} role="status" aria-live="polite">
     {text}
   </div>

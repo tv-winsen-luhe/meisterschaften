@@ -8,7 +8,7 @@ const config = defineConfig([
   },
   ...eslintPluginAstro.configs.recommended,
   {
-    files: ['**/*.ts'],
+    files: ['**/*.ts', '**/*.tsx'],
     languageOptions: {
       parser: tseslint.parser
     },
