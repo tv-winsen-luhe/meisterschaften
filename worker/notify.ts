@@ -52,9 +52,11 @@ export interface RegistrationNotice {
   lk?: string | null
 }
 
-export interface CancelledRow {
-  first_name: string
-  last_name: string
+// The facts a cancellation notification needs — a structural subset of RegistrationRow,
+// so the domain's cancelled rows are passed straight through (camelCase, like the contract).
+export interface CancelledNotice {
+  firstName: string
+  lastName: string
   club: string
   email: string
   competition: string
@@ -83,7 +85,7 @@ export const notifyRegistration = async (env: Env, r: RegistrationNotice): Promi
 }
 
 /** Telegram message about a cancellation (one person can cancel several Konkurrenzen). */
-export const notifyCancellation = async (env: Env, rows: CancelledRow[]): Promise<void> => {
+export const notifyCancellation = async (env: Env, rows: CancelledNotice[]): Promise<void> => {
   if (rows.length === 0) return
 
   const first = rows[0]
@@ -91,7 +93,7 @@ export const notifyCancellation = async (env: Env, rows: CancelledRow[]): Promis
   const text = [
     '🚫 <b>Abmeldung</b> — Winsener Meisterschaften 2026',
     '',
-    `<b>Name:</b> ${escapeHtml(`${first.first_name} ${first.last_name}`)}`,
+    `<b>Name:</b> ${escapeHtml(`${first.firstName} ${first.lastName}`)}`,
     `<b>Konkurrenz${rows.length > 1 ? 'en' : ''}:</b> ${escapeHtml(konks)}`,
     `<b>Verein:</b> ${escapeHtml(first.club)}`,
     `<b>E-Mail:</b> ${escapeHtml(first.email)}`,

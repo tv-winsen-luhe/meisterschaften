@@ -1,10 +1,15 @@
 import type { D1Database, Fetcher } from '@cloudflare/workers-types'
 import { Hono } from 'hono'
-import { participantsResponseSchema, registerRequestSchema, type ParticipantsResponse } from '../shared'
+import {
+  cancelRequestSchema,
+  participantsResponseSchema,
+  registerRequestSchema,
+  type ParticipantsResponse
+} from '../shared'
 import { createD1RegistrationsStore } from './store/registrations'
 import { createRegistrationDomain } from './domain/registration'
 import { createNuligaRosterSource, createSeedingLk } from './seeding-lk'
-import { notifyRegistration } from './notify'
+import { notifyCancellation, notifyRegistration } from './notify'
 
 // Soft rate limit: max 3 registrations per IP per hour.
 const RATE_LIMIT = 3
@@ -104,6 +109,32 @@ export const app = new Hono<{ Bindings: Env }>()
     )
 
     return c.json({ ok: true })
+  })
+  // POST /api/cancel — the self-service withdrawal path. Thin handler: honeypot + Zod shape
+  // validation at the edge, then the Registration domain's `cancel` transition withdraws
+  // every active entry for the person and returns the affected rows. The edge sends the
+  // cancellation Telegram from those rows in the background via waitUntil. (Honeypot order
+  // and validation messages preserved from the legacy handler.)
+  .post('/api/cancel', async c => {
+    let body: Record<string, unknown>
+    try {
+      body = await c.req.json()
+    } catch {
+      return c.json({ error: 'Ungültige Anfrage.' }, 400)
+    }
+
+    // Honeypot: bots fill the hidden field → silently "succeed" with nothing cancelled.
+    if (typeof body.website === 'string' && body.website.trim()) return c.json({ ok: true, cancelled: 0 })
+
+    const parsed = cancelRequestSchema.safeParse(body)
+    if (!parsed.success) return c.json({ error: parsed.error.issues[0]?.message ?? 'Ungültige Anfrage.' }, 400)
+
+    const store = createD1RegistrationsStore(c.env.DB)
+    const { cancelled } = await createRegistrationDomain(store).cancel(parsed.data)
+
+    if (cancelled.length > 0) c.executionCtx.waitUntil(notifyCancellation(c.env, cancelled))
+
+    return c.json({ ok: true, cancelled: cancelled.length })
   })
 
 // The typed client (`hc`) derives its route types from this. The catch-all that

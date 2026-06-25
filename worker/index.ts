@@ -2,10 +2,9 @@
 
 import { app, type Env } from './app'
 import { COMPETITION_SLUGS } from '../shared'
-import { notifyCancellation, type CancelledRow } from './notify'
 import { CLUB_TO_NULIGA, findRosterMatch, NULIGA_BASE, parseClubRoster, type RosterEntry } from './seeding-lk'
 
-// Competition slugs now live in shared/ (single source of truth). The legacy cancel/admin
+// Competition slugs now live in shared/ (single source of truth). The legacy admin
 // handlers below still read them locally. Roster parsing/matching plus the nuLiga endpoint +
 // club-id map are owned by seeding-lk.ts (ADR-0010); the cron + admin LK paths reuse them
 // until they migrate to syncAll.
@@ -21,15 +20,13 @@ const json = (data: unknown, status = 200) =>
     headers: { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' }
   })
 
-const isEmail = (v: string) => /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(v)
 const str = (v: unknown): string => (typeof v === 'string' ? v.trim() : '')
 
-// The new stack owns GET /api/participants via Hono (worker/app.ts). Everything else
-// is still served by the legacy router below, mounted as the Hono catch-all. Later
-// slices migrate these routes onto Hono one at a time.
-// Hono's c.executionCtx omits newer Workers-types fields (tracing/props); cast to the
-// ExecutionContext the legacy handlers expect (they only use ctx.waitUntil).
-app.all('*', c => legacyFetch(c.req.raw, c.env, c.executionCtx as unknown as ExecutionContext))
+// The new stack owns GET /api/participants, POST /api/register and POST /api/cancel via
+// Hono (worker/app.ts). The remaining routes (admin + export) are still served by the
+// legacy router below, mounted as the Hono catch-all. Later slices migrate these onto Hono.
+// The legacy handlers no longer need the ExecutionContext (cancel was the last waitUntil user).
+app.all('*', c => legacyFetch(c.req.raw, c.env))
 
 export default {
   fetch: app.fetch,
@@ -40,13 +37,12 @@ export default {
   }
 }
 
-const legacyFetch = async (request: Request, env: Env, ctx: ExecutionContext): Promise<Response> => {
+const legacyFetch = async (request: Request, env: Env): Promise<Response> => {
   const url = new URL(request.url)
   const path = url.pathname
   const { method } = request
 
   try {
-    if (path === '/api/cancel' && method === 'POST') return await handleCancel(request, env, ctx)
     if (path === '/admin' && method === 'GET') return adminPage()
     if (path === '/api/admin/list' && method === 'GET') return await handleAdminList(request, env)
     if (path === '/api/admin/update' && method === 'POST') return await handleAdminUpdate(request, env)
@@ -59,46 +55,6 @@ const legacyFetch = async (request: Request, env: Env, ctx: ExecutionContext): P
 
   // Everything else → static Astro site.
   return env.ASSETS.fetch(request)
-}
-
-const handleCancel = async (request: Request, env: Env, ctx: ExecutionContext): Promise<Response> => {
-  let body: Record<string, unknown>
-  try {
-    body = (await request.json()) as Record<string, unknown>
-  } catch {
-    return json({ error: 'Ungültige Anfrage.' }, 400)
-  }
-
-  // Honeypot: bots fill the hidden field → silently "succeed".
-  if (str(body.website)) return json({ ok: true, cancelled: 0 })
-
-  const email = str(body.email)
-  const lastName = str(body.last_name)
-
-  if (!email || !isEmail(email)) return json({ error: 'Bitte gib die E-Mail-Adresse deiner Anmeldung an.' }, 400)
-  if (!lastName) return json({ error: 'Bitte gib deinen Nachnamen an.' }, 400)
-
-  // Welche aktiven Einträge werden gleich abgemeldet? (Vorher lesen, um den
-  // Sportwart mit Details benachrichtigen zu können.)
-  const { results: toCancel } = await env.DB.prepare(
-    `SELECT first_name, last_name, club, email, competition FROM registrations
-      WHERE email = ? COLLATE NOCASE AND last_name = ? COLLATE NOCASE AND status IN ('new', 'confirmed')`
-  )
-    .bind(email, lastName)
-    .all<CancelledRow>()
-
-  // Cancel every still-active entry that matches email + last name (case-insensitive).
-  const result = await env.DB.prepare(
-    `UPDATE registrations SET status = 'cancelled'
-      WHERE email = ? COLLATE NOCASE AND last_name = ? COLLATE NOCASE AND status IN ('new', 'confirmed')`
-  )
-    .bind(email, lastName)
-    .run()
-
-  const cancelled = result.meta?.changes ?? 0
-  if (cancelled > 0) ctx.waitUntil(notifyCancellation(env, toCancel ?? []))
-
-  return json({ ok: true, cancelled })
 }
 
 const checkToken = (request: Request, env: Env): boolean => {

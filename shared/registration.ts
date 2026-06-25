@@ -38,3 +38,26 @@ export type RegisterRequest = z.infer<typeof registerRequestSchema>
 // { ok: true } on success (including the silent honeypot success), { error } otherwise.
 export const registerResponseSchema = z.object({ ok: z.literal(true) })
 export type RegisterResponse = z.infer<typeof registerResponseSchema>
+
+// The self-service cancellation contract — the single source of truth for the POST
+// /api/cancel JSON shape, shared by the worker and the abmelden form. camelCase on the
+// wire (the form's name= attributes move to camelCase atomically with this). A cancel
+// matches on email + last name across all Konkurrenzen, so it needs only those two.
+//
+// Messages mirror the previous hand-rolled handler: a missing or malformed email both
+// reported the same message, and email was checked before the last name.
+export const cancelRequestSchema = z.object({
+  email: z
+    .string()
+    .trim()
+    .min(1, 'Bitte gib die E-Mail-Adresse deiner Anmeldung an.')
+    .regex(EMAIL_RE, 'Bitte gib die E-Mail-Adresse deiner Anmeldung an.'),
+  lastName: z.string().trim().min(1, 'Bitte gib deinen Nachnamen an.')
+})
+
+export type CancelRequest = z.infer<typeof cancelRequestSchema>
+
+// The cancel endpoint answers with the same envelope the form already understands:
+// { ok: true, cancelled: N } — N is how many active entries were withdrawn (0 = no match).
+export const cancelResponseSchema = z.object({ ok: z.literal(true), cancelled: z.number().int().nonnegative() })
+export type CancelResponse = z.infer<typeof cancelResponseSchema>
