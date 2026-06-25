@@ -78,6 +78,14 @@ and TSV Winsen (22./23. August 2026). Unlike the sibling `matchday` site, this o
 
 ## Code Style
 
+General principles (apply everywhere, override defaults):
+
+- **Code is always English** — file names, variables, functions, types, comments, commit messages.
+  Only user-facing content is German (see Locale). A German domain term as a slug/identifier
+  (e.g. a competition name) is fine; the surrounding code that handles it stays English.
+- **Follow best practices, but always prefer the simple solution** — reach for the smallest change
+  that does the job correctly. Don't add abstraction, indirection, or configurability before it's needed.
+
 Enforced by Prettier (config in `prettier.config.ts`):
 
 - No semicolons
