@@ -1,3 +1,9 @@
+# Client settings. pnpm 11 reads these only from here, NOT from .npmrc (unlike
+# registry/auth, which stay .npmrc-only): save dependencies as exact versions,
+# and refuse to install if the Node version doesn't satisfy `engines`.
+saveExact: true
+engineStrict: true
+
 # Security overrides: force patched versions of transitive build-time deps
 # until upstream (vite, @astrojs/check) widen their ranges.
 overrides:
