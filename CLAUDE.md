@@ -59,6 +59,10 @@ and TSV Winsen (22./23. August 2026). Unlike the sibling `matchday` site, this o
 - `wrangler.toml` — Worker + Assets + D1 binding + `PUBLIC_LIST_ENABLED` flag. Holds the `database_id`;
   `account_id` is supplied via the `CLOUDFLARE_ACCOUNT_ID` env var (repo variable in CI). Secrets
   (`ADMIN_TOKEN`, `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`) are set with `wrangler secret put`.
+- **Operator auth:** `/admin` and `/api/admin/*` are gated in production by Cloudflare Zero Trust
+  Access at the edge (email-OTP; team portal `tv-winsen.cloudflareaccess.com`). `/api/participants`
+  and the cron stay outside Access. `ADMIN_TOKEN` (the `x-admin-token` check in `worker/index.ts`)
+  is only a fallback for `wrangler dev`, where Access does not apply. See ADR-0008.
 - The site is **same-origin** with the API → the registration form and participant list use relative
   `/api/...` paths (no CORS).
 

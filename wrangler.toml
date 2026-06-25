@@ -38,5 +38,8 @@ database_id = "93cf5f66-b7d2-4adb-802c-31c63cb3f23c"
 [triggers]
 crons = ["0 5 * * 1"]
 
-# ADMIN_TOKEN ist ein Secret (nicht hier ablegen):
+# Operator-Flächen (/admin, /api/admin/*) sind in Produktion durch Cloudflare Zero Trust
+# Access am Edge geschützt (E-Mail-OTP, Team-Portal tv-winsen.cloudflareaccess.com).
+# ADMIN_TOKEN ist ein Secret und dient nur noch als Fallback für `wrangler dev`, weil
+# Access lokal nicht greift (nicht hier ablegen):
 #   wrangler secret put ADMIN_TOKEN

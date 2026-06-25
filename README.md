@@ -22,7 +22,7 @@ meisterschaften.tennisverein-winsen.de  →  ein Worker
   ├─ POST /api/register       Anmeldung speichern (status='new')
   ├─ POST /api/cancel         Selbst-Abmeldung (E-Mail + Nachname → status='cancelled')
   ├─ GET  /api/participants   öffentliche, bestätigte Liste (Name, Verein, Konkurrenz, LK)
-  ├─ GET  /admin              token-geschützte Admin-Seite (bestätigen, LK setzen, verstecken)
+  ├─ GET  /admin              Access-geschützte Admin-Seite (bestätigen, LK setzen, verstecken)
   ├─ POST /api/admin/*        Admin-API (list, update, refresh-lk)
   ├─ GET  /export?token=…     CSV aller Anmeldungen
   └─ D1   Tabelle „registrations"
@@ -36,6 +36,19 @@ meisterschaften.tennisverein-winsen.de  →  ein Worker
   E-Mail + Nachname, Status `cancelled` → fällt sofort aus der öffentlichen Liste).
 - Die **LK** wird nicht abgefragt, sondern beim Bestätigen im Admin gesetzt (Default `25.0`).
 - Kill-Switch `PUBLIC_LIST_ENABLED` (in `wrangler.toml`) schaltet die öffentliche Liste an/aus.
+
+## Admin-Zugang (Cloudflare Access)
+
+Die Operator-Flächen (`/admin`, `/api/admin/*`) sind **in Produktion durch Cloudflare Zero Trust
+Access am Edge** abgesichert — Login per **E-Mail-OTP** (One-time PIN) über das Team-Portal
+`https://tv-winsen.cloudflareaccess.com`. Unauthentifizierte Requests werden vom Edge auf den
+Login umgeleitet und erreichen den Worker gar nicht erst. Die öffentliche API (`/api/participants`)
+und der wöchentliche Cron bleiben **außerhalb** von Access.
+
+- Zugang verwalten (erlaubte E-Mails): Cloudflare-Dashboard → **Zero Trust → Access → Applications
+  → „Winsener Meisterschaften – Admin"**.
+- **`ADMIN_TOKEN` ist nur noch ein Fallback für `wrangler dev`**, weil Access lokal nicht greift.
+  In Produktion ist Access der maßgebliche Gate; der Token sollte nicht als regulärer Login dienen.
 
 ## Lokal entwickeln
 
@@ -61,12 +74,13 @@ wrangler login                                    # mit dem Vereins-Cloudflare-A
 export CLOUDFLARE_ACCOUNT_ID=<account-id>         # liegt nicht mehr in wrangler.toml
 wrangler d1 create winsener-meisterschaften       # database_id → wrangler.toml
 wrangler d1 execute winsener-meisterschaften --remote --file=worker/schema.sql
-wrangler secret put ADMIN_TOKEN                   # Admin-/Export-Token vergeben
+wrangler secret put ADMIN_TOKEN                   # nur Local-Dev-Fallback (Prod = Cloudflare Access)
 pnpm cf-deploy                                    # = pnpm build && wrangler deploy
 ```
 
 Danach Custom Domain `meisterschaften.tennisverein-winsen.de` im Cloudflare-Dashboard auf den
-Worker legen. Admin: `…/admin` (Token eingeben). CSV: `…/export?token=<ADMIN_TOKEN>`.
+Worker legen. Admin: `…/admin` (Login per Cloudflare Access / E-Mail-OTP). CSV:
+`…/export?token=<ADMIN_TOKEN>`.
 
 ### Automatischer Deploy (CI)
 
