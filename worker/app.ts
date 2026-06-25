@@ -23,8 +23,8 @@ import {
 import { createD1AppStateStore } from './store/app-state'
 import { createD1RegistrationsStore } from './store/registrations'
 import { createRegistrationDomain } from './domain/registration'
-import { createNuligaRosterSource, createSeedingLk } from './seeding-lk'
-import { notifyCancellation, notifyRegistration } from './notify'
+import { buildSeedingLk, matchAndNotify } from './registration-effects'
+import { notifyCancellation } from './notify'
 
 // Soft rate limit: max 3 registrations per IP per hour.
 const RATE_LIMIT = 3
@@ -152,19 +152,9 @@ export const app = new Hono<{ Bindings: Env }>()
 
       if (!result.ok) return c.json({ error: 'Du bist für diese Konkurrenz bereits angemeldet.' }, 409)
 
-      const reg = result.registration
-      const seedingLk = createSeedingLk({ rosterSource: createNuligaRosterSource(), store })
-      c.executionCtx.waitUntil(
-        (async () => {
-          let { lk } = reg
-          try {
-            lk = await seedingLk.matchOnRegister(reg)
-          } catch {
-            // nuLiga unreachable etc. → notify without an LK
-          }
-          await notifyRegistration(c.env, { ...reg, lk })
-        })()
-      )
+      // The side effect a registration implies — the nuLiga LK match + Telegram — runs in the
+      // background (registration-effects.ts owns the composition); the member's response never waits.
+      c.executionCtx.waitUntil(matchAndNotify(c.env, buildSeedingLk(store), result.registration))
 
       return c.json({ ok: true })
     }
@@ -214,8 +204,7 @@ export const app = new Hono<{ Bindings: Env }>()
     let lkFetched: string | null = null
     if (playerId) {
       try {
-        const seedingLk = createSeedingLk({ rosterSource: createNuligaRosterSource(), store })
-        const fetched = await seedingLk.lkForPlayerId(result.registration.club, playerId)
+        const fetched = await buildSeedingLk(store).lkForPlayerId(result.registration.club, playerId)
         if (fetched) {
           await store.setLk(id, fetched)
           lkFetched = fetched
@@ -240,10 +229,7 @@ export const app = new Hono<{ Bindings: Env }>()
   })
   // POST /api/admin/refresh-lk — refresh seeding LK across the roster via seedingLk.syncAll.
   .post('/api/admin/refresh-lk', async c => {
-    const seedingLk = createSeedingLk({
-      rosterSource: createNuligaRosterSource(),
-      store: createD1RegistrationsStore(c.env.DB)
-    })
+    const seedingLk = buildSeedingLk(createD1RegistrationsStore(c.env.DB))
     return c.json({ ok: true, updated: await seedingLk.syncAll() } satisfies RefreshLkResponse)
   })
   // POST /api/admin/phase — the operator sets the phase (ADR-0006). Zod validates the slug;

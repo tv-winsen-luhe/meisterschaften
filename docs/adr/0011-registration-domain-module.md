@@ -2,6 +2,7 @@
 
 - Status: accepted
 - Date: 2026-06-25
+- Amended: 2026-06-26 (see Amendment below — the edge, not the domain, owns the side-effect orchestration)
 
 ## Context
 
@@ -49,3 +50,29 @@ are scattered across handlers, the cron, and the client. This builds on the Stor
   and client.
 - Zod (shape/format) vs domain (invariants/transitions) is a clean, intentional split — not redundant
   validation.
+
+## Amendment (2026-06-26): the edge owns the side-effect orchestration, not a domain-emitted effect union
+
+The original decision said the domain "returns its side effects as typed data … the transport edge
+sends them." In practice only the typed **Result** (the persisted/affected rows) was ever returned as
+data; the side-effect orchestration stayed in the route handlers, and the Challenger-LK judgment landed
+in `shared/` (called from `notify.ts`), not in the domain's result. This amendment makes the recorded
+decision match reality and commits to it deliberately.
+
+**Decision (amended):** the domain returns its typed Result and **never awaits nuLiga or Telegram**; the
+transport edge owns the side-effect orchestration as **named functions**, not a discriminated-union
+intent type interpreted by a generic dispatcher. Concretely, `worker/registration-effects.ts` holds
+`buildSeedingLk(store)` — the single nuLiga-wiring builder reused by `register`, `confirm`, the
+`refresh-lk` route, and the weekly cron — and `matchAndNotify(env, store, reg)` for the `register`
+background path (LK match → notification, run via `ctx.waitUntil`). `confirm`'s LK fetch stays
+synchronous and inline because it returns `lkFetched` into the response.
+
+**Rationale:** each transition emits essentially one effect, so a union-plus-dispatcher would be
+indirection without payoff (CLAUDE.md: prefer the simplest solution). Named orchestration functions
+capture the same wins — one home for the nuLiga wiring (killing a 4× duplication), and the `register`
+background body made unit-testable through the in-memory roster source — without the machinery. The
+pure invariant `canConfirm` stays in `shared/` as the authority's guard and the client's affordance,
+now joined by `resolveSeedingBasis` (the "no nuLiga ID ⇒ default LK 25.0" normalisation), so the
+admin's previously untested `noId` logic becomes a tested pure function. The deletion test still holds:
+the orchestration concentrates in `registration-effects.ts`; only its **form** changed (functions, not
+a data union), not the separation of concerns.

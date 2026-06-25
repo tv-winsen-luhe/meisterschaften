@@ -43,13 +43,20 @@ When a concept here drifts or a new one appears, update this file rather than in
   the Spielplan validator free of cross-field player clashes (ADR-0005).
 - **Registration domain** — the module that owns the registration lifecycle: the transitions
   (`register`, `revive`, `confirm`, `cancel`, `hide`, admin `setPlayerId`/`setLk`) each return a typed
-  Result; the Store and `seedingLk` are injected; it persists through the Store, never raw SQL. It
-  **returns its side effects as typed data** (e.g. the notification facts incl. the Challenger-LK
-  judgment) — the transport edge sends them via `ctx.waitUntil`. Invariants like `canConfirm(reg)` live
+  Result; the Store and `seedingLk` are injected; it persists through the Store, never raw SQL. The
+  domain returns its typed **Result** (the persisted/affected rows) and never awaits nuLiga or Telegram;
+  the **transport edge owns the side-effect orchestration** — the nuLiga LK match + Telegram
+  notification — as named functions in `worker/registration-effects.ts`, run via `ctx.waitUntil`.
+  Invariants like `canConfirm(reg)` live
   as pure predicates in `shared/`: the domain enforces them, the React admin reuses them for affordance
   (authority in the domain, affordance in the client, definition in one place). _(See ADR-0011.)_
 - **LK (Leistungsklasse)** — a player's nuLiga rating, synced weekly from nuLiga and used only for
   **Setzung** (seeding). Players without an LK default to `defaultLk`.
+- **Seeding basis** — the minimal input that makes a Registration confirmable and seedable: either a
+  linked nuLiga `player_id`, or an explicit **LK**. A player with no nuLiga ID gains a basis via the
+  default LK (`defaultLk`, 25.0). `canConfirm` (in `shared/`) judges whether a basis is present;
+  `resolveSeedingBasis` (beside it) derives the basis fields from raw form input — the admin's „keine
+  ID" affordance is the no-nuLiga-ID case. _(See ADR-0011.)_
 - **Setzung (seeding)** — ordering players in the draw by LK so the strongest are kept apart early.
   Follows the DTB Turnierordnung 2024:
   - **Number of seeds** by draw size: 8 → 2, 16 → 4, 32 → 8, 48+ → 16.
