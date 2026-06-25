@@ -4,3 +4,4 @@
 export * from './competition'
 export * from './constants'
 export * from './participants'
+export * from './registration'
