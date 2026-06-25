@@ -1,9 +1,16 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { hc } from 'hono/client'
 import type { AppType } from '../../worker/app'
-import type { AdminRegistration } from '../../shared'
+import { PHASES, type AdminRegistration, type Phase } from '../../shared'
 import { RegistrationCard, type ConfirmPayload } from './registration-card'
 import './admin.css'
+
+const PHASE_LABELS: Record<Phase, string> = {
+  anmeldung: 'Anmeldung',
+  auslosung: 'Auslosung',
+  live: 'Live',
+  'post-event': 'Post-Event'
+}
 
 type StatusFilter = 'all' | AdminRegistration['status']
 
@@ -50,6 +57,7 @@ export const AdminApp = () => {
   const [token, setToken] = useState(initialToken)
   const [authed, setAuthed] = useState(false)
   const [registrations, setRegistrations] = useState<AdminRegistration[]>([])
+  const [phase, setPhase] = useState<Phase | null>(null)
   const [filter, setFilter] = useState<StatusFilter>('all')
   const [query, setQuery] = useState('')
   const [tokenInput, setTokenInput] = useState('')
@@ -70,6 +78,7 @@ export const AdminApp = () => {
     setToken('')
     setAuthed(false)
     setRegistrations([])
+    setPhase(null)
     setGateMsg('')
   }, [])
 
@@ -89,6 +98,15 @@ export const AdminApp = () => {
       sessionStorage.setItem('admin_token', token)
       setRegistrations(data.registrations)
       setAuthed(true)
+      // The phase is a public, best-effort read: a failure must not take down the admin list,
+      // so it is fetched separately and updates the toggle only on success (a failed read
+      // keeps the last known phase rather than blanking it).
+      try {
+        const phaseRes = await client.api.phase.$get()
+        if (phaseRes.ok) setPhase((await phaseRes.json()).phase)
+      } catch {
+        // ignore — phase keeps its last known value
+      }
     } catch {
       showToast('Konnte nicht laden.', true)
     }
@@ -119,6 +137,17 @@ export const AdminApp = () => {
       }
     },
     [load, logout, showToast]
+  )
+
+  // Set the operator-controlled phase (ADR-0006): the public site reflects it and the weekly
+  // cron is gated to 'anmeldung'. Goes through mutate, so it shares the 401-regate/error/toast
+  // behaviour of every other admin action and the success reload re-fetches the current phase.
+  const changePhase = useCallback(
+    (next: Phase) => {
+      if (next === phase) return
+      mutate(() => client.api.admin.phase.$post({ json: { phase: next } }), `Phase: ${PHASE_LABELS[next]}`)
+    },
+    [client, phase, mutate]
   )
 
   const confirm = useCallback(
@@ -253,6 +282,22 @@ export const AdminApp = () => {
           <Tile label="Herren" value={byCompetition('mens')} cls="sub" />
           <Tile label="Challenger" value={byCompetition('mens-challenger')} cls="sub" />
           <Tile label="Damen" value={byCompetition('womens')} cls="sub" />
+        </div>
+        <div className="phasebar">
+          <span className="phasebar__label">Phase</span>
+          <div className="phase-toggle" role="group" aria-label="Phase">
+            {PHASES.map(p => (
+              <button
+                key={p}
+                type="button"
+                className={`phase-btn${phase === p ? 'is-active' : ''}`}
+                aria-pressed={phase === p}
+                onClick={() => changePhase(p)}
+              >
+                {PHASE_LABELS[p]}
+              </button>
+            ))}
+          </div>
         </div>
       </header>
       <div className="filterbar">

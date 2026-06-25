@@ -337,15 +337,29 @@ const seedsFor = (capacity?: number) => (capacity ? Math.floor(capacity / 4) : 0
 <script>
   import { hc } from 'hono/client'
   import type { AppType } from '../../worker/app'
-  import type { Participant, ParticipantsResponse } from '../../shared'
+  import type { Participant, ParticipantsResponse, Phase } from '../../shared'
 
   type Entry = Participant
   type ApiResponse = ParticipantsResponse
 
   const client = hc<AppType>(location.origin)
+
+  // The phase the public surface keys off (ADR-0006). Each phase shows a phase-appropriate
+  // status caption; the list itself stays visible (the draw/live views consume it too). This
+  // surface only *reflects* the phase — it does not gate registration (the Anmeldung→Auslosung
+  // seeding freeze is the draw's job, a later epic), so it makes no "registration closed" claim.
+  const PHASE_CAPTIONS: Record<Exclude<Phase, 'anmeldung'>, string> = {
+    auslosung: 'Die Auslosung läuft — die endgültige Setzung wird ermittelt.',
+    live: 'Das Turnier läuft.',
+    'post-event': 'Die Winsener Meisterschaften 2026 sind beendet. Danke fürs Mitspielen!'
+  }
   const root = document.querySelector<HTMLElement>('[data-participants]')
   const logoTv = root?.dataset.logoTv ?? ''
   const logoTsv = root?.dataset.logoTsv ?? ''
+  // The Anmeldung caption is server-rendered (it interpolates the signup deadline). Capture it
+  // once so applyPhase can restore it verbatim when the operator reverts to 'anmeldung'.
+  const statusEl = root?.querySelector<HTMLElement>('[data-status]') ?? null
+  const defaultCaption = statusEl?.textContent ?? ''
 
   const divider = (): HTMLLIElement => {
     const li = document.createElement('li')
@@ -461,12 +475,35 @@ const seedsFor = (capacity?: number) => (capacity ? Math.floor(capacity / 4) : 0
     })
   }
 
+  // The phase the public surface keys off (ADR-0006). Read at runtime, best-effort: any
+  // failure falls back to 'anmeldung' so the list keeps its default signup framing.
+  const loadPhase = async (): Promise<Phase> => {
+    try {
+      const res = await client.api.phase.$get()
+      if (!res.ok) return 'anmeldung'
+      return (await res.json()).phase
+    } catch {
+      return 'anmeldung'
+    }
+  }
+
+  // React to the phase by swapping the status caption — and restoring the original on a revert
+  // to 'anmeldung', so an operator flipping back recovers the signup framing without a reload.
+  const applyPhase = (phase: Phase) => {
+    if (!statusEl) return
+    statusEl.textContent = phase === 'anmeldung' ? defaultCaption : PHASE_CAPTIONS[phase]
+  }
+
   const load = async () => {
     if (!root) return
     try {
-      const res = await client.api.participants.$get()
+      const [res, phase] = await Promise.all([client.api.participants.$get(), loadPhase()])
       if (!res.ok) throw new Error('bad status')
-      render(await res.json())
+      const data = await res.json()
+      render(data)
+      // PUBLIC_LIST_ENABLED is the orthogonal kill-switch: when it hides the list, that
+      // message wins and the phase reframing is skipped.
+      if (data.enabled) applyPhase(phase)
     } catch {
       root.classList.add('is-error')
       root.querySelectorAll<HTMLElement>('[data-free-label]').forEach(el => (el.textContent = ''))
