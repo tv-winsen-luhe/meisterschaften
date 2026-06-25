@@ -6,8 +6,8 @@
 ## Context
 
 `handleRegister` mixes five concerns (validation, honeypot, rate-limit SQL, upsert/revive SQL, async
-LK-match + notify) and `handleAdminUpdate` embeds the confirmation rule ("to confirm: player_id or LK")
-— which is _also_ duplicated in the admin client JS. Registration state transitions and their rules
+LK-match + notify) and `handleAdminUpdate` embeds the confirmation rule ("to confirm: player*id or LK")
+— which is \_also* duplicated in the admin client JS. Registration state transitions and their rules
 are scattered across handlers, the cron, and the client. This builds on the Store (ADR-0009) and
 `seedingLk` (ADR-0010).
 
