@@ -7,7 +7,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 Event site for the **Winsener Meisterschaften 2026** — the joint city championship of TV Winsen/Luhe
 and TSV Winsen (22./23. August 2026). Unlike the sibling `matchday` site, this one has its own
 **online registration** and a **live public participant list**, served by a single Cloudflare Worker
-(static Astro assets + API + Cloudflare D1). Editorial source: the Ausschreibung in the club vault.
+(static Astro assets + API + Cloudflare D1).
 
 ## Commands
 
@@ -37,11 +37,13 @@ and TSV Winsen (22./23. August 2026). Unlike the sibling `matchday` site, this o
 - `src/assets/` — images/SVGs processed by Astro
 - Path alias: `@/*` maps to `./src/*`
 - `src/data/tournament.ts` — single content model (dates, competitions, venue, facts)
-- `worker/index.ts` — Cloudflare Worker: serves `dist/` (Workers Assets) + handles `/api/anmeldung`,
-  `/api/teilnehmer`, `/admin`, `/api/admin/*`, `/export`. Own `worker/tsconfig.json` (Workers types);
-  excluded from the root tsconfig so `astro check` keeps DOM libs. `worker/schema.sql` = D1 schema.
-- `wrangler.toml` — Worker + Assets + D1 binding + `PUBLIC_LIST_ENABLED` flag. `database_id` and the
-  `ADMIN_TOKEN` secret are filled in at deploy time.
+- `worker/index.ts` — Cloudflare Worker: serves `dist/` (Workers Assets) + handles `/api/register`,
+  `/api/cancel`, `/api/participants`, `/admin`, `/api/admin/*` (list, update, delete, refresh-lk),
+  `/export`. Own `worker/tsconfig.json` (Workers types); excluded from the root tsconfig so
+  `astro check` keeps DOM libs. `worker/schema.sql` = D1 schema.
+- `wrangler.toml` — Worker + Assets + D1 binding + `PUBLIC_LIST_ENABLED` flag. Holds the `database_id`;
+  `account_id` is supplied via the `CLOUDFLARE_ACCOUNT_ID` env var (repo variable in CI). Secrets
+  (`ADMIN_TOKEN`, `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`) are set with `wrangler secret put`.
 - The site is **same-origin** with the API → the registration form and participant list use relative
   `/api/...` paths (no CORS).
 
