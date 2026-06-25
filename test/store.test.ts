@@ -3,7 +3,7 @@ import { createInMemoryRegistrationsStore } from '../worker/store/registrations'
 import type { RegistrationRow } from '../worker/db/schema'
 
 let nextId = 1
-function reg(overrides: Partial<RegistrationRow>): RegistrationRow {
+const reg = (overrides: Partial<RegistrationRow>): RegistrationRow => {
   return {
     id: nextId++,
     createdAt: '2026-06-01T10:00:00.000Z',

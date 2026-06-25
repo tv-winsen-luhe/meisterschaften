@@ -347,14 +347,14 @@ const seedsFor = (capacity?: number) => (capacity ? Math.floor(capacity / 4) : 0
   const logoTv = root?.dataset.logoTv ?? ''
   const logoTsv = root?.dataset.logoTsv ?? ''
 
-  function divider(): HTMLLIElement {
+  const divider = (): HTMLLIElement => {
     const li = document.createElement('li')
     li.className = 'pl-divider'
     li.textContent = 'Weitere im Feld — Platzierung wird bei der Auslosung gelost'
     return li
   }
 
-  function row(entry: Entry, layout: string, rank: number, isSeed: boolean): HTMLLIElement {
+  const row = (entry: Entry, layout: string, rank: number, isSeed: boolean): HTMLLIElement => {
     const li = document.createElement('li')
     li.className = isSeed ? 'pl-row pl-row--seed' : 'pl-row'
 
@@ -389,7 +389,7 @@ const seedsFor = (capacity?: number) => (capacity ? Math.floor(capacity / 4) : 0
     return li
   }
 
-  function render(data: ApiResponse) {
+  const render = (data: ApiResponse) => {
     if (!root) return
     const statusEl = root.querySelector<HTMLElement>('[data-status]')
 
@@ -461,7 +461,7 @@ const seedsFor = (capacity?: number) => (capacity ? Math.floor(capacity / 4) : 0
     })
   }
 
-  async function load() {
+  const load = async () => {
     if (!root) return
     try {
       const res = await client.api.participants.$get()

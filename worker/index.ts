@@ -47,10 +47,10 @@ export default {
   }
 }
 
-async function legacyFetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
+const legacyFetch = async (request: Request, env: Env, ctx: ExecutionContext): Promise<Response> => {
   const url = new URL(request.url)
   const path = url.pathname
-  const method = request.method
+  const { method } = request
 
   try {
     if (path === '/api/register' && method === 'POST') return await handleRegister(request, env, ctx)
@@ -69,7 +69,7 @@ async function legacyFetch(request: Request, env: Env, ctx: ExecutionContext): P
   return env.ASSETS.fetch(request)
 }
 
-async function handleRegister(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
+const handleRegister = async (request: Request, env: Env, ctx: ExecutionContext): Promise<Response> => {
   let body: Record<string, unknown>
   try {
     body = (await request.json()) as Record<string, unknown>
@@ -180,7 +180,7 @@ const ADMIN_URL = 'https://meisterschaften.tennisverein-winsen.de/admin'
 const escapeHtml = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
 
 /** Schickt eine Telegram-Nachricht (kostenlos, keine DNS-Änderung). Fehler werden nur geloggt. */
-async function sendTelegram(env: Env, text: string): Promise<void> {
+const sendTelegram = async (env: Env, text: string): Promise<void> => {
   // Kein Token / keine Chat-ID konfiguriert (z. B. lokal) → still überspringen.
   if (!env.TELEGRAM_BOT_TOKEN || !env.TELEGRAM_CHAT_ID) return
 
@@ -202,7 +202,7 @@ async function sendTelegram(env: Env, text: string): Promise<void> {
 }
 
 /** Telegram-Nachricht über eine neue Anmeldung. */
-async function notifyRegistration(env: Env, r: RegistrationNotice): Promise<void> {
+const notifyRegistration = async (env: Env, r: RegistrationNotice): Promise<void> => {
   const konk = COMPETITION_LABELS[r.competition] ?? r.competition
   // Zu stark fürs (nach oben geschützte) Challenger-Feld?
   const lkNum = r.lk ? parseFloat(r.lk) : NaN
@@ -227,7 +227,7 @@ async function notifyRegistration(env: Env, r: RegistrationNotice): Promise<void
 }
 
 /** Telegram-Nachricht über eine Abmeldung (eine Person kann mehrere Konkurrenzen abmelden). */
-async function notifyCancellation(env: Env, rows: CancelledRow[]): Promise<void> {
+const notifyCancellation = async (env: Env, rows: CancelledRow[]): Promise<void> => {
   if (rows.length === 0) return
 
   const first = rows[0]
@@ -245,7 +245,7 @@ async function notifyCancellation(env: Env, rows: CancelledRow[]): Promise<void>
   await sendTelegram(env, text)
 }
 
-async function handleCancel(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
+const handleCancel = async (request: Request, env: Env, ctx: ExecutionContext): Promise<Response> => {
   let body: Record<string, unknown>
   try {
     body = (await request.json()) as Record<string, unknown>
@@ -285,12 +285,12 @@ async function handleCancel(request: Request, env: Env, ctx: ExecutionContext): 
   return json({ ok: true, cancelled })
 }
 
-function checkToken(request: Request, env: Env): boolean {
+const checkToken = (request: Request, env: Env): boolean => {
   const token = request.headers.get('x-admin-token') ?? ''
   return Boolean(env.ADMIN_TOKEN) && token === env.ADMIN_TOKEN
 }
 
-async function handleAdminList(request: Request, env: Env): Promise<Response> {
+const handleAdminList = async (request: Request, env: Env): Promise<Response> => {
   if (!checkToken(request, env)) return json({ error: 'Nicht autorisiert.' }, 401)
   const { results } = await env.DB.prepare(
     `SELECT id, created_at, competition, first_name, last_name, club, email, phone, note, player_id, lk, status
@@ -300,7 +300,7 @@ async function handleAdminList(request: Request, env: Env): Promise<Response> {
   return json({ registrations: results ?? [] })
 }
 
-async function handleAdminUpdate(request: Request, env: Env): Promise<Response> {
+const handleAdminUpdate = async (request: Request, env: Env): Promise<Response> => {
   if (!checkToken(request, env)) return json({ error: 'Nicht autorisiert.' }, 401)
 
   let body: Record<string, unknown>
@@ -379,7 +379,7 @@ async function handleAdminUpdate(request: Request, env: Env): Promise<Response> 
   return json({ ok: true, lkFetched })
 }
 
-async function handleAdminDelete(request: Request, env: Env): Promise<Response> {
+const handleAdminDelete = async (request: Request, env: Env): Promise<Response> => {
   if (!checkToken(request, env)) return json({ error: 'Nicht autorisiert.' }, 401)
 
   let body: Record<string, unknown>
@@ -396,7 +396,7 @@ async function handleAdminDelete(request: Request, env: Env): Promise<Response> 
   return json({ ok: true, deleted: result.meta?.changes ?? 0 })
 }
 
-async function handleRefreshLk(request: Request, env: Env): Promise<Response> {
+const handleRefreshLk = async (request: Request, env: Env): Promise<Response> => {
   if (!checkToken(request, env)) return json({ error: 'Nicht autorisiert.' }, 401)
   const updated = await refreshLk(env)
   return json({ ok: true, updated })
@@ -410,7 +410,7 @@ interface RosterEntry {
 }
 
 /** Fetch one nuLiga club ranking page and parse it into a list of players. */
-async function fetchClubRoster(clubId: string): Promise<RosterEntry[]> {
+const fetchClubRoster = async (clubId: string): Promise<RosterEntry[]> => {
   try {
     const res = await fetch(NULIGA_BASE + clubId, {
       headers: { 'user-agent': 'winsener-meisterschaften/1.0 (+vereins-tool)' }
@@ -423,7 +423,7 @@ async function fetchClubRoster(clubId: string): Promise<RosterEntry[]> {
 }
 
 /** Fetch all configured club rosters, indexed by nuLiga club id. */
-async function fetchAllRosters(): Promise<Record<string, RosterEntry[]>> {
+const fetchAllRosters = async (): Promise<Record<string, RosterEntry[]>> => {
   const out: Record<string, RosterEntry[]> = {}
   const lists = await Promise.all(NULIGA_CLUB_IDS.map(fetchClubRoster))
   NULIGA_CLUB_IDS.forEach((id, i) => (out[id] = lists[i]))
@@ -431,14 +431,14 @@ async function fetchAllRosters(): Promise<Record<string, RosterEntry[]>> {
 }
 
 /** player_id → LK across all configured clubs. */
-async function fetchNuligaMap(): Promise<Record<string, string>> {
+const fetchNuligaMap = async (): Promise<Record<string, string>> => {
   const map: Record<string, string> = {}
   for (const entry of Object.values(await fetchAllRosters()).flat()) map[entry.player_id] = entry.lk
   return map
 }
 
 /** Parse a nuLiga clubRankinglistLK HTML page into {player_id, lk, last_name, first_name}. */
-export function parseClubRoster(html: string): RosterEntry[] {
+export const parseClubRoster = (html: string): RosterEntry[] => {
   const out: RosterEntry[] = []
   // Split into table rows; each row holds one player (8-digit id + one or more "LKx,y" + name anchor).
   const rows = html.split(/<tr[\s>]/i)
@@ -465,14 +465,14 @@ export function parseClubRoster(html: string): RosterEntry[] {
 }
 
 /** Back-compat alias used by older callers/tests. */
-export function parseClubLk(html: string): Record<string, string> {
+export const parseClubLk = (html: string): Record<string, string> => {
   const map: Record<string, string> = {}
   for (const e of parseClubRoster(html)) map[e.player_id] = e.lk
   return map
 }
 
 /** Normalize names for matching: lowercase, strip diacritics, ß→ss, collapse whitespace/hyphens. */
-function normalizeName(s: string): string {
+const normalizeName = (s: string): string => {
   return s
     .toLowerCase()
     .normalize('NFD')
@@ -483,7 +483,7 @@ function normalizeName(s: string): string {
 }
 
 /** Find a unique roster entry for the given name. Returns null if none or ambiguous. */
-export function findRosterMatch(roster: RosterEntry[], firstName: string, lastName: string): RosterEntry | null {
+export const findRosterMatch = (roster: RosterEntry[], firstName: string, lastName: string): RosterEntry | null => {
   const fn = normalizeName(firstName)
   const ln = normalizeName(lastName)
   if (!fn || !ln) return null
@@ -497,11 +497,16 @@ export function findRosterMatch(roster: RosterEntry[], firstName: string, lastNa
   return matches.length === 1 ? matches[0] : null
 }
 
+interface AutoMatchInput {
+  competition: string
+  firstName: string
+  lastName: string
+  club: string
+  email: string
+}
+
 /** Try to fill player_id + LK from nuLiga based on name + club. Updates the row if a unique match exists. */
-async function autoMatchPlayer(
-  env: Env,
-  p: { competition: string; firstName: string; lastName: string; club: string; email: string }
-): Promise<string | null> {
+const autoMatchPlayer = async (env: Env, p: AutoMatchInput): Promise<string | null> => {
   const clubId = CLUB_TO_NULIGA[p.club]
   if (!clubId) return null
   const roster = await fetchClubRoster(clubId)
@@ -520,7 +525,7 @@ async function autoMatchPlayer(
 }
 
 /** Refresh LK for rows with a player_id; additionally try a name-match for rows without one. */
-async function refreshLk(env: Env): Promise<number> {
+const refreshLk = async (env: Env): Promise<number> => {
   const rosters = await fetchAllRosters()
   const all = Object.values(rosters).flat()
   if (all.length === 0) return 0
@@ -560,7 +565,7 @@ async function refreshLk(env: Env): Promise<number> {
   return updated
 }
 
-async function handleExport(request: Request, env: Env, url: URL): Promise<Response> {
+const handleExport = async (request: Request, env: Env, url: URL): Promise<Response> => {
   const token = url.searchParams.get('token') ?? ''
   if (!env.ADMIN_TOKEN || token !== env.ADMIN_TOKEN) return new Response('Nicht autorisiert.', { status: 401 })
 
@@ -599,7 +604,7 @@ async function handleExport(request: Request, env: Env, url: URL): Promise<Respo
   })
 }
 
-function adminPage(): Response {
+const adminPage = (): Response => {
   return new Response(ADMIN_HTML, {
     headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' }
   })

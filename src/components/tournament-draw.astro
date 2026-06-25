@@ -330,7 +330,7 @@ const drawCompetitions = competitions
 
   const root = document.querySelector<HTMLElement>('[data-draw]')
 
-  function slotEl(slot: Slot): HTMLElement {
+  const slotEl = (slot: Slot): HTMLElement => {
     const el = document.createElement('div')
     if (!slot) {
       el.className = 'dm-slot dm-slot--tbd'
@@ -363,7 +363,7 @@ const drawCompetitions = competitions
     return el
   }
 
-  function buildBracket(bracket: HTMLElement, capacity: number, players: Entry[]) {
+  const buildBracket = (bracket: HTMLElement, capacity: number, players: Entry[]) => {
     const rounds = ROUNDS[capacity]
     const seedPos = SEED_POS[capacity]
     if (!rounds || !seedPos) return
@@ -410,7 +410,7 @@ const drawCompetitions = competitions
     }
   }
 
-  function render(data: ApiResponse) {
+  const render = (data: ApiResponse) => {
     if (!root) return
     const byComp = new Map<string, Entry[]>()
     if (data.enabled) {
@@ -428,7 +428,7 @@ const drawCompetitions = competitions
     })
   }
 
-  function initTabs() {
+  const initTabs = () => {
     if (!root) return
     const tabs = [...root.querySelectorAll<HTMLButtonElement>('[data-tab]')]
     const select = (slug: string) => {
@@ -447,7 +447,7 @@ const drawCompetitions = competitions
     })
   }
 
-  async function load() {
+  const load = async () => {
     if (!root) return
     try {
       const res = await client.api.participants.$get()

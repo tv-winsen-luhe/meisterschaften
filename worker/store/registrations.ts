@@ -25,7 +25,7 @@ export interface RegistrationsStore {
   listConfirmed(): Promise<ConfirmedParticipant[]>
 }
 
-export function createD1RegistrationsStore(d1: D1Database): RegistrationsStore {
+export const createD1RegistrationsStore = (d1: D1Database): RegistrationsStore => {
   const db = drizzle(d1)
   return {
     async listConfirmed() {
@@ -50,7 +50,7 @@ export function createD1RegistrationsStore(d1: D1Database): RegistrationsStore {
 
 // The in-memory adapter holds whole rows so later slices' write transitions have
 // something to mutate; VS1 exercises only listConfirmed.
-export function createInMemoryRegistrationsStore(seed: RegistrationRow[] = []): RegistrationsStore {
+export const createInMemoryRegistrationsStore = (seed: RegistrationRow[] = []): RegistrationsStore => {
   const rows = [...seed]
   // Match the D1 adapter's SQL `CAST(COALESCE(lk, DEFAULT_LK) AS REAL)`: SQLite casts a
   // non-numeric string to 0.0, so coerce NaN → 0 (parseFloat alone would yield NaN and

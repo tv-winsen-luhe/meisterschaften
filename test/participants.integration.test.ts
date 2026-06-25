@@ -8,7 +8,7 @@ beforeAll(async () => {
   await applyD1Migrations(env.DB, env.TEST_MIGRATIONS)
 })
 
-async function seed() {
+const seed = async () => {
   const insert = (
     competition: string,
     firstName: string,

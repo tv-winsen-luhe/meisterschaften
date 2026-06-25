@@ -36,7 +36,6 @@
     "@cloudflare/workers-types": "4.20260623.1",
     "@commitlint/cli": "21.1.0",
     "@commitlint/config-conventional": "21.1.0",
-    "@typescript-eslint/parser": "8.62.0",
     "drizzle-kit": "0.31.10",
     "eslint": "10.5.0",
     "eslint-plugin-astro": "2.0.0",
@@ -45,6 +44,7 @@
     "prettier-plugin-astro": "0.14.1",
     "prettier-plugin-tailwindcss": "0.8.0",
     "simple-git-hooks": "2.13.1",
+    "typescript-eslint": "8.62.0",
     "vitest": "4.1.9",
     "wrangler": "4.104.0"
   },

@@ -643,7 +643,7 @@ import tsvLogo from '@/assets/tsv-winsen.png'
   const headEl = dialog?.querySelector<HTMLElement>('[data-signup-head]') ?? null
   const successTitle = dialog?.querySelector<HTMLElement>('.signup-success__title') ?? null
 
-  function resetForm() {
+  const resetForm = () => {
     if (!form || !successPanel) return
     form.reset()
     form.hidden = false
@@ -656,7 +656,7 @@ import tsvLogo from '@/assets/tsv-winsen.png'
     if (errorEl) errorEl.hidden = true
   }
 
-  function openDialog(competition?: string) {
+  const openDialog = (competition?: string) => {
     if (!dialog) return
     resetForm()
     if (competition) {
@@ -672,7 +672,7 @@ import tsvLogo from '@/assets/tsv-winsen.png'
   // (Button, Backdrop) und zusätzlich am close-Event (deckt Esc ab).
   const unlockScroll = () => document.documentElement.classList.remove('signup-lock')
 
-  function closeDialog() {
+  const closeDialog = () => {
     if (!dialog) return
     unlockScroll()
     dialog.close()
