@@ -5,6 +5,7 @@ declare module 'cloudflare:test' {
   interface ProvidedEnv {
     DB: D1Database
     PUBLIC_LIST_ENABLED: string
+    ADMIN_TOKEN: string
     TEST_MIGRATIONS: D1Migration[]
   }
 }

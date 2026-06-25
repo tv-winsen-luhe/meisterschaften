@@ -175,3 +175,49 @@ describe('seedingLk · matchOnRegister', () => {
     expect(persisted?.playerId).toBeNull()
   })
 })
+
+describe('seedingLk · syncAll', () => {
+  const rosterSource = createInMemoryRosterSource({
+    'TV Winsen': [
+      entry({ playerId: '11111111', lk: '12.3', firstName: 'Max', lastName: 'Muster' }),
+      entry({ playerId: '22222222', lk: '9.0', firstName: 'Erika', lastName: 'Example' })
+    ],
+    'TSV Winsen': [entry({ playerId: '33333333', lk: '7.5', firstName: 'Tom', lastName: 'Tsv' })]
+  })
+
+  it('refreshes linked rows, name-matches active unlinked rows, and skips inactive ones', async () => {
+    const store = createInMemoryRegistrationsStore([
+      // Linked row: LK refreshed from the roster.
+      row({ id: 1, playerId: '33333333', club: 'TSV Winsen', firstName: 'Tom', lastName: 'Tsv', lk: '8.0' }),
+      // Active unlinked row: name-matched and linked.
+      row({ id: 2, club: 'TV Winsen', firstName: 'Max', lastName: 'Muster', status: 'confirmed' }),
+      // Cancelled unlinked row: skipped (only active rows are name-matched).
+      row({ id: 3, club: 'TV Winsen', firstName: 'Erika', lastName: 'Example', status: 'cancelled' }),
+      // Active unlinked row with no roster match: untouched.
+      row({ id: 4, club: 'TV Winsen', firstName: 'Nobody', lastName: 'Here', status: 'new' })
+    ])
+    const seedingLk = createSeedingLk({ rosterSource, store })
+
+    const updated = await seedingLk.syncAll()
+
+    expect(updated).toBe(2)
+    const byId = new Map((await store.listAll()).map(r => [r.id, r]))
+    expect(byId.get(1)).toMatchObject({ playerId: '33333333', lk: '7.5' })
+    expect(byId.get(2)).toMatchObject({ playerId: '11111111', lk: '12.3' })
+    expect(byId.get(3)).toMatchObject({ playerId: null, lk: null })
+    expect(byId.get(4)).toMatchObject({ playerId: null, lk: null })
+  })
+})
+
+describe('seedingLk · lkForPlayerId', () => {
+  const rosterSource = createInMemoryRosterSource({
+    'TV Winsen': [entry({ playerId: '11111111', lk: '12.3' })]
+  })
+
+  it('returns the LK for a known id in the club roster, else null', async () => {
+    const seedingLk = createSeedingLk({ rosterSource, store: createInMemoryRegistrationsStore() })
+    expect(await seedingLk.lkForPlayerId('TV Winsen', '11111111')).toBe('12.3')
+    expect(await seedingLk.lkForPlayerId('TV Winsen', '99999999')).toBeNull()
+    expect(await seedingLk.lkForPlayerId('Unknown', '11111111')).toBeNull()
+  })
+})

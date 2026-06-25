@@ -1,14 +1,18 @@
-import { CHALLENGER_MIN_LK } from '../../shared'
+import { canConfirm } from '../../shared'
 import type { RegistrationRow } from '../db/schema'
-import type { Person, RegistrationsStore } from '../store/registrations'
+import type { EditableFields, Person, RegistrationsStore } from '../store/registrations'
+
+// The Challenger-LK judgment now lives in shared/ (so the client admin reads the same rule);
+// re-exported here so the notifier (notify.ts) and the domain tests keep their import site.
+export { isTooStrongForChallenger } from '../../shared'
 
 // The Registration domain owns the registration lifecycle (ADR-0011). Transitions return
 // a typed Result — ok(state) or a typed domain error — and return their side effects as
 // data; the transport edge performs the I/O (LK match + Telegram via ctx.waitUntil). The
 // domain persists through the injected Store and never writes SQL nor awaits nuLiga.
 //
-// VS2 lands the write path: register/revive; VS3 adds cancel. confirm/hide and the admin
-// edits follow in later slices.
+// VS2 lands the write path (register/revive); VS3 adds cancel; VS4 adds the admin
+// transitions confirm/hide. The authoritative confirm guard (canConfirm) lives in shared/.
 
 // What register needs from the edge, on top of the validated request: the request time
 // (kept non-deterministic out of the domain) and the caller IP (an abuse signal stored
@@ -39,9 +43,31 @@ export interface CancelResult {
   cancelled: RegistrationRow[]
 }
 
+// The editable fields the operator submits when confirming (or re-saving) a row. playerId
+// and lk arrive as possibly-empty strings from the form; the domain normalises empties to
+// null (so canConfirm and the DB see a real "no value") before persisting.
+export interface ConfirmEdits {
+  competition: string
+  club: string
+  playerId: string
+  lk: string
+}
+
+// confirm applies the edits and moves the row to 'confirmed' when the result is confirmable;
+// hide moves it to 'hidden'. Both fail with NotFound for an unknown id; confirm additionally
+// fails NotConfirmable (carrying canConfirm's reason) when the result lacks a seeding basis.
+export type ConfirmResult =
+  | { ok: true; registration: RegistrationRow }
+  | { ok: false; error: 'NotFound' }
+  | { ok: false; error: 'NotConfirmable'; reason: string }
+
+export type HideResult = { ok: true; registration: RegistrationRow } | { ok: false; error: 'NotFound' }
+
 export interface RegistrationDomain {
   register(input: RegisterInput): Promise<RegisterResult>
   cancel(person: Person): Promise<CancelResult>
+  confirm(id: number, edits: ConfirmEdits): Promise<ConfirmResult>
+  hide(id: number): Promise<HideResult>
 }
 
 export const createRegistrationDomain = (store: RegistrationsStore): RegistrationDomain => {
@@ -86,16 +112,32 @@ export const createRegistrationDomain = (store: RegistrationsStore): Registratio
     async cancel(person) {
       const cancelled = await store.cancelActiveByPerson(person)
       return { cancelled }
+    },
+
+    async confirm(id, edits) {
+      if (!(await store.findById(id))) return { ok: false, error: 'NotFound' }
+
+      // Empty playerId/lk mean "cleared" — store them as null so canConfirm and the public
+      // seeding order see a real absence, not an empty string.
+      const fields: EditableFields = {
+        competition: edits.competition,
+        club: edits.club,
+        playerId: edits.playerId.trim() || null,
+        lk: edits.lk.trim() || null
+      }
+
+      // The authoritative guard: a confirm that would leave the row without a player id or
+      // an explicit LK is rejected with the same reason the admin renders.
+      const guard = canConfirm({ playerId: fields.playerId ?? null, lk: fields.lk ?? null })
+      if (guard !== true) return { ok: false, error: 'NotConfirmable', reason: guard }
+
+      await store.setFields(id, fields)
+      return { ok: true, registration: await store.setStatus(id, 'confirmed') }
+    },
+
+    async hide(id) {
+      if (!(await store.findById(id))) return { ok: false, error: 'NotFound' }
+      return { ok: true, registration: await store.setStatus(id, 'hidden') }
     }
   }
-}
-
-// The Challenger-LK judgment, computed once and owned by the domain (ADR-0011): the
-// Challenger field is protected upward (only LK >= CHALLENGER_MIN_LK), so a stronger LK
-// hints at the Hauptfeld. The registration notifier and the admin affordance both read
-// this — no duplicated threshold check.
-export const isTooStrongForChallenger = (competition: string, lk: string | null): boolean => {
-  if (competition !== 'mens-challenger' || !lk) return false
-  const n = parseFloat(lk)
-  return !Number.isNaN(n) && n < CHALLENGER_MIN_LK
 }

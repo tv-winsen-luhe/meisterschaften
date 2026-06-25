@@ -139,3 +139,53 @@ describe('in-memory registrations store · write + lookup ops', () => {
     expect(await store.countRecentByIp('1.1.1.1', '2026-06-01T09:00:00.000Z')).toBe(2)
   })
 })
+
+describe('in-memory registrations store · admin ops', () => {
+  it('listAll returns every row regardless of status, ordered by status/competition/createdAt', async () => {
+    const store = createInMemoryRegistrationsStore([
+      reg({ status: 'new', competition: 'womens', createdAt: '2026-06-02T10:00:00.000Z', firstName: 'B' }),
+      reg({ status: 'new', competition: 'mens', createdAt: '2026-06-01T10:00:00.000Z', firstName: 'A' }),
+      reg({ status: 'cancelled', competition: 'mens', createdAt: '2026-06-01T09:00:00.000Z', firstName: 'C' })
+    ])
+    const order = (await store.listAll()).map(r => `${r.status}:${r.firstName}`)
+    expect(order).toEqual(['cancelled:C', 'new:A', 'new:B'])
+  })
+
+  it('findById returns the row or null', async () => {
+    const r = reg({ status: 'new' })
+    const store = createInMemoryRegistrationsStore([r])
+    expect((await store.findById(r.id))?.id).toBe(r.id)
+    expect(await store.findById(999999)).toBeNull()
+  })
+
+  it('setFields applies only the given fields and returns the updated row', async () => {
+    const r = reg({ status: 'new', competition: 'mens', club: 'TV Winsen', playerId: null, lk: null })
+    const store = createInMemoryRegistrationsStore([r])
+    const updated = await store.setFields(r.id, { competition: 'womens', club: 'TSV Winsen', lk: '12.0' })
+    expect(updated).toMatchObject({ competition: 'womens', club: 'TSV Winsen', lk: '12.0', status: 'new' })
+  })
+
+  it('setStatus moves a row and returns it', async () => {
+    const r = reg({ status: 'new' })
+    const store = createInMemoryRegistrationsStore([r])
+    expect((await store.setStatus(r.id, 'confirmed')).status).toBe('confirmed')
+    expect((await store.findById(r.id))?.status).toBe('confirmed')
+  })
+
+  it('setLk sets or clears the LK in place', async () => {
+    const r = reg({ status: 'confirmed', lk: '15.0' })
+    const store = createInMemoryRegistrationsStore([r])
+    await store.setLk(r.id, '11.5')
+    expect((await store.findById(r.id))?.lk).toBe('11.5')
+    await store.setLk(r.id, null)
+    expect((await store.findById(r.id))?.lk).toBeNull()
+  })
+
+  it('remove deletes the row and reports the count', async () => {
+    const r = reg({ status: 'new' })
+    const store = createInMemoryRegistrationsStore([r])
+    expect(await store.remove(r.id)).toBe(1)
+    expect(await store.findById(r.id)).toBeNull()
+    expect(await store.remove(r.id)).toBe(0)
+  })
+})

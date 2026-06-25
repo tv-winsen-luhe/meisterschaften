@@ -1,0 +1,19 @@
+---
+// The operator admin: a standalone, noindex page mounting the React app as a `client:only`
+// island (gated + fully dynamic, so no SSR). In production Cloudflare Access gates this route
+// at the edge (ADR-0008); locally the app's token gate applies. Public pages stay zero-JS.
+import { AdminApp } from '../admin/admin-app'
+---
+
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex" />
+    <title>Anmeldungen — Winsener Meisterschaften 2026</title>
+  </head>
+  <body>
+    <AdminApp client:only="react" />
+  </body>
+</html>

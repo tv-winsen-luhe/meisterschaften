@@ -1,7 +1,7 @@
 import type { D1Database } from '@cloudflare/workers-types'
 import { drizzle } from 'drizzle-orm/d1'
 import { and, asc, count, eq, gt, inArray, sql } from 'drizzle-orm'
-import { DEFAULT_LK } from '../../shared'
+import { DEFAULT_LK, type RegistrationStatus } from '../../shared'
 import { registrations, type NewRegistrationRow, type RegistrationRow } from '../db/schema'
 
 // A confirmed participant as the public list needs it (camelCase, contract shape).
@@ -43,6 +43,16 @@ export interface NewRegistration {
   ip: string | null
 }
 
+// The editable fields the admin can change on a row (competition/club correction, the
+// nuLiga linkage). Absent keys are left untouched; an empty-string/null playerId or lk
+// clears it. The domain normalises empties to null before persisting.
+export interface EditableFields {
+  competition?: string
+  club?: string
+  playerId?: string | null
+  lk?: string | null
+}
+
 // The fields a revive overwrites on a previously cancelled row — exactly what the legacy
 // revive UPDATE set. It deliberately leaves email/competition (the match key) and the
 // player_id/lk linkage intact.
@@ -67,6 +77,15 @@ export interface RegistrationsStore {
    */
   listConfirmed(): Promise<ConfirmedParticipant[]>
 
+  /**
+   * Every registration for the admin list, ordered as the legacy admin SELECT did
+   * (status, then Konkurrenz, then registration time). Also the input syncAll walks.
+   */
+  listAll(): Promise<RegistrationRow[]>
+
+  /** A single row by id, or null. */
+  findById(id: number): Promise<RegistrationRow | null>
+
   /** The still-active entry (new/confirmed) for this person+Konkurrenz, or null. */
   findActiveRegistration(person: PersonInCompetition): Promise<RegistrationRow | null>
 
@@ -81,6 +100,18 @@ export interface RegistrationsStore {
 
   /** Link a row to its nuLiga player id + LK in one write (the LK match). */
   setMatch(id: number, playerId: string, lk: string): Promise<void>
+
+  /** Apply admin field edits (competition/club/playerId/lk) and return the updated row. */
+  setFields(id: number, fields: EditableFields): Promise<RegistrationRow>
+
+  /** Move a row to a new lifecycle status and return the updated row. */
+  setStatus(id: number, status: RegistrationStatus): Promise<RegistrationRow>
+
+  /** Set (or clear) a row's LK — the per-row write syncAll uses when refreshing. */
+  setLk(id: number, lk: string | null): Promise<void>
+
+  /** Hard-delete a row; returns how many rows were removed (0 if the id was unknown). */
+  remove(id: number): Promise<number>
 
   /**
    * Withdraw every still-active (new/confirmed) entry matching this person across all
@@ -136,6 +167,18 @@ export const createD1RegistrationsStore = (d1: D1Database): RegistrationsStore =
         )
     },
 
+    listAll() {
+      return db
+        .select()
+        .from(registrations)
+        .orderBy(asc(registrations.status), asc(registrations.competition), asc(registrations.createdAt))
+    },
+
+    async findById(id) {
+      const rows = await db.select().from(registrations).where(eq(registrations.id, id)).limit(1)
+      return rows[0] ?? null
+    },
+
     findActiveRegistration(person) {
       return findOne(and(personWhere(person), inArray(registrations.status, ['new', 'confirmed'])))
     },
@@ -161,6 +204,25 @@ export const createD1RegistrationsStore = (d1: D1Database): RegistrationsStore =
 
     async setMatch(id, playerId, lk) {
       await db.update(registrations).set({ playerId, lk }).where(eq(registrations.id, id))
+    },
+
+    async setFields(id, fields) {
+      const rows = await db.update(registrations).set(fields).where(eq(registrations.id, id)).returning()
+      return rows[0]
+    },
+
+    async setStatus(id, status) {
+      const rows = await db.update(registrations).set({ status }).where(eq(registrations.id, id)).returning()
+      return rows[0]
+    },
+
+    async setLk(id, lk) {
+      await db.update(registrations).set({ lk }).where(eq(registrations.id, id))
+    },
+
+    async remove(id) {
+      const rows = await db.delete(registrations).where(eq(registrations.id, id)).returning()
+      return rows.length
     },
 
     async cancelActiveByPerson(person) {
@@ -225,6 +287,19 @@ export const createInMemoryRegistrationsStore = (seed: RegistrationRow[] = []): 
         }))
     },
 
+    async listAll() {
+      return [...rows].sort(
+        (a, b) =>
+          a.status.localeCompare(b.status) ||
+          a.competition.localeCompare(b.competition) ||
+          a.createdAt.localeCompare(b.createdAt)
+      )
+    },
+
+    async findById(id) {
+      return rows.find(r => r.id === id) ?? null
+    },
+
     async findActiveRegistration(person) {
       return rows.find(r => matchesPerson(r, person) && (r.status === 'new' || r.status === 'confirmed')) ?? null
     },
@@ -249,6 +324,29 @@ export const createInMemoryRegistrationsStore = (seed: RegistrationRow[] = []): 
       const row = byId(id)
       row.playerId = playerId
       row.lk = lk
+    },
+
+    async setFields(id, fields) {
+      const row = byId(id)
+      Object.assign(row, fields)
+      return row
+    },
+
+    async setStatus(id, status) {
+      const row = byId(id)
+      row.status = status
+      return row
+    },
+
+    async setLk(id, lk) {
+      byId(id).lk = lk
+    },
+
+    async remove(id) {
+      const i = rows.findIndex(r => r.id === id)
+      if (i < 0) return 0
+      rows.splice(i, 1)
+      return 1
     },
 
     async cancelActiveByPerson(person) {
