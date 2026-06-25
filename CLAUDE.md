@@ -28,6 +28,21 @@ and TSV Winsen (22./23. August 2026). Unlike the sibling `matchday` site, this o
 - **TypeScript** strict mode (extends `astro/tsconfigs/strict`)
 - **pnpm** package manager, **Node 24**
 
+## Package management (pnpm 11)
+
+- pnpm-specific settings live in `pnpm-workspace.yaml`, **not** `.npmrc` — pnpm 11 ignores npm-style
+  keys (`save-exact`, `engine-strict`) there. `.npmrc` holds **only** registry config; the scoped
+  `@types:registry` pin matters (it stops Dependabot resolving `@types/*` from stale GitHub Packages).
+- pnpm is pinned via the `packageManager` field; CI reads it (`pnpm/action-setup` is unpinned).
+- `pnpm-workspace.yaml` carries: `overrides`, `saveExact`, `engineStrict`, plus two pnpm 11 guards:
+  - `minimumReleaseAge: 1440` — rejects any dependency published less than 1 day ago; a too-fresh
+    lockfile entry makes `pnpm install --frozen-lockfile` **fail in CI**. Dependabot's `cooldown`
+    (3 days, `.github/dependabot.yml`) must stay >= this so it never opens PRs the guard would reject.
+  - `allowBuilds` — pnpm 11 errors on un-approved dependency build scripts; any dep needing one
+    (esbuild, sharp, workerd, simple-git-hooks) must be listed here.
+- Non-interactive installs need `CI=true` (e.g. `CI=true pnpm install`), else pnpm prompts for the
+  modules-dir purge / build approval and aborts with no TTY.
+
 ## Architecture
 
 - `src/pages/` — file-based routing (Astro convention)
