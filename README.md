@@ -54,10 +54,11 @@ Für die lokale D1 beim ersten `wrangler dev`:
 wrangler d1 execute winsener-meisterschaften --local --file=worker/schema.sql
 ```
 
-## Deployment (Cloudflare-Account sportwart@tennisverein-winsen.de)
+## Deployment (Cloudflare-Account „TV Winsen / Luhe")
 
 ```bash
-wrangler login                                   # als sportwart@…
+wrangler login                                    # mit dem Vereins-Cloudflare-Account
+export CLOUDFLARE_ACCOUNT_ID=<account-id>         # liegt nicht mehr in wrangler.toml
 wrangler d1 create winsener-meisterschaften       # database_id → wrangler.toml
 wrangler d1 execute winsener-meisterschaften --remote --file=worker/schema.sql
 wrangler secret put ADMIN_TOKEN                   # Admin-/Export-Token vergeben
@@ -73,21 +74,20 @@ Bei jedem Push auf `main` baut und deployt GitHub Actions automatisch zum Worker
 (`.github/workflows/deploy.yml`: lint → format:check → build → `wrangler deploy`). Dafür muss im
 Repo einmalig ein Secret hinterlegt sein:
 
-- **`CLOUDFLARE_API_TOKEN`** — Cloudflare-API-Token mit „Edit Cloudflare Workers"-Rechten
+- **`CLOUDFLARE_API_TOKEN`** (Secret) — Cloudflare-API-Token mit „Edit Cloudflare Workers"-Rechten
   (Account „TV Winsen / Luhe"), zusätzlich D1: Edit. Setzen via
   `gh secret set CLOUDFLARE_API_TOKEN` oder in den GitHub-Repo-Settings → Secrets.
+- **`CLOUDFLARE_ACCOUNT_ID`** (Variable) — die Cloudflare-Account-ID. Als Repo-_Variable_ (kein
+  Secret, da kein Geheimnis) hinterlegt via `gh variable set CLOUDFLARE_ACCOUNT_ID` oder in den
+  GitHub-Repo-Settings → Variables.
 
-`account_id` und `database_id` stehen in `wrangler.toml`; die Worker-Secrets (`ADMIN_TOKEN`)
-bleiben über Deploys hinweg erhalten und müssen nicht erneut gesetzt werden.
+In `wrangler.toml` steht nur die `database_id`; die `account_id` zieht Wrangler aus
+`CLOUDFLARE_ACCOUNT_ID` (lokal als Env-Variable, in CI aus der Repo-Variable). Die Worker-Secrets
+(`ADMIN_TOKEN`, `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`) bleiben über Deploys hinweg erhalten und
+müssen nicht erneut gesetzt werden.
 
 > Die D1-Datenbank kann auch via Cloudflare-MCP angelegt und befüllt werden — dann entfallen die
 > `wrangler d1`-Schritte (nur `database_id` aus dem MCP-Ergebnis in `wrangler.toml` eintragen).
-
-## Inhaltliche Quelle
-
-Redaktionelle Grundlage ist die Ausschreibung im Vereins-Vault
-(`vault/documents/rules/Ausschreibung Winsener Meisterschaften 2026.md`). Offene Punkte
-(Damen-Konkurrenz, Rahmenprogramm, Kontaktdaten, DSGVO-Freigabe) sind als Platzhalter markiert.
 
 ## Lizenz
 
