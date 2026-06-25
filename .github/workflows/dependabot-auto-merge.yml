@@ -30,7 +30,13 @@ jobs:
           node-version: 24
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      # Auto-merge runs `gh pr merge` immediately (not `--auto`, which needs branch
+      # protection), so it cannot wait for the ci.yml `checks` run — it must gate
+      # itself with the full check set before merging. (See ADR-0012.)
+      - run: pnpm format:check
+      - run: pnpm lint
       - run: pnpm build
+      - run: pnpm test
       - name: Merge
         env:
           PR_URL: ${{ github.event.pull_request.html_url }}
