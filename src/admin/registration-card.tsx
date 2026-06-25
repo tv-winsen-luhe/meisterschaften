@@ -4,6 +4,7 @@ import {
   DEFAULT_LK,
   isTooStrongForChallenger,
   type AdminRegistration,
+  type Club,
   type CompetitionSlug
 } from '../../shared'
 
@@ -20,7 +21,7 @@ const CLUB_LOGOS: Record<string, string> = {
 // The editable payload the card submits to confirm/save a row (matches ConfirmRequest minus id).
 export interface ConfirmPayload {
   competition: CompetitionSlug
-  club: string
+  club: Club
   playerId: string
   lk: string
 }
@@ -41,7 +42,8 @@ export const RegistrationCard = ({ reg, onConfirm, onHide, onDelete }: Registrat
   const [playerId, setPlayerId] = useState(reg.playerId ?? '')
   const [lk, setLk] = useState(reg.lk ?? '')
   const [competition, setCompetition] = useState<CompetitionSlug>(reg.competition)
-  const [club, setClub] = useState(reg.club)
+  // reg.club is the lenient list-response string; the confirm contract narrows it to a Club.
+  const [club, setClub] = useState<Club>(reg.club as Club)
   // Mirror a confirmed-without-id row's "no nuLiga ID" state so saving is not falsely blocked.
   const [noId, setNoId] = useState(isConfirmed && !reg.playerId)
 
@@ -144,7 +146,7 @@ export const RegistrationCard = ({ reg, onConfirm, onHide, onDelete }: Registrat
           <option value="womens">Damen</option>
         </select>
         <label>Verein</label>
-        <select className="vrn" value={club} onChange={e => setClub(e.target.value)}>
+        <select className="vrn" value={club} onChange={e => setClub(e.target.value as Club)}>
           <option value="TV Winsen">TV Winsen</option>
           <option value="TSV Winsen">TSV Winsen</option>
         </select>

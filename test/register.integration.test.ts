@@ -21,6 +21,10 @@ const post = (body: unknown) =>
     env
   )
 
+// A raw (unstringified) body — for the malformed-JSON path the JSON helper can't express.
+const postRaw = (raw: string) =>
+  app.request('/api/register', { method: 'POST', headers: { 'content-type': 'application/json' }, body: raw }, env)
+
 const valid = {
   competition: 'mens',
   firstName: 'Max',
@@ -118,6 +122,29 @@ describe('POST /api/register (integration)', () => {
       .bind('bot@example.com')
       .first<{ c: number }>()
     expect(row?.c).toBe(0)
+  })
+
+  it('a filled honeypot wins over field errors (trap checked before validation)', async () => {
+    // Invalid (empty firstName) AND the trap filled: the honeypot must short-circuit to a
+    // silent success rather than leaking a 400 field error to the bot.
+    const res = await post({ ...valid, firstName: '', website: 'http://spam' })
+    expect(res.status).toBe(200)
+    expect(await res.json()).toEqual({ ok: true })
+  })
+
+  it('rejects a malformed JSON body with the legacy envelope', async () => {
+    const res = await postRaw('{ not json')
+    expect(res.status).toBe(400)
+    expect(await res.json()).toEqual({ error: 'Ungültige Anfrage.' })
+  })
+
+  it('requires the application/json content-type to read the body (zValidator gate)', async () => {
+    // Deliberate contract: without the application/json header, zValidator validates {} and 400s
+    // — even for an otherwise-valid body. A string body defaults to text/plain, exercising it.
+    // Every first-party caller (forms + hc client) sends the header, so the browser path is fine.
+    const res = await app.request('/api/register', { method: 'POST', body: JSON.stringify(valid) }, env)
+    expect(res.status).toBe(400)
+    expect(await res.json()).toEqual({ error: 'Bitte wähle eine gültige Konkurrenz.' })
   })
 
   it('rejects a second active sign-up for the same person+Konkurrenz (one-active-entry invariant)', async () => {
