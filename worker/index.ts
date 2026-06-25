@@ -1,18 +1,11 @@
 /// <reference types="@cloudflare/workers-types" />
 
-interface Env {
-  DB: D1Database
-  ASSETS: Fetcher
-  PUBLIC_LIST_ENABLED: string
-  ADMIN_TOKEN: string
-  // Telegram-Benachrichtigung bei neuen Anmeldungen. Optional: fehlen Token/Chat
-  // (z. B. lokal), wird die Benachrichtigung still übersprungen.
-  // TELEGRAM_BOT_TOKEN und TELEGRAM_CHAT_ID sind beide Secrets (wrangler secret put).
-  TELEGRAM_BOT_TOKEN?: string
-  TELEGRAM_CHAT_ID?: string
-}
+import { app, type Env } from './app'
+import { CHALLENGER_MIN_LK, KONKURRENZ_SLUGS } from '../shared'
 
-const COMPETITIONS = ['mens', 'mens-challenger', 'womens'] as const
+// Konkurrenz slugs + the Challenger threshold now live in shared/ (single source of
+// truth). The legacy register/cancel/admin handlers below still read them locally.
+const COMPETITIONS = KONKURRENZ_SLUGS
 const COMPETITION_LABELS: Record<string, string> = {
   mens: 'Herren',
   'mens-challenger': 'Herren Challenger',
@@ -20,10 +13,6 @@ const COMPETITION_LABELS: Record<string, string> = {
 }
 const CLUBS = ['TV Winsen', 'TSV Winsen'] as const
 const STATUS = ['new', 'confirmed', 'hidden', 'cancelled'] as const
-const DEFAULT_LK = '25.0'
-// Challenger ist nach oben geschützt: nur LK >= 20 (schwächere Spieler:innen).
-// Eine LK darunter ist zu stark → Hinweis Richtung Hauptfeld.
-const CHALLENGER_MIN_LK = 20
 
 // nuLiga LK-Vereinsranglisten (TNB) — eine Seite pro Verein, listet Spieler-ID + LK + Name.
 const NULIGA_BASE = 'https://tnb.liga.nu/cgi-bin/WebObjects/nuLigaTENDE.woa/wa/clubRankinglistLK?federation=TNB&club='
@@ -42,34 +31,42 @@ const json = (data: unknown, status = 200) =>
 const isEmail = (v: string) => /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(v)
 const str = (v: unknown): string => (typeof v === 'string' ? v.trim() : '')
 
+// The new stack owns GET /api/participants via Hono (worker/app.ts). Everything else
+// is still served by the legacy router below, mounted as the Hono catch-all. Later
+// slices migrate these routes onto Hono one at a time.
+// Hono's c.executionCtx omits newer Workers-types fields (tracing/props); cast to the
+// ExecutionContext the legacy handlers expect (they only use ctx.waitUntil).
+app.all('*', c => legacyFetch(c.req.raw, c.env, c.executionCtx as unknown as ExecutionContext))
+
 export default {
-  async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
-    const url = new URL(request.url)
-    const path = url.pathname
-    const method = request.method
-
-    try {
-      if (path === '/api/register' && method === 'POST') return await handleRegister(request, env, ctx)
-      if (path === '/api/cancel' && method === 'POST') return await handleCancel(request, env, ctx)
-      if (path === '/api/participants' && method === 'GET') return await handleParticipants(env)
-      if (path === '/admin' && method === 'GET') return adminPage()
-      if (path === '/api/admin/list' && method === 'GET') return await handleAdminList(request, env)
-      if (path === '/api/admin/update' && method === 'POST') return await handleAdminUpdate(request, env)
-      if (path === '/api/admin/delete' && method === 'POST') return await handleAdminDelete(request, env)
-      if (path === '/api/admin/refresh-lk' && method === 'POST') return await handleRefreshLk(request, env)
-      if (path === '/export' && method === 'GET') return await handleExport(request, env, url)
-    } catch (err) {
-      return json({ error: 'Serverfehler. Bitte später erneut versuchen.', detail: String(err) }, 500)
-    }
-
-    // Everything else → static Astro site.
-    return env.ASSETS.fetch(request)
-  },
+  fetch: app.fetch,
 
   // Weekly LK sync (Monday morning, see wrangler.toml [triggers]).
   async scheduled(_event: ScheduledController, env: Env, ctx: ExecutionContext): Promise<void> {
     ctx.waitUntil(refreshLk(env))
   }
+}
+
+async function legacyFetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
+  const url = new URL(request.url)
+  const path = url.pathname
+  const method = request.method
+
+  try {
+    if (path === '/api/register' && method === 'POST') return await handleRegister(request, env, ctx)
+    if (path === '/api/cancel' && method === 'POST') return await handleCancel(request, env, ctx)
+    if (path === '/admin' && method === 'GET') return adminPage()
+    if (path === '/api/admin/list' && method === 'GET') return await handleAdminList(request, env)
+    if (path === '/api/admin/update' && method === 'POST') return await handleAdminUpdate(request, env)
+    if (path === '/api/admin/delete' && method === 'POST') return await handleAdminDelete(request, env)
+    if (path === '/api/admin/refresh-lk' && method === 'POST') return await handleRefreshLk(request, env)
+    if (path === '/export' && method === 'GET') return await handleExport(request, env, url)
+  } catch (err) {
+    return json({ error: 'Serverfehler. Bitte später erneut versuchen.', detail: String(err) }, 500)
+  }
+
+  // Everything else → static Astro site.
+  return env.ASSETS.fetch(request)
 }
 
 async function handleRegister(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
@@ -286,21 +283,6 @@ async function handleCancel(request: Request, env: Env, ctx: ExecutionContext): 
   if (cancelled > 0) ctx.waitUntil(notifyCancellation(env, toCancel ?? []))
 
   return json({ ok: true, cancelled })
-}
-
-async function handleParticipants(env: Env): Promise<Response> {
-  if (env.PUBLIC_LIST_ENABLED !== 'true') return json({ enabled: false, participants: [] })
-
-  const { results } = await env.DB.prepare(
-    `SELECT first_name, last_name, club, competition, lk
-       FROM registrations
-      WHERE status = 'confirmed'
-      ORDER BY competition ASC, CAST(COALESCE(lk, ?) AS REAL) ASC, created_at ASC`
-  )
-    .bind(DEFAULT_LK)
-    .all()
-
-  return json({ enabled: true, participants: results ?? [] })
 }
 
 function checkToken(request: Request, env: Env): boolean {

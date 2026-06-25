@@ -61,10 +61,10 @@ pnpm lint         # ESLint
 pnpm format       # Prettier
 ```
 
-Für die lokale D1 beim ersten `wrangler dev`:
+Für die lokale D1 beim ersten `wrangler dev` die Migrationen einspielen:
 
 ```bash
-wrangler d1 execute winsener-meisterschaften --local --file=worker/schema.sql
+wrangler d1 migrations apply winsener-meisterschaften --local
 ```
 
 ## Deployment (Cloudflare-Account „TV Winsen / Luhe")
@@ -73,7 +73,7 @@ wrangler d1 execute winsener-meisterschaften --local --file=worker/schema.sql
 wrangler login                                    # mit dem Vereins-Cloudflare-Account
 export CLOUDFLARE_ACCOUNT_ID=<account-id>         # liegt nicht mehr in wrangler.toml
 wrangler d1 create winsener-meisterschaften       # database_id → wrangler.toml
-wrangler d1 execute winsener-meisterschaften --remote --file=worker/schema.sql
+wrangler d1 migrations apply winsener-meisterschaften --remote   # Schema aus worker/migrations/
 wrangler secret put ADMIN_TOKEN                   # nur Local-Dev-Fallback (Prod = Cloudflare Access)
 pnpm cf-deploy                                    # = pnpm build && wrangler deploy
 ```

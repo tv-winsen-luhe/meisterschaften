@@ -1,3 +1,5 @@
+import { CHALLENGER_MIN_LK, DEFAULT_LK } from '../../shared/constants'
+
 export type CompetitionStatus = 'open' | 'planned'
 
 export interface Competition {
@@ -39,11 +41,11 @@ export const contactEmail = 'sportwart@tennisverein-winsen.de'
 /** Entry fee per person, cash on site, in EUR. */
 export const entryFee = 5
 
-/** Default LK for participants without a nuLiga entry (set in admin). */
-export const defaultLk = '25.0'
+/** Default LK for participants without a nuLiga entry (set in admin). Single source: shared/. */
+export const defaultLk = DEFAULT_LK
 
-/** LK threshold of the Challenger field (protected upwards). */
-export const challengerMinLk = 20
+/** LK threshold of the Challenger field (protected upwards). Single source: shared/. */
+export const challengerMinLk = CHALLENGER_MIN_LK
 
 export const competitions: readonly Competition[] = [
   {

@@ -335,9 +335,14 @@ const seedsFor = (capacity?: number) => (capacity ? Math.floor(capacity / 4) : 0
 </style>
 
 <script>
-  type Entry = { first_name: string; last_name: string; club: string; competition: string; lk: string | null }
-  type ApiResponse = { enabled: boolean; participants: Entry[] }
+  import { hc } from 'hono/client'
+  import type { AppType } from '../../worker/app'
+  import type { Participant, ParticipantsResponse } from '../../shared'
 
+  type Entry = Participant
+  type ApiResponse = ParticipantsResponse
+
+  const client = hc<AppType>(location.origin)
   const root = document.querySelector<HTMLElement>('[data-participants]')
   const logoTv = root?.dataset.logoTv ?? ''
   const logoTsv = root?.dataset.logoTsv ?? ''
@@ -373,7 +378,7 @@ const seedsFor = (capacity?: number) => (capacity ? Math.floor(capacity / 4) : 0
 
     const name = document.createElement('span')
     name.className = 'pl-name'
-    name.textContent = `${entry.first_name} ${entry.last_name}`.trim()
+    name.textContent = `${entry.firstName} ${entry.lastName}`.trim()
     li.appendChild(name)
 
     const lk = document.createElement('span')
@@ -459,9 +464,9 @@ const seedsFor = (capacity?: number) => (capacity ? Math.floor(capacity / 4) : 0
   async function load() {
     if (!root) return
     try {
-      const res = await fetch('/api/participants', { headers: { accept: 'application/json' } })
+      const res = await client.api.participants.$get()
       if (!res.ok) throw new Error('bad status')
-      render((await res.json()) as ApiResponse)
+      render(await res.json())
     } catch {
       root.classList.add('is-error')
       root.querySelectorAll<HTMLElement>('[data-free-label]').forEach(el => (el.textContent = ''))

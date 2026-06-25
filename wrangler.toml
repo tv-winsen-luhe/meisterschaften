@@ -29,10 +29,14 @@ PUBLIC_LIST_ENABLED = "true"
 
 # D1-Datenbank für die Anmeldungen. database_id nach `wrangler d1 create` bzw.
 # aus dem Cloudflare-Dashboard eintragen (wird per MCP angelegt).
+# Schema-Migrationen liegen in worker/migrations/ (von drizzle-kit generiert) und werden
+# mit `wrangler d1 migrations apply winsener-meisterschaften` eingespielt — der frühere
+# manuelle worker/schema.sql-Workflow ist abgelöst (ADR-0009).
 [[d1_databases]]
 binding = "DB"
 database_name = "winsener-meisterschaften"
 database_id = "93cf5f66-b7d2-4adb-802c-31c63cb3f23c"
+migrations_dir = "worker/migrations"
 
 # Wöchentlicher LK-Sync aus nuLiga: Montag 05:00 UTC.
 [triggers]

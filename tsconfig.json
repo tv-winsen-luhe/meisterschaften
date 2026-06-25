@@ -6,5 +6,5 @@
     }
   },
   "include": [".astro/types.d.ts", "**/*"],
-  "exclude": ["dist", "worker"]
+  "exclude": ["dist", "worker", "test", "vitest.config.ts", "drizzle.config.ts"]
 }

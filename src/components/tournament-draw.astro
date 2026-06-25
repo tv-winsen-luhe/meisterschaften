@@ -308,9 +308,15 @@ const drawCompetitions = competitions
 </style>
 
 <script>
-  type Entry = { first_name: string; last_name: string; club: string; competition: string; lk: string | null }
-  type ApiResponse = { enabled: boolean; participants: Entry[] }
+  import { hc } from 'hono/client'
+  import type { AppType } from '../../worker/app'
+  import type { Participant, ParticipantsResponse } from '../../shared'
+
+  type Entry = Participant
+  type ApiResponse = ParticipantsResponse
   type Slot = { seed: number; player: Entry } | null
+
+  const client = hc<AppType>(location.origin)
 
   // Seed positions per draw size (0-indexed first-round slot): 1 top, 2 bottom, 3 & 4 in the middle.
   const SEED_POS: Record<number, Record<number, number>> = {
@@ -346,7 +352,7 @@ const drawCompetitions = competitions
 
     const name = document.createElement('span')
     name.className = 'dm-name'
-    name.textContent = `${slot.player.first_name} ${slot.player.last_name}`.trim()
+    name.textContent = `${slot.player.firstName} ${slot.player.lastName}`.trim()
     el.appendChild(name)
 
     const lk = document.createElement('span')
@@ -444,9 +450,9 @@ const drawCompetitions = competitions
   async function load() {
     if (!root) return
     try {
-      const res = await fetch('/api/participants', { headers: { accept: 'application/json' } })
+      const res = await client.api.participants.$get()
       if (!res.ok) throw new Error('bad status')
-      render((await res.json()) as ApiResponse)
+      render(await res.json())
     } catch {
       root.classList.add('is-error')
     }

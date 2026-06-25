@@ -52,10 +52,19 @@ and TSV Winsen (22./23. August 2026). Unlike the sibling `matchday` site, this o
 - `src/assets/` — images/SVGs processed by Astro
 - Path alias: `@/*` maps to `./src/*`
 - `src/data/tournament.ts` — single content model (dates, competitions, venue, facts)
-- `worker/index.ts` — Cloudflare Worker: serves `dist/` (Workers Assets) + handles `/api/register`,
-  `/api/cancel`, `/api/participants`, `/admin`, `/api/admin/*` (list, update, delete, refresh-lk),
-  `/export`. Own `worker/tsconfig.json` (Workers types); excluded from the root tsconfig so
-  `astro check` keeps DOM libs. `worker/schema.sql` = D1 schema.
+- `worker/` — Cloudflare Worker (own `worker/tsconfig.json`, Workers types; excluded from the root
+  tsconfig so `astro check` keeps DOM libs). Mid-migration onto the type-safe stack (ADR-0009):
+  - `worker/app.ts` — Hono app + exported `AppType` for the typed `hc` client. Client-safe: explicit
+    `import type` for Cloudflare types (no ambient `/// <reference>`) so the client can import `AppType`
+    across the tsconfig boundary. Currently owns `GET /api/participants`.
+  - `worker/index.ts` — worker entry: mounts the Hono app, delegates the not-yet-migrated routes
+    (`/api/register`, `/api/cancel`, `/admin`, `/api/admin/*`, `/export`) via a Hono catch-all, and
+    runs the weekly LK cron. Still serves `dist/` via Workers Assets.
+  - `worker/db/schema.ts` — Drizzle schema mirroring `registrations` 1:1; `worker/migrations/` are
+    drizzle-kit-generated and applied by `wrangler d1 migrations apply` (`migrations_dir`).
+  - `worker/store/registrations.ts` — deep Store hiding Drizzle/SQL; D1 + in-memory adapters.
+- `shared/` — Zod contract + inferred types, the `Konkurrenz` slug, `CHALLENGER_MIN_LK`/`DEFAULT_LK`;
+  imported by both worker and client (crosses the `worker/tsconfig.json` boundary).
 - `wrangler.toml` — Worker + Assets + D1 binding + `PUBLIC_LIST_ENABLED` flag. Holds the `database_id`;
   `account_id` is supplied via the `CLOUDFLARE_ACCOUNT_ID` env var (repo variable in CI). Secrets
   (`ADMIN_TOKEN`, `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`) are set with `wrangler secret put`.
