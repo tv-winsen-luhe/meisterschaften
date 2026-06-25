@@ -27,6 +27,8 @@
     "@astrojs/check": "0.9.9",
     "@astrojs/sitemap": "3.7.3",
     "@cloudflare/workers-types": "4.20260623.1",
+    "@commitlint/cli": "21.1.0",
+    "@commitlint/config-conventional": "21.1.0",
     "@typescript-eslint/parser": "8.62.0",
     "eslint": "10.5.0",
     "eslint-plugin-astro": "2.0.0",
@@ -38,7 +40,8 @@
     "wrangler": "4.104.0"
   },
   "simple-git-hooks": {
-    "pre-commit": "pnpm exec lint-staged"
+    "pre-commit": "pnpm exec lint-staged",
+    "commit-msg": "pnpm exec commitlint --edit $1"
   },
   "lint-staged": {
     "*.{astro,ts,tsx,js,jsx,mjs,cjs,css,md,json,yaml,yml}": "prettier --write",

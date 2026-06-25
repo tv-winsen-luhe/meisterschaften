@@ -56,12 +56,15 @@ Enforced by Prettier (config in `prettier.config.ts`):
 - Arrow parens: avoid (`x => x`, not `(x) => x`)
 - Tailwind class sorting enabled via `prettier-plugin-tailwindcss`
 
-## Pre-commit Hooks
+## Git Hooks
 
-`simple-git-hooks` + `lint-staged` runs on commit:
+`simple-git-hooks` installs two hooks (re-run via `pnpm exec simple-git-hooks` after changing the config):
 
-- Prettier formats `*.{astro,ts,tsx,js,jsx,mjs,cjs,css,md,json,yaml,yml}`
-- ESLint with `--fix --max-warnings=0` on `*.astro` files
+- **pre-commit** — `lint-staged`: Prettier formats `*.{astro,ts,tsx,js,jsx,mjs,cjs,css,md,json,yaml,yml}`,
+  ESLint with `--fix --max-warnings=0` on `*.astro` files
+- **commit-msg** — `commitlint` enforces [Conventional Commits](https://www.conventionalcommits.org)
+  (`@commitlint/config-conventional`). The same check runs in CI on PRs (`.github/workflows/commitlint.yml`),
+  which is the binding gate — the local hook is bypassable via `--no-verify`.
 
 ## Locale
 
