@@ -21,6 +21,14 @@ export interface PersonInCompetition {
   competition: string
 }
 
+// A person across all Konkurrenzen — the key a self-service cancellation matches on:
+// one cancel withdraws every active entry for this email + last name. Compared
+// case-insensitively, like PersonInCompetition.
+export interface Person {
+  email: string
+  lastName: string
+}
+
 // A fresh registration as the domain hands it to the Store (status starts at 'new';
 // playerId/lk fill in later via the LK match). Mirrors what the legacy INSERT bound.
 export interface NewRegistration {
@@ -74,6 +82,13 @@ export interface RegistrationsStore {
   /** Link a row to its nuLiga player id + LK in one write (the LK match). */
   setMatch(id: number, playerId: string, lk: string): Promise<void>
 
+  /**
+   * Withdraw every still-active (new/confirmed) entry matching this person across all
+   * Konkurrenzen, flipping each to 'cancelled'. Returns the rows that were cancelled
+   * (for the cancellation notification); an empty array means nothing matched.
+   */
+  cancelActiveByPerson(person: Person): Promise<RegistrationRow[]>
+
   /** Registrations from this IP since the given ISO timestamp — the soft rate-limit input. */
   countRecentByIp(ip: string, sinceIso: string): Promise<number>
 }
@@ -94,6 +109,13 @@ export const createD1RegistrationsStore = (d1: D1Database): RegistrationsStore =
     const rows = await db.select().from(registrations).where(where).limit(1)
     return rows[0] ?? null
   }
+
+  // The cancel match key: email + lastName case-insensitively, across all Konkurrenzen.
+  const emailLastNameWhere = (person: Person) =>
+    and(
+      sql`${registrations.email} = ${person.email} collate nocase`,
+      sql`${registrations.lastName} = ${person.lastName} collate nocase`
+    )
 
   return {
     async listConfirmed() {
@@ -139,6 +161,16 @@ export const createD1RegistrationsStore = (d1: D1Database): RegistrationsStore =
 
     async setMatch(id, playerId, lk) {
       await db.update(registrations).set({ playerId, lk }).where(eq(registrations.id, id))
+    },
+
+    async cancelActiveByPerson(person) {
+      // One UPDATE … RETURNING flips the matching active rows and hands them back — no
+      // SELECT-then-UPDATE race, and the returned rows carry the facts the notifier needs.
+      return db
+        .update(registrations)
+        .set({ status: 'cancelled' })
+        .where(and(emailLastNameWhere(person), inArray(registrations.status, ['new', 'confirmed'])))
+        .returning()
     },
 
     async countRecentByIp(ip, sinceIso) {
@@ -217,6 +249,17 @@ export const createInMemoryRegistrationsStore = (seed: RegistrationRow[] = []): 
       const row = byId(id)
       row.playerId = playerId
       row.lk = lk
+    },
+
+    async cancelActiveByPerson(person) {
+      const matched = rows.filter(
+        r =>
+          eqCi(r.email, person.email) &&
+          eqCi(r.lastName, person.lastName) &&
+          (r.status === 'new' || r.status === 'confirmed')
+      )
+      matched.forEach(r => (r.status = 'cancelled'))
+      return matched
     },
 
     async countRecentByIp(ip, sinceIso) {

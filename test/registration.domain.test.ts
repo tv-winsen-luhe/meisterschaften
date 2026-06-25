@@ -127,6 +127,45 @@ describe('registration domain · register', () => {
   })
 })
 
+describe('registration domain · cancel', () => {
+  it('withdraws every active entry for the person across Konkurrenzen and returns them', async () => {
+    const store = createInMemoryRegistrationsStore([
+      reg({ status: 'new', competition: 'mens' }),
+      reg({ status: 'confirmed', competition: 'womens' }),
+      reg({ status: 'cancelled', competition: 'mens-challenger' })
+    ])
+
+    const result = await createRegistrationDomain(store).cancel({ email: 'max@example.com', lastName: 'Muster' })
+
+    // Both active entries withdrawn; the already-cancelled one is left untouched.
+    expect(result.cancelled.map(r => r.competition).sort()).toEqual(['mens', 'womens'])
+    expect(result.cancelled.every(r => r.status === 'cancelled')).toBe(true)
+    expect(
+      await store.findActiveRegistration({ email: 'max@example.com', lastName: 'Muster', competition: 'mens' })
+    ).toBeNull()
+  })
+
+  it('returns an empty list when nothing matches', async () => {
+    const store = createInMemoryRegistrationsStore([reg({ status: 'new', email: 'other@example.com' })])
+    const result = await createRegistrationDomain(store).cancel({ email: 'max@example.com', lastName: 'Muster' })
+    expect(result.cancelled).toEqual([])
+  })
+
+  it('matches the person case-insensitively on email and last name', async () => {
+    const store = createInMemoryRegistrationsStore([
+      reg({ status: 'confirmed', email: 'MAX@example.com', lastName: 'MUSTER' })
+    ])
+    const result = await createRegistrationDomain(store).cancel({ email: 'max@example.com', lastName: 'muster' })
+    expect(result.cancelled).toHaveLength(1)
+  })
+
+  it('does not touch a row that is already cancelled', async () => {
+    const store = createInMemoryRegistrationsStore([reg({ status: 'cancelled' })])
+    const result = await createRegistrationDomain(store).cancel({ email: 'max@example.com', lastName: 'Muster' })
+    expect(result.cancelled).toEqual([])
+  })
+})
+
 describe('isTooStrongForChallenger', () => {
   it.each([
     ['mens-challenger', '19.5', true],

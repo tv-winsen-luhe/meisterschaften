@@ -56,9 +56,9 @@ and TSV Winsen (22./23. August 2026). Unlike the sibling `matchday` site, this o
   tsconfig so `astro check` keeps DOM libs). Mid-migration onto the type-safe stack (ADR-0009):
   - `worker/app.ts` — Hono app + exported `AppType` for the typed `hc` client. Client-safe: explicit
     `import type` for Cloudflare types (no ambient `/// <reference>`) so the client can import `AppType`
-    across the tsconfig boundary. Currently owns `GET /api/participants`.
+    across the tsconfig boundary. Owns `GET /api/participants`, `POST /api/register` and `POST /api/cancel`.
   - `worker/index.ts` — worker entry: mounts the Hono app, delegates the not-yet-migrated routes
-    (`/api/register`, `/api/cancel`, `/admin`, `/api/admin/*`, `/export`) via a Hono catch-all, and
+    (`/admin`, `/api/admin/*`, `/export`) via a Hono catch-all, and
     runs the weekly LK cron. Still serves `dist/` via Workers Assets.
   - `worker/db/schema.ts` — Drizzle schema mirroring `registrations` 1:1; `worker/migrations/` are
     drizzle-kit-generated and applied by `wrangler d1 migrations apply` (`migrations_dir`).

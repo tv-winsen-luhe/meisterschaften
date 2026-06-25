@@ -1,14 +1,14 @@
 import { CHALLENGER_MIN_LK } from '../../shared'
 import type { RegistrationRow } from '../db/schema'
-import type { RegistrationsStore } from '../store/registrations'
+import type { Person, RegistrationsStore } from '../store/registrations'
 
 // The Registration domain owns the registration lifecycle (ADR-0011). Transitions return
 // a typed Result — ok(state) or a typed domain error — and return their side effects as
 // data; the transport edge performs the I/O (LK match + Telegram via ctx.waitUntil). The
 // domain persists through the injected Store and never writes SQL nor awaits nuLiga.
 //
-// VS2 lands the write path: register/revive. confirm/cancel/hide and the admin edits
-// follow in later slices.
+// VS2 lands the write path: register/revive; VS3 adds cancel. confirm/hide and the admin
+// edits follow in later slices.
 
 // What register needs from the edge, on top of the validated request: the request time
 // (kept non-deterministic out of the domain) and the caller IP (an abuse signal stored
@@ -32,8 +32,16 @@ export type RegisterResult =
   | { ok: true; outcome: 'registered' | 'revived'; registration: RegistrationRow }
   | { ok: false; error: 'AlreadyRegistered' }
 
+// A self-service cancellation withdraws every active entry for the person; it has no
+// failure mode (matching nothing is a valid zero-cancel outcome). The transition returns
+// the withdrawn rows as data so the edge can send the cancellation notification.
+export interface CancelResult {
+  cancelled: RegistrationRow[]
+}
+
 export interface RegistrationDomain {
   register(input: RegisterInput): Promise<RegisterResult>
+  cancel(person: Person): Promise<CancelResult>
 }
 
 export const createRegistrationDomain = (store: RegistrationsStore): RegistrationDomain => {
@@ -73,6 +81,11 @@ export const createRegistrationDomain = (store: RegistrationsStore): Registratio
         ip: input.ip
       })
       return { ok: true, outcome: 'registered', registration }
+    },
+
+    async cancel(person) {
+      const cancelled = await store.cancelActiveByPerson(person)
+      return { cancelled }
     }
   }
 }
