@@ -133,6 +133,49 @@ header {
   }
 }
 
+/* ── Phase toggle (operator-controlled phase, ADR-0006) ──────────────────── */
+.phasebar {
+  max-width: 1120px;
+  margin: 0 auto;
+  padding: 0 20px 16px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.phasebar__label {
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.62);
+  font-weight: 700;
+}
+.phase-toggle {
+  display: flex;
+  gap: 2px;
+  flex-wrap: wrap;
+}
+.phase-btn {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  cursor: pointer;
+  font: inherit;
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  padding: 6px 13px;
+}
+.phase-btn:hover {
+  color: #fff;
+  border-color: rgba(255, 255, 255, 0.35);
+}
+.phase-btn.is-active {
+  background: var(--neon);
+  border-color: var(--neon);
+  color: var(--navy);
+}
+
 /* ── Filter bar ──────────────────────────────────────────────────────────── */
 .filterbar {
   position: sticky;

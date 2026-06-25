@@ -8,12 +8,16 @@ import {
   hideRequestSchema,
   participantsResponseSchema,
   registerRequestSchema,
+  setPhaseRequestSchema,
   type ConfirmResponse,
   type DeleteResponse,
   type HideResponse,
   type ParticipantsResponse,
-  type RefreshLkResponse
+  type PhaseResponse,
+  type RefreshLkResponse,
+  type SetPhaseResponse
 } from '../shared'
+import { createD1AppStateStore } from './store/app-state'
 import { createD1RegistrationsStore } from './store/registrations'
 import { createRegistrationDomain } from './domain/registration'
 import { createNuligaRosterSource, createSeedingLk } from './seeding-lk'
@@ -57,6 +61,13 @@ export const app = new Hono<{ Bindings: Env }>()
     return c.json(participantsResponseSchema.parse({ enabled: true, participants }), 200, {
       'cache-control': 'no-store'
     })
+  })
+  // GET /api/phase — the current operator-controlled phase (ADR-0006). Public and outside
+  // Access: every surface (the public list, later the draw/live views) reads it at runtime.
+  // PUBLIC_LIST_ENABLED stays an orthogonal kill-switch — the phase does not gate the list.
+  .get('/api/phase', async c => {
+    const phase = await createD1AppStateStore(c.env.DB).getPhase()
+    return c.json({ phase } satisfies PhaseResponse, 200, { 'cache-control': 'no-store' })
   })
   // POST /api/register — the registration write path. Thin handler: honeypot + rate-limit
   // (abuse/HTTP concerns) and Zod shape validation at the edge, then the Registration
@@ -236,6 +247,23 @@ export const app = new Hono<{ Bindings: Env }>()
       store: createD1RegistrationsStore(c.env.DB)
     })
     return c.json({ ok: true, updated: await seedingLk.syncAll() } satisfies RefreshLkResponse)
+  })
+  // POST /api/admin/phase — the operator sets the phase (ADR-0006). Zod validates the slug;
+  // the set is the only transition gate the foundation realises — advancing past 'anmeldung'
+  // makes the weekly cron a no-op (it reads this value). Returns the persisted phase.
+  .post('/api/admin/phase', async c => {
+    let body: Record<string, unknown>
+    try {
+      body = await c.req.json()
+    } catch {
+      return c.json({ error: 'Ungültige Anfrage.' }, 400)
+    }
+
+    const parsed = setPhaseRequestSchema.safeParse(body)
+    if (!parsed.success) return c.json({ error: parsed.error.issues[0]?.message ?? 'Ungültige Anfrage.' }, 400)
+
+    await createD1AppStateStore(c.env.DB).setPhase(parsed.data.phase)
+    return c.json({ ok: true, phase: parsed.data.phase } satisfies SetPhaseResponse)
   })
   // GET /export — operator CSV of every registration. A separate operator-facing artifact:
   // it stays snake_case (decoupled from the camelCase contract) and authorises via a query
