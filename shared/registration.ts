@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { COMPETITION_SLUGS } from './competition'
+import { CHALLENGER_MIN_LK } from './constants'
 
 // The registration write contract — the single source of truth for the POST /api/register
 // JSON shape, shared by the worker (server validation) and the client form. camelCase on
@@ -61,3 +62,31 @@ export type CancelRequest = z.infer<typeof cancelRequestSchema>
 // { ok: true, cancelled: N } — N is how many active entries were withdrawn (0 = no match).
 export const cancelResponseSchema = z.object({ ok: z.literal(true), cancelled: z.number().int().nonnegative() })
 export type CancelResponse = z.infer<typeof cancelResponseSchema>
+
+// The seeding-relevant fields canConfirm inspects — a structural subset of a registration.
+export interface ConfirmableFields {
+  playerId: string | null
+  lk: string | null
+}
+
+// The authoritative confirmation precondition (ADR-0011), living once in shared/ so the
+// domain enforces it and the admin renders its reason from the same source. A registration
+// is confirmable only once it carries a seeding basis: a linked nuLiga player id OR an
+// explicit LK (e.g. 25.0 for "no nuLiga entry"). Returns true when confirmable, otherwise
+// the German reason — the same message the legacy admin showed.
+export const canConfirm = (reg: ConfirmableFields): true | string => {
+  const hasPlayerId = Boolean(reg.playerId?.trim())
+  const hasLk = Boolean(reg.lk?.trim())
+  if (!hasPlayerId && !hasLk) return 'Zum Bestätigen bitte Spieler-ID eintragen oder „keine ID" (LK 25.0) setzen.'
+  return true
+}
+
+// The Challenger-LK judgment, owned once in shared/ (ADR-0011) so the registration notifier,
+// the domain, and the admin affordance all read the same rule — no duplicated threshold. The
+// Challenger field is protected upward (only LK >= CHALLENGER_MIN_LK), so a stronger LK hints
+// at the Hauptfeld.
+export const isTooStrongForChallenger = (competition: string, lk: string | null): boolean => {
+  if (competition !== 'mens-challenger' || !lk) return false
+  const n = parseFloat(lk)
+  return !Number.isNaN(n) && n < CHALLENGER_MIN_LK
+}

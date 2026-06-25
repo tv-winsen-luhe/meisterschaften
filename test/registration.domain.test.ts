@@ -166,6 +166,79 @@ describe('registration domain · cancel', () => {
   })
 })
 
+describe('registration domain · confirm', () => {
+  const edits = { competition: 'mens', club: 'TV Winsen', playerId: '', lk: '' }
+
+  it('confirms a new row, applies the edits, and persists status confirmed', async () => {
+    const row = reg({ status: 'new', competition: 'mens', club: 'TV Winsen' })
+    const store = createInMemoryRegistrationsStore([row])
+    const result = await createRegistrationDomain(store).confirm(row.id, {
+      competition: 'womens',
+      club: 'TSV Winsen',
+      playerId: '12345678',
+      lk: '15.0'
+    })
+    expect(result).toMatchObject({ ok: true })
+    if (!result.ok) throw new Error('expected ok')
+    expect(result.registration).toMatchObject({
+      status: 'confirmed',
+      competition: 'womens',
+      club: 'TSV Winsen',
+      playerId: '12345678',
+      lk: '15.0'
+    })
+  })
+
+  it('rejects NotConfirmable (with the reason) when neither player id nor LK is present', async () => {
+    const row = reg({ status: 'new' })
+    const store = createInMemoryRegistrationsStore([row])
+    const result = await createRegistrationDomain(store).confirm(row.id, edits)
+    expect(result).toEqual({
+      ok: false,
+      error: 'NotConfirmable',
+      reason: 'Zum Bestätigen bitte Spieler-ID eintragen oder „keine ID" (LK 25.0) setzen.'
+    })
+    // The row stayed 'new' — a rejected confirm must not move it.
+    expect((await store.findById(row.id))?.status).toBe('new')
+  })
+
+  it('confirms with an explicit LK and no player id ("keine ID")', async () => {
+    const row = reg({ status: 'new' })
+    const store = createInMemoryRegistrationsStore([row])
+    const result = await createRegistrationDomain(store).confirm(row.id, { ...edits, lk: '25.0' })
+    expect(result).toMatchObject({ ok: true })
+  })
+
+  it('normalises empty player id / LK to null', async () => {
+    const row = reg({ status: 'new', playerId: 'x', lk: 'x' })
+    const store = createInMemoryRegistrationsStore([row])
+    await createRegistrationDomain(store).confirm(row.id, { ...edits, playerId: '', lk: '12.0' })
+    expect((await store.findById(row.id))?.playerId).toBeNull()
+  })
+
+  it('returns NotFound for an unknown id', async () => {
+    const store = createInMemoryRegistrationsStore()
+    expect(await createRegistrationDomain(store).confirm(999999, { ...edits, lk: '25.0' })).toEqual({
+      ok: false,
+      error: 'NotFound'
+    })
+  })
+})
+
+describe('registration domain · hide', () => {
+  it('moves a row to hidden', async () => {
+    const row = reg({ status: 'confirmed' })
+    const store = createInMemoryRegistrationsStore([row])
+    const result = await createRegistrationDomain(store).hide(row.id)
+    expect(result).toMatchObject({ ok: true, registration: { status: 'hidden' } })
+  })
+
+  it('returns NotFound for an unknown id', async () => {
+    const store = createInMemoryRegistrationsStore()
+    expect(await createRegistrationDomain(store).hide(999999)).toEqual({ ok: false, error: 'NotFound' })
+  })
+})
+
 describe('isTooStrongForChallenger', () => {
   it.each([
     ['mens-challenger', '19.5', true],
