@@ -7,7 +7,7 @@ interface Env {
   ADMIN_TOKEN: string
   // Telegram-Benachrichtigung bei neuen Anmeldungen. Optional: fehlen Token/Chat
   // (z. B. lokal), wird die Benachrichtigung still übersprungen.
-  // TELEGRAM_BOT_TOKEN ist ein Secret, TELEGRAM_CHAT_ID eine Var (siehe wrangler.toml).
+  // TELEGRAM_BOT_TOKEN und TELEGRAM_CHAT_ID sind beide Secrets (wrangler secret put).
   TELEGRAM_BOT_TOKEN?: string
   TELEGRAM_CHAT_ID?: string
 }
