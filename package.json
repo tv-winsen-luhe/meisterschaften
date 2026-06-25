@@ -32,7 +32,7 @@
   "devDependencies": {
     "@astrojs/check": "0.9.9",
     "@astrojs/sitemap": "3.7.3",
-    "@cloudflare/vitest-pool-workers": "0.8.71",
+    "@cloudflare/vitest-pool-workers": "0.16.19",
     "@cloudflare/workers-types": "4.20260623.1",
     "@commitlint/cli": "21.1.0",
     "@commitlint/config-conventional": "21.1.0",
@@ -45,7 +45,7 @@
     "prettier-plugin-astro": "0.14.1",
     "prettier-plugin-tailwindcss": "0.8.0",
     "simple-git-hooks": "2.13.1",
-    "vitest": "3.2.6",
+    "vitest": "4.1.9",
     "wrangler": "4.104.0"
   },
   "simple-git-hooks": {
