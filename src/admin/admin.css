@@ -310,47 +310,6 @@ main {
   margin: 0 auto;
 }
 
-.gate {
-  max-width: 420px;
-  margin: 8vh auto 0;
-  background: var(--card);
-  border: 1px solid var(--line-2);
-  border-top: 4px solid var(--neon);
-  padding: 26px 24px;
-}
-.gate__tag {
-  font-family: var(--mono);
-  font-size: 11px;
-  letter-spacing: 0.18em;
-  text-transform: uppercase;
-  color: var(--clay);
-}
-.gate h2 {
-  margin: 6px 0 18px;
-  font-size: 21px;
-  font-weight: 800;
-  letter-spacing: -0.02em;
-}
-.gate__field {
-  display: flex;
-  gap: 8px;
-}
-.gate input {
-  flex: 1;
-  min-width: 0;
-  padding: 11px;
-  font: inherit;
-  border: 1.5px solid var(--line-2);
-  background: var(--paper);
-}
-.gatemsg {
-  margin-top: 12px;
-  font-size: 13px;
-  font-weight: 700;
-  color: var(--clay);
-  min-height: 18px;
-}
-
 .group {
   margin: 26px 0 10px;
   font-family: var(--mono);

@@ -2,8 +2,9 @@ import { applyD1Migrations, env } from 'cloudflare:test'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { app } from '../worker/app'
 
-// Thin integration smoke over a real local D1: proves the admin wiring (auth → Hono → Zod →
+// Thin integration smoke over a real local D1: proves the admin wiring (Hono → Zod →
 // domain/Store → Drizzle → D1), not logic — that lives in the domain/store/seedingLk units.
+// Auth is edge-only (Cloudflare Access, ADR-0008): the worker has no auth check to test here.
 beforeAll(async () => {
   await applyD1Migrations(env.DB, env.TEST_MIGRATIONS)
 })
@@ -14,7 +15,7 @@ beforeEach(async () => {
 
 afterEach(() => vi.unstubAllGlobals())
 
-const AUTH = { 'x-admin-token': 'test-admin-token', 'content-type': 'application/json' }
+const JSON_HEADERS = { 'content-type': 'application/json' }
 
 const req = (path: string, init: RequestInit = {}) => app.request(path, init, env)
 
@@ -37,18 +38,10 @@ const seed = (overrides: Record<string, string> = {}) => {
     .first<{ id: number }>()
 }
 
-describe('admin routes · auth', () => {
-  it('rejects /api/admin/* without the token', async () => {
-    const res = await req('/api/admin/list')
-    expect(res.status).toBe(401)
-    expect(await res.json()).toEqual({ error: 'Nicht autorisiert.' })
-  })
-})
-
 describe('GET /api/admin/list', () => {
   it('returns rows in the camelCase contract shape without the internal ip', async () => {
     await seed({ email: 'a@x.de', ip: '9.9.9.9' })
-    const res = await req('/api/admin/list', { headers: AUTH })
+    const res = await req('/api/admin/list', { headers: JSON_HEADERS })
     expect(res.status).toBe(200)
     const data = (await res.json()) as { registrations: Record<string, unknown>[] }
     expect(data.registrations).toHaveLength(1)
@@ -62,7 +55,7 @@ describe('POST /api/admin/confirm', () => {
     const row = await seed()
     const res = await req('/api/admin/confirm', {
       method: 'POST',
-      headers: AUTH,
+      headers: JSON_HEADERS,
       body: JSON.stringify({ id: row!.id, competition: 'mens', club: 'TV Winsen', playerId: '', lk: '25.0' })
     })
     expect(res.status).toBe(200)
@@ -78,7 +71,7 @@ describe('POST /api/admin/confirm', () => {
     const row = await seed()
     const res = await req('/api/admin/confirm', {
       method: 'POST',
-      headers: AUTH,
+      headers: JSON_HEADERS,
       body: JSON.stringify({ id: row!.id, competition: 'mens', club: 'TV Winsen', playerId: '', lk: '' })
     })
     expect(res.status).toBe(400)
@@ -97,7 +90,7 @@ describe('POST /api/admin/confirm', () => {
     )
     const res = await req('/api/admin/confirm', {
       method: 'POST',
-      headers: AUTH,
+      headers: JSON_HEADERS,
       body: JSON.stringify({ id: row!.id, competition: 'mens', club: 'TV Winsen', playerId: '12345678', lk: '' })
     })
     expect(await res.json()).toEqual({ ok: true, lkFetched: '11.2' })
@@ -111,7 +104,7 @@ describe('POST /api/admin/confirm', () => {
     const row = await seed()
     const res = await req('/api/admin/confirm', {
       method: 'POST',
-      headers: AUTH,
+      headers: JSON_HEADERS,
       body: JSON.stringify({ id: row!.id, competition: 'mens', club: 'TV Winsen', playerId: '123', lk: '' })
     })
     expect(res.status).toBe(400)
@@ -122,7 +115,11 @@ describe('POST /api/admin/confirm', () => {
 describe('POST /api/admin/hide + /delete', () => {
   it('hides a row', async () => {
     const row = await seed({ status: 'confirmed' })
-    const res = await req('/api/admin/hide', { method: 'POST', headers: AUTH, body: JSON.stringify({ id: row!.id }) })
+    const res = await req('/api/admin/hide', {
+      method: 'POST',
+      headers: JSON_HEADERS,
+      body: JSON.stringify({ id: row!.id })
+    })
     expect(await res.json()).toEqual({ ok: true })
     const persisted = await env.DB.prepare('SELECT status FROM registrations WHERE id = ?')
       .bind(row!.id)
@@ -132,25 +129,15 @@ describe('POST /api/admin/hide + /delete', () => {
 
   it('deletes a row', async () => {
     const row = await seed()
-    const res = await req('/api/admin/delete', { method: 'POST', headers: AUTH, body: JSON.stringify({ id: row!.id }) })
+    const res = await req('/api/admin/delete', {
+      method: 'POST',
+      headers: JSON_HEADERS,
+      body: JSON.stringify({ id: row!.id })
+    })
     expect(await res.json()).toEqual({ ok: true, deleted: 1 })
     const count = await env.DB.prepare('SELECT COUNT(*) AS c FROM registrations WHERE id = ?')
       .bind(row!.id)
       .first<{ c: number }>()
     expect(count?.c).toBe(0)
-  })
-})
-
-describe('GET /export', () => {
-  it('requires the query token and emits a snake_case CSV', async () => {
-    await seed({ email: 'csv@x.de' })
-    expect((await req('/export')).status).toBe(401)
-
-    const res = await req('/export?token=test-admin-token')
-    expect(res.status).toBe(200)
-    expect(res.headers.get('content-type')).toContain('text/csv')
-    const csv = await res.text()
-    expect(csv).toContain('id,created_at,competition,first_name,last_name,club,email,phone,note,player_id,lk,status')
-    expect(csv).toContain('csv@x.de')
   })
 })

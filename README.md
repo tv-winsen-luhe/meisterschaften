@@ -24,7 +24,6 @@ meisterschaften.tennisverein-winsen.de  →  ein Worker
   ├─ GET  /api/participants   öffentliche, bestätigte Liste (Name, Verein, Konkurrenz, LK)
   ├─ GET  /admin              Access-geschützte Admin-Seite (bestätigen, LK setzen, verstecken)
   ├─ POST /api/admin/*        Admin-API (list, update, refresh-lk)
-  ├─ GET  /export?token=…     CSV aller Anmeldungen
   └─ D1   Tabelle „registrations"
 ```
 
@@ -47,8 +46,12 @@ und der wöchentliche Cron bleiben **außerhalb** von Access.
 
 - Zugang verwalten (erlaubte E-Mails): Cloudflare-Dashboard → **Zero Trust → Access → Applications
   → „Winsener Meisterschaften – Admin"**.
-- **`ADMIN_TOKEN` ist nur noch ein Fallback für `wrangler dev`**, weil Access lokal nicht greift.
-  In Produktion ist Access der maßgebliche Gate; der Token sollte nicht als regulärer Login dienen.
+- **Kein `ADMIN_TOKEN` mehr** — der Worker hat keine eigene Auth, Access am Edge ist der einzige
+  Gate (ADR-0008). Zwei Dinge tragen das ab: `workers_dev = false` (keine ungeschützte
+  `*.workers.dev`-URL als zweiter Hostname) und die Regel, dass **jede Operator-Route unter
+  `/api/admin/*` liegen muss** — eine Route außerhalb wäre von Geburt an öffentlich. Lokal
+  (`wrangler dev`) greift Access nicht und es gibt keinen Token: die Admin ist auf `localhost`
+  schlicht offen.
 
 ## Lokal entwickeln
 
@@ -74,13 +77,11 @@ wrangler login                                    # mit dem Vereins-Cloudflare-A
 export CLOUDFLARE_ACCOUNT_ID=<account-id>         # liegt nicht mehr in wrangler.toml
 wrangler d1 create winsener-meisterschaften       # database_id → wrangler.toml
 wrangler d1 migrations apply winsener-meisterschaften --remote   # Schema aus worker/migrations/
-wrangler secret put ADMIN_TOKEN                   # nur Local-Dev-Fallback (Prod = Cloudflare Access)
 pnpm cf-deploy                                    # = pnpm build && wrangler deploy
 ```
 
 Danach Custom Domain `meisterschaften.tennisverein-winsen.de` im Cloudflare-Dashboard auf den
-Worker legen. Admin: `…/admin` (Login per Cloudflare Access / E-Mail-OTP). CSV:
-`…/export?token=<ADMIN_TOKEN>`.
+Worker legen. Admin: `…/admin` (Login per Cloudflare Access / E-Mail-OTP).
 
 ### Automatischer Deploy (CI)
 
@@ -97,7 +98,7 @@ Repo einmalig ein Secret hinterlegt sein:
 
 In `wrangler.toml` steht nur die `database_id`; die `account_id` zieht Wrangler aus
 `CLOUDFLARE_ACCOUNT_ID` (lokal als Env-Variable, in CI aus der Repo-Variable). Die Worker-Secrets
-(`ADMIN_TOKEN`, `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`) bleiben über Deploys hinweg erhalten und
+(`TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`) bleiben über Deploys hinweg erhalten und
 müssen nicht erneut gesetzt werden.
 
 > Die D1-Datenbank kann auch via Cloudflare-MCP angelegt und befüllt werden — dann entfallen die

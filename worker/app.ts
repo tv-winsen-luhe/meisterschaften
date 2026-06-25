@@ -34,7 +34,6 @@ export interface Env {
   DB: D1Database
   ASSETS: Fetcher
   PUBLIC_LIST_ENABLED: string
-  ADMIN_TOKEN: string
   // Telegram notification on new registrations. Optional: if token/chat are missing
   // (e.g. locally), the notification is silently skipped.
   TELEGRAM_BOT_TOKEN?: string
@@ -156,15 +155,11 @@ export const app = new Hono<{ Bindings: Env }>()
     return c.json({ ok: true, cancelled: cancelled.length })
   })
   // ── Admin (operator) routes ───────────────────────────────────────────────────────────
-  // In production these sit behind Cloudflare Access (email-OTP, ADR-0008); the x-admin-token
-  // check is the active gate for `wrangler dev` (Access does not apply locally) and a harmless
-  // second factor in prod. (The Access-header bypass is deferred until VS6 configures Access —
-  // adding it before /api/admin/* is Access-protected would let a client spoof the header.)
-  .use('/api/admin/*', async (c, next) => {
-    const token = c.req.header('x-admin-token') ?? ''
-    if (!c.env.ADMIN_TOKEN || token !== c.env.ADMIN_TOKEN) return c.json({ error: 'Nicht autorisiert.' }, 401)
-    await next()
-  })
+  // Auth is edge-only (ADR-0008): Cloudflare Access gates `/admin` and `/api/admin/*` in
+  // production, and `workers_dev = false` leaves the worker no un-gated hostname — so there is
+  // deliberately no auth check here. Load-bearing consequence: every operator endpoint MUST live
+  // under `/api/admin/*` (the Access destination); a route outside it is born public. Local
+  // `wrangler dev` has neither Access nor a token — the admin is simply open on localhost.
   // GET /api/admin/list — every registration for the admin table (camelCase; the response
   // schema strips the internal `ip`, which the legacy list never exposed either).
   .get('/api/admin/list', async c => {
@@ -265,46 +260,6 @@ export const app = new Hono<{ Bindings: Env }>()
     await createD1AppStateStore(c.env.DB).setPhase(parsed.data.phase)
     return c.json({ ok: true, phase: parsed.data.phase } satisfies SetPhaseResponse)
   })
-  // GET /export — operator CSV of every registration. A separate operator-facing artifact:
-  // it stays snake_case (decoupled from the camelCase contract) and authorises via a query
-  // token, since it is opened as a plain link/new tab where headers cannot be set.
-  .get('/export', async c => {
-    const token = c.req.query('token') ?? ''
-    if (!c.env.ADMIN_TOKEN || token !== c.env.ADMIN_TOKEN) return c.text('Nicht autorisiert.', 401)
-
-    const rows = (await createD1RegistrationsStore(c.env.DB).listAll())
-      .slice()
-      .sort((a, b) => a.createdAt.localeCompare(b.createdAt))
-
-    const cols: [string, (r: (typeof rows)[number]) => unknown][] = [
-      ['id', r => r.id],
-      ['created_at', r => r.createdAt],
-      ['competition', r => r.competition],
-      ['first_name', r => r.firstName],
-      ['last_name', r => r.lastName],
-      ['club', r => r.club],
-      ['email', r => r.email],
-      ['phone', r => r.phone],
-      ['note', r => r.note],
-      ['player_id', r => r.playerId],
-      ['lk', r => r.lk],
-      ['status', r => r.status]
-    ]
-    const esc = (v: unknown) => {
-      const s = v == null ? '' : String(v)
-      return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s
-    }
-    const header = cols.map(([name]) => name).join(',')
-    const body = rows.map(r => cols.map(([, get]) => esc(get(r))).join(',')).join('\n')
-    const csv = '﻿' + [header, body].filter(Boolean).join('\n')
-
-    return c.body(csv, 200, {
-      'content-type': 'text/csv; charset=utf-8',
-      'content-disposition': 'attachment; filename="anmeldungen-winsener-meisterschaften.csv"',
-      'cache-control': 'no-store'
-    })
-  })
-
 // The typed client (`hc`) derives its route types from this. The catch-all that
 // delegates legacy routes is registered in index.ts (the worker entry the client
 // never imports), so it stays out of this type.

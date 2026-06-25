@@ -7,7 +7,7 @@ import { CLUBS } from './registration'
 // camelCase on the wire (Zod is the contract); the snake_case D1 columns are translated
 // once in the Drizzle mapping. The legacy admin spoke snake_case only because it read DB
 // columns straight through; the React admin is new, so this endpoint family is camelCase
-// from the start. The CSV /export stays a separate snake_case operator artifact.
+// from the start.
 //
 // Field-validation messages mirror the legacy admin handler (behaviour-preserving for the
 // operator): same German text, so a malformed edit reports exactly as before.

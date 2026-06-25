@@ -30,10 +30,12 @@ const GROUP_LABELS: Record<string, string> = {
 const ORDER: Record<string, number> = { new: 0, confirmed: 1, hidden: 2, cancelled: 3 }
 const TABS: StatusFilter[] = ['all', 'new', 'confirmed', 'hidden', 'cancelled']
 
-// hc types each route's status as a literal union (the middleware 401 is not in it), so a
-// `res.status === 401` against that union trips no-overlap. Widening to { status: number }
-// keeps the runtime auth check while staying honest that the gate can answer 401.
-const isUnauthorized = (res: { status: number }) => res.status === 401
+// Auth is edge-only (Cloudflare Access, ADR-0008). An expired Access session answers
+// `/api/admin/*` with a 302 to the cross-origin login; `redirect: 'manual'` (see client) turns
+// that into an opaque-redirect response (status 0) — that, or a bare 401, signals a full page
+// reload so the browser re-runs the Access flow. Typed as the global Response (not the hc
+// ClientResponse) so `status` widens from hc's literal union to number and `=== 401` type-checks.
+const isAuthRedirect = (res: Response) => res.type === 'opaqueredirect' || res.status === 401
 
 // Pull the { error } message out of any non-OK admin response.
 const errorMessage = async (res: Response): Promise<string> => {
@@ -45,23 +47,18 @@ const errorMessage = async (res: Response): Promise<string> => {
   }
 }
 
-const initialToken = (): string => {
-  if (typeof window === 'undefined') return ''
-  return sessionStorage.getItem('admin_token') || new URLSearchParams(location.search).get('token') || ''
-}
-
 // The admin SPA: a `client:only` React island on the Hono typed `hc` client. Replaces the
-// legacy HTML-string admin at functional parity — token gate, stat tiles, status tabs, search,
-// and the editable registration cards driving the confirm/hide/delete/refresh-LK/export flows.
+// legacy HTML-string admin at functional parity — stat tiles, status tabs, search, and the
+// editable registration cards driving the confirm/hide/delete/refresh-LK flows. Auth is
+// edge-only (Cloudflare Access, ADR-0008): there is no in-app login — the operator is already
+// authenticated by Cloudflare Access before this island ever loads.
 export const AdminApp = () => {
-  const [token, setToken] = useState(initialToken)
-  const [authed, setAuthed] = useState(false)
+  const [ready, setReady] = useState(false)
+  const [everLoaded, setEverLoaded] = useState(false)
   const [registrations, setRegistrations] = useState<AdminRegistration[]>([])
   const [phase, setPhase] = useState<Phase | null>(null)
   const [filter, setFilter] = useState<StatusFilter>('all')
   const [query, setQuery] = useState('')
-  const [tokenInput, setTokenInput] = useState('')
-  const [gateMsg, setGateMsg] = useState('')
 
   const [toast, setToast] = useState<{ text: string; err: boolean } | null>(null)
   const toastTimer = useRef<ReturnType<typeof setTimeout>>(undefined)
@@ -71,33 +68,29 @@ export const AdminApp = () => {
     toastTimer.current = setTimeout(() => setToast(null), 3200)
   }, [])
 
-  const client = useMemo(() => hc<AppType>(location.origin, { headers: { 'x-admin-token': token } }), [token])
-
-  const logout = useCallback(() => {
-    sessionStorage.removeItem('admin_token')
-    setToken('')
-    setAuthed(false)
-    setRegistrations([])
-    setPhase(null)
-    setGateMsg('')
-  }, [])
+  // `redirect: 'manual'` so an Access login redirect surfaces as an opaque-redirect response
+  // (status 0) instead of being transparently followed cross-origin — see isAuthRedirect.
+  const client = useMemo(
+    () =>
+      hc<AppType>(location.origin, {
+        fetch: (input: RequestInfo | URL, init?: RequestInit) => fetch(input, { ...init, redirect: 'manual' })
+      }),
+    []
+  )
 
   const load = useCallback(async () => {
     try {
       const res = await client.api.admin.list.$get()
-      if (isUnauthorized(res)) {
-        setAuthed(false)
-        setGateMsg('Token ungültig.')
-        return
-      }
+      if (isAuthRedirect(res)) return location.reload()
       if (!res.ok) {
         showToast('Konnte nicht laden.', true)
+        setReady(true)
         return
       }
       const data = await res.json()
-      sessionStorage.setItem('admin_token', token)
       setRegistrations(data.registrations)
-      setAuthed(true)
+      setEverLoaded(true)
+      setReady(true)
       // The phase is a public, best-effort read: a failure must not take down the admin list,
       // so it is fetched separately and updates the toggle only on success (a failed read
       // keeps the last known phase rather than blanking it).
@@ -109,23 +102,21 @@ export const AdminApp = () => {
       }
     } catch {
       showToast('Konnte nicht laden.', true)
+      setReady(true)
     }
-  }, [client, token, showToast])
+  }, [client, showToast])
 
   useEffect(() => {
-    if (token) load()
-  }, [token, load])
+    load()
+  }, [load])
 
-  // Wrap a mutation: run it, surface 401 as a re-gate, toast its error, else toast success + reload.
+  // Wrap a mutation: run it, force a full reload on an Access redirect (re-runs the login),
+  // toast its error, else toast success + reload the list.
   const mutate = useCallback(
     async (run: () => Promise<Response>, success: string) => {
       try {
         const res = await run()
-        if (isUnauthorized(res)) {
-          logout()
-          setGateMsg('Token ungültig.')
-          return
-        }
+        if (isAuthRedirect(res)) return location.reload()
         if (!res.ok) {
           showToast(await errorMessage(res), true)
           return
@@ -136,7 +127,7 @@ export const AdminApp = () => {
         showToast('Aktion fehlgeschlagen.', true)
       }
     },
-    [load, logout, showToast]
+    [load, showToast]
   )
 
   // Set the operator-controlled phase (ADR-0006): the public site reflects it and the weekly
@@ -154,11 +145,7 @@ export const AdminApp = () => {
     async (id: number, payload: ConfirmPayload) => {
       try {
         const res = await client.api.admin.confirm.$post({ json: { id, ...payload } })
-        if (isUnauthorized(res)) {
-          logout()
-          setGateMsg('Token ungültig.')
-          return
-        }
+        if (isAuthRedirect(res)) return location.reload()
         if (!res.ok) {
           showToast(await errorMessage(res), true)
           return
@@ -170,7 +157,7 @@ export const AdminApp = () => {
         showToast('Fehler beim Speichern.', true)
       }
     },
-    [client, load, logout, showToast]
+    [client, load, showToast]
   )
 
   const hide = useCallback(
@@ -197,11 +184,6 @@ export const AdminApp = () => {
     await mutate(() => client.api.admin['refresh-lk'].$post(), 'LK aktualisiert.')
   }, [client, mutate, showToast])
 
-  const login = () => {
-    const t = tokenInput.trim()
-    if (t) setToken(t)
-  }
-
   // ── Derived view state ────────────────────────────────────────────────────────────────
   const confirmed = registrations.filter(r => r.status === 'confirmed')
   const byCompetition = (slug: string) => confirmed.filter(r => r.competition === slug).length
@@ -216,7 +198,10 @@ export const AdminApp = () => {
     )
     .sort((a, b) => ORDER[a.status] - ORDER[b.status] || a.createdAt.localeCompare(b.createdAt))
 
-  if (!authed) {
+  // Until the first successful load, hold a loading/error screen rather than the full admin — a
+  // failed load must not look like an empty registration list (the operator could mistake a
+  // backend hiccup for "nobody signed up"). Once loaded, later refresh failures only toast.
+  if (!ready || !everLoaded) {
     return (
       <>
         <header>
@@ -228,24 +213,16 @@ export const AdminApp = () => {
           </div>
         </header>
         <main>
-          <div className="gate">
-            <span className="gate__tag">Vereinsintern</span>
-            <h2>Admin-Anmeldung</h2>
-            <div className="gate__field">
-              <input
-                type="password"
-                placeholder="Admin-Token"
-                autoComplete="off"
-                value={tokenInput}
-                onChange={e => setTokenInput(e.target.value)}
-                onKeyDown={e => e.key === 'Enter' && login()}
-              />
-              <button className="btn-primary" onClick={login}>
-                Anmelden
+          {!ready ? (
+            <p className="empty">Lädt …</p>
+          ) : (
+            <p className="empty">
+              Konnte die Anmeldungen nicht laden.{' '}
+              <button className="btn-ghost" onClick={() => location.reload()}>
+                Neu laden
               </button>
-            </div>
-            <div className="gatemsg">{gateMsg}</div>
-          </div>
+            </p>
+          )}
         </main>
         {toast && <Toast text={toast.text} err={toast.err} />}
       </>
@@ -267,12 +244,9 @@ export const AdminApp = () => {
             <button className="btn-ghost" onClick={refreshLk}>
               ↻ LK aus nuLiga
             </button>
-            <a className="btn-ghost" href={`/export?token=${encodeURIComponent(token)}`} target="_blank" rel="noopener">
-              CSV-Export ↧
-            </a>
-            <button className="btn-ghost" onClick={logout}>
+            <a className="btn-ghost" href="/cdn-cgi/access/logout">
               Abmelden
-            </button>
+            </a>
           </div>
         </div>
         <div className="stats">
@@ -342,14 +316,23 @@ export const AdminApp = () => {
   )
 }
 
-const Tile = ({ label, value, cls }: { label: string; value: number; cls?: string }) => (
+interface TileProps {
+  label: string
+  value: number
+  cls?: string
+}
+const Tile = ({ label, value, cls }: TileProps) => (
   <div className={`tile ${cls ?? ''}`}>
     <span className="tile__n">{value}</span>
     <span className="tile__l">{label}</span>
   </div>
 )
 
-const Toast = ({ text, err }: { text: string; err: boolean }) => (
+interface ToastProps {
+  text: string
+  err: boolean
+}
+const Toast = ({ text, err }: ToastProps) => (
   <div className={`toast show${err ? 'err' : ''}`} role="status" aria-live="polite">
     {text}
   </div>

@@ -16,7 +16,6 @@ beforeEach(async () => {
 
 afterEach(() => vi.unstubAllGlobals())
 
-const AUTH = { 'x-admin-token': 'test-admin-token', 'content-type': 'application/json' }
 const JSON_HEADERS = { 'content-type': 'application/json' }
 
 const req = (path: string, init: RequestInit = {}) => app.request(path, init, env)
@@ -35,19 +34,10 @@ describe('GET /api/phase', () => {
 })
 
 describe('POST /api/admin/phase', () => {
-  it('rejects without the admin token', async () => {
-    const res = await req('/api/admin/phase', {
-      method: 'POST',
-      headers: JSON_HEADERS,
-      body: JSON.stringify({ phase: 'live' })
-    })
-    expect(res.status).toBe(401)
-  })
-
   it('sets the phase and persists it (read back via GET)', async () => {
     const res = await req('/api/admin/phase', {
       method: 'POST',
-      headers: AUTH,
+      headers: JSON_HEADERS,
       body: JSON.stringify({ phase: 'auslosung' })
     })
     expect(res.status).toBe(200)
@@ -56,8 +46,12 @@ describe('POST /api/admin/phase', () => {
   })
 
   it('keeps a single row across repeated sets', async () => {
-    await req('/api/admin/phase', { method: 'POST', headers: AUTH, body: JSON.stringify({ phase: 'live' }) })
-    await req('/api/admin/phase', { method: 'POST', headers: AUTH, body: JSON.stringify({ phase: 'post-event' }) })
+    await req('/api/admin/phase', { method: 'POST', headers: JSON_HEADERS, body: JSON.stringify({ phase: 'live' }) })
+    await req('/api/admin/phase', {
+      method: 'POST',
+      headers: JSON_HEADERS,
+      body: JSON.stringify({ phase: 'post-event' })
+    })
     const count = await env.DB.prepare('SELECT COUNT(*) AS c FROM app_state').first<{ c: number }>()
     expect(count?.c).toBe(1)
     expect(await (await req('/api/phase')).json()).toEqual({ phase: 'post-event' })
@@ -66,7 +60,7 @@ describe('POST /api/admin/phase', () => {
   it('rejects an invalid phase at the Zod boundary', async () => {
     const res = await req('/api/admin/phase', {
       method: 'POST',
-      headers: AUTH,
+      headers: JSON_HEADERS,
       body: JSON.stringify({ phase: 'nope' })
     })
     expect(res.status).toBe(400)
