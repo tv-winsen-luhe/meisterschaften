@@ -1,25 +1,18 @@
 /// <reference types="@cloudflare/workers-types" />
 
 import { app, type Env } from './app'
-import { CHALLENGER_MIN_LK, COMPETITION_SLUGS } from '../shared'
+import { COMPETITION_SLUGS } from '../shared'
+import { notifyCancellation, type CancelledRow } from './notify'
+import { CLUB_TO_NULIGA, findRosterMatch, NULIGA_BASE, parseClubRoster, type RosterEntry } from './seeding-lk'
 
-// Competition slugs + the Challenger threshold now live in shared/ (single source of
-// truth). The legacy register/cancel/admin handlers below still read them locally.
+// Competition slugs now live in shared/ (single source of truth). The legacy cancel/admin
+// handlers below still read them locally. Roster parsing/matching plus the nuLiga endpoint +
+// club-id map are owned by seeding-lk.ts (ADR-0010); the cron + admin LK paths reuse them
+// until they migrate to syncAll.
 const COMPETITIONS = COMPETITION_SLUGS
-const COMPETITION_LABELS: Record<string, string> = {
-  mens: 'Herren',
-  'mens-challenger': 'Herren Challenger',
-  womens: 'Damen'
-}
 const CLUBS = ['TV Winsen', 'TSV Winsen'] as const
 const STATUS = ['new', 'confirmed', 'hidden', 'cancelled'] as const
 
-// nuLiga LK-Vereinsranglisten (TNB) — eine Seite pro Verein, listet Spieler-ID + LK + Name.
-const NULIGA_BASE = 'https://tnb.liga.nu/cgi-bin/WebObjects/nuLigaTENDE.woa/wa/clubRankinglistLK?federation=TNB&club='
-const CLUB_TO_NULIGA: Record<string, string> = {
-  'TV Winsen': '303160',
-  'TSV Winsen': '303251'
-}
 const NULIGA_CLUB_IDS = Object.values(CLUB_TO_NULIGA)
 
 const json = (data: unknown, status = 200) =>
@@ -53,7 +46,6 @@ const legacyFetch = async (request: Request, env: Env, ctx: ExecutionContext): P
   const { method } = request
 
   try {
-    if (path === '/api/register' && method === 'POST') return await handleRegister(request, env, ctx)
     if (path === '/api/cancel' && method === 'POST') return await handleCancel(request, env, ctx)
     if (path === '/admin' && method === 'GET') return adminPage()
     if (path === '/api/admin/list' && method === 'GET') return await handleAdminList(request, env)
@@ -67,182 +59,6 @@ const legacyFetch = async (request: Request, env: Env, ctx: ExecutionContext): P
 
   // Everything else → static Astro site.
   return env.ASSETS.fetch(request)
-}
-
-const handleRegister = async (request: Request, env: Env, ctx: ExecutionContext): Promise<Response> => {
-  let body: Record<string, unknown>
-  try {
-    body = (await request.json()) as Record<string, unknown>
-  } catch {
-    return json({ error: 'Ungültige Anfrage.' }, 400)
-  }
-
-  // Honeypot: bots fill the hidden field → silently "succeed".
-  if (str(body.website)) return json({ ok: true })
-
-  const competition = str(body.competition)
-  const firstName = str(body.first_name)
-  const lastName = str(body.last_name)
-  const club = str(body.club)
-  const email = str(body.email)
-  const phone = str(body.phone)
-  const note = str(body.note)
-  const consent = str(body.consent)
-
-  if (!COMPETITIONS.includes(competition as (typeof COMPETITIONS)[number]))
-    return json({ error: 'Bitte wähle eine gültige Konkurrenz.' }, 400)
-  if (!firstName || firstName.length > 60) return json({ error: 'Bitte gib deinen Vornamen an.' }, 400)
-  if (!lastName || lastName.length > 60) return json({ error: 'Bitte gib deinen Nachnamen an.' }, 400)
-  if (!CLUBS.includes(club as (typeof CLUBS)[number])) return json({ error: 'Bitte wähle deinen Verein.' }, 400)
-  if (!email || email.length > 120 || !isEmail(email))
-    return json({ error: 'Bitte gib eine gültige E-Mail-Adresse an.' }, 400)
-  if (phone.length > 40) return json({ error: 'Handynummer ist zu lang.' }, 400)
-  if (note.length > 500) return json({ error: 'Anmerkung ist zu lang (max. 500 Zeichen).' }, 400)
-  if (consent !== 'yes') return json({ error: 'Bitte bestätige die Einwilligung.' }, 400)
-
-  const ip = request.headers.get('cf-connecting-ip') ?? ''
-
-  // Soft rate limit: max 3 registrations per IP per hour.
-  if (ip) {
-    const oneHourAgo = new Date(Date.now() - 3600_000).toISOString()
-    const recent = await env.DB.prepare('SELECT COUNT(*) AS c FROM registrations WHERE ip = ? AND created_at > ?')
-      .bind(ip, oneHourAgo)
-      .first<{ c: number }>()
-    if (recent && recent.c >= 3)
-      return json({ error: 'Zu viele Anmeldungen in kurzer Zeit. Bitte versuch es später erneut.' }, 429)
-  }
-
-  const now = new Date().toISOString()
-
-  // If this person previously cancelled the same competition, revive that row
-  // instead of inserting a second one (keeps their player_id/LK linkage and
-  // avoids a confusing duplicate in the admin list).
-  const revived = await env.DB.prepare(
-    `UPDATE registrations
-        SET status = 'new', created_at = ?, first_name = ?, last_name = ?, club = ?,
-            phone = ?, note = ?, ip = ?
-      WHERE email = ? COLLATE NOCASE AND last_name = ? COLLATE NOCASE
-        AND competition = ? AND status = 'cancelled'`
-  )
-    .bind(now, firstName, lastName, club, phone || null, note || null, ip || null, email, lastName, competition)
-    .run()
-
-  if ((revived.meta?.changes ?? 0) === 0) {
-    await env.DB.prepare(
-      `INSERT INTO registrations (created_at, competition, first_name, last_name, club, email, phone, note, status, ip)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'new', ?)`
-    )
-      .bind(now, competition, firstName, lastName, club, email, phone || null, note || null, ip || null)
-      .run()
-  }
-
-  // Im Hintergrund (blockt die Anmeldung nie): erst LK aus nuLiga matchen
-  // (füllt Spieler-ID/LK für den Admin vor), dann den Sportwart benachrichtigen —
-  // inkl. LK und, falls ein:e Challenger-Spieler:in zu stark ist, einem Hinweis.
-  ctx.waitUntil(
-    (async () => {
-      let lk: string | null = null
-      try {
-        lk = await autoMatchPlayer(env, { competition, firstName, lastName, club, email })
-      } catch {
-        // nuLiga nicht erreichbar o. Ä. → ohne LK benachrichtigen
-      }
-      await notifyRegistration(env, { competition, firstName, lastName, club, email, phone, note, lk })
-    })()
-  )
-
-  return json({ ok: true })
-}
-
-interface RegistrationNotice {
-  competition: string
-  firstName: string
-  lastName: string
-  club: string
-  email: string
-  phone: string
-  note: string
-  /** Aus nuLiga gematchte LK (falls eindeutig), sonst null. */
-  lk?: string | null
-}
-
-interface CancelledRow {
-  first_name: string
-  last_name: string
-  club: string
-  email: string
-  competition: string
-}
-
-const ADMIN_URL = 'https://meisterschaften.tennisverein-winsen.de/admin'
-
-// HTML-escapen, da wir parse_mode=HTML nutzen (Namen/Anmerkung können & < > enthalten).
-const escapeHtml = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-
-/** Schickt eine Telegram-Nachricht (kostenlos, keine DNS-Änderung). Fehler werden nur geloggt. */
-const sendTelegram = async (env: Env, text: string): Promise<void> => {
-  // Kein Token / keine Chat-ID konfiguriert (z. B. lokal) → still überspringen.
-  if (!env.TELEGRAM_BOT_TOKEN || !env.TELEGRAM_CHAT_ID) return
-
-  try {
-    const res = await fetch(`https://api.telegram.org/bot${env.TELEGRAM_BOT_TOKEN}/sendMessage`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({
-        chat_id: env.TELEGRAM_CHAT_ID,
-        text,
-        parse_mode: 'HTML',
-        disable_web_page_preview: true
-      })
-    })
-    if (!res.ok) console.error('Telegram-Benachrichtigung fehlgeschlagen:', res.status, await res.text())
-  } catch (err) {
-    console.error('Telegram-Benachrichtigung fehlgeschlagen:', String(err))
-  }
-}
-
-/** Telegram-Nachricht über eine neue Anmeldung. */
-const notifyRegistration = async (env: Env, r: RegistrationNotice): Promise<void> => {
-  const konk = COMPETITION_LABELS[r.competition] ?? r.competition
-  // Zu stark fürs (nach oben geschützte) Challenger-Feld?
-  const lkNum = r.lk ? parseFloat(r.lk) : NaN
-  const tooStrongForChallenger = r.competition === 'mens-challenger' && !isNaN(lkNum) && lkNum < CHALLENGER_MIN_LK
-  const text = [
-    '🎾 <b>Neue Anmeldung</b> — Winsener Meisterschaften 2026',
-    '',
-    `<b>Name:</b> ${escapeHtml(`${r.firstName} ${r.lastName}`)}`,
-    `<b>Konkurrenz:</b> ${escapeHtml(konk)}`,
-    `<b>Verein:</b> ${escapeHtml(r.club)}`,
-    `<b>E-Mail:</b> ${escapeHtml(r.email)}`,
-    ...(r.phone ? [`<b>Telefon:</b> ${escapeHtml(r.phone)}`] : []),
-    ...(r.lk ? [`<b>LK (nuLiga):</b> ${escapeHtml(r.lk)}`] : []),
-    ...(tooStrongForChallenger
-      ? ['', `⚠️ <b>LK ${escapeHtml(r.lk!)} &lt; ${CHALLENGER_MIN_LK}</b> — evtl. Hauptfeld statt Challenger.`]
-      : []),
-    ...(r.note ? ['', `<b>Anmerkung:</b> ${escapeHtml(r.note)}`] : []),
-    '',
-    `Status: neu — zum Bestätigen: ${ADMIN_URL}`
-  ].join('\n')
-  await sendTelegram(env, text)
-}
-
-/** Telegram-Nachricht über eine Abmeldung (eine Person kann mehrere Konkurrenzen abmelden). */
-const notifyCancellation = async (env: Env, rows: CancelledRow[]): Promise<void> => {
-  if (rows.length === 0) return
-
-  const first = rows[0]
-  const konks = rows.map(r => COMPETITION_LABELS[r.competition] ?? r.competition).join(', ')
-  const text = [
-    '🚫 <b>Abmeldung</b> — Winsener Meisterschaften 2026',
-    '',
-    `<b>Name:</b> ${escapeHtml(`${first.first_name} ${first.last_name}`)}`,
-    `<b>Konkurrenz${rows.length > 1 ? 'en' : ''}:</b> ${escapeHtml(konks)}`,
-    `<b>Verein:</b> ${escapeHtml(first.club)}`,
-    `<b>E-Mail:</b> ${escapeHtml(first.email)}`,
-    '',
-    `In der Verwaltung: ${ADMIN_URL}`
-  ].join('\n')
-  await sendTelegram(env, text)
 }
 
 const handleCancel = async (request: Request, env: Env, ctx: ExecutionContext): Promise<Response> => {
@@ -402,13 +218,6 @@ const handleRefreshLk = async (request: Request, env: Env): Promise<Response> =>
   return json({ ok: true, updated })
 }
 
-interface RosterEntry {
-  player_id: string
-  lk: string
-  last_name: string
-  first_name: string
-}
-
 /** Fetch one nuLiga club ranking page and parse it into a list of players. */
 const fetchClubRoster = async (clubId: string): Promise<RosterEntry[]> => {
   try {
@@ -433,95 +242,8 @@ const fetchAllRosters = async (): Promise<Record<string, RosterEntry[]>> => {
 /** player_id → LK across all configured clubs. */
 const fetchNuligaMap = async (): Promise<Record<string, string>> => {
   const map: Record<string, string> = {}
-  for (const entry of Object.values(await fetchAllRosters()).flat()) map[entry.player_id] = entry.lk
+  for (const entry of Object.values(await fetchAllRosters()).flat()) map[entry.playerId] = entry.lk
   return map
-}
-
-/** Parse a nuLiga clubRankinglistLK HTML page into {player_id, lk, last_name, first_name}. */
-export const parseClubRoster = (html: string): RosterEntry[] => {
-  const out: RosterEntry[] = []
-  // Split into table rows; each row holds one player (8-digit id + one or more "LKx,y" + name anchor).
-  const rows = html.split(/<tr[\s>]/i)
-  for (const row of rows) {
-    const idMatch = row.match(/\b(\d{8})\b/)
-    if (!idMatch) continue
-    const lkMatches = [...row.matchAll(/LK\s*(\d{1,2}[.,]\d)/gi)]
-    if (lkMatches.length === 0) continue
-    // The first LK in the row is the dedicated "LK" column → the current value.
-    // Any further LKs are the dated "Stichtags-LK" history (older snapshots) and must be ignored.
-    const lk = lkMatches[0][1].replace(',', '.')
-    // Player name lives in an <a id="e_..."> tag as "Lastname, Firstname".
-    const nameMatch = row.match(/<a [^>]*id="e_[^"]*"[^>]*>\s*([^<]+?)\s*<\/a>/)
-    if (!nameMatch) continue
-    const text = nameMatch[1].replace(/&amp;/g, '&').trim()
-    const comma = text.indexOf(',')
-    if (comma < 0) continue
-    const last_name = text.slice(0, comma).trim()
-    const first_name = text.slice(comma + 1).trim()
-    if (!last_name || !first_name) continue
-    out.push({ player_id: idMatch[1], lk, last_name, first_name })
-  }
-  return out
-}
-
-/** Back-compat alias used by older callers/tests. */
-export const parseClubLk = (html: string): Record<string, string> => {
-  const map: Record<string, string> = {}
-  for (const e of parseClubRoster(html)) map[e.player_id] = e.lk
-  return map
-}
-
-/** Normalize names for matching: lowercase, strip diacritics, ß→ss, collapse whitespace/hyphens. */
-const normalizeName = (s: string): string => {
-  return s
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[̀-ͯ]/g, '')
-    .replace(/ß/g, 'ss')
-    .replace(/[\s-]+/g, ' ')
-    .trim()
-}
-
-/** Find a unique roster entry for the given name. Returns null if none or ambiguous. */
-export const findRosterMatch = (roster: RosterEntry[], firstName: string, lastName: string): RosterEntry | null => {
-  const fn = normalizeName(firstName)
-  const ln = normalizeName(lastName)
-  if (!fn || !ln) return null
-  const sameLast = roster.filter(e => normalizeName(e.last_name) === ln)
-  if (sameLast.length === 0) return null
-  // First-name match: exact, or one is a leading-token prefix of the other (so "Tim" matches "Tim Moritz").
-  const matches = sameLast.filter(e => {
-    const rfn = normalizeName(e.first_name)
-    return rfn === fn || rfn.startsWith(fn + ' ') || fn.startsWith(rfn + ' ')
-  })
-  return matches.length === 1 ? matches[0] : null
-}
-
-interface AutoMatchInput {
-  competition: string
-  firstName: string
-  lastName: string
-  club: string
-  email: string
-}
-
-/** Try to fill player_id + LK from nuLiga based on name + club. Updates the row if a unique match exists. */
-const autoMatchPlayer = async (env: Env, p: AutoMatchInput): Promise<string | null> => {
-  const clubId = CLUB_TO_NULIGA[p.club]
-  if (!clubId) return null
-  const roster = await fetchClubRoster(clubId)
-  const match = findRosterMatch(roster, p.firstName, p.lastName)
-  if (!match) return null
-  // Only fill when the row still has no player_id (don't clobber a manual override).
-  await env.DB.prepare(
-    `UPDATE registrations
-        SET player_id = ?, lk = ?
-      WHERE email = ? COLLATE NOCASE AND last_name = ? COLLATE NOCASE AND competition = ?
-        AND (player_id IS NULL OR player_id = '')`
-  )
-    .bind(match.player_id, match.lk, p.email, p.lastName, p.competition)
-    .run()
-  return match.lk
 }
 
 /** Refresh LK for rows with a player_id; additionally try a name-match for rows without one. */
@@ -530,7 +252,7 @@ const refreshLk = async (env: Env): Promise<number> => {
   const all = Object.values(rosters).flat()
   if (all.length === 0) return 0
   const idMap: Record<string, string> = {}
-  for (const e of all) idMap[e.player_id] = e.lk
+  for (const e of all) idMap[e.playerId] = e.lk
 
   let updated = 0
 
@@ -557,7 +279,7 @@ const refreshLk = async (env: Env): Promise<number> => {
     const match = findRosterMatch(rosters[clubId] ?? [], row.first_name, row.last_name)
     if (!match) continue
     await env.DB.prepare('UPDATE registrations SET player_id = ?, lk = ? WHERE id = ?')
-      .bind(match.player_id, match.lk, row.id)
+      .bind(match.playerId, match.lk, row.id)
       .run()
     updated++
   }

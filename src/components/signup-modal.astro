@@ -46,7 +46,7 @@ import tsvLogo from '@/assets/tsv-winsen.png'
             class="signup-input"
             type="text"
             id="first_name"
-            name="first_name"
+            name="firstName"
             maxlength="60"
             autocomplete="given-name"
             required
@@ -58,7 +58,7 @@ import tsvLogo from '@/assets/tsv-winsen.png'
             class="signup-input"
             type="text"
             id="last_name"
-            name="last_name"
+            name="lastName"
             maxlength="60"
             autocomplete="family-name"
             required
@@ -722,7 +722,7 @@ import tsvLogo from '@/assets/tsv-winsen.png'
           const body = await res.json().catch(() => ({}))
           throw new Error((body as { error?: string }).error || 'Fehler beim Senden.')
         }
-        if (nameSlot) nameSlot.textContent = String(data.first_name || 'du')
+        if (nameSlot) nameSlot.textContent = String(data.firstName || 'du')
         form.hidden = true
         if (headEl) headEl.hidden = true
         if (successPanel) successPanel.hidden = false
