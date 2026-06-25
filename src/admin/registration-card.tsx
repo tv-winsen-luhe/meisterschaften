@@ -1,8 +1,8 @@
 import { useState } from 'react'
 import {
   canConfirm,
-  DEFAULT_LK,
   isTooStrongForChallenger,
+  resolveSeedingBasis,
   type AdminRegistration,
   type Club,
   type CompetitionSlug
@@ -47,19 +47,22 @@ export const RegistrationCard = ({ reg, onConfirm, onHide, onDelete }: Registrat
   // Mirror a confirmed-without-id row's "no nuLiga ID" state so saving is not falsely blocked.
   const [noId, setNoId] = useState(isConfirmed && !reg.playerId)
 
-  // The fields a confirm would persist — what canConfirm and the Challenger judgment read.
-  const effectivePlayerId = noId ? '' : playerId.trim()
-  const effectiveLk = noId ? lk.trim() || DEFAULT_LK : lk.trim()
-  const confirmCheck = canConfirm({ playerId: effectivePlayerId || null, lk: effectiveLk || null })
+  // The seeding basis a confirm would persist — what canConfirm and the Challenger judgment read.
+  // The shaping (incl. the no-ID ⇒ 25.0 rule) is resolved once in shared/ so it is tested, not UI
+  // state — the card and the domain compute the confirmable fields from the same function.
+  const basis = resolveSeedingBasis({ playerId, lk, noId })
+  const confirmCheck = canConfirm(basis)
   const blockedReason = confirmCheck === true ? null : confirmCheck
   const blocked = blockedReason !== null
-  const tooStrong = isTooStrongForChallenger(competition, effectiveLk || null)
+  const tooStrong = isTooStrongForChallenger(competition, basis.lk)
 
   const toggleNoId = (checked: boolean) => {
     setNoId(checked)
     if (checked) {
       setPlayerId('')
-      setLk(prev => prev.trim() || DEFAULT_LK)
+      // Pre-fill the visible LK through the single owner of the no-ID default, so the field shows
+      // exactly what a confirm would persist — the 25.0 rule has no second copy here.
+      setLk(prev => resolveSeedingBasis({ playerId: '', lk: prev, noId: true }).lk ?? '')
     }
   }
 
@@ -70,12 +73,12 @@ export const RegistrationCard = ({ reg, onConfirm, onHide, onDelete }: Registrat
     if (
       tooStrong &&
       !window.confirm(
-        `LK ${effectiveLk} ist stark fürs Challenger-Feld (geschützt ab LK 20).\n\n` +
+        `LK ${basis.lk} ist stark fürs Challenger-Feld (geschützt ab LK 20).\n\n` +
           `${reg.firstName} ${reg.lastName} trotzdem im Challenger bestätigen? Sonst oben das Feld auf „Herren" stellen.`
       )
     )
       return
-    onConfirm(reg.id, { competition, club, playerId: effectivePlayerId, lk: effectiveLk })
+    onConfirm(reg.id, { competition, club, playerId: basis.playerId ?? '', lk: basis.lk ?? '' })
   }
 
   const onFieldKeyDown = (e: React.KeyboardEvent) => {

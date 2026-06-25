@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import { COMPETITION_SLUGS } from './competition'
-import { CHALLENGER_MIN_LK } from './constants'
+import { CHALLENGER_MIN_LK, DEFAULT_LK } from './constants'
 
 // The registration write contract — the single source of truth for the POST /api/register
 // JSON shape, shared by the worker (server validation) and the client form. camelCase on
@@ -67,6 +67,24 @@ export type CancelResponse = z.infer<typeof cancelResponseSchema>
 export interface ConfirmableFields {
   playerId: string | null
   lk: string | null
+}
+
+// The raw seeding-basis input as a form holds it: player id + LK as (possibly empty) strings,
+// plus the admin's „keine ID" toggle. The React admin passes the live checkbox state; the domain
+// confirm passes no noId (the wire already carries operator-resolved values — ADR-0011 amendment).
+export interface SeedingBasisInput {
+  playerId: string
+  lk: string
+  noId?: boolean
+}
+
+// Derive the seeding basis from raw form input, owning the "no nuLiga ID ⇒ default LK" policy in
+// one tested place (ADR-0011 amendment). Empty strings normalise to null so canConfirm and the DB
+// see a real absence. With noId set, the player id is cleared and the LK falls back to DEFAULT_LK
+// when none was entered (an explicit LK is kept). The result feeds straight into canConfirm.
+export const resolveSeedingBasis = ({ playerId, lk, noId = false }: SeedingBasisInput): ConfirmableFields => {
+  if (noId) return { playerId: null, lk: lk.trim() || DEFAULT_LK }
+  return { playerId: playerId.trim() || null, lk: lk.trim() || null }
 }
 
 // The authoritative confirmation precondition (ADR-0011), living once in shared/ so the

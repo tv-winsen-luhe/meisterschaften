@@ -1,4 +1,4 @@
-import { canConfirm } from '../../shared'
+import { canConfirm, resolveSeedingBasis } from '../../shared'
 import type { RegistrationRow } from '../db/schema'
 import type { EditableFields, Person, RegistrationsStore } from '../store/registrations'
 
@@ -117,13 +117,15 @@ export const createRegistrationDomain = (store: RegistrationsStore): Registratio
     async confirm(id, edits) {
       if (!(await store.findById(id))) return { ok: false, error: 'NotFound' }
 
-      // Empty playerId/lk mean "cleared" — store them as null so canConfirm and the public
-      // seeding order see a real absence, not an empty string.
+      // The wire already carries operator-resolved values (the card applied any „keine ID" ⇒ LK
+      // 25.0 rule), so the domain shares only the trim/empties-to-null shaping — through the same
+      // resolveSeedingBasis as the card, so both provably agree (ADR-0011 amendment).
+      const basis = resolveSeedingBasis({ playerId: edits.playerId, lk: edits.lk })
       const fields: EditableFields = {
         competition: edits.competition,
         club: edits.club,
-        playerId: edits.playerId.trim() || null,
-        lk: edits.lk.trim() || null
+        playerId: basis.playerId,
+        lk: basis.lk
       }
 
       // The authoritative guard: a confirm that would leave the row without a player id or

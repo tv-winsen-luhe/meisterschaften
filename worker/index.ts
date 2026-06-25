@@ -1,7 +1,7 @@
 /// <reference types="@cloudflare/workers-types" />
 
 import { app, type Env } from './app'
-import { createNuligaRosterSource, createSeedingLk } from './seeding-lk'
+import { buildSeedingLk } from './registration-effects'
 import { createD1AppStateStore } from './store/app-state'
 import { createD1RegistrationsStore } from './store/registrations'
 
@@ -21,11 +21,7 @@ export default {
     ctx.waitUntil(
       (async () => {
         if ((await createD1AppStateStore(env.DB).getPhase()) !== 'anmeldung') return
-        const seedingLk = createSeedingLk({
-          rosterSource: createNuligaRosterSource(),
-          store: createD1RegistrationsStore(env.DB)
-        })
-        await seedingLk.syncAll()
+        await buildSeedingLk(createD1RegistrationsStore(env.DB)).syncAll()
       })()
     )
   }
