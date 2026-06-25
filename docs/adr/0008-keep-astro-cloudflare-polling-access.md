@@ -57,3 +57,32 @@ interactive surfaces, and operator auth.
 - **Possible later DX consolidation, not adopted now:** Astro 7's `src/fetch.ts` + Hono pipeline could
   fold `worker/index.ts` into Astro's request pipeline. Out of scope for this decision; the separate
   Worker stays.
+
+## Amendment (2026-06-25): the app-level `ADMIN_TOKEN` is removed — auth is edge-only
+
+The original decision kept `ADMIN_TOKEN` "only as a local-`wrangler dev` fallback." Once Access was live
+in production (an Access application gates `/admin` and `/api/admin/*`; verified by a 302 to
+`tv-winsen.cloudflareaccess.com` on both the page and the API), the token's prod role was redundant. We
+remove it entirely rather than carry a second secret. The worker now has **no app-level auth**: it trusts
+that it is only reachable through the Access-gated host.
+
+Two consequences become load-bearing safeguards, because nothing in the worker backstops a mistake:
+
+1. **`workers_dev = false`.** Access binds to the custom-domain hostname; the `*.workers.dev` URL is a
+   _different_ hostname outside the Access application. With the token gone, an enabled `workers.dev` route
+   would be an unauthenticated admin API. Disabling it leaves the worker no un-gated hostname.
+2. **Every operator endpoint must live under `/api/admin/*`** — the Access destination. A route outside it
+   is born public. This was previously a style convention; with no app-level auth it is now a security
+   rule. (The token-only `/export` route, which sat outside `/api/admin/*`, is deleted rather than brought
+   under Access — the operator does not need the CSV.)
+
+Local `wrangler dev` has neither Access nor a token: the admin is simply open on `localhost` (single
+developer, localhost-bound). The React admin drops its token-login gate entirely; in production the
+operator is already authenticated by Access before the SPA loads, and an expired 24h Access session
+(which returns a 302 to the login, not a 401) is handled by forcing a full page reload so the browser
+re-runs the Access flow.
+
+Not adopted: verifying the `Cf-Access-Jwt-Assertion` in the worker (app-level defense-in-depth that would
+also cover a re-enabled `workers.dev`). Overkill for a single-operator surface; revisit if operator count
+or route surface grows. "Default-deny" Access scoping (gate the whole host, bypass the public paths) was
+likewise rejected as more config and more lock-out risk than the explicit `/api/admin` include warrants.

@@ -16,7 +16,6 @@ export default defineConfig({
           d1Databases: ['DB'],
           bindings: {
             PUBLIC_LIST_ENABLED: 'true',
-            ADMIN_TOKEN: 'test-admin-token',
             TEST_MIGRATIONS: migrations
           }
         }

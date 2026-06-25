@@ -2,6 +2,14 @@ name = "winsener-meisterschaften"
 main = "worker/index.ts"
 compatibility_date = "2025-06-01"
 
+# Keine zweite, ungeschützte URL auf denselben Worker: Cloudflare Access hängt am
+# Custom-Domain-Hostnamen. Sowohl die *.workers.dev-URL als auch die Per-Version-Preview-URLs
+# (<version>-<worker>.<subdomain>.workers.dev) wären weitere Hostnamen außerhalb von Access — und
+# da der Worker keine eigene Auth mehr hat (edge-only, ADR-0008), je eine offene Admin-API.
+# Beide abschalten lässt Access die einzige Eingangstür sein.
+workers_dev = false
+preview_urls = false
+
 # Account „TV Winsen / Luhe" — hier liegen Zone + D1. Die account_id steht nicht
 # im Repo: lokal/CI per Env CLOUDFLARE_ACCOUNT_ID (GitHub: Repo-Variable).
 
@@ -13,7 +21,7 @@ custom_domain = true
 
 # Statische Astro-Seite (dist/) wird als Assets ausgeliefert; der Worker-Code
 # (worker/index.ts) läuft nur für Requests, die KEINER statischen Datei entsprechen
-# (also /api/*, /admin, /export). Same-origin → kein CORS nötig.
+# (also /api/*, /admin). Same-origin → kein CORS nötig.
 [assets]
 directory = "./dist"
 binding = "ASSETS"
@@ -42,8 +50,6 @@ migrations_dir = "worker/migrations"
 [triggers]
 crons = ["0 5 * * 1"]
 
-# Operator-Flächen (/admin, /api/admin/*) sind in Produktion durch Cloudflare Zero Trust
-# Access am Edge geschützt (E-Mail-OTP, Team-Portal tv-winsen.cloudflareaccess.com).
-# ADMIN_TOKEN ist ein Secret und dient nur noch als Fallback für `wrangler dev`, weil
-# Access lokal nicht greift (nicht hier ablegen):
-#   wrangler secret put ADMIN_TOKEN
+# Operator-Flächen (/admin, /api/admin/*) sind in Produktion ausschließlich durch Cloudflare
+# Zero Trust Access am Edge geschützt (E-Mail-OTP, Team-Portal tv-winsen.cloudflareaccess.com).
+# Der Worker hat keine eigene Auth mehr (edge-only, ADR-0008) — es gibt kein ADMIN_TOKEN.

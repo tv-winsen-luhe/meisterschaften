@@ -1,7 +1,8 @@
 ---
 // The operator admin: a standalone, noindex page mounting the React app as a `client:only`
 // island (gated + fully dynamic, so no SSR). In production Cloudflare Access gates this route
-// at the edge (ADR-0008); locally the app's token gate applies. Public pages stay zero-JS.
+// at the edge (ADR-0008); locally there is no gate — the admin is open on localhost. Public
+// pages stay zero-JS.
 import { AdminApp } from '../admin/admin-app'
 ---
 

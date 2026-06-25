@@ -6,8 +6,8 @@ import { createD1AppStateStore } from './store/app-state'
 import { createD1RegistrationsStore } from './store/registrations'
 
 // The Hono app (worker/app.ts) now owns every route — the public API (participants/register/
-// cancel), the admin API (/api/admin/*), and the CSV /export. The catch-all serves the static
-// Astro site (incl. the React admin shell) via Workers Assets for everything else.
+// cancel) and the admin API (/api/admin/*). The catch-all serves the static Astro site (incl.
+// the React admin shell) via Workers Assets for everything else.
 app.all('*', c => c.env.ASSETS.fetch(c.req.raw))
 
 export default {

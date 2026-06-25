@@ -122,13 +122,17 @@ When a concept here drifts or a new one appears, update this file rather than in
   and shared constants (`CHALLENGER_MIN_LK`, `DEFAULT_LK`).
 - **Admin** — the operator surface (`/admin`, `/api/admin/*`, plus the new draw/schedule endpoints)
   used to manage registrations and, going forward, the draw and results. One operator (the tournament
-  desk) entering results from a phone during the Live phase — no per-court access. Gated at the edge by
-  **Cloudflare Access** (Zero Trust free plan, email-OTP login); the public API and cron stay outside
-  Access. The whole admin is a single **React app** (`client:only`, mounted in an Astro route),
+  desk) entering results from a phone during the Live phase — no per-court access. Gated **only** at the
+  edge by **Cloudflare Access** (Zero Trust free plan, email-OTP login) — there is deliberately no
+  app-level auth in the worker. Two things make that safe, and both are load-bearing: the `workers.dev`
+  route is disabled (`workers_dev = false`) so the worker has no un-gated hostname bypassing Access, and
+  **every operator endpoint must live under `/api/admin/*`** (the Access destination) — a route outside
+  it is born public (this is why the token-only `/export` route was removed, not kept). The public API
+  and cron stay outside Access. Local `wrangler dev` has no Access and no token: the admin is simply open
+  on localhost. The whole admin is a single **React app** (`client:only`, mounted in an Astro route),
   replacing the legacy worker-HTML page — scheduling grid (`dnd-kit`), Auslosungs-Show (`motion`),
-  results entry, phase control, export, purge all live here. React is the only client framework and is
-  confined to this gated area; the public site stays zero-JS-by-default. The legacy `ADMIN_TOKEN`
-  survives only as a local-`wrangler dev` fallback. _(See ADR-0008.)_
+  results entry, phase control, purge all live here. React is the only client framework and is
+  confined to this gated area; the public site stays zero-JS-by-default. _(See ADR-0008.)_
 - **PUBLIC_LIST_ENABLED** — kill-switch flag for the public participant list.
 - **Live-data delivery** — the public site is static Astro (zero client JS by default), but a live
   component opts into a small inline `<script>` that fetches `/api/…` client-side (as

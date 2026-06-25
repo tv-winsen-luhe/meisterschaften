@@ -57,9 +57,8 @@ and TSV Winsen (22./23. August 2026). Unlike the sibling `matchday` site, this o
   - `worker/app.ts` — Hono app + exported `AppType` for the typed `hc` client. Client-safe: explicit
     `import type` for Cloudflare types (no ambient `/// <reference>`) so the client can import `AppType`
     across the tsconfig boundary. Owns `GET /api/participants`, `POST /api/register` and `POST /api/cancel`.
-  - `worker/index.ts` — worker entry: mounts the Hono app, delegates the not-yet-migrated routes
-    (`/admin`, `/api/admin/*`, `/export`) via a Hono catch-all, and
-    runs the weekly LK cron. Still serves `dist/` via Workers Assets.
+  - `worker/index.ts` — worker entry: mounts the Hono app (which owns every route, incl. the admin
+    API), adds the catch-all that serves `dist/` via Workers Assets, and runs the weekly LK cron.
   - `worker/db/schema.ts` — Drizzle schema mirroring `registrations` 1:1; `worker/migrations/` are
     drizzle-kit-generated and applied by `wrangler d1 migrations apply` (`migrations_dir`).
   - `worker/store/registrations.ts` — deep Store hiding Drizzle/SQL; D1 + in-memory adapters.
@@ -68,11 +67,13 @@ and TSV Winsen (22./23. August 2026). Unlike the sibling `matchday` site, this o
   `worker/tsconfig.json` boundary).
 - `wrangler.toml` — Worker + Assets + D1 binding + `PUBLIC_LIST_ENABLED` flag. Holds the `database_id`;
   `account_id` is supplied via the `CLOUDFLARE_ACCOUNT_ID` env var (repo variable in CI). Secrets
-  (`ADMIN_TOKEN`, `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`) are set with `wrangler secret put`.
-- **Operator auth:** `/admin` and `/api/admin/*` are gated in production by Cloudflare Zero Trust
-  Access at the edge (email-OTP; team portal `tv-winsen.cloudflareaccess.com`). `/api/participants`
-  and the cron stay outside Access. `ADMIN_TOKEN` (the `x-admin-token` check in `worker/index.ts`)
-  is only a fallback for `wrangler dev`, where Access does not apply. See ADR-0008.
+  (`TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`) are set with `wrangler secret put`.
+- **Operator auth:** edge-only (ADR-0008). `/admin` and `/api/admin/*` are gated in production by
+  Cloudflare Zero Trust Access (email-OTP; team portal `tv-winsen.cloudflareaccess.com`); the worker
+  has no auth check of its own. Two safeguards make that safe: `workers_dev = false` (no un-gated
+  `*.workers.dev` hostname) and the rule that **every operator route must live under `/api/admin/*`**
+  (the Access destination) — a route outside it is born public. `/api/participants` and the cron stay
+  outside Access. Local `wrangler dev` has no Access and no token; the admin is open on localhost.
 - The site is **same-origin** with the API → the registration form and participant list use relative
   `/api/...` paths (no CORS).
 
