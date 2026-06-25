@@ -17,19 +17,6 @@ overrides:
 # opens PRs that this guard would then reject in CI.
 minimumReleaseAge: 1440
 
-# These dev-only deps were bumped by Dependabot (#19) to releases younger than
-# the cutoff; exempt them so the lockfile passes. The guard stays active for
-# everything else (incl. future Dependabot bumps via CI).
-# TODO(remove after 2026-06-26 ~02:30 UTC): all three age past the 1-day cutoff
-# then (workers-types 4.20260625.1 at 01:34, eslint-plugin-astro 2.1.1 at 02:22,
-# astro-eslint-parser 2.1.0 on 2026-06-25 at 23:53). Drop this list once a plain
-# `pnpm install --frozen-lockfile` passes without it — the exclude is by name, so
-# leaving it also exempts future versions of these packages.
-minimumReleaseAgeExclude:
-  - '@cloudflare/workers-types'
-  - eslint-plugin-astro
-  - astro-eslint-parser
-
 # pnpm 11 treats un-approved dependency build scripts as a hard error (was a
 # warning in pnpm 10). All four are deps we use deliberately: esbuild + sharp
 # back the Astro build, workerd is wrangler's local runtime, simple-git-hooks
