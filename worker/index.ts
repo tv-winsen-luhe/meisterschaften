@@ -1,11 +1,11 @@
 /// <reference types="@cloudflare/workers-types" />
 
 import { app, type Env } from './app'
-import { CHALLENGER_MIN_LK, KONKURRENZ_SLUGS } from '../shared'
+import { CHALLENGER_MIN_LK, COMPETITION_SLUGS } from '../shared'
 
-// Konkurrenz slugs + the Challenger threshold now live in shared/ (single source of
+// Competition slugs + the Challenger threshold now live in shared/ (single source of
 // truth). The legacy register/cancel/admin handlers below still read them locally.
-const COMPETITIONS = KONKURRENZ_SLUGS
+const COMPETITIONS = COMPETITION_SLUGS
 const COMPETITION_LABELS: Record<string, string> = {
   mens: 'Herren',
   'mens-challenger': 'Herren Challenger',

@@ -63,8 +63,9 @@ and TSV Winsen (22./23. August 2026). Unlike the sibling `matchday` site, this o
   - `worker/db/schema.ts` — Drizzle schema mirroring `registrations` 1:1; `worker/migrations/` are
     drizzle-kit-generated and applied by `wrangler d1 migrations apply` (`migrations_dir`).
   - `worker/store/registrations.ts` — deep Store hiding Drizzle/SQL; D1 + in-memory adapters.
-- `shared/` — Zod contract + inferred types, the `Konkurrenz` slug, `CHALLENGER_MIN_LK`/`DEFAULT_LK`;
-  imported by both worker and client (crosses the `worker/tsconfig.json` boundary).
+- `shared/` — Zod contract + inferred types, the competition slug (`COMPETITION_SLUGS`),
+  `CHALLENGER_MIN_LK`/`DEFAULT_LK`; imported by both worker and client (crosses the
+  `worker/tsconfig.json` boundary).
 - `wrangler.toml` — Worker + Assets + D1 binding + `PUBLIC_LIST_ENABLED` flag. Holds the `database_id`;
   `account_id` is supplied via the `CLOUDFLARE_ACCOUNT_ID` env var (repo variable in CI). Secrets
   (`ADMIN_TOKEN`, `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`) are set with `wrangler secret put`.

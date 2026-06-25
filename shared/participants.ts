@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { konkurrenzSlug } from './konkurrenz'
+import { competitionSlug } from './competition'
 
 // The public participant list contract. camelCase is the standard in TS/Zod and
 // therefore on the wire; the snake_case D1 columns are translated once, in the
@@ -9,7 +9,7 @@ export const participantSchema = z.object({
   firstName: z.string(),
   lastName: z.string(),
   club: z.string(),
-  competition: konkurrenzSlug,
+  competition: competitionSlug,
   lk: z.string().nullable()
 })
 
