@@ -66,3 +66,17 @@ Enforced by Prettier (config in `prettier.config.ts`):
 ## Locale
 
 Site language is German — HTML `lang="de"`, default `og:locale="de_DE"`.
+
+## Agent skills
+
+### Issue tracker
+
+Issues are tracked as GitHub issues in `tv-winsen-luhe/meisterschaften` via the `gh` CLI; external PRs are not a triage surface. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+Canonical defaults: `needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`. See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Single-context (`CONTEXT.md` + `docs/adr/` at the repo root). See `docs/agents/domain.md`.
