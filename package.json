@@ -1,7 +1,7 @@
 {
   "name": "winsener-meisterschaften",
   "type": "module",
-  "packageManager": "pnpm@10.32.1",
+  "packageManager": "pnpm@11.9.0",
   "engines": {
     "node": "24.x"
   },

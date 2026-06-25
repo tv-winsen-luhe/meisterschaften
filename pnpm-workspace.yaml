@@ -3,3 +3,23 @@
 overrides:
   esbuild: '>=0.28.1'
   yaml: '>=2.8.3'
+
+# pnpm 11 enforces a default minimumReleaseAge (~1 day) as a supply-chain guard.
+# These dev-only deps were bumped by Dependabot (#19) to releases younger than
+# that cutoff; exempt them so the lockfile passes. The default stays active for
+# everything else (incl. future Dependabot bumps via CI). TODO: drop these once
+# the versions have aged past the cutoff / been re-bumped.
+minimumReleaseAgeExclude:
+  - '@cloudflare/workers-types'
+  - eslint-plugin-astro
+  - astro-eslint-parser
+
+# pnpm 11 treats un-approved dependency build scripts as a hard error (was a
+# warning in pnpm 10). All four are deps we use deliberately: esbuild + sharp
+# back the Astro build, workerd is wrangler's local runtime, simple-git-hooks
+# installs our git hooks.
+allowBuilds:
+  esbuild: true
+  sharp: true
+  simple-git-hooks: true
+  workerd: true
