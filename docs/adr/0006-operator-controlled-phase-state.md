@@ -20,9 +20,11 @@ the phase.
 
 Two transition gates fire as side effects of advancing the phase:
 
-- **Anmeldung → Auslosung** closes registration and **freezes the seeding LK** — the LK used for
-  seeding is snapshotted so the weekly nuLiga sync (ADR context: cron LK refresh) cannot shift an
-  already-drawn bracket.
+- **Anmeldung → Auslosung** closes registration and **freezes the seeding LK**. Mechanism (refined by
+  ADR-0010): the draw snapshots each player's current LK into its immutable draw record (ADR-0003) —
+  that snapshot _is_ the frozen seeding. The weekly nuLiga cron is phase-gated to run only during
+  Anmeldung, so it is simply a no-op afterward; no suppression flag is needed. Before the draw, LKs
+  keep updating and the provisional Setzliste reflects them live.
 - **Live → Post-Event** freezes results — the brackets and the Spielplan become read-only.
 
 ## Consequences

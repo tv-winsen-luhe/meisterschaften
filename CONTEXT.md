@@ -17,9 +17,16 @@ When a concept here drifts or a new one appears, update this file rather than in
      Konkurrenz, scores, brackets) are archived as a lasting public record; contact data (email,
      phone, IP) is purged in an explicit operator-initiated step, per the privacy policy. _(See
      ADR-0007.)_
-- **Setzungs-Freeze** — advancing into Auslosung snapshots each player's seeding LK so the weekly
-  nuLiga sync can never shift an already-drawn bracket. Advancing into Post-Event likewise freezes
-  brackets and the Spielplan (read-only).
+- **Setzungs-Freeze** — before the draw, LKs keep updating and the **provisorische Setzliste**
+  (seeding preview) reflects them live. At Auslosung the draw snapshots each player's current LK into
+  its immutable draw record (ADR-0003) — that snapshot _is_ the frozen seeding. The weekly nuLiga cron
+  is phase-gated to run only during Anmeldung, so it is a no-op afterward (no suppression flag).
+  Advancing into Post-Event likewise freezes brackets and the Spielplan (read-only). _(See ADR-0010.)_
+- **seedingLk** — a pure module that answers "what is this player's current nuLiga LK?" — `lookup(player)`
+  matches a player against a roster behind a `RosterSource` port (nuLiga HTTP+parse adapter in prod,
+  in-memory fake in tests) and returns `{ playerId, lk } | null`. It never touches D1; persistence is
+  the Store's job, composed by thin orchestration (`matchOnRegister` at signup, `syncAll` on
+  cron/admin). It holds no freeze logic. _(See ADR-0010.)_
 
 ## Participants & fields
 
@@ -34,6 +41,13 @@ When a concept here drifts or a new one appears, update this file rather than in
   (matched by name / email / player_id) — one Konkurrenz per person, enforced at registration. This is
   a load-bearing invariant: it guarantees no person is ever in two matches at once, which is what keeps
   the Spielplan validator free of cross-field player clashes (ADR-0005).
+- **Registration domain** — the module that owns the registration lifecycle: the transitions
+  (`register`, `revive`, `confirm`, `cancel`, `hide`, admin `setPlayerId`/`setLk`) each return a typed
+  Result; the Store and `seedingLk` are injected; it persists through the Store, never raw SQL. It
+  **returns its side effects as typed data** (e.g. the notification facts incl. the Challenger-LK
+  judgment) — the transport edge sends them via `ctx.waitUntil`. Invariants like `canConfirm(reg)` live
+  as pure predicates in `shared/`: the domain enforces them, the React admin reuses them for affordance
+  (authority in the domain, affordance in the client, definition in one place). _(See ADR-0011.)_
 - **LK (Leistungsklasse)** — a player's nuLiga rating, synced weekly from nuLiga and used only for
   **Setzung** (seeding). Players without an LK default to `defaultLk`.
 - **Setzung (seeding)** — ordering players in the draw by LK so the strongest are kept apart early.
@@ -96,6 +110,16 @@ When a concept here drifts or a new one appears, update this file rather than in
 - **Source of truth** — the site (Astro + Cloudflare Worker + D1) owns the tournament data end to
   end: registrations, the draw, and live results all live in D1. No external tournament tool.
   _(See ADR-0001.)_
+- **Type-safe chain** — an unbroken type chain from DB to client: **Drizzle** (typed D1 schema + row
+  types + `drizzle-kit` migrations) → **Store module** → **Zod** schemas in `shared/` (the validated
+  API contract + inferred types) → **Hono** + `@hono/zod-validator` on the worker → **Hono `hc`** typed
+  client on the public components and the React admin. tRPC was considered and rejected. _(See ADR-0009.)_
+- **Store module** — a deep data-access module per aggregate (registrations, and the coming
+  draw/match/schedule/phase tables). Drizzle lives inside it; its interface speaks domain operations
+  (`listConfirmed`, `confirm`, `revive`, `setLk`, …), never raw SQL or Drizzle calls in handlers.
+- **`shared/`** — the module both the worker and the client import (it crosses the separate
+  `worker/tsconfig.json` boundary): the Zod API contract, inferred types, the typed `Konkurrenz` slug,
+  and shared constants (`CHALLENGER_MIN_LK`, `DEFAULT_LK`).
 - **Admin** — the operator surface (`/admin`, `/api/admin/*`, plus the new draw/schedule endpoints)
   used to manage registrations and, going forward, the draw and results. One operator (the tournament
   desk) entering results from a phone during the Live phase — no per-court access. Gated at the edge by
