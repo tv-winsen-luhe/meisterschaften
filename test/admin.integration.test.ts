@@ -127,6 +127,12 @@ describe('POST /api/admin/hide + /delete', () => {
     expect(persisted?.status).toBe('hidden')
   })
 
+  it('rejects a malformed JSON body with the legacy envelope (not a 500 via onError)', async () => {
+    const res = await req('/api/admin/hide', { method: 'POST', headers: JSON_HEADERS, body: '{ not json' })
+    expect(res.status).toBe(400)
+    expect(await res.json()).toEqual({ error: 'Ungültige Anfrage.' })
+  })
+
   it('deletes a row', async () => {
     const row = await seed()
     const res = await req('/api/admin/delete', {

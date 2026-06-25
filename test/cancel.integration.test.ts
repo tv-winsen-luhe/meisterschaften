@@ -20,6 +20,10 @@ const post = (body: unknown, ctx?: ExecutionContext) =>
     ctx
   )
 
+// A raw (unstringified) body — for the malformed-JSON path the JSON helper can't express.
+const postRaw = (raw: string) =>
+  app.request('/api/cancel', { method: 'POST', headers: { 'content-type': 'application/json' }, body: raw }, env)
+
 const insertActive = (email: string, lastName: string, competition: string, status = 'new') =>
   env.DB.prepare(
     `INSERT INTO registrations (created_at, competition, first_name, last_name, club, email, status)
@@ -48,6 +52,22 @@ describe('POST /api/cancel (integration)', () => {
     expect(res.status).toBe(200)
     expect(await res.json()).toEqual({ ok: true, cancelled: 0 })
     expect(await statusOf('trap@example.com')).toEqual(['new'])
+  })
+
+  it('a filled honeypot wins over field errors (trap checked before validation)', async () => {
+    await insertActive('trap2@example.com', 'Trap2', 'mens')
+    // Invalid (malformed email) AND the trap filled: the honeypot short-circuits to a silent
+    // zero-cancel success rather than leaking a 400 field error, and nothing is withdrawn.
+    const res = await post({ email: 'not-an-email', lastName: 'Trap2', website: 'http://spam' })
+    expect(res.status).toBe(200)
+    expect(await res.json()).toEqual({ ok: true, cancelled: 0 })
+    expect(await statusOf('trap2@example.com')).toEqual(['new'])
+  })
+
+  it('rejects a malformed JSON body with the legacy envelope', async () => {
+    const res = await postRaw('{ not json')
+    expect(res.status).toBe(400)
+    expect(await res.json()).toEqual({ error: 'Ungültige Anfrage.' })
   })
 
   it('withdraws every active entry for the person across Konkurrenzen and reports the count', async () => {
