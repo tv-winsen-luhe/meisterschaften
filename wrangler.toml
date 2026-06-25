@@ -2,8 +2,8 @@ name = "winsener-meisterschaften"
 main = "worker/index.ts"
 compatibility_date = "2025-06-01"
 
-# Account „TV Winsen / Luhe" — hier liegen Zone + D1.
-account_id = "6c1790809a262006030d64a4a604a948"
+# Account „TV Winsen / Luhe" — hier liegen Zone + D1. Die account_id steht nicht
+# im Repo: lokal/CI per Env CLOUDFLARE_ACCOUNT_ID (GitHub: Repo-Variable).
 
 # Custom Domain: wrangler legt beim Deploy den (proxied) DNS-Record und das
 # TLS-Zertifikat automatisch an. Zone muss auf demselben Account liegen (tut sie).
@@ -23,9 +23,9 @@ binding = "ASSETS"
 PUBLIC_LIST_ENABLED = "true"
 
 # Telegram-Benachrichtigung bei neuen Anmeldungen (kostenlos, keine DNS-Änderung).
-# Chat-ID = Ziel-Chat/Gruppe (von @userinfobot o. ä. ablesen). Der Bot-Token ist
-# ein Secret:  wrangler secret put TELEGRAM_BOT_TOKEN
-TELEGRAM_CHAT_ID = "8767513426"
+# Sowohl Bot-Token als auch Chat-ID sind Secrets (nicht hier ablegen):
+#   wrangler secret put TELEGRAM_BOT_TOKEN
+#   wrangler secret put TELEGRAM_CHAT_ID
 
 # D1-Datenbank für die Anmeldungen. database_id nach `wrangler d1 create` bzw.
 # aus dem Cloudflare-Dashboard eintragen (wird per MCP angelegt).
