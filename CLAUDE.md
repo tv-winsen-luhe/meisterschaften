@@ -115,10 +115,12 @@ Enforced by Prettier (config in `prettier.config.ts`):
 
 `release.yml` runs [SAVR](https://github.com/21stdigital/savr-action) on every push to `main` to keep
 a single **draft** GitHub Release current (next version + notes from the conventional PR titles since
-the last tag). Releases are a **documentation narrative only** — they don't tag, deploy, or write a
-`CHANGELOG`; deploy is independent (push to `main`). We publish **by hand, per milestone** (per epic).
-The version is a milestone label, not a compatibility signal: **never use `feat!` / `BREAKING CHANGE`**
-(it would auto-bump major) — `v1.0.0` is cut by hand for the event-ready state. _(See ADR-0014.)_
+the last tag). SAVR itself doesn't tag, deploy, or write a `CHANGELOG`; we **publish by hand**, and that
+publish is what **triggers deploy** (`release: published` → `ci.yml`, ADR-0015) — so publish whenever you
+want production updated (a single fix is fine). **Push to `main` does not deploy**; it only runs `checks`
+and updates the SAVR draft. The version is a milestone label, not a compatibility signal: **never use
+`feat!` / `BREAKING CHANGE`** (it would auto-bump major) — `v1.0.0` is cut by hand for the event-ready
+state. Break-glass deploy without a release: local `pnpm cf-deploy`. _(See ADR-0014, ADR-0015.)_
 
 ## Locale
 

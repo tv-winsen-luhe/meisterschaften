@@ -97,9 +97,12 @@ Worker legen. Admin: `…/admin` (Login per Cloudflare Access / E-Mail-OTP).
 ### Automatischer Deploy (CI)
 
 `.github/workflows/ci.yml` läuft bei jedem PR und jedem Push auf `main`: der `checks`-Job fährt
-`format:check → lint → build → test`. Nur bei **Push auf `main`** hängt daran ein `deploy`-Job
-(`needs: checks`), der die D1-Migrationen anwendet und zum Worker deployt — ein kaputter `main` wird
-nie deployt (ADR-0012). `main` ist branch-protected: PR-Pflicht, erforderliche Checks und der
+`format:check → lint → build → test`. Deployt wird **nicht** bei Push auf `main`, sondern erst beim
+**Veröffentlichen eines Releases** (`release: published`): daran hängt der `deploy`-Job (`needs: checks`,
+läuft auf dem getaggten Release-Commit), der die D1-Migrationen anwendet und zum Worker deployt —
+Prereleases ausgenommen, ein kaputter Stand wird nie deployt (ADR-0015). Das Publish ist damit der
+bewusste Go-Live; `main` kann gemergte, noch nicht veröffentlichte Arbeit tragen. Notfall-Deploy ohne
+Release: lokal `pnpm cf-deploy`. `main` ist branch-protected: PR-Pflicht, erforderliche Checks und der
 Conventional-Commit-Check auf den **PR-Titel** (= Squash-Commit-Subject), siehe ADR-0013.
 
 Dafür müssen im Repo einmalig hinterlegt sein:
@@ -114,15 +117,16 @@ In `wrangler.toml` steht nur die `database_id`; die `account_id` zieht Wrangler 
 (`TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`) bleiben über Deploys hinweg erhalten und müssen nicht
 erneut gesetzt werden.
 
-### Releases (Narrativ, kein Deploy-Trigger)
+### Releases (Narrativ **und** Deploy-Trigger)
 
 `.github/workflows/release.yml` lässt [SAVR](https://github.com/21stdigital/savr-action) bei jedem
 Push auf `main` einen **einzelnen Draft-Release** aktuell halten: die nächste Version und die Notes
-werden aus den Conventional-Commit-PR-Titeln seit dem letzten Tag berechnet. Der Release ist reine
-**Dokumentation** („was wurde wann fertig") — er taggt, deployt und schreibt kein `CHANGELOG`; der
-Deploy läuft unabhängig davon bei Push auf `main`. Veröffentlicht wird **von Hand, pro Meilenstein**
-(je Epic), die Version ist ein Meilenstein-Label: `fix`/`feat` treiben Patch/Minor automatisch,
-`v1.0.0` wird zum turnierreifen Stand von Hand geschnitten (kein `feat!`). Siehe ADR-0014.
+werden aus den Conventional-Commit-PR-Titeln seit dem letzten Tag berechnet. SAVR selbst taggt und
+deployt nicht und schreibt kein `CHANGELOG`; **veröffentlicht wird von Hand** — und _dieses Publish_
+löst den Deploy aus (`release: published` → `ci.yml`, ADR-0015). Du publishst also, wann immer du Prod
+aktualisieren willst (auch für einen einzelnen Fix). Die Version ist ein Meilenstein-Label: `fix`/`feat`
+treiben Patch/Minor automatisch, `v1.0.0` wird zum turnierreifen Stand von Hand geschnitten (kein
+`feat!`). Siehe ADR-0014 und ADR-0015.
 
 ## Lizenz
 
