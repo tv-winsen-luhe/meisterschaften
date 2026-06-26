@@ -39,13 +39,18 @@ When a concept here drifts or a new one appears, update this file rather than in
 - **Challenger / Freizeit** — a protected field for recreational/returning players, capped by LK
   (e.g. Herren Challenger is LK 20 and weaker, or no LK = counts as LK 25).
 - **Anmeldung / Registration** (D1 table `registrations`) — one member's entry into one Konkurrenz.
-  Status flow: `new` → `confirmed` → `cancelled` / `hidden`. **A member may hold only one active entry**
+  Status flow: `new` → `confirmed` → `cancelled`. **`cancelled`** is the single "no longer participating,
+  keep the record" state, reached either by the member's self-service withdrawal (`/api/cancel`, by person)
+  or by the operator marking a drop-out (`/api/admin/cancel`, by id) — the row does not record which.
+  Reviving a `cancelled` entry is the member's act alone: re-registering revives the row (`revive`); the
+  admin cannot un-cancel, only hard-delete. (`hidden` was retired — it overlapped `cancelled`; see
+  ADR-0018.) **A member may hold only one active entry**
   (matched by name / email / player_id) — one Konkurrenz per person, enforced at registration. This is
   a load-bearing invariant: it guarantees no person is ever in two matches at once, which is what keeps
   the Spielplan validator free of cross-field player clashes (ADR-0005).
 - **Registration domain** — the module that owns the registration lifecycle: the transitions
-  (`register`, `revive`, `confirm`, `cancel`, `hide`, admin `setPlayerId`/`setLk`) each return a typed
-  Result; the Store and `seedingLk` are injected; it persists through the Store, never raw SQL. The
+  (`register`, `revive`, `confirm`, self-service `cancel` (by person), operator `cancel` (by id), admin
+  `setPlayerId`/`setLk`) each return a typed Result; the Store and `seedingLk` are injected; it persists through the Store, never raw SQL. The
   domain returns its typed **Result** (the persisted/affected rows) and never awaits nuLiga or Telegram;
   the **transport edge owns the side-effect orchestration** — the nuLiga LK match + Telegram
   notification — as named functions in `worker/registration-effects.ts`, run via `ctx.waitUntil`.
