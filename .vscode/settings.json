@@ -13,5 +13,8 @@
   "files.associations": {
     "*.css": "tailwindcss"
   },
-  "tailwindCSS.experimental.configFile": "./src/styles/global.css"
+  "tailwindCSS.experimental.configFile": {
+    "src/styles/global.css": "src/{components,layouts,pages}/**",
+    "src/admin/admin.css": "src/admin/**"
+  }
 }

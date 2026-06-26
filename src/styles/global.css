@@ -1,4 +1,10 @@
-@import 'tailwindcss';
+/* Scope the public site's Tailwind scan to its own source (mirrors .vscode's configFile map):
+   components, layouts and pages. `source(none)` disables the project-wide auto-scan so the
+   admin's shadcn utilities never leak into the zero-JS public bundle. */
+@import 'tailwindcss' source(none);
+@source '../components';
+@source '../layouts';
+@source '../pages';
 
 html,
 body {
