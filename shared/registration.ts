@@ -33,19 +33,38 @@ export const ACTIVE_STATUSES = ['new', 'confirmed'] as const satisfies readonly 
 export const isActive = (status: RegistrationStatus): boolean =>
   (ACTIVE_STATUSES as readonly RegistrationStatus[]).includes(status)
 
+// Field max-lengths — the single source for both the schema's `.max(...)` bounds and the signup
+// form's `maxlength` attributes (imported in the Astro frontmatter, so it never reaches the client
+// bundle). The two can no longer drift. The HTML5 `maxlength` is a loose front-line hint; the schema
+// — which also trims, a thing HTML5 cannot express — stays the sole authority (ADR-0022).
+export const FIELD_MAX = { firstName: 60, lastName: 60, email: 120, phone: 40, note: 500 } as const
+
 export const registerRequestSchema = z.object({
   competition: z.enum(COMPETITION_SLUGS, { error: 'Bitte wähle eine gültige Konkurrenz.' }),
-  firstName: z.string().trim().min(1, 'Bitte gib deinen Vornamen an.').max(60, 'Bitte gib deinen Vornamen an.'),
-  lastName: z.string().trim().min(1, 'Bitte gib deinen Nachnamen an.').max(60, 'Bitte gib deinen Nachnamen an.'),
+  firstName: z
+    .string()
+    .trim()
+    .min(1, 'Bitte gib deinen Vornamen an.')
+    .max(FIELD_MAX.firstName, 'Bitte gib deinen Vornamen an.'),
+  lastName: z
+    .string()
+    .trim()
+    .min(1, 'Bitte gib deinen Nachnamen an.')
+    .max(FIELD_MAX.lastName, 'Bitte gib deinen Nachnamen an.'),
   club: z.enum(CLUBS, { error: 'Bitte wähle deinen Verein.' }),
   email: z
     .string()
     .trim()
     .min(1, 'Bitte gib eine gültige E-Mail-Adresse an.')
-    .max(120, 'Bitte gib eine gültige E-Mail-Adresse an.')
+    .max(FIELD_MAX.email, 'Bitte gib eine gültige E-Mail-Adresse an.')
     .regex(EMAIL_RE, 'Bitte gib eine gültige E-Mail-Adresse an.'),
-  phone: z.string().trim().max(40, 'Handynummer ist zu lang.').optional().default(''),
-  note: z.string().trim().max(500, 'Anmerkung ist zu lang (max. 500 Zeichen).').optional().default(''),
+  phone: z.string().trim().max(FIELD_MAX.phone, 'Handynummer ist zu lang.').optional().default(''),
+  note: z
+    .string()
+    .trim()
+    .max(FIELD_MAX.note, `Anmerkung ist zu lang (max. ${FIELD_MAX.note} Zeichen).`)
+    .optional()
+    .default(''),
   consent: z.literal('yes', { error: 'Bitte bestätige die Einwilligung.' })
 })
 
