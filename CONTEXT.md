@@ -25,8 +25,8 @@ When a concept here drifts or a new one appears, update this file rather than in
 - **seedingLk** — a pure module that answers "what is this player's current nuLiga LK?" — `lookup(player)`
   matches a player against a roster behind a `RosterSource` port (nuLiga HTTP+parse adapter in prod,
   in-memory fake in tests) and returns `{ playerId, lk } | null`. It never touches D1; persistence is
-  the Store's job, composed by thin orchestration (`matchOnRegister` at signup, `syncAll` on
-  cron/admin). It holds no freeze logic. _(See ADR-0010.)_
+  the Store's job, composed by thin orchestration (`matchOnRegister` at signup, `resolveLkOnConfirm`
+  at confirm, `syncAll` on cron/admin). It holds no freeze logic. _(See ADR-0010.)_
 
 ## Participants & fields
 

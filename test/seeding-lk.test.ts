@@ -4,7 +4,8 @@ import {
   createSeedingLk,
   findRosterMatch,
   parseClubRoster,
-  type RosterEntry
+  type RosterEntry,
+  type RosterSource
 } from '../worker/seeding-lk'
 import { createInMemoryRegistrationsStore } from '../worker/store/registrations'
 import type { RegistrationRow } from '../worker/db/schema'
@@ -210,15 +211,50 @@ describe('seedingLk · syncAll', () => {
   })
 })
 
-describe('seedingLk · lkForPlayerId', () => {
+describe('seedingLk · resolveLkOnConfirm', () => {
   const rosterSource = createInMemoryRosterSource({
-    'TV Winsen': [entry({ playerId: '11111111', lk: '12.3' })]
+    'TV Winsen': [entry({ playerId: '11111111', lk: '12.3', firstName: 'Max', lastName: 'Muster' })]
   })
 
-  it('returns the LK for a known id in the club roster, else null', async () => {
-    const seedingLk = createSeedingLk({ rosterSource, store: createInMemoryRegistrationsStore() })
-    expect(await seedingLk.lkForPlayerId('TV Winsen', '11111111')).toBe('12.3')
-    expect(await seedingLk.lkForPlayerId('TV Winsen', '99999999')).toBeNull()
-    expect(await seedingLk.lkForPlayerId('Unknown', '11111111')).toBeNull()
+  it('fetches the linked id LK, persists it, and returns it', async () => {
+    const store = createInMemoryRegistrationsStore([row({ id: 7, playerId: '11111111', lk: null })])
+    const seedingLk = createSeedingLk({ rosterSource, store })
+
+    const lk = await seedingLk.resolveLkOnConfirm(row({ id: 7, playerId: '11111111', lk: null }))
+
+    expect(lk).toBe('12.3')
+    expect((await store.findById(7))?.lk).toBe('12.3')
+  })
+
+  it('returns null and never clobbers a stored LK when nuLiga has no rating for the id', async () => {
+    const store = createInMemoryRegistrationsStore([row({ id: 7, playerId: '99999999', lk: '6.0' })])
+    const seedingLk = createSeedingLk({ rosterSource, store })
+
+    const lk = await seedingLk.resolveLkOnConfirm(row({ id: 7, playerId: '99999999', lk: '6.0' }))
+
+    expect(lk).toBeNull()
+    expect((await store.findById(7))?.lk).toBe('6.0') // prior rating left untouched
+  })
+
+  it('is a no-op returning null for a row with no linked player_id', async () => {
+    const store = createInMemoryRegistrationsStore([row({ id: 7, playerId: null, lk: null })])
+    const seedingLk = createSeedingLk({ rosterSource, store })
+
+    expect(await seedingLk.resolveLkOnConfirm(row({ id: 7, playerId: null, lk: null }))).toBeNull()
+  })
+
+  it('swallows a nuLiga outage and returns null', async () => {
+    const throwingSource: RosterSource = {
+      rosterFor: async () => {
+        throw new Error('nuLiga unreachable')
+      }
+    }
+    const store = createInMemoryRegistrationsStore([row({ id: 7, playerId: '11111111', lk: '6.0' })])
+    const seedingLk = createSeedingLk({ rosterSource: throwingSource, store })
+
+    const lk = await seedingLk.resolveLkOnConfirm(row({ id: 7, playerId: '11111111', lk: '6.0' }))
+
+    expect(lk).toBeNull()
+    expect((await store.findById(7))?.lk).toBe('6.0')
   })
 })

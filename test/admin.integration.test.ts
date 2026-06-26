@@ -82,7 +82,7 @@ describe('POST /api/admin/confirm', () => {
 
   it('fetches the LK from nuLiga when a player id is linked', async () => {
     const row = await seed()
-    // Stub the nuLiga club page so lkForPlayerId resolves a fresh LK.
+    // Stub the nuLiga club page so resolveLkOnConfirm resolves a fresh LK.
     vi.stubGlobal(
       'fetch',
       async () =>

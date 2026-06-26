@@ -208,23 +208,11 @@ export const app = new Hono<AppEnv>()
       return c.json({ error: result.reason }, 400)
     }
 
-    // The LK is derived (ADR-0020): a linked player id has its current rating fetched from nuLiga
-    // and written here. A nuLiga miss (unrated) or outage writes nothing — so a re-save never
-    // clobbers a previously-resolved rating; the LK stays unresolved (null), seeded as the default
-    // via COALESCE and upgraded later by the weekly sync. The no-id path already stored the default
-    // in the domain. lkFetched reports the real nuLiga value (null when none) for the operator toast.
-    let lkFetched: string | null = null
-    if (playerId) {
-      try {
-        const fetched = await buildSeedingLk(store).lkForPlayerId(result.registration.club, playerId)
-        if (fetched) {
-          await store.setLk(id, fetched)
-          lkFetched = fetched
-        }
-      } catch {
-        // nuLiga unreachable → leave the stored LK untouched; the weekly sync resolves it later.
-      }
-    }
+    // The LK is derived (ADR-0020): when a player id was linked, seedingLk fetches its current
+    // nuLiga rating and stores it, returning the fetched value (null on a miss/outage) for the
+    // operator toast. The no-id path already stored the default in the domain. The swallow +
+    // never-clobber rules live inside the orchestration — a sibling of matchOnRegister.
+    const lkFetched = await buildSeedingLk(store).resolveLkOnConfirm(result.registration)
 
     return c.json({ ok: true, lkFetched } satisfies ConfirmResponse)
   })
