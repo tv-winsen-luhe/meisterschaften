@@ -1,4 +1,4 @@
+# Vereinsinternes Event: aus Suchmaschinen heraushalten via <meta name="robots" content="noindex">
+# (ADR-0017). Crawlen bleibt ERLAUBT, damit das noindex gesehen wird — kein Disallow, keine Sitemap.
 User-agent: *
 Allow: /
-
-Sitemap: https://meisterschaften.tennisverein-winsen.de/sitemap-index.xml
