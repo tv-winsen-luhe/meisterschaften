@@ -1,0 +1,35 @@
+name: Release draft
+
+# SAVR keeps a SINGLE draft GitHub Release up to date on every push to `main`:
+# it computes the next semantic version + release notes from the conventional
+# commits since the last tag — which, post-squash-merge, are exactly the PR
+# titles `commitlint` gates (ADR-0013). It only drafts; we publish per-milestone
+# by hand (ADR-0014). It does NOT tag, deploy, or write a CHANGELOG — the version
+# is a documentation narrative, not a deploy trigger (deploy lives in ci.yml and
+# fires on push to `main` regardless of releases).
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+# Serialize draft updates so two quick pushes can't race on the one draft; the
+# newest push carries the freshest state, so cancelling the older run is fine.
+concurrency:
+  group: release-draft
+  cancel-in-progress: true
+
+jobs:
+  draft:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0 # SAVR needs full history + tags to compute the next version
+
+      - name: Update draft release
+        uses: 21stdigital/savr-action@v2
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}

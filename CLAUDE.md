@@ -111,6 +111,15 @@ Enforced by Prettier (config in `prettier.config.ts`):
   `.github/workflows/commitlint.yml`, which lints the **PR title** and is a **required status check**
   on the protected `main` branch — a non-conventional PR title cannot merge. _(See ADR-0013.)_
 
+## Releases
+
+`release.yml` runs [SAVR](https://github.com/21stdigital/savr-action) on every push to `main` to keep
+a single **draft** GitHub Release current (next version + notes from the conventional PR titles since
+the last tag). Releases are a **documentation narrative only** — they don't tag, deploy, or write a
+`CHANGELOG`; deploy is independent (push to `main`). We publish **by hand, per milestone** (per epic).
+The version is a milestone label, not a compatibility signal: **never use `feat!` / `BREAKING CHANGE`**
+(it would auto-bump major) — `v1.0.0` is cut by hand for the event-ready state. _(See ADR-0014.)_
+
 ## Locale
 
 Site language is German — HTML `lang="de"`, default `og:locale="de_DE"`.

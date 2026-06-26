@@ -114,6 +114,16 @@ In `wrangler.toml` steht nur die `database_id`; die `account_id` zieht Wrangler 
 (`TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`) bleiben über Deploys hinweg erhalten und müssen nicht
 erneut gesetzt werden.
 
+### Releases (Narrativ, kein Deploy-Trigger)
+
+`.github/workflows/release.yml` lässt [SAVR](https://github.com/21stdigital/savr-action) bei jedem
+Push auf `main` einen **einzelnen Draft-Release** aktuell halten: die nächste Version und die Notes
+werden aus den Conventional-Commit-PR-Titeln seit dem letzten Tag berechnet. Der Release ist reine
+**Dokumentation** („was wurde wann fertig") — er taggt, deployt und schreibt kein `CHANGELOG`; der
+Deploy läuft unabhängig davon bei Push auf `main`. Veröffentlicht wird **von Hand, pro Meilenstein**
+(je Epic), die Version ist ein Meilenstein-Label: `fix`/`feat` treiben Patch/Minor automatisch,
+`v1.0.0` wird zum turnierreifen Stand von Hand geschnitten (kein `feat!`). Siehe ADR-0014.
+
 ## Lizenz
 
 © 2026 Tennisverein Winsen (Luhe) von 1913 e.V. — alle Rechte vorbehalten. Siehe [`LICENSE`](./LICENSE).
