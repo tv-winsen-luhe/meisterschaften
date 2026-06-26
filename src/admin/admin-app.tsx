@@ -41,7 +41,7 @@ export const AdminApp = () => {
   const [everLoaded, setEverLoaded] = useState(false)
   const [registrations, setRegistrations] = useState<AdminRegistration[]>([])
   const [phase, setPhase] = useState<Phase | null>(null)
-  const [surface, setSurface] = useState<Surface>('registrations')
+  const [surface, setSurface] = useState<Surface>('overview')
   // The registrations filter/search live here, not in the surface, so they survive the operator
   // switching to another surface and back (the surface unmounts; the shell does not).
   const [filter, setFilter] = useState<StatusFilter>('all')

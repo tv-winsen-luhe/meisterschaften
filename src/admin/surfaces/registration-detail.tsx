@@ -98,8 +98,7 @@ export const RegistrationDetail = ({ reg, onConfirm, onCancel, onDelete }: Regis
   const isCancelled = reg.status === 'cancelled'
   const [playerId, setPlayerId] = useState(reg.playerId ?? '')
   const [competition, setCompetition] = useState<CompetitionSlug>(reg.competition)
-  // reg.club is the lenient list-response string; the confirm contract narrows it to a Club.
-  const [club, setClub] = useState<Club>(reg.club as Club)
+  const [club, setClub] = useState<Club>(reg.club)
   // Mirror a confirmed-without-id row's "no nuLiga ID" state so saving is not falsely blocked.
   const [noId, setNoId] = useState(isConfirmed && !reg.playerId)
   // Drives the "stark fürs Challenger-Feld" second confirmation (ADR-0011).

@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { clubSchema } from './club'
 import { competitionSlug } from './competition'
 
 // The public participant list contract. camelCase is the standard in TS/Zod and
@@ -8,7 +9,7 @@ import { competitionSlug } from './competition'
 export const participantSchema = z.object({
   firstName: z.string(),
   lastName: z.string(),
-  club: z.string(),
+  club: clubSchema,
   competition: competitionSlug,
   lk: z.string().nullable()
 })

@@ -10,7 +10,12 @@ When a concept here drifts or a new one appears, update this file rather than in
 - **Phase** — the event moves through four phases, and the site presents itself differently in each.
   The phase is a single operator-controlled value stored in D1 and toggled in the admin (not derived
   from dates); every public surface keys off it. _(See ADR-0006.)_
-  1. **Anmeldung** — registration is open; members sign up, the participant list fills.
+  1. **Anmeldung** (phase value `signup`) — registration is open; members sign up, the participant
+     list fills. **Naming:** the one German word _Anmeldung_ maps to **two** English identifiers, on
+     purpose, because they name two different things: `signup` is this **phase** (the activity / the
+     open time-window), while `registration` (the row, `registrations` table, the Registration domain)
+     is the **record** a member creates. Phase ≠ aggregate — the split is deliberate, not a synonym
+     slip; keep `signup` for the phase and `registration` for the entry.
   2. **Auslosung** — registration is closed; the draw is made and seedings fixed.
   3. **Live** — the tournament weekend; matches are played and results come in.
   4. **Post-Event** — the tournament is over; final results and champions stand. Results (names, club,

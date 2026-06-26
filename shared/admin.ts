@@ -1,6 +1,7 @@
 import { z } from 'zod'
+import { CLUBS, clubSchema } from './club'
 import { competitionSlug } from './competition'
-import { CLUBS, REGISTRATION_STATUSES } from './registration'
+import { REGISTRATION_STATUSES } from './registration'
 
 // The admin (operator) contract — the single source of truth for the /api/admin/* JSON
 // shapes, shared by the worker (server validation) and the React admin (typed `hc`).
@@ -26,7 +27,7 @@ export const adminRegistrationSchema = z.object({
   competition: competitionSlug,
   firstName: z.string(),
   lastName: z.string(),
-  club: z.string(),
+  club: clubSchema,
   email: z.string(),
   phone: z.string().nullable(),
   note: z.string().nullable(),

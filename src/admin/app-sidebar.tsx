@@ -45,9 +45,7 @@ export const AppSidebar = ({ active, onSelect }: AppSidebarProps) => (
         <SidebarMenuItem>
           <SidebarMenuButton size="lg" asChild className="pointer-events-none">
             <div>
-              <div className="bg-primary text-primary-foreground flex aspect-square size-8 items-center justify-center rounded-lg">
-                <Trophy className="size-4" />
-              </div>
+              <img src="/signet.svg" alt="TV Winsen" width={32} height={32} className="size-8 shrink-0" />
               <div className="grid flex-1 text-left text-sm leading-tight">
                 <span className="truncate font-semibold">Meisterschaften</span>
                 <span className="text-muted-foreground truncate text-xs">2026 · Admin</span>
