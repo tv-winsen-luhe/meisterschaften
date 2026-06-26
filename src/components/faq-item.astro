@@ -1,0 +1,16 @@
+---
+interface Props {
+  question: string
+}
+
+const { question } = Astro.props
+---
+
+<details class="faq__item border-b border-navy/15 last:border-b-0">
+  <summary
+    class="faq__q flex cursor-pointer items-center justify-between gap-4 py-5 text-base font-bold tracking-[-0.01em]"
+  >
+    {question}
+  </summary>
+  <p class="m-0 max-w-[56ch] pb-5 text-sm leading-[1.6] opacity-70"><slot /></p>
+</details>

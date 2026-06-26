@@ -1,0 +1,51 @@
+---
+import '../styles/global.css'
+import logoSvg from '@/assets/logo.svg'
+---
+
+<html lang="de">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="robots" content="noindex" />
+    <title>OG Image</title>
+  </head>
+  <body class="og-canvas relative h-[630px] w-[1200px] overflow-hidden bg-clay font-sans text-white antialiased">
+    <div class="relative z-10 flex h-[630px] w-[1200px] flex-col justify-between px-16 py-14">
+      <!-- Top: who & what, opposite the crest -->
+      <div class="flex items-start justify-between gap-10">
+        <div class="flex flex-col gap-2.5">
+          <span class="text-[21px] font-bold tracking-[0.22em] uppercase opacity-90">Vereinsmeisterschaft</span>
+          <span class="text-[40px] leading-none font-black tracking-[-0.02em]">TV &amp; TSV Winsen</span>
+        </div>
+        <img src={logoSvg.src} alt="" width="150" height="150" class="block shrink-0" />
+      </div>
+
+      <!-- Bottom: the title, full width, with the date beneath -->
+      <div>
+        <h1 class="m-0 text-[100px] leading-[0.82] font-black tracking-[-0.05em] whitespace-nowrap uppercase">
+          <span class="block">Winsener</span>
+          <span class="block text-clay [-webkit-text-stroke:4px_#fff] [paint-order:stroke_fill]">
+            Meisterschaften<span class="text-neon [-webkit-text-stroke:4px_var(--color-neon)]">.</span>
+          </span>
+        </h1>
+        <div class="mt-8 flex items-baseline gap-5">
+          <span class="text-[20px] font-bold tracking-[0.2em] uppercase opacity-90">Sa / So</span>
+          <span class="text-[46px] leading-none font-black tracking-[-0.03em]">22.–23.08.2026</span>
+        </div>
+      </div>
+    </div>
+  </body>
+</html>
+
+<style>
+  /* Noise overlay — matches site's clay sections exactly */
+  .og-canvas::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='320' height='320'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='1.15' numOctaves='2' seed='7' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.55 0'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>");
+    mix-blend-mode: overlay;
+    opacity: 0.5;
+  }
+</style>

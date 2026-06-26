@@ -1,0 +1,28 @@
+# Client settings. pnpm 11 reads these only from here, NOT from .npmrc (unlike
+# registry/auth, which stay .npmrc-only): save dependencies as exact versions,
+# and refuse to install if the Node version doesn't satisfy `engines`.
+saveExact: true
+engineStrict: true
+
+# Security overrides: force patched versions of transitive build-time deps
+# until upstream (vite, @astrojs/check) widen their ranges.
+overrides:
+  esbuild: '>=0.28.1'
+  yaml: '>=2.8.3'
+
+# Supply-chain guard: reject dependency versions published less than this many
+# minutes ago (1440 = 1 day). This is pnpm 11's default; we pin it explicitly so
+# the policy is documented and survives any future change to pnpm's default.
+# Dependabot's cooldown (.github/dependabot.yml) must stay >= this so it never
+# opens PRs that this guard would then reject in CI.
+minimumReleaseAge: 1440
+
+# pnpm 11 treats un-approved dependency build scripts as a hard error (was a
+# warning in pnpm 10). All four are deps we use deliberately: esbuild + sharp
+# back the Astro build, workerd is wrangler's local runtime, simple-git-hooks
+# installs our git hooks.
+allowBuilds:
+  esbuild: true
+  sharp: true
+  simple-git-hooks: true
+  workerd: true

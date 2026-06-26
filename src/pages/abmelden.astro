@@ -1,0 +1,130 @@
+---
+import Layout from '@/layouts/default.astro'
+import { contactEmail } from '@/data/tournament'
+
+const inputClass =
+  'w-full border-[1.5px] border-navy/25 bg-white px-3.5 py-2.5 text-[15px] text-navy transition-colors focus:border-navy focus:outline-none'
+const labelClass = 'mb-2 block text-[11px] font-bold tracking-[0.16em] uppercase opacity-55'
+---
+
+<Layout
+  title="Abmelden — Winsener Meisterschaften 2026"
+  description="Anmeldung zu den Winsener Meisterschaften zurückziehen."
+  chrome="legal"
+>
+  <div class="mx-auto max-w-[560px] px-5 pt-12 pb-20 text-navy md:px-10 md:pt-16 md:pb-[120px]">
+    <h1 class="mt-0 mb-4 text-[clamp(36px,6vw,56px)] font-black tracking-[-0.04em] uppercase">Abmelden</h1>
+    <p class="mb-10 text-[15px] leading-[1.6] opacity-70">
+      Pläne geändert? Trag die E-Mail-Adresse und den Nachnamen deiner Anmeldung ein, dann nehmen wir dich aus dem Feld.
+      Hast du dich für mehrere Konkurrenzen gemeldet, werden alle zurückgezogen.
+    </p>
+
+    <form id="cancel-form" class="flex flex-col gap-5" novalidate>
+      <div>
+        <label class={labelClass} for="email">E-Mail deiner Anmeldung</label>
+        <input class={inputClass} type="email" id="email" name="email" maxlength="120" autocomplete="email" required />
+      </div>
+      <div>
+        <label class={labelClass} for="lastName">Nachname</label>
+        <input
+          class={inputClass}
+          type="text"
+          id="lastName"
+          name="lastName"
+          maxlength="60"
+          autocomplete="family-name"
+          required
+        />
+      </div>
+
+      <!-- Honeypot — von Menschen nicht sichtbar, von Bots gern ausgefüllt -->
+      <div class="absolute -left-[9999px] h-px w-px overflow-hidden" aria-hidden="true">
+        <label for="website">Website (bitte frei lassen)</label>
+        <input type="text" id="website" name="website" tabindex="-1" autocomplete="off" />
+      </div>
+
+      <div class="mt-2 flex flex-wrap items-center gap-5">
+        <button
+          type="submit"
+          class="cancel-submit inline-block bg-neon px-7 py-3.5 text-sm font-extrabold tracking-[0.02em] text-navy uppercase transition-[filter] hover:brightness-105 disabled:cursor-progress disabled:opacity-55"
+        >
+          Abmelden
+        </button>
+        <a href="/" class="text-sm font-semibold text-navy/55 underline underline-offset-3 hover:text-navy">
+          Zurück zur Anmeldung
+        </a>
+      </div>
+      <p class="cancel-error m-0 text-[13px] font-semibold text-[#c0392b]" role="alert" hidden></p>
+    </form>
+
+    <div class="cancel-success" hidden>
+      <h2 class="mt-0 mb-3 text-[clamp(24px,5vw,34px)] font-black tracking-[-0.03em] uppercase">Du bist abgemeldet.</h2>
+      <p class="m-0 text-[15px] leading-[1.6] opacity-70">
+        Wir haben deinen Eintrag aus dem Feld genommen. Schade — aber vielleicht beim nächsten Mal. Du kannst dich
+        jederzeit wieder anmelden.
+      </p>
+      <a
+        href="/"
+        class="mt-6 inline-block bg-navy px-7 py-3.5 text-sm font-extrabold tracking-[0.02em] text-white uppercase"
+        >Zur Startseite</a
+      >
+    </div>
+
+    <p class="mt-12 text-[13px] leading-[1.6] opacity-55">
+      Klappt es nicht oder hast du Fragen? Schreib uns an{' '}
+      <a href={`mailto:${contactEmail}`} class="font-semibold text-navy underline-offset-2">{contactEmail}</a>.
+    </p>
+  </div>
+</Layout>
+
+<script>
+  const form = document.getElementById('cancel-form') as HTMLFormElement | null
+  const successPanel = document.querySelector<HTMLElement>('.cancel-success')
+  const errorEl = form?.querySelector<HTMLElement>('.cancel-error') ?? null
+  const submitBtn = form?.querySelector<HTMLButtonElement>('.cancel-submit') ?? null
+
+  if (form && submitBtn) {
+    form.addEventListener('submit', async e => {
+      e.preventDefault()
+      if (errorEl) errorEl.hidden = true
+      if (!form.checkValidity()) {
+        form.reportValidity()
+        return
+      }
+
+      const data = Object.fromEntries(new FormData(form).entries())
+      submitBtn.disabled = true
+      submitBtn.textContent = 'Wird abgemeldet …'
+
+      try {
+        const res = await fetch('/api/cancel', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify(data)
+        })
+        const body = (await res.json().catch(() => ({}))) as { error?: string; cancelled?: number }
+        if (!res.ok) throw new Error(body.error || 'Das hat gerade nicht geklappt.')
+
+        if ((body.cancelled ?? 0) > 0) {
+          form.hidden = true
+          if (successPanel) successPanel.hidden = false
+        } else if (errorEl) {
+          errorEl.textContent =
+            'Wir haben keine passende Anmeldung gefunden. Prüfe E-Mail und Nachname — oder schreib uns kurz.'
+          errorEl.hidden = false
+        }
+      } catch (err) {
+        if (errorEl) {
+          errorEl.textContent =
+            err instanceof Error && err.message
+              ? err.message
+              : 'Das hat gerade nicht geklappt. Bitte versuch es erneut oder schreib uns eine Mail.'
+          errorEl.hidden = false
+        }
+      } finally {
+        submitBtn.disabled = false
+        submitBtn.textContent = 'Abmelden'
+      }
+    })
+  }
+</script>

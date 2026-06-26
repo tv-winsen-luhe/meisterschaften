@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://meisterschaften.tennisverein-winsen.de/sitemap-index.xml

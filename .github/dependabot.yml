@@ -1,0 +1,44 @@
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: '06:00'
+      timezone: Europe/Berlin
+    # Only propose releases that are already a few days old. Must stay >= the
+    # pnpm minimumReleaseAge (1440 min / 1 day, see pnpm-workspace.yaml) so
+    # Dependabot never opens a PR that the supply-chain guard rejects in CI.
+    cooldown:
+      default-days: 3
+    open-pull-requests-limit: 5
+    groups:
+      prod-minor-patch:
+        applies-to: version-updates
+        dependency-type: production
+        update-types:
+          - minor
+          - patch
+      dev-minor-patch:
+        applies-to: version-updates
+        dependency-type: development
+        update-types:
+          - minor
+          - patch
+    commit-message:
+      prefix: chore
+      prefix-development: chore
+      include: scope
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+      day: monday
+      time: '06:00'
+      timezone: Europe/Berlin
+    open-pull-requests-limit: 3
+    commit-message:
+      prefix: chore
+      include: scope

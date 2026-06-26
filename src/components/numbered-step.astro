@@ -1,0 +1,20 @@
+---
+interface Props {
+  num: string
+  title: string
+}
+
+const { num, title } = Astro.props
+---
+
+<div class="reveal flex items-start gap-6">
+  <span
+    class="w-14 shrink-0 text-[48px] leading-[0.8] font-black tracking-[-0.04em] text-surface-alt text-stroke-ink-sm"
+  >
+    {num}
+  </span>
+  <div class="max-w-[48ch]">
+    <h3 class="m-0 mb-2.5 text-[22px] font-extrabold tracking-[-0.02em]">{title}</h3>
+    <p class="m-0 text-sm leading-[1.6] opacity-70"><slot /></p>
+  </div>
+</div>

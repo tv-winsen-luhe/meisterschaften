@@ -1,0 +1,28 @@
+name: Dependabot auto-merge
+
+# With branch protection on `main` (ADR-0013), this no longer needs to run the
+# checks itself: it just enables GitHub auto-merge, and the required checks
+# (`ci.yml` + the PR-title commitlint) gate the actual merge. So it never checks
+# out or executes the PR's code — the `pull_request_target` token is used only to
+# enable auto-merge, closing the untrusted-code-with-write-token hole that the
+# previous self-checking version had. (Supersedes the auto-merge half of ADR-0012.)
+on: pull_request_target
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  auto-merge:
+    if: github.event.pull_request.user.login == 'dependabot[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - id: meta
+        uses: dependabot/fetch-metadata@v3
+
+      - name: Enable auto-merge for patch updates
+        if: steps.meta.outputs.update-type == 'version-update:semver-patch'
+        env:
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh pr merge --auto --squash "$PR_URL"

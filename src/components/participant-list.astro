@@ -1,0 +1,521 @@
+---
+import { competitions, signupDeadline } from '@/data/tournament'
+import tvLogo from '@/assets/logo.svg'
+import tsvLogo from '@/assets/tsv-winsen.png'
+
+// Open competitions only; Hauptfeld (mens/womens) = seeding board, Challenger = friendly list.
+const openCompetitions = competitions.filter(c => c.status === 'open')
+// Planned competitions get a quiet "in Planung" tile so the field is hinted at, not listed.
+const plannedCompetitions = competitions.filter(c => c.status === 'planned')
+const layoutFor = (slug: string) => (slug === 'mens' || slug === 'womens' ? 'board' : 'list')
+// Provisional seeds: the strongest LKs are seeded, one per quarter of the draw
+// (16 → an 1–4, 8 → an 1–2). Final seeding/draw happens at the Auslosung.
+const seedsFor = (capacity?: number) => (capacity ? Math.floor(capacity / 4) : 0)
+---
+
+<div class="participants" data-participants data-logo-tv={tvLogo.src} data-logo-tsv={tsvLogo.src}>
+  <div class="participants__grid grid grid-cols-1 gap-0.5 bg-navy p-0.5 md:grid-cols-2">
+    {
+      openCompetitions.map(c => (
+        <section
+          class="pl-group bg-surface-alt p-6 md:p-7"
+          data-group={c.slug}
+          data-layout={layoutFor(c.slug)}
+          data-capacity={c.capacity}
+          data-seeds={layoutFor(c.slug) === 'board' ? seedsFor(c.capacity) : 0}
+        >
+          <div class="pl-group__top">
+            <header class="pl-group__head">
+              <h3 class="pl-group__title">{c.label}</h3>
+              <span class="pl-free" data-free-label />
+            </header>
+            {c.tagline && <p class="pl-group__tagline">{c.tagline}</p>}
+            {c.capacity && (
+              <div class="pl-meter" data-meter aria-hidden="true">
+                {Array.from({ length: c.capacity }).map(() => (
+                  <span class="pl-meter__seg" />
+                ))}
+              </div>
+            )}
+          </div>
+          <ol class="pl-list" data-list>
+            <li class="pl-skeleton" aria-hidden="true" />
+            <li class="pl-skeleton" aria-hidden="true" />
+            <li class="pl-skeleton" aria-hidden="true" />
+          </ol>
+          <div class="pl-empty" data-empty hidden>
+            <p class="pl-empty__line" data-empty-line>
+              Noch niemand im Feld — mach den Anfang.
+            </p>
+            <button type="button" class="pl-empty__cta" data-signup-open data-empty-cta>
+              Jetzt anmelden <span aria-hidden="true">→</span>
+            </button>
+          </div>
+        </section>
+      ))
+    }
+    {
+      plannedCompetitions.map(c => (
+        <section class="pl-group pl-group--planned bg-surface-alt p-6 md:p-7">
+          <div class="pl-group__top">
+            <header class="pl-group__head">
+              <h3 class="pl-group__title">{c.label}</h3>
+              <span class="pl-tag-planned">In Planung</span>
+            </header>
+          </div>
+          <p class="pl-planned__note">Ein geselliges Feld zum Mitspielen — Format folgt nach dem 02.07.</p>
+        </section>
+      ))
+    }
+  </div>
+  <p class="pl-status reveal mt-4 text-[13px] leading-[1.6] opacity-60" data-status>
+    Alle bestätigten Anmeldungen, laufend aktualisiert. Im Hauptfeld zeigen die markierten Plätze die <strong
+      >vorläufige Setzung</strong
+    > nach Leistungsklasse — endgültige Setzung und Auslosung nach Meldeschluss am {signupDeadline.short}
+  </p>
+</div>
+
+<style is:global>
+  /* Panels are always light — pin text to navy so a clay section's white text doesn't bleed in */
+  .pl-group {
+    color: var(--color-navy);
+  }
+  .pl-group__top {
+    border-bottom: 1px solid rgba(12, 30, 58, 0.15);
+    padding-bottom: 14px;
+    margin-bottom: 4px;
+  }
+  .pl-group__head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+  }
+  .pl-group__title {
+    margin: 0;
+    font-size: clamp(22px, 5vw, 30px);
+    line-height: 0.9;
+    font-weight: 900;
+    letter-spacing: -0.03em;
+    text-transform: uppercase;
+  }
+  .pl-group__tagline {
+    margin: 7px 0 0;
+    font-size: 12.5px;
+    line-height: 1.4;
+    font-weight: 600;
+    color: rgba(12, 30, 58, 0.6);
+  }
+
+  /* Planned field: a quiet teaser tile, not a live list */
+  .pl-group--planned .pl-group__title {
+    opacity: 0.5;
+  }
+  .pl-tag-planned {
+    flex-shrink: 0;
+    padding: 5px 10px;
+    border: 1.5px dashed rgba(12, 30, 58, 0.4);
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    white-space: nowrap;
+    color: rgba(12, 30, 58, 0.55);
+  }
+  .pl-planned__note {
+    margin: 16px 0 0;
+    font-size: 14px;
+    line-height: 1.55;
+    font-weight: 600;
+    color: rgba(12, 30, 58, 0.6);
+  }
+
+  .pl-free {
+    flex-shrink: 0;
+    padding-top: 5px;
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+    color: rgba(12, 30, 58, 0.6);
+  }
+  .pl-free:empty {
+    display: none;
+  }
+  .pl-meter {
+    display: flex;
+    gap: 3px;
+    margin-top: 14px;
+  }
+  .pl-meter[hidden] {
+    display: none;
+  }
+  .pl-meter__seg {
+    flex: 1;
+    height: 8px;
+    background: rgba(12, 30, 58, 0.1);
+    transition: background 0.3s ease;
+  }
+  .pl-meter__seg--filled {
+    background: var(--color-navy);
+  }
+
+  .pl-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+  .pl-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 0;
+    border-bottom: 1px solid rgba(12, 30, 58, 0.1);
+  }
+  .pl-row:last-child {
+    border-bottom: none;
+  }
+  .pl-rank {
+    flex-shrink: 0;
+    width: 1.8em;
+    font-size: 13px;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    font-variant-numeric: tabular-nums;
+    color: rgba(12, 30, 58, 0.4);
+  }
+  .pl-rank--seed {
+    color: #fff;
+    background: var(--color-navy);
+    border-radius: 50%;
+    width: 1.7em;
+    height: 1.7em;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+  }
+  .pl-row--seed .pl-name {
+    font-weight: 800;
+  }
+  .pl-divider {
+    margin: 10px 0 2px;
+    padding-top: 12px;
+    border-top: 1px dashed rgba(12, 30, 58, 0.25);
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: rgba(12, 30, 58, 0.45);
+  }
+  .pl-avatar {
+    flex-shrink: 0;
+    width: 34px;
+    height: 34px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    background: #fff;
+    border: 1px solid rgba(12, 30, 58, 0.12);
+    overflow: hidden;
+  }
+  .pl-avatar img {
+    width: 72%;
+    height: 72%;
+    object-fit: contain;
+  }
+  .pl-name {
+    flex: 1;
+    min-width: 0;
+    font-size: 15px;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .pl-lk {
+    flex-shrink: 0;
+    min-width: 4.4em;
+    text-align: right;
+    font-size: 12px;
+    font-weight: 800;
+    letter-spacing: -0.01em;
+    font-variant-numeric: tabular-nums;
+    color: var(--color-blue);
+  }
+  .pl-lk--pending {
+    color: rgba(12, 30, 58, 0.35);
+    font-weight: 700;
+  }
+
+  .pl-skeleton {
+    height: 18px;
+    margin: 14px 0;
+    border-radius: 2px;
+    background: linear-gradient(90deg, rgba(12, 30, 58, 0.08), rgba(12, 30, 58, 0.04));
+    animation: pl-pulse 1.3s ease-in-out infinite;
+  }
+  .pl-skeleton:nth-child(2) {
+    width: 84%;
+  }
+  .pl-skeleton:nth-child(3) {
+    width: 66%;
+  }
+  @keyframes pl-pulse {
+    50% {
+      opacity: 0.4;
+    }
+  }
+
+  .pl-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 16px;
+    margin: 18px 0 0;
+    padding: 22px;
+    border: 1.5px dashed rgba(12, 30, 58, 0.22);
+  }
+  .pl-empty__line {
+    margin: 0;
+    font-size: 15px;
+    font-weight: 700;
+    line-height: 1.4;
+    letter-spacing: -0.01em;
+    color: var(--color-navy);
+  }
+  .pl-empty__cta {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    background: var(--color-neon);
+    color: var(--color-navy);
+    font-family: inherit;
+    font-size: 13px;
+    font-weight: 800;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+    padding: 11px 20px;
+    border: none;
+    cursor: pointer;
+    transition:
+      background 0.2s,
+      transform 0.2s;
+  }
+  .pl-empty__cta:hover {
+    background: #e0ff4d;
+    transform: translateY(-1px);
+  }
+  .pl-empty__cta:focus-visible {
+    outline: 2px solid var(--color-navy);
+    outline-offset: 3px;
+  }
+  .pl-empty__cta[hidden] {
+    display: none;
+  }
+  .participants.is-error .pl-list,
+  .participants.is-error .pl-empty,
+  .participants.is-error .pl-meter,
+  .participants.is-error .pl-free {
+    display: none;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .pl-skeleton {
+      animation: none;
+    }
+    .pl-meter__seg {
+      transition: none;
+    }
+  }
+</style>
+
+<script>
+  import { hc } from 'hono/client'
+  import type { AppType } from '../../worker/app'
+  import type { Participant, ParticipantsResponse, Phase } from '../../shared'
+
+  type Entry = Participant
+  type ApiResponse = ParticipantsResponse
+
+  const client = hc<AppType>(location.origin)
+
+  // The phase the public surface keys off (ADR-0006). Each phase shows a phase-appropriate
+  // status caption; the list itself stays visible (the draw/live views consume it too). This
+  // surface only *reflects* the phase — it does not gate registration (the Anmeldung→Auslosung
+  // seeding freeze is the draw's job, a later epic), so it makes no "registration closed" claim.
+  const PHASE_CAPTIONS: Record<Exclude<Phase, 'signup'>, string> = {
+    draw: 'Die Auslosung läuft — die endgültige Setzung wird ermittelt.',
+    live: 'Das Turnier läuft.',
+    'post-event': 'Die Winsener Meisterschaften 2026 sind beendet. Danke fürs Mitspielen!'
+  }
+  const root = document.querySelector<HTMLElement>('[data-participants]')
+  const logoTv = root?.dataset.logoTv ?? ''
+  const logoTsv = root?.dataset.logoTsv ?? ''
+  // The Anmeldung caption is server-rendered (it interpolates the signup deadline). Capture it
+  // once so applyPhase can restore it verbatim when the operator reverts to 'signup'.
+  const statusEl = root?.querySelector<HTMLElement>('[data-status]') ?? null
+  const defaultCaption = statusEl?.textContent ?? ''
+
+  const divider = (): HTMLLIElement => {
+    const li = document.createElement('li')
+    li.className = 'pl-divider'
+    li.textContent = 'Weitere im Feld — Platzierung wird bei der Auslosung gelost'
+    return li
+  }
+
+  const row = (entry: Entry, layout: string, rank: number, isSeed: boolean): HTMLLIElement => {
+    const li = document.createElement('li')
+    li.className = isSeed ? 'pl-row pl-row--seed' : 'pl-row'
+
+    if (layout === 'board') {
+      const r = document.createElement('span')
+      r.className = isSeed ? 'pl-rank pl-rank--seed' : 'pl-rank'
+      r.textContent = String(rank)
+      if (isSeed) r.title = `An ${rank} gesetzt (vorläufig)`
+      li.appendChild(r)
+    }
+
+    const avatar = document.createElement('span')
+    avatar.className = 'pl-avatar'
+    const isTsv = entry.club.includes('TSV')
+    const logo = document.createElement('img')
+    logo.src = isTsv ? logoTsv : logoTv
+    logo.alt = isTsv ? 'TSV Winsen' : 'TV Winsen'
+    logo.loading = 'lazy'
+    avatar.appendChild(logo)
+    li.appendChild(avatar)
+
+    const name = document.createElement('span')
+    name.className = 'pl-name'
+    name.textContent = `${entry.firstName} ${entry.lastName}`.trim()
+    li.appendChild(name)
+
+    const lk = document.createElement('span')
+    lk.className = entry.lk ? 'pl-lk' : 'pl-lk pl-lk--pending'
+    lk.textContent = entry.lk ? `LK ${entry.lk}` : 'LK folgt'
+    li.appendChild(lk)
+
+    return li
+  }
+
+  const render = (data: ApiResponse) => {
+    if (!root) return
+    const statusEl = root.querySelector<HTMLElement>('[data-status]')
+
+    if (!data.enabled) {
+      root.querySelectorAll<HTMLElement>('[data-group]').forEach(group => {
+        group.querySelector<HTMLElement>('[data-list]')!.innerHTML = ''
+        const freeLabel = group.querySelector<HTMLElement>('[data-free-label]')
+        if (freeLabel) freeLabel.textContent = ''
+        const meter = group.querySelector<HTMLElement>('[data-meter]')
+        if (meter) meter.hidden = true
+        const empty = group.querySelector<HTMLElement>('[data-empty]')!
+        empty.hidden = false
+        const line = empty.querySelector<HTMLElement>('[data-empty-line]')
+        if (line) line.textContent = 'Teilnehmendenliste folgt in Kürze.'
+        const cta = empty.querySelector<HTMLElement>('[data-empty-cta]')
+        if (cta) cta.hidden = true
+      })
+      if (statusEl) statusEl.textContent = 'Die öffentliche Teilnehmendenliste wird in Kürze freigeschaltet.'
+      return
+    }
+
+    const byComp = new Map<string, Entry[]>()
+    for (const e of data.participants) {
+      const arr = byComp.get(e.competition) ?? []
+      arr.push(e)
+      byComp.set(e.competition, arr)
+    }
+
+    root.querySelectorAll<HTMLElement>('[data-group]').forEach(group => {
+      const slug = group.dataset.group!
+      const layout = group.dataset.layout || 'list'
+      const entries = byComp.get(slug) ?? []
+      const list = group.querySelector<HTMLElement>('[data-list]')!
+      const empty = group.querySelector<HTMLElement>('[data-empty]')!
+      const capacity = Number(group.dataset.capacity)
+      const seeds = Number(group.dataset.seeds) || 0
+      const freeLabel = group.querySelector<HTMLElement>('[data-free-label]')
+      const meter = group.querySelector<HTMLElement>('[data-meter]')
+      const segs = group.querySelectorAll<HTMLElement>('.pl-meter__seg')
+      if (Number.isFinite(capacity) && capacity > 0) {
+        if (meter) meter.hidden = false
+        const free = Math.max(0, capacity - entries.length)
+        if (freeLabel) {
+          const platz = free === 1 ? 'Platz' : 'Plätze'
+          freeLabel.textContent =
+            free === 0 ? 'Ausgebucht' : free === capacity ? `${free} ${platz} frei` : `Noch ${free} ${platz} frei`
+        }
+        segs.forEach((s, i) => s.classList.toggle('pl-meter__seg--filled', i < entries.length))
+      } else if (freeLabel) {
+        freeLabel.textContent = entries.length ? `${entries.length} gemeldet` : ''
+      }
+
+      list.innerHTML = ''
+      if (entries.length === 0) {
+        empty.hidden = false
+        const line = empty.querySelector<HTMLElement>('[data-empty-line]')
+        if (line) line.textContent = 'Noch niemand im Feld — mach den Anfang.'
+        const cta = empty.querySelector<HTMLElement>('[data-empty-cta]')
+        if (cta) cta.hidden = false
+        return
+      }
+      empty.hidden = true
+      entries.forEach((e, i) => {
+        const rank = i + 1
+        // Separate the seeded players from the rest, which get drawn at the Auslosung.
+        if (seeds > 0 && rank === seeds + 1) list.appendChild(divider())
+        list.appendChild(row(e, layout, rank, seeds > 0 && rank <= seeds))
+      })
+    })
+  }
+
+  // The phase the public surface keys off (ADR-0006). Read at runtime, best-effort: any
+  // failure falls back to 'signup' so the list keeps its default signup framing.
+  const loadPhase = async (): Promise<Phase> => {
+    try {
+      const res = await client.api.phase.$get()
+      if (!res.ok) return 'signup'
+      return (await res.json()).phase
+    } catch {
+      return 'signup'
+    }
+  }
+
+  // React to the phase by swapping the status caption — and restoring the original on a revert
+  // to 'signup', so an operator flipping back recovers the signup framing without a reload.
+  const applyPhase = (phase: Phase) => {
+    if (!statusEl) return
+    statusEl.textContent = phase === 'signup' ? defaultCaption : PHASE_CAPTIONS[phase]
+  }
+
+  const load = async () => {
+    if (!root) return
+    try {
+      const [res, phase] = await Promise.all([client.api.participants.$get(), loadPhase()])
+      if (!res.ok) throw new Error('bad status')
+      const data = await res.json()
+      render(data)
+      // PUBLIC_LIST_ENABLED is the orthogonal kill-switch: when it hides the list, that
+      // message wins and the phase reframing is skipped.
+      if (data.enabled) applyPhase(phase)
+    } catch {
+      root.classList.add('is-error')
+      root.querySelectorAll<HTMLElement>('[data-free-label]').forEach(el => (el.textContent = ''))
+      root.querySelectorAll<HTMLElement>('.pl-skeleton').forEach(el => el.remove())
+      const statusEl = root.querySelector<HTMLElement>('[data-status]')
+      if (statusEl)
+        statusEl.textContent = 'Die Teilnehmendenliste lässt sich gerade nicht laden. Bitte später erneut versuchen.'
+    }
+  }
+
+  load()
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') load()
+  })
+</script>
