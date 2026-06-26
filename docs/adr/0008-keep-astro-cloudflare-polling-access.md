@@ -86,3 +86,28 @@ Not adopted: verifying the `Cf-Access-Jwt-Assertion` in the worker (app-level de
 also cover a re-enabled `workers.dev`). Overkill for a single-operator surface; revisit if operator count
 or route surface grows. "Default-deny" Access scoping (gate the whole host, bypass the public paths) was
 likewise rejected as more config and more lock-out risk than the explicit `/api/admin` include warrants.
+
+## Amendment (2026-06-26): TanStack Start / Next.js evaluated by name — decision unchanged
+
+The original "keep the stack" decision weighed Astro against an _abstract_ "switch framework", prompted by
+the Astro 7 release. We revisited it with two **named** alternatives — TanStack Start and Next.js — driven
+by a wish for (A) better admin DX and (B) unified full-stack TypeScript. Conclusion: stay on Astro.
+
+- **B is already met.** The typed `hc` chain (Drizzle → Store → Zod → Hono → `hc`, ADR-0009) _is_ end-to-end
+  type-safe full-stack. A unified framework's server functions would only **colocate** the server call with
+  the client call — saving the "define a Hono route + Zod validator per operation" ceremony — not add type
+  safety we lack.
+- **A is library-solvable in place.** The admin's hand-rolled `load()`/`mutate()`/refetch-after-mutation and
+  `useState`-held server data is the exact problem TanStack **Query** solves; surface-switching via `useState`
+  instead of routes is what TanStack **Router** solves. Both are **libraries that drop into the existing
+  React island** — no framework switch, zero impact on the public zero-JS site.
+- **Migration cost is real and one-directional.** Next.js (App Router) and TanStack Start are SSR-React
+  metaframeworks: both ship a React runtime to **every public page**, regressing the public marketing/list
+  pages off zero-JS-by-default — Astro's whole point here — for **no capability gain** (the original finding
+  stands: every dynamic requirement lives in the Worker + D1 + client fetch, so the framework is orthogonal
+  to capability). Add a full rewrite of public site + admin + worker integration on a single-event volunteer
+  project, against a younger Cloudflare-Workers deploy story (Next via `@opennextjs/cloudflare`; TanStack
+  Start fresh) versus Astro's first-class CF support.
+- **No current DX pain.** With no concrete paper-cut today, even the in-place libraries (Query/Router) are
+  **not adopted now** — adding them speculatively would be the same YAGNI violation in miniature. They are
+  the sanctioned escape hatch _if and when_ the admin DX actually hurts.
