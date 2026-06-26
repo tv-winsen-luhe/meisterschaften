@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { CLUBS } from './club'
 import { COMPETITION_SLUGS } from './competition'
 import { CHALLENGER_MIN_LK, DEFAULT_LK } from './constants'
 
@@ -10,9 +11,6 @@ import { CHALLENGER_MIN_LK, DEFAULT_LK } from './constants'
 // Messages are kept identical to the previous hand-rolled handler (behaviour-preserving):
 // every check on a field carries the same German message, and the fields are declared in
 // the legacy validation order so the first reported issue matches the old behaviour.
-
-export const CLUBS = ['TV Winsen', 'TSV Winsen'] as const
-export type Club = (typeof CLUBS)[number]
 
 // Same shape the legacy isEmail() accepted: one @, one dot, no whitespace.
 const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/
