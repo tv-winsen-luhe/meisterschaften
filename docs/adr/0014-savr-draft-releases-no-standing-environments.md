@@ -1,5 +1,12 @@
 # SAVR draft releases; no standing environments
 
+> **Partly superseded by ADR-0015.** This ADR frames releases as a pure
+> documentation narrative that is _not_ a deploy trigger. That second half no
+> longer holds: **publishing a release now triggers the production deploy**
+> (ADR-0015), and the per-milestone publish cadence below loosens to "publish
+> whenever you want to ship." The SAVR draft mechanics, semver-as-milestone, and
+> the no-standing-environment decision are unchanged.
+
 Now that the repo is public with conventional-commit PR titles landing on `main`
 (ADR-0013), that commit stream is a ready-made input for a release tool. We
 adopt [SAVR](https://github.com/21stdigital/savr-action) to maintain a GitHub

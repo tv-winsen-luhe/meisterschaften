@@ -5,7 +5,9 @@
 > branch protection are replaced: human merges are no longer advisory (required
 > checks block them), and dependabot auto-merge uses `gh pr merge --auto` instead
 > of self-running the checks. The **`deploy: needs: checks`** gate described here
-> still stands. The rest of this ADR is kept as the historical record.
+> still stands, but its **trigger moved** (ADR-0015): deploy no longer fires on
+> push to `main` — it fires when a release is published. The rest of this ADR is
+> kept as the historical record.
 
 The repo is a **private repo on a free-plan organization**, where GitHub offers
 neither classic branch protection nor rulesets (both APIs return

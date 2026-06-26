@@ -4,6 +4,8 @@ on:
   pull_request:
   push:
     branches: [main]
+  release:
+    types: [published]
 
 permissions:
   contents: read
@@ -44,12 +46,14 @@ jobs:
       - name: Test
         run: pnpm test
 
-  # Branch protection ist auf dem privaten Free-Repo nicht verfügbar; deshalb
-  # bindet `needs: checks` den Deploy an die grüne Suite — ein kaputter main
-  # wird nie deployt, egal wie der Merge zustande kam. (Siehe ADR-0012.)
+  # Deploy nur bei einem VERÖFFENTLICHTEN Release, nicht bei jedem Push auf `main`
+  # (ADR-0015): das Publish ist der bewusste Go-Live. Der Checkout zieht beim
+  # release-Event den getaggten Commit, also wird genau der released Stand deployt.
+  # `needs: checks` bleibt der Vor-Deploy-Riegel (läuft hier auf dem Release-Commit);
+  # Prereleases sind ausgenommen. Push auf `main` lässt nur noch `checks` laufen.
   deploy:
     needs: checks
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: github.event_name == 'release' && !github.event.release.prerelease
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
