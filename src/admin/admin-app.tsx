@@ -1,16 +1,17 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { hc } from 'hono/client'
+import { toast } from 'sonner'
 import type { AppType } from '../../worker/app'
 import { type AdminRegistration, type Phase } from '../../shared'
-import { cn } from '@/admin/lib/utils'
 import { Button } from '@/admin/ui/button'
 import { Separator } from '@/admin/ui/separator'
+import { Toaster } from '@/admin/ui/sonner'
 import { SidebarInset, SidebarProvider, SidebarTrigger } from '@/admin/ui/sidebar'
 import { AppSidebar, type Surface } from './app-sidebar'
 import { PHASE_LABELS, PhaseStepper } from './phase-stepper'
 import { OverviewSurface } from './surfaces/overview-surface'
 import { RegistrationsSurface, type StatusFilter } from './surfaces/registrations-surface'
-import { type ConfirmPayload } from './registration-card'
+import { type ConfirmPayload } from './surfaces/registration-detail'
 
 // Auth is edge-only (Cloudflare Access, ADR-0008). An expired Access session answers
 // `/api/admin/*` with a 302 to the cross-origin login; `redirect: 'manual'` (see client) turns
@@ -46,14 +47,6 @@ export const AdminApp = () => {
   const [filter, setFilter] = useState<StatusFilter>('all')
   const [query, setQuery] = useState('')
 
-  const [toast, setToast] = useState<{ text: string; err: boolean } | null>(null)
-  const toastTimer = useRef<ReturnType<typeof setTimeout>>(undefined)
-  const showToast = useCallback((text: string, err = false) => {
-    setToast({ text, err })
-    clearTimeout(toastTimer.current)
-    toastTimer.current = setTimeout(() => setToast(null), 3200)
-  }, [])
-
   // `redirect: 'manual'` so an Access login redirect surfaces as an opaque-redirect response
   // (status 0) instead of being transparently followed cross-origin — see isAuthRedirect.
   const client = useMemo(
@@ -69,7 +62,7 @@ export const AdminApp = () => {
       const res = await client.api.admin.list.$get()
       if (isAuthRedirect(res)) return location.reload()
       if (!res.ok) {
-        showToast('Konnte nicht laden.', true)
+        toast.error('Konnte nicht laden.')
         setReady(true)
         return
       }
@@ -87,33 +80,39 @@ export const AdminApp = () => {
         // ignore — phase keeps its last known value
       }
     } catch {
-      showToast('Konnte nicht laden.', true)
+      toast.error('Konnte nicht laden.')
       setReady(true)
     }
-  }, [client, showToast])
+  }, [client])
 
   useEffect(() => {
     load()
   }, [load])
 
   // Wrap a mutation: run it, force a full reload on an Access redirect (re-runs the login),
-  // toast its error, else toast success + reload the list.
+  // toast its error, else toast success + reload the list. Resolves to whether the action
+  // succeeded, so callers can advance/close UI only on success (and not on a rejected save).
   const mutate = useCallback(
-    async (run: () => Promise<Response>, success: string) => {
+    async (run: () => Promise<Response>, success: string): Promise<boolean> => {
       try {
         const res = await run()
-        if (isAuthRedirect(res)) return location.reload()
-        if (!res.ok) {
-          showToast(await errorMessage(res), true)
-          return
+        if (isAuthRedirect(res)) {
+          location.reload()
+          return false
         }
-        showToast(success)
+        if (!res.ok) {
+          toast.error(await errorMessage(res))
+          return false
+        }
+        toast.success(success)
         await load()
+        return true
       } catch {
-        showToast('Aktion fehlgeschlagen.', true)
+        toast.error('Aktion fehlgeschlagen.')
+        return false
       }
     },
-    [load, showToast]
+    [load]
   )
 
   // Set the operator-controlled phase (ADR-0006): the public site reflects it and the weekly
@@ -128,23 +127,30 @@ export const AdminApp = () => {
     [client, phase, mutate]
   )
 
+  // Resolves to whether the save succeeded, so the surface auto-advances only on success and
+  // keeps the operator on a rejected row (their edits intact) instead of skipping ahead.
   const confirm = useCallback(
-    async (id: number, payload: ConfirmPayload) => {
+    async (id: number, payload: ConfirmPayload): Promise<boolean> => {
       try {
         const res = await client.api.admin.confirm.$post({ json: { id, ...payload } })
-        if (isAuthRedirect(res)) return location.reload()
+        if (isAuthRedirect(res)) {
+          location.reload()
+          return false
+        }
         if (!res.ok) {
-          showToast(await errorMessage(res), true)
-          return
+          toast.error(await errorMessage(res))
+          return false
         }
         const data = await res.json()
-        showToast(data.lkFetched ? `Gespeichert · LK ${data.lkFetched} geholt.` : 'Gespeichert.')
+        toast.success(data.lkFetched ? `Gespeichert · LK ${data.lkFetched} geholt.` : 'Gespeichert.')
         await load()
+        return true
       } catch {
-        showToast('Fehler beim Speichern.', true)
+        toast.error('Fehler beim Speichern.')
+        return false
       }
     },
-    [client, load, showToast]
+    [client, load]
   )
 
   // Operator cancel by id (ADR-0018): records a drop-out the desk was told about. The card owns
@@ -162,9 +168,9 @@ export const AdminApp = () => {
   )
 
   const refreshLk = useCallback(async () => {
-    showToast('Aktualisiere LK aus nuLiga …')
+    toast('Aktualisiere LK aus nuLiga …')
     await mutate(() => client.api.admin['refresh-lk'].$post(), 'LK aktualisiert.')
-  }, [client, mutate, showToast])
+  }, [client, mutate])
 
   // The Übersicht's "neu — zu bestätigen" call-to-action: open Anmeldungen pre-filtered to the
   // "Neu" queue so the operator starts triage in one click (ADR-0019).
@@ -189,15 +195,18 @@ export const AdminApp = () => {
             </Button>
           </p>
         )}
-        {toast && <Toast text={toast.text} err={toast.err} />}
+        <Toaster position="bottom-center" />
       </main>
     )
   }
 
   return (
-    <SidebarProvider>
+    // h-svh + overflow-hidden turns the shell into a fixed-height app frame: the header stays put
+    // and each surface scrolls inside its own region (the Anmeldungen queue and detail panel keep
+    // their action bars pinned) rather than the whole page scrolling.
+    <SidebarProvider className="h-svh overflow-hidden">
       <AppSidebar active={surface} onSelect={setSurface} />
-      <SidebarInset>
+      <SidebarInset className="min-h-0 overflow-hidden">
         {/* The phase stepper sits above every surface (ADR-0019). Non-sticky so the Anmeldungen
             filter bar below can pin to the top while a long list scrolls, as it did before. */}
         <header className="bg-background flex items-center gap-2 border-b px-4 py-3">
@@ -221,24 +230,7 @@ export const AdminApp = () => {
           />
         )}
       </SidebarInset>
-      {toast && <Toast text={toast.text} err={toast.err} />}
+      <Toaster position="bottom-center" />
     </SidebarProvider>
   )
 }
-
-interface ToastProps {
-  text: string
-  err: boolean
-}
-const Toast = ({ text, err }: ToastProps) => (
-  <div
-    className={cn(
-      'bg-popover text-popover-foreground pointer-events-none fixed bottom-[22px] left-1/2 z-50 -translate-x-1/2 rounded-md border-l-4 px-[18px] py-[11px] text-sm font-medium shadow-lg',
-      err ? 'border-l-destructive' : 'border-l-foreground'
-    )}
-    role="status"
-    aria-live="polite"
-  >
-    {text}
-  </div>
-)

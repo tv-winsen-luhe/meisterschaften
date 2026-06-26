@@ -1,4 +1,5 @@
 import eslintPluginAstro from 'eslint-plugin-astro'
+import reactHooks from 'eslint-plugin-react-hooks'
 import { defineConfig } from 'eslint/config'
 import tseslint from 'typescript-eslint'
 
@@ -42,6 +43,20 @@ const config = defineConfig([
             'No inline object types in generic arguments — declare an explicit interface and reference it (e.g. Promise<MyResult> instead of Promise<{…}>).'
         }
       ]
+    }
+  },
+  {
+    // The admin is the only React code (a client:only island, ADR-0008) and is set to grow. The
+    // Hooks rules guard it: rules-of-hooks is a hard error (a conditional hook is a real bug);
+    // exhaustive-deps is advisory (warn), because a few effects intentionally diverge from the
+    // mechanical dependency set. Scoped to src/admin so the Astro/worker code is unaffected.
+    files: ['src/admin/**/*.{ts,tsx}'],
+    plugins: {
+      'react-hooks': reactHooks
+    },
+    rules: {
+      'react-hooks/rules-of-hooks': 'error',
+      'react-hooks/exhaustive-deps': 'warn'
     }
   }
 ])

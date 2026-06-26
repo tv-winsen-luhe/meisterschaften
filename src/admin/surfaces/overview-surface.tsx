@@ -3,14 +3,16 @@ import { type AdminRegistration, COMPETITION_SLUGS } from '../../../shared'
 import { competitions } from '@/data/tournament'
 import { cn } from '@/admin/lib/utils'
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/admin/ui/empty'
+import { competitionLabel } from './registration-detail'
 
 // The Konkurrenzen in story order (Herren, Herren Challenger, Damen) — COMPETITION_SLUGS already
-// carries them in that order. Label and capacity come from the tournament content model so the
-// Übersicht never re-states what tournament.ts already owns.
-const FIELDS = COMPETITION_SLUGS.map(slug => {
-  const competition = competitions.find(c => c.slug === slug)
-  return { slug, label: competition?.label ?? slug, capacity: competition?.capacity }
-})
+// carries them in that order. Label and capacity come from the tournament content model (via the
+// shared competitionLabel helper) so the Übersicht never re-states what tournament.ts already owns.
+const FIELDS = COMPETITION_SLUGS.map(slug => ({
+  slug,
+  label: competitionLabel(slug),
+  capacity: competitions.find(c => c.slug === slug)?.capacity
+}))
 
 interface OverviewSurfaceProps {
   registrations: AdminRegistration[]
@@ -61,7 +63,7 @@ export const OverviewSurface = ({ registrations, onGoToNew }: OverviewSurfacePro
       : 'Es liegen keine neuen Anmeldungen vor.'
 
   return (
-    <div className="flex flex-col gap-6 p-5">
+    <div className="flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto p-5">
       {/* The one job this phase demands: confirm the "Neu" queue. Amber while entries wait (the
           semantic "neu" hue), calm once the queue is clear; either way it opens Anmeldungen. */}
       <button

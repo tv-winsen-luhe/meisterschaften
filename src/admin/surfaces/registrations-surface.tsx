@@ -1,26 +1,36 @@
-import { RefreshCw } from 'lucide-react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { Inbox, RefreshCw } from 'lucide-react'
 import type { AdminRegistration } from '../../../shared'
 import { cn } from '@/admin/lib/utils'
 import { Button } from '@/admin/ui/button'
 import { Input } from '@/admin/ui/input'
-import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from '@/admin/ui/empty'
-import { RegistrationCard, type ConfirmPayload } from '../registration-card'
+import { ScrollArea } from '@/admin/ui/scroll-area'
+import { Tabs, TabsList, TabsTrigger } from '@/admin/ui/tabs'
+import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/admin/ui/empty'
+import { Drawer, DrawerContent, DrawerDescription, DrawerTitle } from '@/admin/ui/drawer'
+import { useIsMobile } from '@/admin/hooks/use-mobile'
+import { nextSelection } from './auto-advance'
+import { competitionLabel, RegistrationDetail, STATUS_META, type ConfirmPayload } from './registration-detail'
 
 export type StatusFilter = 'all' | AdminRegistration['status']
 
+// Filter-tab labels: the three status labels come from STATUS_META (single source), plus "Alle".
 const STATUS_LABELS: Record<StatusFilter, string> = {
   all: 'Alle',
-  new: 'Neu',
-  confirmed: 'Bestätigt',
-  cancelled: 'Abgemeldet'
+  new: STATUS_META.new.label,
+  confirmed: STATUS_META.confirmed.label,
+  cancelled: STATUS_META.cancelled.label
 }
-const GROUP_LABELS: Record<string, string> = {
-  new: 'Neu — zu bestätigen',
-  confirmed: 'Bestätigt — öffentlich',
-  cancelled: 'Abgemeldet'
-}
+// Status order in the queue: the "Neu" work-queue first, then confirmed, then the terminal
+// cancelled rows. Within a status, oldest first (the order they signed up).
 const ORDER: Record<string, number> = { new: 0, confirmed: 1, cancelled: 2 }
-const TABS: StatusFilter[] = ['all', 'new', 'confirmed', 'cancelled']
+const TABS: StatusFilter[] = ['new', 'confirmed', 'cancelled', 'all']
+
+// The detail panel seeds its edit state from the row and is remounted when any displayed field
+// changes (selection, or a save that moves the row to confirmed) — so it always reflects the
+// persisted state without an effect to sync it.
+const detailKey = (reg: AdminRegistration) =>
+  `${reg.id}:${reg.status}:${reg.competition}:${reg.club}:${reg.playerId}:${reg.lk}`
 
 interface RegistrationsSurfaceProps {
   registrations: AdminRegistration[]
@@ -28,16 +38,19 @@ interface RegistrationsSurfaceProps {
   onFilterChange: (filter: StatusFilter) => void
   query: string
   onQueryChange: (query: string) => void
-  onConfirm: (id: number, payload: ConfirmPayload) => void
-  onCancel: (id: number) => void
-  onDelete: (reg: AdminRegistration) => void
+  // The mutations resolve to whether they succeeded, so the surface advances/closes only on success.
+  onConfirm: (id: number, payload: ConfirmPayload) => Promise<boolean>
+  onCancel: (id: number) => Promise<boolean>
+  onDelete: (reg: AdminRegistration) => Promise<boolean>
   onRefreshLk: () => void
 }
 
-// The registration workbench (ADR-0019): the stat tiles, status tabs, search, and the editable
-// cards that were the whole admin before the shell. Moved here unchanged so registration
-// management keeps working — the two-pane triage redesign rides in a later slice. The shell owns
-// the data, the mutations, and the filter/search state (so it survives switching surfaces).
+// The Anmeldungen surface (ADR-0019): a two-pane triage workbench. The left pane is the filtered,
+// searchable queue; the right pane is the selected registration's detail/edit panel. After a
+// confirm the next entry opens automatically (nextSelection), so the operator works the "Neu"
+// queue without re-clicking. On a narrow screen the panes collapse to one and the detail panel
+// becomes a bottom drawer. The shell owns the data, the mutations, and the filter/search state (so
+// they survive switching surfaces); the selection is local to this surface.
 export const RegistrationsSurface = ({
   registrations,
   filter,
@@ -49,100 +62,204 @@ export const RegistrationsSurface = ({
   onDelete,
   onRefreshLk
 }: RegistrationsSurfaceProps) => {
-  const confirmed = registrations.filter(r => r.status === 'confirmed')
-  const byCompetition = (slug: string) => confirmed.filter(r => r.competition === slug).length
-  const count = (s: StatusFilter) =>
-    s === 'all' ? registrations.length : registrations.filter(r => r.status === s).length
+  const isMobile = useIsMobile()
+  const [selectedId, setSelectedId] = useState<number | null>(null)
+  const [drawerOpen, setDrawerOpen] = useState(false)
+  const searchRef = useRef<HTMLInputElement>(null)
 
-  const q = query.trim().toLowerCase()
-  const visible = registrations
-    .filter(r => filter === 'all' || r.status === filter)
-    .filter(
-      r => !q || `${r.firstName} ${r.lastName} ${r.email} ${r.club} ${r.playerId ?? ''}`.toLowerCase().includes(q)
+  // Tab counts and the filtered+sorted queue, memoised so clicking through rows / toggling the
+  // drawer does not re-scan and re-sort the whole list on every render.
+  const counts = useMemo(
+    () => ({
+      all: registrations.length,
+      new: registrations.filter(r => r.status === 'new').length,
+      confirmed: registrations.filter(r => r.status === 'confirmed').length,
+      cancelled: registrations.filter(r => r.status === 'cancelled').length
+    }),
+    [registrations]
+  )
+  const visible = useMemo(() => {
+    const q = query.trim().toLowerCase()
+    return registrations
+      .filter(r => filter === 'all' || r.status === filter)
+      .filter(
+        r => !q || `${r.firstName} ${r.lastName} ${r.email} ${r.club} ${r.playerId ?? ''}`.toLowerCase().includes(q)
+      )
+      .sort((a, b) => ORDER[a.status] - ORDER[b.status] || a.createdAt.localeCompare(b.createdAt))
+  }, [registrations, filter, query])
+
+  // Keep the selection valid as the queue changes (filter/search/reload): drop it when the queue
+  // empties, default to the first row when the current selection has left the queue.
+  useEffect(() => {
+    if (visible.length === 0) {
+      if (selectedId !== null) setSelectedId(null)
+    } else if (!visible.some(r => r.id === selectedId)) {
+      setSelectedId(visible[0].id)
+    }
+  }, [visible, selectedId])
+
+  // `/` focuses the search box, so the operator can filter without reaching for the mouse — unless
+  // they are already typing in a field.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== '/') return
+      const el = document.activeElement as HTMLElement | null
+      const tag = el?.tagName
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || el?.isContentEditable) return
+      e.preventDefault()
+      searchRef.current?.focus()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [])
+
+  const selected = visible.find(r => r.id === selectedId) ?? null
+
+  const selectRow = (id: number) => {
+    setSelectedId(id)
+    if (isMobile) setDrawerOpen(true)
+  }
+
+  // Auto-advance: after a *successful* confirm, open the next entry (nextSelection over the queue
+  // as it stood when the operator acted). A rejected save resolves false — the operator stays on
+  // the row with their edits intact rather than being skipped past a still-"Neu" entry.
+  const handleConfirm = async (id: number, payload: ConfirmPayload) => {
+    const next = nextSelection(visible, id)
+    if (!(await onConfirm(id, payload))) return
+    setSelectedId(next)
+    if (next === null) setDrawerOpen(false)
+  }
+  // Close the drawer only once the mutation actually succeeds, so a failed cancel/delete leaves the
+  // panel open on the unchanged row instead of vanishing as if it had worked.
+  const handleCancel = async (id: number) => {
+    if (await onCancel(id)) setDrawerOpen(false)
+  }
+  const handleDelete = async (reg: AdminRegistration) => {
+    if (await onDelete(reg)) setDrawerOpen(false)
+  }
+
+  if (registrations.length === 0) {
+    return (
+      <Empty className="m-5 border">
+        <EmptyHeader>
+          <EmptyMedia variant="icon">
+            <Inbox />
+          </EmptyMedia>
+          <EmptyTitle>Noch keine Anmeldungen</EmptyTitle>
+          <EmptyDescription>Die Liste füllt sich, sobald jemand das Formular abschickt.</EmptyDescription>
+        </EmptyHeader>
+      </Empty>
     )
-    .sort((a, b) => ORDER[a.status] - ORDER[b.status] || a.createdAt.localeCompare(b.createdAt))
-
-  let lastStatus: string | null = null
-  const grouped = filter === 'all'
+  }
 
   return (
-    <>
-      <div className="grid grid-cols-3 gap-2 px-5 py-4 min-[721px]:grid-cols-6">
-        <Tile label="Gesamt" value={registrations.length} />
-        <Tile label="Neu" value={count('new')} />
-        <Tile label="Bestätigt" value={confirmed.length} highlight />
-        <Tile label="Herren" value={byCompetition('mens')} />
-        <Tile label="Challenger" value={byCompetition('mens-challenger')} />
-        <Tile label="Damen" value={byCompetition('womens')} />
-      </div>
-      <div className="bg-background/95 sticky top-0 z-10 border-y backdrop-blur">
-        <div className="flex flex-wrap items-center gap-3 px-5 py-2">
-          <div className="flex flex-wrap gap-1">
-            {TABS.map(s => (
-              <Button
-                key={s}
-                size="sm"
-                variant={filter === s ? 'secondary' : 'ghost'}
-                onClick={() => onFilterChange(s)}
-              >
-                {STATUS_LABELS[s]}
-                <span className="font-mono text-xs font-bold opacity-60">{count(s)}</span>
-              </Button>
-            ))}
+    <div className="flex min-h-0 flex-1">
+      {/* Left pane — the queue. Full width on a phone; a fixed column beside the detail on desktop. */}
+      <div className="flex w-full min-w-0 flex-col md:w-[360px] md:border-r lg:w-[400px]">
+        <div className="flex flex-col gap-2 border-b p-3">
+          <div className="flex gap-2">
+            <Input
+              ref={searchRef}
+              className="flex-1"
+              type="search"
+              placeholder="Name, E-Mail, Verein, ID …  ( / )"
+              autoComplete="off"
+              value={query}
+              onChange={e => onQueryChange(e.target.value)}
+            />
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={onRefreshLk}
+              title="Seeding-LK aller verknüpften Spieler holen"
+            >
+              <RefreshCw />
+              <span className="max-[420px]:sr-only">LK</span>
+            </Button>
           </div>
-          <Input
-            className="ml-auto max-w-[320px] min-w-[160px] flex-1"
-            type="search"
-            placeholder="Name, E-Mail, Verein, ID …"
-            autoComplete="off"
-            value={query}
-            onChange={e => onQueryChange(e.target.value)}
-          />
-          <Button variant="outline" size="sm" onClick={onRefreshLk}>
-            <RefreshCw />
-            LK aus nuLiga
-          </Button>
+          <Tabs value={filter} onValueChange={v => onFilterChange(v as StatusFilter)}>
+            <TabsList className="w-full">
+              {TABS.map(s => (
+                <TabsTrigger key={s} value={s}>
+                  {STATUS_LABELS[s]}
+                  <span className="font-mono text-xs font-bold opacity-60">{counts[s]}</span>
+                </TabsTrigger>
+              ))}
+            </TabsList>
+          </Tabs>
         </div>
-      </div>
-      <div className="p-5">
-        {registrations.length === 0 ? (
-          <Empty className="my-8 border">
-            <EmptyHeader>
-              <EmptyTitle>Noch keine Anmeldungen</EmptyTitle>
-              <EmptyDescription>Die Liste füllt sich, sobald jemand das Formular abschickt.</EmptyDescription>
-            </EmptyHeader>
-          </Empty>
-        ) : visible.length === 0 ? (
-          <p className="text-muted-foreground px-4 py-12 text-center text-sm">Keine Treffer für diesen Filter.</p>
-        ) : (
-          visible.map(reg => {
-            const header = grouped && reg.status !== lastStatus ? ((lastStatus = reg.status), reg.status) : null
-            return (
-              <div key={`${reg.id}:${reg.status}:${reg.competition}:${reg.club}:${reg.playerId}:${reg.lk}`}>
-                {header && (
-                  <div className="text-muted-foreground mt-[26px] mb-2.5 flex items-center gap-2.5 text-xs font-semibold tracking-[0.08em] uppercase">
-                    {GROUP_LABELS[header] ?? header}
-                    <span className="h-px flex-1 bg-border" />
-                  </div>
+        <ScrollArea className="min-h-0 flex-1">
+          {visible.length === 0 ? (
+            <p className="text-muted-foreground px-4 py-12 text-center text-sm">Keine Treffer für diesen Filter.</p>
+          ) : (
+            visible.map(reg => (
+              <button
+                key={reg.id}
+                type="button"
+                onClick={() => selectRow(reg.id)}
+                className={cn(
+                  'flex w-full items-center gap-3 border-b px-4 py-2.5 text-left transition-colors',
+                  selectedId === reg.id ? 'bg-accent' : 'hover:bg-accent/50'
                 )}
-                <RegistrationCard reg={reg} onConfirm={onConfirm} onCancel={onCancel} onDelete={onDelete} />
-              </div>
-            )
-          })
-        )}
+              >
+                <span
+                  className={cn('size-2 shrink-0 rounded-full', STATUS_META[reg.status].dot)}
+                  aria-label={STATUS_META[reg.status].label}
+                />
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-sm font-medium">
+                    {reg.firstName} {reg.lastName}
+                  </span>
+                  <span className="text-muted-foreground block truncate text-xs">
+                    {competitionLabel(reg.competition)}
+                  </span>
+                </span>
+                <span className="text-muted-foreground shrink-0 font-mono text-xs tabular-nums">{reg.lk ?? '—'}</span>
+              </button>
+            ))
+          )}
+        </ScrollArea>
       </div>
-    </>
+
+      {/* Right pane — the detail/edit panel (desktop). On a phone it rides in the drawer below. */}
+      {!isMobile && (
+        <div className="hidden min-w-0 flex-1 md:flex">
+          {selected ? (
+            <RegistrationDetail
+              key={detailKey(selected)}
+              reg={selected}
+              onConfirm={handleConfirm}
+              onCancel={handleCancel}
+              onDelete={handleDelete}
+            />
+          ) : (
+            <div className="text-muted-foreground grid flex-1 place-items-center p-8 text-center text-sm">
+              Eintrag in der Liste wählen.
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Mobile: the detail panel as a bottom drawer (vaul), so triage works one-handed. */}
+      {isMobile && (
+        <Drawer open={drawerOpen && selected !== null} onOpenChange={setDrawerOpen}>
+          <DrawerContent className="h-[80svh]">
+            <DrawerTitle className="sr-only">
+              {selected ? `${selected.firstName} ${selected.lastName}` : 'Anmeldung'}
+            </DrawerTitle>
+            <DrawerDescription className="sr-only">Anmeldung bearbeiten</DrawerDescription>
+            {selected && (
+              <RegistrationDetail
+                key={detailKey(selected)}
+                reg={selected}
+                onConfirm={handleConfirm}
+                onCancel={handleCancel}
+                onDelete={handleDelete}
+              />
+            )}
+          </DrawerContent>
+        </Drawer>
+      )}
+    </div>
   )
 }
-
-interface TileProps {
-  label: string
-  value: number
-  highlight?: boolean
-}
-const Tile = ({ label, value, highlight }: TileProps) => (
-  <div className={cn('bg-card flex flex-col gap-0.5 rounded-lg border px-3 py-2', highlight && 'ring-1 ring-ring')}>
-    <span className="font-mono text-2xl leading-none font-bold tabular-nums">{value}</span>
-    <span className="text-muted-foreground text-[10px] font-medium tracking-[0.1em] uppercase">{label}</span>
-  </div>
-)
