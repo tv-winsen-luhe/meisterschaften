@@ -1,4 +1,4 @@
-import { CLUBS } from '../shared'
+import { CLUBS, isActive } from '../shared'
 import type { RegistrationsStore } from './store/registrations'
 
 // seedingLk: a pure LK lookup behind a roster port (ADR-0010). It matches a player against
@@ -127,7 +127,7 @@ export const createSeedingLk = (deps: SeedingLkDeps): SeedingLk => {
           continue
         }
         // Active rows without a linkage: try a unique name match against the club roster.
-        if (reg.status !== 'new' && reg.status !== 'confirmed') continue
+        if (!isActive(reg.status)) continue
         const match = findRosterMatch(rosters.get(reg.club) ?? [], reg.firstName, reg.lastName)
         if (match) {
           await store.setMatch(reg.id, match.playerId, match.lk)

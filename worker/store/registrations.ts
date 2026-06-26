@@ -1,7 +1,7 @@
 import type { D1Database } from '@cloudflare/workers-types'
 import { drizzle } from 'drizzle-orm/d1'
 import { and, asc, count, eq, gt, inArray, sql } from 'drizzle-orm'
-import { DEFAULT_LK, type RegistrationStatus } from '../../shared'
+import { ACTIVE_STATUSES, DEFAULT_LK, isActive, type RegistrationStatus } from '../../shared'
 import { registrations, type NewRegistrationRow, type RegistrationRow } from '../db/schema'
 
 // updated_at is a persistence fact ("when was this row last written"), stamped here on every
@@ -185,7 +185,7 @@ export const createD1RegistrationsStore = (d1: D1Database): RegistrationsStore =
     },
 
     findActiveRegistration(person) {
-      return findOne(and(personWhere(person), inArray(registrations.status, ['new', 'confirmed'])))
+      return findOne(and(personWhere(person), inArray(registrations.status, [...ACTIVE_STATUSES])))
     },
 
     findCancelledRegistration(person) {
@@ -244,7 +244,7 @@ export const createD1RegistrationsStore = (d1: D1Database): RegistrationsStore =
       return db
         .update(registrations)
         .set({ status: 'cancelled', updatedAt: nowIso() })
-        .where(and(emailLastNameWhere(person), inArray(registrations.status, ['new', 'confirmed'])))
+        .where(and(emailLastNameWhere(person), inArray(registrations.status, [...ACTIVE_STATUSES])))
         .returning()
     },
 
@@ -314,7 +314,7 @@ export const createInMemoryRegistrationsStore = (seed: RegistrationRow[] = []): 
     },
 
     async findActiveRegistration(person) {
-      return rows.find(r => matchesPerson(r, person) && (r.status === 'new' || r.status === 'confirmed')) ?? null
+      return rows.find(r => matchesPerson(r, person) && isActive(r.status)) ?? null
     },
 
     async findCancelledRegistration(person) {
@@ -376,10 +376,7 @@ export const createInMemoryRegistrationsStore = (seed: RegistrationRow[] = []): 
 
     async cancelActiveByPerson(person) {
       const matched = rows.filter(
-        r =>
-          eqCi(r.email, person.email) &&
-          eqCi(r.lastName, person.lastName) &&
-          (r.status === 'new' || r.status === 'confirmed')
+        r => eqCi(r.email, person.email) && eqCi(r.lastName, person.lastName) && isActive(r.status)
       )
       matched.forEach(r => {
         r.status = 'cancelled'

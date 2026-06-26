@@ -17,6 +17,22 @@ export type Club = (typeof CLUBS)[number]
 // Same shape the legacy isEmail() accepted: one @, one dot, no whitespace.
 const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/
 
+// The registration lifecycle states (the D1 `status` column): `new` → `confirmed` → `cancelled`
+// (CONTEXT.md). Owned here, not in admin.ts: the status model is a lifecycle fact, read by the
+// public register/cancel store paths and the seeding cron, so it must not live behind the admin
+// contract. admin.ts imports these for its wire schema.
+export const REGISTRATION_STATUSES = ['new', 'confirmed', 'cancelled'] as const
+export type RegistrationStatus = (typeof REGISTRATION_STATUSES)[number]
+
+// "Active entry" — a registration still participating (CONTEXT.md). Defined positively over
+// {new, confirmed}: the load-bearing "one active entry per member" invariant is the rule over this
+// set, so a future status stays inactive until explicitly classed active here (the safe-failure
+// direction). The single home for status ∈ {new, confirmed}, previously inlined across the store,
+// the seeding cron (once inverted) and the admin overview.
+export const ACTIVE_STATUSES = ['new', 'confirmed'] as const satisfies readonly RegistrationStatus[]
+export const isActive = (status: RegistrationStatus): boolean =>
+  (ACTIVE_STATUSES as readonly RegistrationStatus[]).includes(status)
+
 export const registerRequestSchema = z.object({
   competition: z.enum(COMPETITION_SLUGS, { error: 'Bitte wähle eine gültige Konkurrenz.' }),
   firstName: z.string().trim().min(1, 'Bitte gib deinen Vornamen an.').max(60, 'Bitte gib deinen Vornamen an.'),

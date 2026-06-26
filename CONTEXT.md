@@ -48,6 +48,10 @@ When a concept here drifts or a new one appears, update this file rather than in
   (matched by name / email / player_id) — one Konkurrenz per person, enforced at registration. This is
   a load-bearing invariant: it guarantees no person is ever in two matches at once, which is what keeps
   the Spielplan validator free of cross-field player clashes (ADR-0005).
+- **Active entry** — a registration still participating: status `new` or `confirmed` (i.e. not yet
+  `cancelled`). Defined positively over exactly those two states — the set, not the absence of
+  `cancelled` — so adding a future status leaves an entry inactive until it is explicitly classed active.
+  The "one active entry per member" invariant above is the rule over this set.
 - **Registration domain** — the module that owns the registration lifecycle: the transitions
   (`register`, `revive`, `confirm`, self-service `cancel` (by person), operator `cancel` (by id), admin
   `setPlayerId`/`setLk`) each return a typed Result; the Store and `seedingLk` are injected; it persists through the Store, never raw SQL. The
