@@ -4,6 +4,7 @@
 export * from './admin'
 export * from './competition'
 export * from './constants'
+export * from './draw'
 export * from './participants'
 export * from './phase'
 export * from './registration'

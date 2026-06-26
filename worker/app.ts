@@ -8,6 +8,7 @@ import {
   cancelRegistrationRequestSchema,
   cancelRequestSchema,
   confirmRequestSchema,
+  DEFAULT_LK,
   deleteRequestSchema,
   participantsResponseSchema,
   registerRequestSchema,
@@ -200,25 +201,32 @@ export const app = new Hono<AppEnv>()
   // enforces canConfirm (NotConfirmable → 400 with the reason). When a player id was linked, the
   // edge best-effort fetches its current LK from nuLiga (legacy parity; reported as lkFetched).
   .post('/api/admin/confirm', parseGuard, v(confirmRequestSchema), async c => {
-    const { id, competition, club, playerId, lk } = c.req.valid('json')
+    const { id, competition, club, playerId, noId } = c.req.valid('json')
     const store = createD1RegistrationsStore(c.env.DB)
-    const result = await createRegistrationDomain(store).confirm(id, { competition, club, playerId, lk })
+    const result = await createRegistrationDomain(store).confirm(id, { competition, club, playerId, noId })
     if (!result.ok) {
       if (result.error === 'NotFound') return c.json({ error: 'Anmeldung nicht gefunden.' }, 404)
       return c.json({ error: result.reason }, 400)
     }
 
+    // The LK is derived (ADR-0020): a linked player id has its current rating fetched from nuLiga.
+    // An id nuLiga has no rating for (unrated), or an unreachable nuLiga, falls back to the default
+    // — so a confirmed linked row always carries a resolvable LK, upgraded later by the weekly
+    // sync. The no-id path already stored the default LK in the domain. lkFetched reports the real
+    // nuLiga value (null when none) for the operator toast.
     let lkFetched: string | null = null
     if (playerId) {
+      let lk = DEFAULT_LK
       try {
         const fetched = await buildSeedingLk(store).lkForPlayerId(result.registration.club, playerId)
         if (fetched) {
-          await store.setLk(id, fetched)
+          lk = fetched
           lkFetched = fetched
         }
       } catch {
-        // nuLiga unreachable → keep the operator-entered LK; no LK reported.
+        // nuLiga unreachable → seed the linked player at the default until the weekly sync resolves it.
       }
+      await store.setLk(id, lk)
     }
 
     return c.json({ ok: true, lkFetched } satisfies ConfirmResponse)

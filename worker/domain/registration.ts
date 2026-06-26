@@ -43,14 +43,15 @@ export interface CancelResult {
   cancelled: RegistrationRow[]
 }
 
-// The editable fields the operator submits when confirming (or re-saving) a row. playerId
-// and lk arrive as possibly-empty strings from the form; the domain normalises empties to
-// null (so canConfirm and the DB see a real "no value") before persisting.
+// The editable fields the operator submits when confirming (or re-saving) a row. The LK is not
+// among them — it is derived (ADR-0020): `playerId` is the (possibly-empty) nuLiga link and
+// `noId` is the explicit "keine nuLiga-ID" choice. resolveSeedingBasis turns the pair into the
+// stored basis (linked id + null LK to fetch, or the no-id default).
 export interface ConfirmEdits {
   competition: string
   club: string
   playerId: string
-  lk: string
+  noId: boolean
 }
 
 // confirm applies the edits and moves the row to 'confirmed' when the result is confirmable;
@@ -120,10 +121,10 @@ export const createRegistrationDomain = (store: RegistrationsStore): Registratio
     async confirm(id, edits) {
       if (!(await store.findById(id))) return { ok: false, error: 'NotFound' }
 
-      // The wire already carries operator-resolved values (the card applied any „keine ID" ⇒ LK
-      // 25.0 rule), so the domain shares only the trim/empties-to-null shaping — through the same
-      // resolveSeedingBasis as the card, so both provably agree (ADR-0011 amendment).
-      const basis = resolveSeedingBasis({ playerId: edits.playerId, lk: edits.lk })
+      // Derive the basis from the operator's id/no-id choice through the same resolveSeedingBasis
+      // as the card, so both provably agree (ADR-0020). A linked id stores a null LK here — the
+      // edge fetches the real rating from nuLiga; the no-id choice stores the default LK.
+      const basis = resolveSeedingBasis({ playerId: edits.playerId, noId: edits.noId })
       const fields: EditableFields = {
         competition: edits.competition,
         club: edits.club,
@@ -131,8 +132,8 @@ export const createRegistrationDomain = (store: RegistrationsStore): Registratio
         lk: basis.lk
       }
 
-      // The authoritative guard: a confirm that would leave the row without a player id or
-      // an explicit LK is rejected with the same reason the admin renders.
+      // The authoritative guard: a confirm with neither a linked id nor the no-id choice is
+      // rejected with the same reason the admin renders.
       const guard = canConfirm({ playerId: fields.playerId ?? null, lk: fields.lk ?? null })
       if (guard !== true) return { ok: false, error: 'NotConfirmable', reason: guard }
 

@@ -39,28 +39,23 @@ export type AdminListResponse = z.infer<typeof adminListResponseSchema>
 // A row id — the key every mutation targets.
 const id = z.number('Ungültige ID.').int('Ungültige ID.').positive('Ungültige ID.')
 
-// An optional player id: empty (= cleared / "no nuLiga entry") or exactly 8 digits.
+// An optional player id: empty (= no link / "keine nuLiga-ID") or exactly 8 digits.
 const playerId = z
   .string()
   .trim()
   .refine(v => v === '' || /^\d{8}$/.test(v), 'Spieler-ID muss 8-stellig sein.')
 
-// An optional LK: empty or e.g. "20.3" / "20,3"; commas are normalised to dots on the wire.
-const lk = z
-  .string()
-  .trim()
-  .refine(v => v === '' || /^\d{1,2}([.,]\d)?$/.test(v), 'LK-Format ungültig (z. B. 20.3).')
-  .transform(v => v.replace(',', '.'))
-
 // Confirm (and re-save a confirmed row): apply the editable fields and move the row to
-// 'confirmed'. The domain runs canConfirm on the resulting playerId/lk — the authoritative
-// guard — so a confirm that would leave the row without a seeding basis is rejected.
+// 'confirmed'. The LK is never sent — it is derived (ADR-0020): a linked player id has its LK
+// fetched from nuLiga by the edge, and `noId` is the explicit "keine nuLiga-ID" choice that seeds
+// at the default. The domain runs canConfirm on the resulting basis — the authoritative guard —
+// so a confirm with neither a linked id nor the no-id choice is rejected.
 export const confirmRequestSchema = z.object({
   id,
   competition: competitionSlug,
   club: z.enum(CLUBS, { error: 'Bitte wähle einen gültigen Verein.' }),
   playerId,
-  lk
+  noId: z.boolean()
 })
 export type ConfirmRequest = z.infer<typeof confirmRequestSchema>
 
