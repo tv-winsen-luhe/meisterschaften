@@ -5,16 +5,16 @@ import { zValidator } from '@hono/zod-validator'
 import type { ZodType } from 'zod'
 import {
   adminListResponseSchema,
+  cancelRegistrationRequestSchema,
   cancelRequestSchema,
   confirmRequestSchema,
   deleteRequestSchema,
-  hideRequestSchema,
   participantsResponseSchema,
   registerRequestSchema,
   setPhaseRequestSchema,
+  type CancelRegistrationResponse,
   type ConfirmResponse,
   type DeleteResponse,
-  type HideResponse,
   type ParticipantsResponse,
   type PhaseResponse,
   type RefreshLkResponse,
@@ -216,11 +216,16 @@ export const app = new Hono<{ Bindings: Env }>()
 
     return c.json({ ok: true, lkFetched } satisfies ConfirmResponse)
   })
-  // POST /api/admin/hide — move a row to 'hidden' (drops it from the public list).
-  .post('/api/admin/hide', parseGuard, v(hideRequestSchema), async c => {
-    const result = await createRegistrationDomain(createD1RegistrationsStore(c.env.DB)).hide(c.req.valid('json').id)
+  // POST /api/admin/cancel — operator cancel by id (ADR-0018): records a drop-out the desk was
+  // told about, moving the row to the single terminal 'cancelled' state. Distinct from the
+  // public self-service /api/cancel (by person) — it sends no member notification, since the
+  // operator is the actor. NotFound → 404, mirroring the former hide.
+  .post('/api/admin/cancel', parseGuard, v(cancelRegistrationRequestSchema), async c => {
+    const result = await createRegistrationDomain(createD1RegistrationsStore(c.env.DB)).cancelById(
+      c.req.valid('json').id
+    )
     if (!result.ok) return c.json({ error: 'Anmeldung nicht gefunden.' }, 404)
-    return c.json({ ok: true } satisfies HideResponse)
+    return c.json({ ok: true } satisfies CancelRegistrationResponse)
   })
   // POST /api/admin/delete — hard-delete a row (no domain rule; a pure Store op).
   .post('/api/admin/delete', parseGuard, v(deleteRequestSchema), async c => {

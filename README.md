@@ -47,7 +47,7 @@ meisterschaften.tennisverein-winsen.de  →  ein Worker
   ├─ POST /api/register       Anmeldung speichern (status='new')
   ├─ POST /api/cancel         Selbst-Abmeldung (E-Mail + Nachname → status='cancelled')
   ├─ GET  /admin              Access-geschützte React-Admin (client:only)
-  ├─ /api/admin/*             Admin-API: list · confirm · hide · delete · refresh-lk · phase
+  ├─ /api/admin/*             Admin-API: list · confirm · cancel · delete · refresh-lk · phase
   └─ D1   Tabelle „registrations" + Phase-State
 ```
 
