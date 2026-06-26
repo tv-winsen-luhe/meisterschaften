@@ -70,6 +70,15 @@ jobs:
       - name: Build
         run: pnpm build
 
+      # Apply D1 migrations before deploying the code that depends on them: the new worker must
+      # never run against an un-migrated DB (a renamed/removed value would read back wrong). Both
+      # `migrations apply` and `deploy` are idempotent, so re-running a no-op deploy is safe.
+      - name: Apply D1 migrations
+        run: pnpm exec wrangler d1 migrations apply winsener-meisterschaften --remote
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+
       - name: Deploy to Cloudflare Workers
         run: pnpm exec wrangler deploy
         env:

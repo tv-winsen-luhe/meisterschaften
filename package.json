@@ -11,7 +11,7 @@
     "build": "astro check && astro build && rm -rf dist/og",
     "preview": "astro preview",
     "cf-dev": "pnpm build && wrangler dev",
-    "cf-deploy": "pnpm build && wrangler deploy",
+    "cf-deploy": "pnpm build && wrangler d1 migrations apply winsener-meisterschaften --remote && wrangler deploy",
     "lint": "eslint .",
     "test": "vitest run",
     "test:watch": "vitest",

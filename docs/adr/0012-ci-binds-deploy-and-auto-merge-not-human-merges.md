@@ -22,6 +22,16 @@ the two things that actually matter, instead of the merge button:
   merge on this plan. For a one-maintainer project the residual gap (deliberately
   merging one's own red PR) is a discipline question, and deploy still won't ship it.
 
+The `deploy` job **applies D1 migrations before `wrangler deploy`** (`wrangler d1 migrations
+apply … --remote`, mirrored in the `cf-deploy` script). Migrate-then-deploy is the safe order:
+the new worker must never run against an un-migrated DB, where a renamed or removed value would
+read back wrong (the app-state Store silently degrades an unrecognised phase to its default). Both
+steps are idempotent, so a no-op re-run is harmless. The trade-off: a migration now auto-applies to
+production on push to `main`, gated only by `needs: checks` and not by a separate human approval —
+so a destructive migration is as dangerous as any other un-reviewed merge. For value-changing
+migrations the brief pre-deploy window (new DB, old worker still live) is accepted as negligible;
+prefer expand/contract migrations when a window would matter.
+
 This is the zero-cost option. The two ways to get true merge-blocking — making the
 repo **public** (free, but the source becomes world-readable) or paying for **GitHub
 Team** (~€4/user/month) — were rejected for now; revisit if either becomes acceptable.
