@@ -30,6 +30,6 @@ jobs:
           fetch-depth: 0 # SAVR needs full history + tags to compute the next version
 
       - name: Update draft release
-        uses: 21stdigital/savr-action@v2
+        uses: 21stdigital/savr-action@v2.1.0 # no moving `v2` tag exists; pin the full version
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
