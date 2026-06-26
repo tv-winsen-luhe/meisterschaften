@@ -32,9 +32,14 @@ when" — a milestone narrative for the now-public repo — and nothing more.
   patch/minor automatically and **avoid `feat!` / `BREAKING CHANGE`** so SAVR
   never auto-bumps major — `v1.0.0` is cut **by hand** to mark "ready for the
   championship weekend." The climb to 1.0 _is_ the project's story.
-- **`v0.1.0` is seeded now** to mark the shipped online-registration system as
-  the narrative's first entry and to give SAVR a clean baseline tag to compute
-  forward from (rather than a first draft built off the squash commit).
+- **SAVR owns the version from the first draft — no hand-seeded tag.** SAVR's
+  `initial-version` input is set to `0.1.0`, overriding its `1.0.0` default, so
+  the narrative starts at `0.1.0` (the shipped online-registration system)
+  without us ever creating a tag by hand. The first real tag is cut the moment we
+  publish the first draft; until then SAVR drafts forward from `0.1.0`. (We
+  briefly seeded a manual `v0.1.0` release+tag, then removed it in favour of
+  letting SAVR drive the version end to end — fewer moving parts and the version
+  is never authored in two places.)
 
 ## No standing environment
 

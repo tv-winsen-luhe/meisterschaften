@@ -33,3 +33,7 @@ jobs:
         uses: 21stdigital/savr-action@v2.1.0 # no moving `v2` tag exists; pin the full version
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
+          # SAVR owns the version from the very first draft (no hand-seeded tag).
+          # Override its 1.0.0 default so the narrative starts at 0.1.0 and the
+          # hand-cut 1.0.0 stays reserved for the event-ready state (ADR-0014).
+          initial-version: 0.1.0
