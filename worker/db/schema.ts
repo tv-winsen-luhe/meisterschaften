@@ -1,4 +1,5 @@
 import { sqliteTable, integer, text, index } from 'drizzle-orm/sqlite-core'
+import type { RegistrationStatus } from '../../shared'
 
 // Mirrors the `registrations` table. camelCase in TS, snake_case in D1 — the only naming
 // translation, done here in the column mapping; above this line everything is camelCase, below it
@@ -21,7 +22,7 @@ export const registrations = sqliteTable(
     note: text('note'),
     playerId: text('player_id'),
     lk: text('lk'),
-    status: text('status').notNull().default('new'),
+    status: text('status').$type<RegistrationStatus>().notNull().default('new'),
     ip: text('ip')
   },
   table => [index('idx_registrations_status').on(table.status), index('idx_registrations_player_id').on(table.playerId)]

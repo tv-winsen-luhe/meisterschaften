@@ -1,4 +1,4 @@
-import { CLUBS } from '../shared'
+import { CLUBS, isActive } from '../shared'
 import type { RegistrationsStore } from './store/registrations'
 
 // seedingLk: a pure LK lookup behind a roster port (ADR-0010). It matches a player against
@@ -63,8 +63,14 @@ export interface SeedingLk {
    * rows were touched.
    */
   syncAll(): Promise<number>
-  /** The current LK for a known player_id in a club's roster, or null — the per-link refresh. */
-  lkForPlayerId(club: string, playerId: string): Promise<string | null>
+  /**
+   * On confirm, when the operator has linked a player_id: fetch that id's current nuLiga LK
+   * and store it. The LK is derived (ADR-0020) — the operator never types it. Returns the
+   * freshly fetched value (for the operator toast), or null when nothing was written: no
+   * linked id, no rating for the id, or a nuLiga outage. A miss never clobbers a stored LK,
+   * so a re-confirm with nuLiga down leaves a previously-resolved rating intact.
+   */
+  resolveLkOnConfirm(player: MatchablePlayer): Promise<string | null>
 }
 
 export interface SeedingLkDeps {
@@ -79,6 +85,13 @@ export const createSeedingLk = (deps: SeedingLkDeps): SeedingLk => {
     const roster = await rosterSource.rosterFor(player.club)
     const match = findRosterMatch(roster, player.firstName, player.lastName)
     return match ? { playerId: match.playerId, lk: match.lk } : null
+  }
+
+  // The current LK for a known player_id in a club's roster, or null. Internal: the only
+  // caller is resolveLkOnConfirm (the confirm-time per-link fetch).
+  const lkForPlayerId = async (club: string, playerId: string): Promise<string | null> => {
+    const roster = await rosterSource.rosterFor(club)
+    return roster.find(e => e.playerId === playerId)?.lk ?? null
   }
 
   return {
@@ -114,7 +127,7 @@ export const createSeedingLk = (deps: SeedingLkDeps): SeedingLk => {
           continue
         }
         // Active rows without a linkage: try a unique name match against the club roster.
-        if (reg.status !== 'new' && reg.status !== 'confirmed') continue
+        if (!isActive(reg.status)) continue
         const match = findRosterMatch(rosters.get(reg.club) ?? [], reg.firstName, reg.lastName)
         if (match) {
           await store.setMatch(reg.id, match.playerId, match.lk)
@@ -124,9 +137,20 @@ export const createSeedingLk = (deps: SeedingLkDeps): SeedingLk => {
       return updated
     },
 
-    async lkForPlayerId(club, playerId) {
-      const roster = await rosterSource.rosterFor(club)
-      return roster.find(e => e.playerId === playerId)?.lk ?? null
+    async resolveLkOnConfirm(player) {
+      // No linkage to resolve → nothing to fetch.
+      if (!player.playerId) return null
+      try {
+        const lk = await lkForPlayerId(player.club, player.playerId)
+        // A miss (unrated id) writes nothing and reports null, so a re-confirm never clobbers a
+        // resolved LK and the operator toast shows the "no rating fetched" state.
+        if (!lk) return null
+        await store.setLk(player.id, lk)
+        return lk
+      } catch {
+        // nuLiga unreachable → leave the stored LK untouched; the weekly sync resolves it later.
+        return null
+      }
     }
   }
 }

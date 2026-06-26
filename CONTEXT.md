@@ -25,8 +25,8 @@ When a concept here drifts or a new one appears, update this file rather than in
 - **seedingLk** — a pure module that answers "what is this player's current nuLiga LK?" — `lookup(player)`
   matches a player against a roster behind a `RosterSource` port (nuLiga HTTP+parse adapter in prod,
   in-memory fake in tests) and returns `{ playerId, lk } | null`. It never touches D1; persistence is
-  the Store's job, composed by thin orchestration (`matchOnRegister` at signup, `syncAll` on
-  cron/admin). It holds no freeze logic. _(See ADR-0010.)_
+  the Store's job, composed by thin orchestration (`matchOnRegister` at signup, `resolveLkOnConfirm`
+  at confirm, `syncAll` on cron/admin). It holds no freeze logic. _(See ADR-0010.)_
 
 ## Participants & fields
 
@@ -48,6 +48,10 @@ When a concept here drifts or a new one appears, update this file rather than in
   (matched by name / email / player_id) — one Konkurrenz per person, enforced at registration. This is
   a load-bearing invariant: it guarantees no person is ever in two matches at once, which is what keeps
   the Spielplan validator free of cross-field player clashes (ADR-0005).
+- **Active entry** — a registration still participating: status `new` or `confirmed` (i.e. not yet
+  `cancelled`). Defined positively over exactly those two states — the set, not the absence of
+  `cancelled` — so adding a future status leaves an entry inactive until it is explicitly classed active.
+  The "one active entry per member" invariant above is the rule over this set.
 - **Registration domain** — the module that owns the registration lifecycle: the transitions
   (`register`, `revive`, `confirm`, self-service `cancel` (by person), operator `cancel` (by id), admin
   `setPlayerId`/`setLk`) each return a typed Result; the Store and `seedingLk` are injected; it persists through the Store, never raw SQL. The

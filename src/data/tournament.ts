@@ -1,4 +1,5 @@
 import { CHALLENGER_MIN_LK, DEFAULT_LK } from '../../shared/constants'
+import { COMPETITION_SLUGS } from '../../shared/competition'
 
 export type CompetitionStatus = 'open' | 'planned'
 
@@ -19,8 +20,6 @@ export interface Competition {
   capacity?: number
   title: string
   status: CompetitionStatus
-  /** Selectable in the signup form? */
-  selectable: boolean
 }
 
 const TOURNAMENT_START = new Date('2026-08-22T09:00:00+02:00')
@@ -59,8 +58,7 @@ export const competitions: readonly Competition[] = [
       'Das Hauptfeld — offen für alle. Hier wird die Winsener Meisterin ausgespielt. Du musst dafür weder in einer Mannschaft spielen noch deine Leistungsklasse kennen.',
     title: 'Winsener Meisterin',
     capacity: 8,
-    status: 'open',
-    selectable: true
+    status: 'open'
   },
   {
     id: 'mens',
@@ -72,8 +70,7 @@ export const competitions: readonly Competition[] = [
       'Das Hauptfeld — offen für alle. Hier treten die stärksten Spieler an und hier wird der Winsener Meister ausgespielt.',
     title: 'Winsener Meister Herren',
     capacity: 16,
-    status: 'open',
-    selectable: true
+    status: 'open'
   },
   {
     id: 'mens-challenger',
@@ -86,8 +83,7 @@ export const competitions: readonly Competition[] = [
       'Das geschützte Feld: Wer besser als LK 20 ist, spielt im Hauptfeld und ist hier nicht zugelassen — so triffst du auf Gegner auf Augenhöhe. Keine LK? Dann zählst du als LK 25 und bist genau richtig.',
     title: 'Winsener Meister Herren Challenger',
     capacity: 16,
-    status: 'open',
-    selectable: true
+    status: 'open'
   },
   {
     id: 'womens-challenger',
@@ -97,13 +93,17 @@ export const competitions: readonly Competition[] = [
     blurb:
       'Ein lockeres, geselliges Damen-Feld ohne Titeldruck. Wie das Format genau aussieht, besprechen wir bei den Gesprächen am 02.07.',
     title: '',
-    status: 'planned',
-    selectable: false
+    status: 'planned'
   }
 ] as const
 
-/** Competitions selectable in the signup form. */
-export const signupCompetitions = competitions.filter(c => c.selectable)
+/**
+ * Competitions offered in the signup form — exactly the registerable Konkurrenzen, i.e. those whose
+ * slug is in the contract (`COMPETITION_SLUGS`). Derived, not a separate flag: the form provably
+ * cannot offer a value `registerRequestSchema` would reject, and opening a field for registration is
+ * a single edit to the contract. "Planned" Konkurrenzen (e.g. Damen Freizeit) are absent until then.
+ */
+export const signupCompetitions = competitions.filter(c => (COMPETITION_SLUGS as readonly string[]).includes(c.slug))
 
 const TZ = 'Europe/Berlin'
 

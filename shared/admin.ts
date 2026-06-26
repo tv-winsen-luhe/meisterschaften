@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import { competitionSlug } from './competition'
-import { CLUBS } from './registration'
+import { CLUBS, REGISTRATION_STATUSES } from './registration'
 
 // The admin (operator) contract — the single source of truth for the /api/admin/* JSON
 // shapes, shared by the worker (server validation) and the React admin (typed `hc`).
@@ -11,9 +11,9 @@ import { CLUBS } from './registration'
 //
 // Field-validation messages mirror the legacy admin handler (behaviour-preserving for the
 // operator): same German text, so a malformed edit reports exactly as before.
-
-export const REGISTRATION_STATUSES = ['new', 'confirmed', 'cancelled'] as const
-export type RegistrationStatus = (typeof REGISTRATION_STATUSES)[number]
+//
+// REGISTRATION_STATUSES / RegistrationStatus now live in registration.ts (the status model is a
+// lifecycle fact, not an admin one); this contract imports the value for its wire enum.
 
 // A registration as the admin list shows it — the full row minus the internal `ip` column
 // (the legacy admin SELECT never exposed it either).

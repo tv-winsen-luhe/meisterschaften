@@ -5,7 +5,8 @@ import {
   COMPETITION_SLUGS,
   type CompetitionSlug,
   CLUBS,
-  drawSize
+  drawSize,
+  isActive
 } from '../../../shared'
 import { cn } from '@/admin/lib/utils'
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/admin/ui/empty'
@@ -60,7 +61,7 @@ export const OverviewSurface = ({ registrations, onGoToNew, onGoToCompetition }:
   const rows = FIELDS.map(field => {
     const inField = registrations.filter(r => r.competition === field.slug)
     const confirmed = inField.filter(r => r.status === 'confirmed').length
-    const active = inField.filter(r => r.status === 'new' || r.status === 'confirmed')
+    const active = inField.filter(r => isActive(r.status))
     return {
       ...field,
       new: inField.filter(r => r.status === 'new').length,

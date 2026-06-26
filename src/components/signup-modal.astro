@@ -1,7 +1,14 @@
 ---
+import type { ImageMetadata } from 'astro'
 import { signupCompetitions, entryFee, signupDeadline, tournament } from '@/data/tournament'
+import { CLUBS, FIELD_MAX, type Club } from '../../shared/registration'
 import tvLogo from '@/assets/logo.svg'
 import tsvLogo from '@/assets/tsv-winsen.png'
+
+// Club radios render from the shared CLUBS contract (build-time import — never reaches the client
+// bundle), so the emitted value cannot drift from the schema's enum. The logo map is exhaustive over
+// Club: adding or removing a club is a type error until the map follows (ADR-0022).
+const clubLogos = { 'TV Winsen': tvLogo, 'TSV Winsen': tsvLogo } satisfies Record<Club, ImageMetadata>
 ---
 
 <dialog id="signup-dialog" class="signup-dialog" aria-labelledby="signup-title">
@@ -47,7 +54,7 @@ import tsvLogo from '@/assets/tsv-winsen.png'
             type="text"
             id="first_name"
             name="firstName"
-            maxlength="60"
+            maxlength={FIELD_MAX.firstName}
             autocomplete="given-name"
             required
           />
@@ -59,7 +66,7 @@ import tsvLogo from '@/assets/tsv-winsen.png'
             type="text"
             id="last_name"
             name="lastName"
-            maxlength="60"
+            maxlength={FIELD_MAX.lastName}
             autocomplete="family-name"
             required
           />
@@ -69,16 +76,19 @@ import tsvLogo from '@/assets/tsv-winsen.png'
       <fieldset class="signup-field">
         <legend class="signup-label">Verein</legend>
         <div class="signup-grid-2">
-          <label class="competition-option">
-            <input type="radio" name="club" value="TV Winsen" required checked />
-            <span class="club-logo"><img src={tvLogo.src} alt="" width="28" height="28" loading="lazy" /></span>
-            <span class="competition-option__body"><span class="competition-option__label">TV Winsen</span></span>
-          </label>
-          <label class="competition-option">
-            <input type="radio" name="club" value="TSV Winsen" required />
-            <span class="club-logo"><img src={tsvLogo.src} alt="" width="28" height="28" loading="lazy" /></span>
-            <span class="competition-option__body"><span class="competition-option__label">TSV Winsen</span></span>
-          </label>
+          {
+            CLUBS.map((club, i) => (
+              <label class="competition-option">
+                <input type="radio" name="club" value={club} required checked={i === 0} />
+                <span class="club-logo">
+                  <img src={clubLogos[club].src} alt="" width="28" height="28" loading="lazy" />
+                </span>
+                <span class="competition-option__body">
+                  <span class="competition-option__label">{club}</span>
+                </span>
+              </label>
+            ))
+          }
         </div>
       </fieldset>
 
@@ -90,21 +100,28 @@ import tsvLogo from '@/assets/tsv-winsen.png'
             type="email"
             id="email"
             name="email"
-            maxlength="120"
+            maxlength={FIELD_MAX.email}
             autocomplete="email"
             required
           />
         </div>
         <div class="signup-field">
           <label class="signup-label" for="phone">Mobilnummer <span class="signup-label__opt">optional</span></label>
-          <input class="signup-input" type="tel" id="phone" name="phone" maxlength="40" autocomplete="tel" />
+          <input
+            class="signup-input"
+            type="tel"
+            id="phone"
+            name="phone"
+            maxlength={FIELD_MAX.phone}
+            autocomplete="tel"
+          />
           <p class="signup-hint">Für kurzfristige Infos per WhatsApp.</p>
         </div>
       </div>
 
       <div class="signup-field">
         <label class="signup-label" for="note">Anmerkung <span class="signup-label__opt">optional</span></label>
-        <textarea class="signup-input" id="note" name="note" maxlength="500" rows="2"></textarea>
+        <textarea class="signup-input" id="note" name="note" maxlength={FIELD_MAX.note} rows="2"></textarea>
       </div>
 
       <!-- Honeypot — von Menschen nicht sichtbar, von Bots gern ausgefüllt -->
