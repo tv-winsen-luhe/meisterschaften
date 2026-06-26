@@ -7,6 +7,18 @@ import {
   type Club,
   type CompetitionSlug
 } from '../../shared'
+import { btnBase, focusRing } from './styles'
+
+const cardStatus: Record<AdminRegistration['status'], string> = {
+  new: 'border-l-blue',
+  confirmed: 'border-l-neon',
+  hidden: 'border-l-border-strong opacity-60',
+  cancelled: 'border-l-clay opacity-[0.62]'
+}
+
+// row2 form controls — the shared border/background/size; inputs add the mono face on top.
+const field = `${focusRing} border-[1.5px] border-border-strong bg-surface px-[9px] py-[7px] text-sm`
+const rowLabel = 'text-[10px] font-bold uppercase tracking-[0.1em] text-text-muted'
 
 const COMPETITION_LABELS: Record<string, string> = {
   mens: 'Herren',
@@ -88,38 +100,48 @@ export const RegistrationCard = ({ reg, onConfirm, onHide, onDelete }: Registrat
   const logo = CLUB_LOGOS[reg.club]
 
   return (
-    <div className={`card s-${reg.status}`}>
-      <div className="row1">
-        <span className="name">
+    <div
+      className={`relative mb-2 border border-l-[5px] border-border bg-surface pt-[13px] pr-4 pb-[14px] pl-4 ${cardStatus[reg.status]}`}
+    >
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+        <span className="text-[17px] font-extrabold tracking-[-0.01em]">
           {reg.firstName} {reg.lastName}
         </span>
-        <span className="badge">{COMPETITION_LABELS[reg.competition] ?? reg.competition}</span>
+        <span className="border-[1.5px] border-text px-2 py-[3px] text-[10px] font-extrabold tracking-[0.12em] uppercase">
+          {COMPETITION_LABELS[reg.competition] ?? reg.competition}
+        </span>
         {reg.lk ? (
-          <span className="seed">
-            <b>LK</b>
+          <span className="inline-block border-[1.5px] border-text px-[9px] py-0.5 font-mono text-[13px] font-bold whitespace-nowrap tabular-nums">
+            <b className="mr-[5px] align-[1px] text-[9px] tracking-[0.1em] opacity-60">LK</b>
             {reg.lk}
           </span>
         ) : (
-          <span className="seed is-none">
-            <b>LK</b>—
+          <span className="inline-block border-[1.5px] border-border-strong px-[9px] py-0.5 font-mono text-[13px] font-bold whitespace-nowrap text-text-muted tabular-nums">
+            <b className="mr-[5px] align-[1px] text-[9px] tracking-[0.1em] opacity-60">LK</b>—
           </span>
         )}
-        {isTooStrongForChallenger(reg.competition, reg.lk) && <span className="warn">⚠ LK &lt; 20 — Hauptfeld?</span>}
-        <span className="meta">
-          {logo && <img className="club-logo" src={logo} alt="" width={18} height={18} />}
+        {isTooStrongForChallenger(reg.competition, reg.lk) && (
+          <span className="text-xs font-extrabold text-clay">⚠ LK &lt; 20 — Hauptfeld?</span>
+        )}
+        <span className="inline-flex basis-full items-center gap-1.5 text-[13px] text-text-muted min-[561px]:ml-auto min-[561px]:basis-auto">
+          {logo && (
+            <img className="h-[18px] w-[18px] shrink-0 object-contain" src={logo} alt="" width={18} height={18} />
+          )}
           <span>{reg.club}</span>
         </span>
       </div>
-      <div className="contact">
+      <div className="mt-1.5 font-mono text-xs break-words text-text-muted">
         {reg.email}
         {reg.phone ? `  ·  ${reg.phone}` : ''}
       </div>
-      {reg.note && <div className="note">„{reg.note}"</div>}
+      {reg.note && (
+        <div className="mt-1.5 border-l-2 border-border-strong pl-[9px] text-[13px] text-[#444]">„{reg.note}"</div>
+      )}
 
-      <div className="row2">
-        <label>Spieler-ID</label>
+      <div className="mt-3 flex flex-wrap items-center gap-x-2.5 gap-y-2 border-t border-dashed border-border-strong pt-3">
+        <label className={rowLabel}>Spieler-ID</label>
         <input
-          className="pid"
+          className={`${field} w-[118px] font-mono`}
           type="text"
           inputMode="numeric"
           maxLength={8}
@@ -129,12 +151,18 @@ export const RegistrationCard = ({ reg, onConfirm, onHide, onDelete }: Registrat
           onChange={e => setPlayerId(e.target.value)}
           onKeyDown={onFieldKeyDown}
         />
-        <label className="noid">
-          <input type="checkbox" checked={noId} onChange={e => toggleNoId(e.target.checked)} /> keine ID
+        <label className="inline-flex cursor-pointer items-center gap-[5px] font-bold text-text-muted">
+          <input
+            type="checkbox"
+            className={`${focusRing} accent-clay`}
+            checked={noId}
+            onChange={e => toggleNoId(e.target.checked)}
+          />{' '}
+          keine ID
         </label>
-        <label>LK</label>
+        <label className={rowLabel}>LK</label>
         <input
-          className="lk"
+          className={`${field} w-[72px] text-center font-mono`}
           type="text"
           inputMode="decimal"
           placeholder="—"
@@ -142,33 +170,40 @@ export const RegistrationCard = ({ reg, onConfirm, onHide, onDelete }: Registrat
           onChange={e => setLk(e.target.value)}
           onKeyDown={onFieldKeyDown}
         />
-        <label>Feld</label>
-        <select className="konk" value={competition} onChange={e => setCompetition(e.target.value as CompetitionSlug)}>
+        <label className={rowLabel}>Feld</label>
+        <select className={field} value={competition} onChange={e => setCompetition(e.target.value as CompetitionSlug)}>
           <option value="mens">Herren</option>
           <option value="mens-challenger">Herren Challenger</option>
           <option value="womens">Damen</option>
         </select>
-        <label>Verein</label>
-        <select className="vrn" value={club} onChange={e => setClub(e.target.value as Club)}>
+        <label className={rowLabel}>Verein</label>
+        <select className={field} value={club} onChange={e => setClub(e.target.value as Club)}>
           <option value="TV Winsen">TV Winsen</option>
           <option value="TSV Winsen">TSV Winsen</option>
         </select>
-        <span className="spacer" />
+        <span className="min-w-0 flex-1 max-[560px]:hidden" />
         <button
-          className="btn-primary act-confirm"
+          className={`${btnBase} ${focusRing} bg-neon px-[14px] py-2 tracking-[0.01em] text-navy hover:brightness-105 max-[560px]:flex-1`}
           disabled={blocked}
           title={blockedReason ?? undefined}
           onClick={submit}
         >
           {isConfirmed ? 'Speichern' : 'Bestätigen'}
         </button>
-        <button className="btn-hide act-hide" onClick={() => onHide(reg.id)}>
+        <button
+          className={`${btnBase} ${focusRing} border-[1.5px] border-border-strong bg-surface-alt px-3 py-2 text-text hover:bg-[#e9e9e6] max-[560px]:flex-1`}
+          onClick={() => onHide(reg.id)}
+        >
           Verstecken
         </button>
-        <button className="btn-del act-del" title="Anmeldung dauerhaft löschen" onClick={() => onDelete(reg)}>
+        <button
+          className={`${btnBase} ${focusRing} ml-1 border-[1.5px] border-clay bg-transparent px-3 py-2 text-clay hover:bg-clay hover:text-white`}
+          title="Anmeldung dauerhaft löschen"
+          onClick={() => onDelete(reg)}
+        >
           Löschen
         </button>
-        {blockedReason && <span className="reason">{blockedReason}</span>}
+        {blockedReason && <span className="basis-full text-xs font-bold text-clay">{blockedReason}</span>}
       </div>
     </div>
   )

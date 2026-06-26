@@ -3,6 +3,7 @@
 // island (gated + fully dynamic, so no SSR). In production Cloudflare Access gates this route
 // at the edge (ADR-0008); locally there is no gate — the admin is open on localhost. Public
 // pages stay zero-JS.
+import '../styles/global.css'
 import { AdminApp } from '../admin/admin-app'
 ---
 
@@ -14,7 +15,9 @@ import { AdminApp } from '../admin/admin-app'
     <meta name="robots" content="noindex" />
     <title>Anmeldungen — Winsener Meisterschaften 2026</title>
   </head>
-  <body>
+  <body
+    class="bg-surface-alt bg-[linear-gradient(var(--color-border)_1px,transparent_1px)] bg-[length:100%_44px] bg-fixed font-sans leading-[1.45] text-text"
+  >
     <AdminApp client:only="react" />
   </body>
 </html>
