@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Inbox, RefreshCw } from 'lucide-react'
-import type { AdminRegistration } from '../../../shared'
+import { type AdminRegistration, COMPETITION_SLUGS, type CompetitionSlug } from '../../../shared'
 import { cn } from '@/admin/lib/utils'
 import { Button } from '@/admin/ui/button'
 import { Input } from '@/admin/ui/input'
+import { NativeSelect } from '@/admin/ui/native-select'
 import { ScrollArea } from '@/admin/ui/scroll-area'
 import { Tabs, TabsList, TabsTrigger } from '@/admin/ui/tabs'
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/admin/ui/empty'
@@ -13,6 +14,7 @@ import { nextSelection } from './auto-advance'
 import { competitionLabel, RegistrationDetail, STATUS_META, type ConfirmPayload } from './registration-detail'
 
 export type StatusFilter = 'all' | AdminRegistration['status']
+export type CompetitionFilter = 'all' | CompetitionSlug
 
 // Filter-tab labels: the three status labels come from STATUS_META (single source), plus "Alle".
 const STATUS_LABELS: Record<StatusFilter, string> = {
@@ -36,6 +38,8 @@ interface RegistrationsSurfaceProps {
   registrations: AdminRegistration[]
   filter: StatusFilter
   onFilterChange: (filter: StatusFilter) => void
+  competitionFilter: CompetitionFilter
+  onCompetitionFilterChange: (filter: CompetitionFilter) => void
   query: string
   onQueryChange: (query: string) => void
   // The mutations resolve to whether they succeeded, so the surface advances/closes only on success.
@@ -55,6 +59,8 @@ export const RegistrationsSurface = ({
   registrations,
   filter,
   onFilterChange,
+  competitionFilter,
+  onCompetitionFilterChange,
   query,
   onQueryChange,
   onConfirm,
@@ -67,26 +73,34 @@ export const RegistrationsSurface = ({
   const [drawerOpen, setDrawerOpen] = useState(false)
   const searchRef = useRef<HTMLInputElement>(null)
 
-  // Tab counts and the filtered+sorted queue, memoised so clicking through rows / toggling the
-  // drawer does not re-scan and re-sort the whole list on every render.
-  const counts = useMemo(
-    () => ({
-      all: registrations.length,
-      new: registrations.filter(r => r.status === 'new').length,
-      confirmed: registrations.filter(r => r.status === 'confirmed').length,
-      cancelled: registrations.filter(r => r.status === 'cancelled').length
-    }),
-    [registrations]
-  )
-  const visible = useMemo(() => {
+  // Everything matching the Konkurrenz filter + search, before the status tab is applied. The tab
+  // counts are taken over this scoped set, so "Neu 2" with Herren selected means 2 new in Herren —
+  // the counts never contradict the list. Memoised so clicking rows / toggling the drawer does not
+  // re-scan the whole list on every render.
+  const scoped = useMemo(() => {
     const q = query.trim().toLowerCase()
     return registrations
-      .filter(r => filter === 'all' || r.status === filter)
+      .filter(r => competitionFilter === 'all' || r.competition === competitionFilter)
       .filter(
         r => !q || `${r.firstName} ${r.lastName} ${r.email} ${r.club} ${r.playerId ?? ''}`.toLowerCase().includes(q)
       )
-      .sort((a, b) => ORDER[a.status] - ORDER[b.status] || a.createdAt.localeCompare(b.createdAt))
-  }, [registrations, filter, query])
+  }, [registrations, competitionFilter, query])
+  const counts = useMemo(
+    () => ({
+      all: scoped.length,
+      new: scoped.filter(r => r.status === 'new').length,
+      confirmed: scoped.filter(r => r.status === 'confirmed').length,
+      cancelled: scoped.filter(r => r.status === 'cancelled').length
+    }),
+    [scoped]
+  )
+  const visible = useMemo(
+    () =>
+      scoped
+        .filter(r => filter === 'all' || r.status === filter)
+        .sort((a, b) => ORDER[a.status] - ORDER[b.status] || a.createdAt.localeCompare(b.createdAt)),
+    [scoped, filter]
+  )
 
   // Keep the selection valid as the queue changes (filter/search/reload): drop it when the queue
   // empties, default to the first row when the current selection has left the queue.
@@ -177,6 +191,18 @@ export const RegistrationsSurface = ({
               <span className="max-[420px]:sr-only">LK</span>
             </Button>
           </div>
+          <NativeSelect
+            aria-label="Konkurrenz filtern"
+            value={competitionFilter}
+            onChange={e => onCompetitionFilterChange(e.target.value as CompetitionFilter)}
+          >
+            <option value="all">Alle Konkurrenzen</option>
+            {COMPETITION_SLUGS.map(slug => (
+              <option key={slug} value={slug}>
+                {competitionLabel(slug)}
+              </option>
+            ))}
+          </NativeSelect>
           <Tabs value={filter} onValueChange={v => onFilterChange(v as StatusFilter)}>
             <TabsList className="w-full">
               {TABS.map(s => (
@@ -207,7 +233,13 @@ export const RegistrationsSurface = ({
                   aria-label={STATUS_META[reg.status].label}
                 />
                 <span className="min-w-0 flex-1">
-                  <span className="block truncate text-sm font-medium">
+                  {/* Cancelled entries recede — struck and muted — so the active queue stands out. */}
+                  <span
+                    className={cn(
+                      'block truncate text-sm font-medium',
+                      reg.status === 'cancelled' && 'text-muted-foreground line-through'
+                    )}
+                  >
                     {reg.firstName} {reg.lastName}
                   </span>
                   <span className="text-muted-foreground block truncate text-xs">
