@@ -17,6 +17,12 @@ const config = defineConfig([
       '@typescript-eslint': tseslint.plugin
     },
     rules: {
+      // Cap file length to keep modules navigable. Counts code only (skips blank lines and the
+      // codebase's deliberately dense comments), so the threshold measures actual code — every
+      // hand-written TS/TSX file is under it today. Scoped to TS/TSX (Astro files legitimately
+      // bundle markup + scoped CSS and are exempt); vendored shadcn under src/admin/ui is exempt
+      // below.
+      'max-lines': ['error', { max: 300, skipBlankLines: true, skipComments: true }],
       // Arrow functions instead of function declarations/expressions
       'func-style': ['error', 'expression'],
       'prefer-arrow-callback': 'error',
@@ -43,6 +49,14 @@ const config = defineConfig([
             'No inline object types in generic arguments — declare an explicit interface and reference it (e.g. Promise<MyResult> instead of Promise<{…}>).'
         }
       ]
+    }
+  },
+  {
+    // Vendored shadcn/ui primitives (ADR-0016) are generated, not hand-maintained — exempt them
+    // from the file-length cap (sidebar.tsx alone is ~600 code lines). Every other rule still applies.
+    files: ['src/admin/ui/**/*.{ts,tsx}'],
+    rules: {
+      'max-lines': 'off'
     }
   },
   {
