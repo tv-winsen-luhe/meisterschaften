@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { hc } from 'hono/client'
+import { LogOut, RefreshCw } from 'lucide-react'
 import type { AppType } from '../../worker/app'
 import { PHASES, type AdminRegistration, type Phase } from '../../shared'
+import { cn } from '@/admin/lib/utils'
+import { Button } from '@/admin/ui/button'
+import { Input } from '@/admin/ui/input'
 import { RegistrationCard, type ConfirmPayload } from './registration-card'
-import { btnBase, focusRing } from './styles'
-
-const ghost =
-  'inline-flex items-center gap-[5px] border-[1.5px] border-white/35 px-3 py-[7px] text-[13px] text-white no-underline hover:border-neon hover:text-neon'
 
 const PHASE_LABELS: Record<Phase, string> = {
   signup: 'Anmeldung',
@@ -50,10 +50,10 @@ const errorMessage = async (res: Response): Promise<string> => {
   }
 }
 
-// The admin SPA: a `client:only` React island on the Hono typed `hc` client. Replaces the
-// legacy HTML-string admin at functional parity — stat tiles, status tabs, search, and the
-// editable registration cards driving the confirm/hide/delete/refresh-LK flows. Auth is
-// edge-only (Cloudflare Access, ADR-0008): there is no in-app login — the operator is already
+// The admin SPA: a `client:only` React island on the Hono typed `hc` client, built on shadcn/ui
+// primitives in the neutral default look (ADR-0016). Stat tiles, status tabs, search, and the
+// editable registration cards drive the confirm/hide/delete/refresh-LK flows. Auth is edge-only
+// (Cloudflare Access, ADR-0008): there is no in-app login — the operator is already
 // authenticated by Cloudflare Access before this island ever loads.
 export const AdminApp = () => {
   const [ready, setReady] = useState(false)
@@ -168,17 +168,9 @@ export const AdminApp = () => {
     [client, mutate]
   )
 
+  // The card owns the delete confirmation (an AlertDialog), so this just performs the mutation.
   const remove = useCallback(
-    (reg: AdminRegistration) => {
-      if (
-        !window.confirm(
-          `Anmeldung von ${reg.firstName} ${reg.lastName} wirklich löschen?\n\n` +
-            'Dieser Eintrag wird endgültig aus der Datenbank entfernt.'
-        )
-      )
-        return
-      mutate(() => client.api.admin.delete.$post({ json: { id: reg.id } }), 'Gelöscht.')
-    },
+    (reg: AdminRegistration) => mutate(() => client.api.admin.delete.$post({ json: { id: reg.id } }), 'Gelöscht.'),
     [client, mutate]
   )
 
@@ -207,27 +199,16 @@ export const AdminApp = () => {
   if (!ready || !everLoaded) {
     return (
       <>
-        <header className="sticky top-0 z-20 border-b-[3px] border-neon bg-linear-to-b from-navy to-surface-dark text-white">
-          <div className="mx-auto flex max-w-[1120px] flex-wrap items-center justify-between gap-4 px-5 py-[14px]">
-            <div className="flex min-w-0 flex-col gap-0.5">
-              <span className="font-mono text-[11px] tracking-[0.18em] text-neon uppercase">
-                Winsener Meisterschaften 2026
-              </span>
-              <h1 className="text-[clamp(20px,3.4vw,28px)] leading-none font-extrabold tracking-[-0.02em]">
-                Anmeldungen
-              </h1>
-            </div>
-          </div>
-        </header>
+        <Header />
         <main className="mx-auto max-w-[1120px] p-5">
           {!ready ? (
-            <p className="px-4 py-12 text-center text-[15px] text-text-muted">Lädt …</p>
+            <p className="text-muted-foreground px-4 py-12 text-center text-sm">Lädt …</p>
           ) : (
-            <p className="px-4 py-12 text-center text-[15px] text-text-muted">
+            <p className="text-muted-foreground px-4 py-12 text-center text-sm">
               Konnte die Anmeldungen nicht laden.{' '}
-              <button className={`${btnBase} ${focusRing} ${ghost}`} onClick={() => location.reload()}>
+              <Button variant="outline" size="sm" onClick={() => location.reload()}>
                 Neu laden
-              </button>
+              </Button>
             </p>
           )}
         </main>
@@ -241,72 +222,59 @@ export const AdminApp = () => {
 
   return (
     <>
-      <header className="sticky top-0 z-20 border-b-[3px] border-neon bg-linear-to-b from-navy to-surface-dark text-white">
-        <div className="mx-auto flex max-w-[1120px] flex-wrap items-center justify-between gap-4 px-5 py-[14px]">
-          <div className="flex min-w-0 flex-col gap-0.5">
-            <span className="font-mono text-[11px] tracking-[0.18em] text-neon uppercase">
-              Winsener Meisterschaften 2026
-            </span>
-            <h1 className="text-[clamp(20px,3.4vw,28px)] leading-none font-extrabold tracking-[-0.02em]">
-              Anmeldungen
-            </h1>
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <button className={`${btnBase} ${focusRing} ${ghost}`} onClick={refreshLk}>
-              ↻ LK aus nuLiga
-            </button>
-            <a className={`${focusRing} ${ghost}`} href="/cdn-cgi/access/logout">
+      <Header>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button variant="outline" size="sm" onClick={refreshLk}>
+            <RefreshCw />
+            LK aus nuLiga
+          </Button>
+          <Button variant="ghost" size="sm" asChild>
+            <a href="/cdn-cgi/access/logout">
+              <LogOut />
               Abmelden
             </a>
-          </div>
+          </Button>
         </div>
-        <div className="mx-auto grid max-w-[1120px] grid-cols-3 gap-2 px-5 pb-4 min-[721px]:grid-cols-6">
+      </Header>
+      <div className="bg-background border-b">
+        <div className="mx-auto grid max-w-[1120px] grid-cols-3 gap-2 px-5 py-4 min-[721px]:grid-cols-6">
           <Tile label="Gesamt" value={registrations.length} />
-          <Tile label="Neu" value={count('new')} variant="new" />
-          <Tile label="Bestätigt" value={confirmed.length} variant="conf" />
-          <Tile label="Herren" value={byCompetition('mens')} variant="sub" />
-          <Tile label="Challenger" value={byCompetition('mens-challenger')} variant="sub" />
-          <Tile label="Damen" value={byCompetition('womens')} variant="sub" />
+          <Tile label="Neu" value={count('new')} />
+          <Tile label="Bestätigt" value={confirmed.length} highlight />
+          <Tile label="Herren" value={byCompetition('mens')} />
+          <Tile label="Challenger" value={byCompetition('mens-challenger')} />
+          <Tile label="Damen" value={byCompetition('womens')} />
         </div>
-        <div className="mx-auto flex max-w-[1120px] flex-wrap items-center gap-3 px-5 pb-4">
-          <span className="text-[10px] font-bold tracking-[0.14em] text-white/60 uppercase">Phase</span>
-          <div className="flex flex-wrap gap-0.5" role="group" aria-label="Phase">
+        <div className="mx-auto flex max-w-[1120px] flex-wrap items-center gap-2 px-5 pb-4">
+          <span className="text-muted-foreground text-xs font-medium">Phase</span>
+          <div className="flex flex-wrap gap-1" role="group" aria-label="Phase">
             {PHASES.map(p => (
-              <button
+              <Button
                 key={p}
                 type="button"
-                className={`${btnBase} ${focusRing} border px-[13px] py-1.5 text-xs tracking-[0.02em] ${
-                  phase === p
-                    ? 'border-neon bg-neon text-navy'
-                    : 'border-white/14 bg-white/6 text-white/70 hover:border-white/35 hover:text-white'
-                }`}
+                size="sm"
+                variant={phase === p ? 'default' : 'outline'}
                 aria-pressed={phase === p}
                 onClick={() => changePhase(p)}
               >
                 {PHASE_LABELS[p]}
-              </button>
+              </Button>
             ))}
           </div>
         </div>
-      </header>
-      <div className="sticky top-0 z-10 border-b border-border-strong bg-surface shadow-[0_1px_0_rgba(12,30,58,0.04)]">
-        <div className="mx-auto flex max-w-[1120px] flex-wrap items-center gap-3 px-5 py-[9px]">
-          <div className="flex flex-wrap gap-0.5">
+      </div>
+      <div className="bg-background/95 sticky top-0 z-10 border-b backdrop-blur">
+        <div className="mx-auto flex max-w-[1120px] flex-wrap items-center gap-3 px-5 py-2">
+          <div className="flex flex-wrap gap-1">
             {TABS.map(s => (
-              <button
-                key={s}
-                className={`${btnBase} ${focusRing} border-b-[3px] px-[11px] py-[7px] text-[13px] ${
-                  filter === s ? 'border-neon text-text' : 'border-transparent text-text-muted hover:text-text'
-                }`}
-                onClick={() => setFilter(s)}
-              >
+              <Button key={s} size="sm" variant={filter === s ? 'secondary' : 'ghost'} onClick={() => setFilter(s)}>
                 {STATUS_LABELS[s]}
-                <span className="ml-[3px] font-mono text-[11px] font-bold opacity-70">{count(s)}</span>
-              </button>
+                <span className="font-mono text-xs font-bold opacity-60">{count(s)}</span>
+              </Button>
             ))}
           </div>
-          <input
-            className={`${focusRing} ml-auto max-w-[320px] min-w-[160px] flex-1 border-[1.5px] border-border-strong bg-surface-alt px-[11px] py-2 text-[13px] text-text placeholder:text-text-muted`}
+          <Input
+            className="ml-auto max-w-[320px] min-w-[160px] flex-1"
             type="search"
             placeholder="Name, E-Mail, Verein, ID …"
             autoComplete="off"
@@ -317,20 +285,20 @@ export const AdminApp = () => {
       </div>
       <main className="mx-auto max-w-[1120px] p-5">
         {registrations.length === 0 ? (
-          <p className="px-4 py-12 text-center text-[15px] text-text-muted">
+          <p className="text-muted-foreground px-4 py-12 text-center text-sm">
             Noch keine Anmeldungen. Die Liste füllt sich, sobald jemand das Formular abschickt.
           </p>
         ) : visible.length === 0 ? (
-          <p className="px-4 py-12 text-center text-[15px] text-text-muted">Keine Treffer für diesen Filter.</p>
+          <p className="text-muted-foreground px-4 py-12 text-center text-sm">Keine Treffer für diesen Filter.</p>
         ) : (
           visible.map(reg => {
             const header = grouped && reg.status !== lastStatus ? ((lastStatus = reg.status), reg.status) : null
             return (
               <div key={`${reg.id}:${reg.status}:${reg.competition}:${reg.club}:${reg.playerId}:${reg.lk}`}>
                 {header && (
-                  <div className="mt-[26px] mb-2.5 flex items-center gap-2.5 font-mono text-xs font-bold tracking-[0.12em] text-text-muted uppercase">
+                  <div className="text-muted-foreground mt-[26px] mb-2.5 flex items-center gap-2.5 text-xs font-semibold tracking-[0.08em] uppercase">
                     {GROUP_LABELS[header] ?? header}
-                    <span className="h-px flex-1 bg-border-strong" />
+                    <span className="h-px flex-1 bg-border" />
                   </div>
                 )}
                 <RegistrationCard reg={reg} onConfirm={confirm} onHide={hide} onDelete={remove} />
@@ -344,28 +312,36 @@ export const AdminApp = () => {
   )
 }
 
+interface HeaderProps {
+  children?: React.ReactNode
+}
+// Non-sticky: only the filter/search bar below pins to the top, so it stays usable while the
+// operator scrolls a long list on a phone — two stacked `sticky top-0` bars would just overlap.
+const Header = ({ children }: HeaderProps) => (
+  <header className="bg-background border-b">
+    <div className="mx-auto flex max-w-[1120px] flex-wrap items-center justify-between gap-4 px-5 py-3.5">
+      <div className="flex min-w-0 flex-col gap-0.5">
+        <span className="text-muted-foreground font-mono text-[11px] tracking-[0.18em] uppercase">
+          Winsener Meisterschaften 2026
+        </span>
+        <h1 className="text-2xl leading-none font-bold tracking-tight">Anmeldungen</h1>
+      </div>
+      {children}
+    </div>
+  </header>
+)
+
 interface TileProps {
   label: string
   value: number
-  variant?: 'new' | 'conf' | 'sub'
+  highlight?: boolean
 }
-const Tile = ({ label, value, variant }: TileProps) => {
-  const box =
-    variant === 'conf'
-      ? 'border-neon bg-neon/10'
-      : variant === 'sub'
-        ? 'border-white/14 bg-transparent'
-        : 'border-white/14 bg-white/6'
-  const numSize = variant === 'sub' ? 'text-[19px]' : 'text-2xl'
-  const numColor =
-    variant === 'new' ? 'text-blue' : variant === 'conf' ? 'text-neon' : variant === 'sub' ? 'text-white/90' : ''
-  return (
-    <div className={`flex flex-col gap-0.5 border px-[11px] py-[9px] ${box}`}>
-      <span className={`font-mono ${numSize} leading-none font-bold tabular-nums ${numColor}`}>{value}</span>
-      <span className="text-[10px] font-bold tracking-[0.14em] text-white/60 uppercase">{label}</span>
-    </div>
-  )
-}
+const Tile = ({ label, value, highlight }: TileProps) => (
+  <div className={cn('bg-card flex flex-col gap-0.5 rounded-lg border px-3 py-2', highlight && 'ring-1 ring-ring')}>
+    <span className="font-mono text-2xl leading-none font-bold tabular-nums">{value}</span>
+    <span className="text-muted-foreground text-[10px] font-medium tracking-[0.1em] uppercase">{label}</span>
+  </div>
+)
 
 interface ToastProps {
   text: string
@@ -373,7 +349,10 @@ interface ToastProps {
 }
 const Toast = ({ text, err }: ToastProps) => (
   <div
-    className={`pointer-events-none fixed bottom-[22px] left-1/2 z-50 -translate-x-1/2 border-l-4 bg-navy px-[18px] py-[11px] text-sm font-bold text-white shadow-[0_8px_24px_rgba(12,30,58,0.28)] ${err ? 'border-l-clay' : 'border-l-neon'}`}
+    className={cn(
+      'bg-popover text-popover-foreground pointer-events-none fixed bottom-[22px] left-1/2 z-50 -translate-x-1/2 rounded-md border-l-4 px-[18px] py-[11px] text-sm font-medium shadow-lg',
+      err ? 'border-l-destructive' : 'border-l-foreground'
+    )}
     role="status"
     aria-live="polite"
   >
