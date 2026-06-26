@@ -16,6 +16,7 @@ const env = {} as Env // no Telegram creds; notifyRegistration is stubbed regard
 const reg = (overrides: Partial<RegistrationRow> = {}): RegistrationRow => ({
   id: 1,
   createdAt: '2026-06-01T10:00:00.000Z',
+  updatedAt: '2026-06-01T10:00:00.000Z',
   competition: 'mens',
   firstName: 'Max',
   lastName: 'Muster',

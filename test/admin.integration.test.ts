@@ -51,12 +51,12 @@ describe('GET /api/admin/list', () => {
 })
 
 describe('POST /api/admin/confirm', () => {
-  it('confirms with an explicit LK and persists it', async () => {
+  it('confirms with the no-id choice and persists the default LK (ADR-0020)', async () => {
     const row = await seed()
     const res = await req('/api/admin/confirm', {
       method: 'POST',
       headers: JSON_HEADERS,
-      body: JSON.stringify({ id: row!.id, competition: 'mens', club: 'TV Winsen', playerId: '', lk: '25.0' })
+      body: JSON.stringify({ id: row!.id, competition: 'mens', club: 'TV Winsen', playerId: '', noId: true })
     })
     expect(res.status).toBe(200)
     expect(await res.json()).toEqual({ ok: true, lkFetched: null })
@@ -72,7 +72,7 @@ describe('POST /api/admin/confirm', () => {
     const res = await req('/api/admin/confirm', {
       method: 'POST',
       headers: JSON_HEADERS,
-      body: JSON.stringify({ id: row!.id, competition: 'mens', club: 'TV Winsen', playerId: '', lk: '' })
+      body: JSON.stringify({ id: row!.id, competition: 'mens', club: 'TV Winsen', playerId: '', noId: false })
     })
     expect(res.status).toBe(400)
     expect(await res.json()).toEqual({
@@ -91,7 +91,7 @@ describe('POST /api/admin/confirm', () => {
     const res = await req('/api/admin/confirm', {
       method: 'POST',
       headers: JSON_HEADERS,
-      body: JSON.stringify({ id: row!.id, competition: 'mens', club: 'TV Winsen', playerId: '12345678', lk: '' })
+      body: JSON.stringify({ id: row!.id, competition: 'mens', club: 'TV Winsen', playerId: '12345678', noId: false })
     })
     expect(await res.json()).toEqual({ ok: true, lkFetched: '11.2' })
     const persisted = await env.DB.prepare('SELECT lk FROM registrations WHERE id = ?')
@@ -100,12 +100,31 @@ describe('POST /api/admin/confirm', () => {
     expect(persisted?.lk).toBe('11.2')
   })
 
+  it('leaves a linked-but-unrated player LK unresolved — never clobbers (ADR-0020)', async () => {
+    // Seed an already-confirmed, linked row carrying a real LK, then re-save it while nuLiga has no
+    // matching rating (unrated / outage). The stored LK must survive — a miss writes nothing — so a
+    // re-save to fix the club/Konkurrenz cannot silently reset a correct rating to the default.
+    const row = await seed({ status: 'confirmed', player_id: '12345678', lk: '11.2' })
+    vi.stubGlobal('fetch', async () => new Response('<tr><td>no match here</td></tr>', { status: 200 }))
+    const res = await req('/api/admin/confirm', {
+      method: 'POST',
+      headers: JSON_HEADERS,
+      body: JSON.stringify({ id: row!.id, competition: 'womens', club: 'TV Winsen', playerId: '12345678', noId: false })
+    })
+    expect(await res.json()).toEqual({ ok: true, lkFetched: null })
+    const persisted = await env.DB.prepare('SELECT lk, competition FROM registrations WHERE id = ?')
+      .bind(row!.id)
+      .first<{ lk: string; competition: string }>()
+    // The edit applied (competition changed) but the LK was preserved, not reset to 25.0.
+    expect(persisted).toMatchObject({ lk: '11.2', competition: 'womens' })
+  })
+
   it('rejects a malformed player id at the Zod boundary', async () => {
     const row = await seed()
     const res = await req('/api/admin/confirm', {
       method: 'POST',
       headers: JSON_HEADERS,
-      body: JSON.stringify({ id: row!.id, competition: 'mens', club: 'TV Winsen', playerId: '123', lk: '' })
+      body: JSON.stringify({ id: row!.id, competition: 'mens', club: 'TV Winsen', playerId: '123', noId: false })
     })
     expect(res.status).toBe(400)
     expect(await res.json()).toEqual({ error: 'Spieler-ID muss 8-stellig sein.' })

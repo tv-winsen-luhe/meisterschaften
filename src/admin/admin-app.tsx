@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { hc } from 'hono/client'
 import { toast } from 'sonner'
 import type { AppType } from '../../worker/app'
-import { type AdminRegistration, type Phase } from '../../shared'
+import { type AdminRegistration, type CompetitionSlug, type Phase } from '../../shared'
 import { Button } from '@/admin/ui/button'
 import { Separator } from '@/admin/ui/separator'
 import { Toaster } from '@/admin/ui/sonner'
@@ -10,7 +10,7 @@ import { SidebarInset, SidebarProvider, SidebarTrigger } from '@/admin/ui/sideba
 import { AppSidebar, type Surface } from './app-sidebar'
 import { PHASE_LABELS, PhaseStepper } from './phase-stepper'
 import { OverviewSurface } from './surfaces/overview-surface'
-import { RegistrationsSurface, type StatusFilter } from './surfaces/registrations-surface'
+import { type CompetitionFilter, RegistrationsSurface, type StatusFilter } from './surfaces/registrations-surface'
 import { type ConfirmPayload } from './surfaces/registration-detail'
 
 // Auth is edge-only (Cloudflare Access, ADR-0008). An expired Access session answers
@@ -45,6 +45,7 @@ export const AdminApp = () => {
   // The registrations filter/search live here, not in the surface, so they survive the operator
   // switching to another surface and back (the surface unmounts; the shell does not).
   const [filter, setFilter] = useState<StatusFilter>('all')
+  const [competitionFilter, setCompetitionFilter] = useState<CompetitionFilter>('all')
   const [query, setQuery] = useState('')
 
   // `redirect: 'manual'` so an Access login redirect surfaces as an opaque-redirect response
@@ -179,6 +180,14 @@ export const AdminApp = () => {
     setSurface('registrations')
   }, [])
 
+  // A Konkurrenz row in the Übersicht opens Anmeldungen scoped to that field, all statuses — "show
+  // me this Konkurrenz" (ADR-0019). The filter lives in the shell, so it survives the surface switch.
+  const goToCompetition = useCallback((slug: CompetitionSlug) => {
+    setCompetitionFilter(slug)
+    setFilter('all')
+    setSurface('registrations')
+  }, [])
+
   // Until the first successful load, hold a loading/error screen rather than the full admin — a
   // failed load must not look like an empty registration list (the operator could mistake a
   // backend hiccup for "nobody signed up"). Once loaded, later refresh failures only toast.
@@ -215,12 +224,14 @@ export const AdminApp = () => {
           <PhaseStepper phase={phase} onChange={changePhase} />
         </header>
         {surface === 'overview' ? (
-          <OverviewSurface registrations={registrations} onGoToNew={goToNew} />
+          <OverviewSurface registrations={registrations} onGoToNew={goToNew} onGoToCompetition={goToCompetition} />
         ) : (
           <RegistrationsSurface
             registrations={registrations}
             filter={filter}
             onFilterChange={setFilter}
+            competitionFilter={competitionFilter}
+            onCompetitionFilterChange={setCompetitionFilter}
             query={query}
             onQueryChange={setQuery}
             onConfirm={confirm}

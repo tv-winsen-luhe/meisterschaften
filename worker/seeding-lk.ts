@@ -103,10 +103,11 @@ export const createSeedingLk = (deps: SeedingLkDeps): SeedingLk => {
 
       let updated = 0
       for (const reg of await store.listAll()) {
-        // Linked rows: just refresh the LK from nuLiga.
+        // Linked rows: refresh the LK from nuLiga, but only write when it actually changed — so an
+        // unchanged weekly sync is a no-op and does not bump updated_at.
         if (reg.playerId) {
           const lk = lkById.get(reg.playerId)
-          if (lk) {
+          if (lk && lk !== reg.lk) {
             await store.setLk(reg.id, lk)
             updated++
           }

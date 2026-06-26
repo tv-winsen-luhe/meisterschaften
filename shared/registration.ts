@@ -69,29 +69,29 @@ export interface ConfirmableFields {
   lk: string | null
 }
 
-// The raw seeding-basis input as a form holds it: player id + LK as (possibly empty) strings,
-// plus the admin's „keine ID" toggle. The React admin passes the live checkbox state; the domain
-// confirm passes no noId (the wire already carries operator-resolved values — ADR-0011 amendment).
+// The only seeding input the operator gives (ADR-0020): whether the entry is linked to a nuLiga
+// player id, or explicitly has none ("keine nuLiga-ID"). The LK is never part of this input — it
+// is derived. The React admin passes the live id field + switch state; the domain confirm passes
+// the same, so card and authority provably agree.
 export interface SeedingBasisInput {
   playerId: string
-  lk: string
   noId?: boolean
 }
 
-// Derive the seeding basis from raw form input, owning the "no nuLiga ID ⇒ default LK" policy in
-// one tested place (ADR-0011 amendment). Empty strings normalise to null so canConfirm and the DB
-// see a real absence. With noId set, the player id is cleared and the LK falls back to DEFAULT_LK
-// when none was entered (an explicit LK is kept). The result feeds straight into canConfirm.
-export const resolveSeedingBasis = ({ playerId, lk, noId = false }: SeedingBasisInput): ConfirmableFields => {
-  if (noId) return { playerId: null, lk: lk.trim() || DEFAULT_LK }
-  return { playerId: playerId.trim() || null, lk: lk.trim() || null }
+// Derive the seeding basis from the operator's id/no-id choice, owning the "no resolvable rating
+// ⇒ default LK" policy in one tested place (ADR-0020). A linked player id is kept (trimmed) with a
+// null LK — the actual rating is fetched from nuLiga by the edge at confirm time. The explicit
+// no-id choice clears the id and seeds at DEFAULT_LK. Neither chosen → no basis (canConfirm
+// rejects it). The LK is never supplied here; the operator cannot type one.
+export const resolveSeedingBasis = ({ playerId, noId = false }: SeedingBasisInput): ConfirmableFields => {
+  if (noId) return { playerId: null, lk: DEFAULT_LK }
+  return { playerId: playerId.trim() || null, lk: null }
 }
 
-// The authoritative confirmation precondition (ADR-0011), living once in shared/ so the
-// domain enforces it and the admin renders its reason from the same source. A registration
-// is confirmable only once it carries a seeding basis: a linked nuLiga player id OR an
-// explicit LK (e.g. 25.0 for "no nuLiga entry"). Returns true when confirmable, otherwise
-// the German reason — the same message the legacy admin showed.
+// The authoritative confirmation precondition (ADR-0011, sharpened by ADR-0020), living once in
+// shared/ so the domain enforces it and the admin renders its reason from the same source. A
+// registration is confirmable once it carries a seeding basis: a linked nuLiga player id, or the
+// no-id default LK (25.0). Returns true when confirmable, otherwise the German reason.
 export const canConfirm = (reg: ConfirmableFields): true | string => {
   const hasPlayerId = Boolean(reg.playerId?.trim())
   const hasLk = Boolean(reg.lk?.trim())

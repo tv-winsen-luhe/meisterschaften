@@ -42,6 +42,25 @@ export const PhaseStepper = ({ phase, onChange }: PhaseStepperProps) => {
     setPending(null)
   }
 
+  // The consequence of the chosen transition, named in the dialog so the warning describes the
+  // actual move (not a single static message). A step backward is flagged as unusual; each forward
+  // step states what it sets in motion. Backward is a deliberate escape hatch (ADR-0006): it just
+  // sets the phase value — the cron re-gates itself and the immutable draw snapshot stands (ADR-0003).
+  const consequence = (target: Phase): string => {
+    if (currentIndex >= 0 && PHASES.indexOf(target) < currentIndex)
+      return 'Rückschritt in eine frühere Phase — nur zur Korrektur eines Versehens. Die Auslosung bleibt unverändert.'
+    switch (target) {
+      case 'draw':
+        return 'Mit dem Verlassen der Anmeldung wird die Setzung eingefroren und die wöchentliche nuLiga-Synchronisierung (LK-Aktualisierung) beendet.'
+      case 'live':
+        return 'Das Turnierwochenende beginnt. Die Ergebniserfassung wird aktiv.'
+      case 'post-event':
+        return 'Das Turnier ist beendet. Brackets und Spielplan werden schreibgeschützt; die Löschung der Kontaktdaten wird verfügbar.'
+      case 'signup':
+        return 'Zurück zur Anmeldung.'
+    }
+  }
+
   return (
     <div className="flex min-w-0 items-center gap-1 overflow-x-auto" role="group" aria-label="Phase">
       {PHASES.map((p, i) => {
@@ -84,8 +103,7 @@ export const PhaseStepper = ({ phase, onChange }: PhaseStepperProps) => {
           <AlertDialogHeader>
             <AlertDialogTitle>Phase auf „{pending ? PHASE_LABELS[pending] : ''}“ ändern?</AlertDialogTitle>
             <AlertDialogDescription>
-              Die Phase bestimmt, was öffentlich sichtbar ist. Mit dem Verlassen der Anmeldung wird die Setzung
-              eingefroren und die wöchentliche nuLiga-Synchronisierung (LK-Aktualisierung) beendet. Dieser Schritt
+              Die Phase bestimmt, was öffentlich sichtbar ist. {pending ? consequence(pending) : ''} Dieser Schritt
               sollte bewusst erfolgen.
             </AlertDialogDescription>
           </AlertDialogHeader>

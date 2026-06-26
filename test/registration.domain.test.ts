@@ -7,6 +7,7 @@ let nextId = 1
 const reg = (overrides: Partial<RegistrationRow>): RegistrationRow => ({
   id: nextId++,
   createdAt: '2026-06-01T10:00:00.000Z',
+  updatedAt: '2026-06-01T10:00:00.000Z',
   competition: 'mens',
   firstName: 'Max',
   lastName: 'Muster',
@@ -167,16 +168,16 @@ describe('registration domain · cancel', () => {
 })
 
 describe('registration domain · confirm', () => {
-  const edits = { competition: 'mens', club: 'TV Winsen', playerId: '', lk: '' }
+  const edits = { competition: 'mens', club: 'TV Winsen', playerId: '', noId: false }
 
-  it('confirms a new row, applies the edits, and persists status confirmed', async () => {
+  it('confirms a linked row, applies the edits, and leaves the LK for the edge to fetch (ADR-0020)', async () => {
     const row = reg({ status: 'new', competition: 'mens', club: 'TV Winsen' })
     const store = createInMemoryRegistrationsStore([row])
     const result = await createRegistrationDomain(store).confirm(row.id, {
       competition: 'womens',
       club: 'TSV Winsen',
       playerId: '12345678',
-      lk: '15.0'
+      noId: false
     })
     expect(result).toMatchObject({ ok: true })
     if (!result.ok) throw new Error('expected ok')
@@ -185,11 +186,12 @@ describe('registration domain · confirm', () => {
       competition: 'womens',
       club: 'TSV Winsen',
       playerId: '12345678',
-      lk: '15.0'
+      // The domain never fetches nuLiga — a linked row's LK stays null until the edge fills it.
+      lk: null
     })
   })
 
-  it('rejects NotConfirmable (with the reason) when neither player id nor LK is present', async () => {
+  it('rejects NotConfirmable (with the reason) when neither a linked id nor the no-id choice is given', async () => {
     const row = reg({ status: 'new' })
     const store = createInMemoryRegistrationsStore([row])
     const result = await createRegistrationDomain(store).confirm(row.id, edits)
@@ -202,23 +204,26 @@ describe('registration domain · confirm', () => {
     expect((await store.findById(row.id))?.status).toBe('new')
   })
 
-  it('confirms with an explicit LK and no player id ("keine ID")', async () => {
+  it('confirms with the no-id choice and seeds at the default LK', async () => {
     const row = reg({ status: 'new' })
     const store = createInMemoryRegistrationsStore([row])
-    const result = await createRegistrationDomain(store).confirm(row.id, { ...edits, lk: '25.0' })
+    const result = await createRegistrationDomain(store).confirm(row.id, { ...edits, noId: true })
     expect(result).toMatchObject({ ok: true })
+    const persisted = await store.findById(row.id)
+    expect(persisted?.playerId).toBeNull()
+    expect(persisted?.lk).toBe('25.0')
   })
 
-  it('normalises empty player id / LK to null', async () => {
+  it('the no-id choice clears any linked player id', async () => {
     const row = reg({ status: 'new', playerId: 'x', lk: 'x' })
     const store = createInMemoryRegistrationsStore([row])
-    await createRegistrationDomain(store).confirm(row.id, { ...edits, playerId: '', lk: '12.0' })
+    await createRegistrationDomain(store).confirm(row.id, { ...edits, playerId: '12345678', noId: true })
     expect((await store.findById(row.id))?.playerId).toBeNull()
   })
 
   it('returns NotFound for an unknown id', async () => {
     const store = createInMemoryRegistrationsStore()
-    expect(await createRegistrationDomain(store).confirm(999999, { ...edits, lk: '25.0' })).toEqual({
+    expect(await createRegistrationDomain(store).confirm(999999, { ...edits, noId: true })).toEqual({
       ok: false,
       error: 'NotFound'
     })

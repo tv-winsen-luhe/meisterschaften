@@ -58,12 +58,16 @@ When a concept here drifts or a new one appears, update this file rather than in
   as pure predicates in `shared/`: the domain enforces them, the React admin reuses them for affordance
   (authority in the domain, affordance in the client, definition in one place). _(See ADR-0011.)_
 - **LK (Leistungsklasse)** — a player's nuLiga rating, synced weekly from nuLiga and used only for
-  **Setzung** (seeding). Players without an LK default to `defaultLk`.
-- **Seeding basis** — the minimal input that makes a Registration confirmable and seedable: either a
-  linked nuLiga `player_id`, or an explicit **LK**. A player with no nuLiga ID gains a basis via the
-  default LK (`defaultLk`, 25.0). `canConfirm` (in `shared/`) judges whether a basis is present;
-  `resolveSeedingBasis` (beside it) derives the basis fields from raw form input — the admin's „keine
-  ID" affordance is the no-nuLiga-ID case. _(See ADR-0011.)_
+  **Setzung** (seeding). It is **never entered by hand**: a player's LK is whatever nuLiga has for their
+  linked `player_id`, and any player with no resolvable rating — no linked ID, or an ID nuLiga has no
+  rating for (unrated / not yet rated) — defaults to `defaultLk` (25.0).
+- **Seeding basis** — the minimal input that makes a Registration confirmable and seedable. The LK
+  itself is **derived, not supplied** (see LK): the only seeding input the operator gives is whether the
+  entry is **linked to a nuLiga `player_id`** or **explicitly has none** („keine nuLiga-ID"). From that,
+  the LK follows — the linked player's nuLiga rating, or `defaultLk` (25.0) when there is no ID or no
+  rating. `canConfirm` (in `shared/`) judges whether that choice has been made (an ID is linked, or
+  no-ID is explicitly set); `resolveSeedingBasis` (beside it) derives the basis fields from that input.
+  There is deliberately no operator LK override. _(See ADR-0011, ADR-0020.)_
 - **Setzung (seeding)** — ordering players in the draw by LK so the strongest are kept apart early.
   Follows the DTB Turnierordnung 2024:
   - **Number of seeds** by draw size: 8 → 2, 16 → 4, 32 → 8, 48+ → 16.
