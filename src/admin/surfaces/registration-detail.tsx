@@ -56,6 +56,16 @@ const CLUB_LOGOS: Record<string, string> = {
 const formatDate = (iso: string): string =>
   new Date(iso).toLocaleDateString('de-DE', { day: 'numeric', month: 'long', year: 'numeric' })
 
+// "vor 2 Tagen" — a relative form for the last update, so recency reads at a glance.
+const formatRelative = (iso: string): string => {
+  const rtf = new Intl.RelativeTimeFormat('de', { numeric: 'auto' })
+  const mins = Math.round((new Date(iso).getTime() - Date.now()) / 60000)
+  if (Math.abs(mins) < 60) return rtf.format(mins, 'minute')
+  const hours = Math.round(mins / 60)
+  if (Math.abs(hours) < 24) return rtf.format(hours, 'hour')
+  return rtf.format(Math.round(hours / 24), 'day')
+}
+
 // The editable payload the panel submits to confirm/save a row. The LK is not among the fields —
 // it is derived (ADR-0020): `playerId` is the nuLiga link and `noId` the explicit "keine
 // nuLiga-ID" choice; the server fetches or defaults the LK. (Matches ConfirmRequest minus id.)
@@ -169,7 +179,10 @@ export const RegistrationDetail = ({ reg, onConfirm, onCancel, onDelete }: Regis
         {reg.note && (
           <div className="text-muted-foreground mt-3 border-l-2 border-border pl-[9px] text-sm">„{reg.note}"</div>
         )}
-        <div className="text-muted-foreground mt-3 text-xs">Angemeldet am {formatDate(reg.createdAt)}</div>
+        <div className="text-muted-foreground mt-3 text-xs">
+          Angemeldet am {formatDate(reg.createdAt)}
+          {reg.updatedAt && reg.updatedAt !== reg.createdAt && ` · aktualisiert ${formatRelative(reg.updatedAt)}`}
+        </div>
 
         {/* Editable entry — each value appears exactly once. */}
         <div className="mt-5 grid grid-cols-1 gap-4 border-t border-dashed pt-5 sm:grid-cols-2">

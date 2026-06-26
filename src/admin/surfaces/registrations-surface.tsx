@@ -32,7 +32,7 @@ const TABS: StatusFilter[] = ['new', 'confirmed', 'cancelled', 'all']
 // changes (selection, or a save that moves the row to confirmed) — so it always reflects the
 // persisted state without an effect to sync it.
 const detailKey = (reg: AdminRegistration) =>
-  `${reg.id}:${reg.status}:${reg.competition}:${reg.club}:${reg.playerId}:${reg.lk}`
+  `${reg.id}:${reg.status}:${reg.competition}:${reg.club}:${reg.playerId}:${reg.lk}:${reg.updatedAt}`
 
 interface RegistrationsSurfaceProps {
   registrations: AdminRegistration[]

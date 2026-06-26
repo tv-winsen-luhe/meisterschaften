@@ -4,6 +4,11 @@ import { and, asc, count, eq, gt, inArray, sql } from 'drizzle-orm'
 import { DEFAULT_LK, type RegistrationStatus } from '../../shared'
 import { registrations, type NewRegistrationRow, type RegistrationRow } from '../db/schema'
 
+// updated_at is a persistence fact ("when was this row last written"), stamped here on every
+// value-changing write rather than threaded through the domain. Insert/revive use the same
+// timestamp as created_at; the change transitions use the write moment.
+const nowIso = () => new Date().toISOString()
+
 // A confirmed participant as the public list needs it (camelCase, contract shape).
 export interface ConfirmedParticipant {
   firstName: string
@@ -188,7 +193,7 @@ export const createD1RegistrationsStore = (d1: D1Database): RegistrationsStore =
     },
 
     async insert(data) {
-      const values: NewRegistrationRow = { ...data, status: 'new' }
+      const values: NewRegistrationRow = { ...data, status: 'new', updatedAt: data.createdAt }
       const rows = await db.insert(registrations).values(values).returning()
       return rows[0]
     },
@@ -196,28 +201,36 @@ export const createD1RegistrationsStore = (d1: D1Database): RegistrationsStore =
     async revive(id, fields) {
       const rows = await db
         .update(registrations)
-        .set({ status: 'new', ...fields })
+        .set({ status: 'new', ...fields, updatedAt: fields.createdAt })
         .where(eq(registrations.id, id))
         .returning()
       return rows[0]
     },
 
     async setMatch(id, playerId, lk) {
-      await db.update(registrations).set({ playerId, lk }).where(eq(registrations.id, id))
+      await db.update(registrations).set({ playerId, lk, updatedAt: nowIso() }).where(eq(registrations.id, id))
     },
 
     async setFields(id, fields) {
-      const rows = await db.update(registrations).set(fields).where(eq(registrations.id, id)).returning()
+      const rows = await db
+        .update(registrations)
+        .set({ ...fields, updatedAt: nowIso() })
+        .where(eq(registrations.id, id))
+        .returning()
       return rows[0]
     },
 
     async setStatus(id, status) {
-      const rows = await db.update(registrations).set({ status }).where(eq(registrations.id, id)).returning()
+      const rows = await db
+        .update(registrations)
+        .set({ status, updatedAt: nowIso() })
+        .where(eq(registrations.id, id))
+        .returning()
       return rows[0]
     },
 
     async setLk(id, lk) {
-      await db.update(registrations).set({ lk }).where(eq(registrations.id, id))
+      await db.update(registrations).set({ lk, updatedAt: nowIso() }).where(eq(registrations.id, id))
     },
 
     async remove(id) {
@@ -230,7 +243,7 @@ export const createD1RegistrationsStore = (d1: D1Database): RegistrationsStore =
       // SELECT-then-UPDATE race, and the returned rows carry the facts the notifier needs.
       return db
         .update(registrations)
-        .set({ status: 'cancelled' })
+        .set({ status: 'cancelled', updatedAt: nowIso() })
         .where(and(emailLastNameWhere(person), inArray(registrations.status, ['new', 'confirmed'])))
         .returning()
     },
@@ -309,14 +322,21 @@ export const createInMemoryRegistrationsStore = (seed: RegistrationRow[] = []): 
     },
 
     async insert(data) {
-      const row: RegistrationRow = { id: nextId++, playerId: null, lk: null, status: 'new', ...data }
+      const row: RegistrationRow = {
+        id: nextId++,
+        playerId: null,
+        lk: null,
+        status: 'new',
+        ...data,
+        updatedAt: data.createdAt
+      }
       rows.push(row)
       return row
     },
 
     async revive(id, fields) {
       const row = byId(id)
-      Object.assign(row, { status: 'new', ...fields })
+      Object.assign(row, { status: 'new', ...fields, updatedAt: fields.createdAt })
       return row
     },
 
@@ -324,22 +344,27 @@ export const createInMemoryRegistrationsStore = (seed: RegistrationRow[] = []): 
       const row = byId(id)
       row.playerId = playerId
       row.lk = lk
+      row.updatedAt = nowIso()
     },
 
     async setFields(id, fields) {
       const row = byId(id)
       Object.assign(row, fields)
+      row.updatedAt = nowIso()
       return row
     },
 
     async setStatus(id, status) {
       const row = byId(id)
       row.status = status
+      row.updatedAt = nowIso()
       return row
     },
 
     async setLk(id, lk) {
-      byId(id).lk = lk
+      const row = byId(id)
+      row.lk = lk
+      row.updatedAt = nowIso()
     },
 
     async remove(id) {
@@ -356,7 +381,10 @@ export const createInMemoryRegistrationsStore = (seed: RegistrationRow[] = []): 
           eqCi(r.lastName, person.lastName) &&
           (r.status === 'new' || r.status === 'confirmed')
       )
-      matched.forEach(r => (r.status = 'cancelled'))
+      matched.forEach(r => {
+        r.status = 'cancelled'
+        r.updatedAt = nowIso()
+      })
       return matched
     },
 

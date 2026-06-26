@@ -1,13 +1,17 @@
 import { sqliteTable, integer, text, index } from 'drizzle-orm/sqlite-core'
 
-// Mirrors the existing `registrations` table 1:1 (no column changes). camelCase in
-// TS, snake_case in D1 — the only naming translation, done here in the column mapping;
-// above this line everything is camelCase, below it snake_case (no hand converters).
+// Mirrors the `registrations` table. camelCase in TS, snake_case in D1 — the only naming
+// translation, done here in the column mapping; above this line everything is camelCase, below it
+// snake_case (no hand converters).
 export const registrations = sqliteTable(
   'registrations',
   {
     id: integer('id').primaryKey({ autoIncrement: true }),
     createdAt: text('created_at').notNull(),
+    // Last write of any kind (status change, operator edit, or an actual LK change from the weekly
+    // sync) — the Store stamps it on every value-changing write, and to createdAt on insert. The
+    // backfill migration sets it = created_at for pre-existing rows, so it is effectively never null.
+    updatedAt: text('updated_at'),
     competition: text('competition').notNull(),
     firstName: text('first_name').notNull(),
     lastName: text('last_name').notNull(),

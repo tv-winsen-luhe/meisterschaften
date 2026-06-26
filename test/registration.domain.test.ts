@@ -7,6 +7,7 @@ let nextId = 1
 const reg = (overrides: Partial<RegistrationRow>): RegistrationRow => ({
   id: nextId++,
   createdAt: '2026-06-01T10:00:00.000Z',
+  updatedAt: '2026-06-01T10:00:00.000Z',
   competition: 'mens',
   firstName: 'Max',
   lastName: 'Muster',

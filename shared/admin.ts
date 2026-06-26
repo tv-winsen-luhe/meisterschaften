@@ -20,6 +20,9 @@ export type RegistrationStatus = (typeof REGISTRATION_STATUSES)[number]
 export const adminRegistrationSchema = z.object({
   id: z.number().int().positive(),
   createdAt: z.string(),
+  // Last write of any kind; effectively never null (backfilled + stamped by the Store), but typed
+  // nullable to match the column.
+  updatedAt: z.string().nullable(),
   competition: competitionSlug,
   firstName: z.string(),
   lastName: z.string(),
