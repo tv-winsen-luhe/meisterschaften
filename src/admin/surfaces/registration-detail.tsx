@@ -13,6 +13,7 @@ import {
 } from '../../../shared'
 import { competitions } from '@/data/tournament'
 import { cn } from '@/admin/lib/utils'
+import { formatDate, formatRelative } from '@/admin/lib/format'
 import { Button } from '@/admin/ui/button'
 import { Input } from '@/admin/ui/input'
 import { Label } from '@/admin/ui/label'
@@ -54,21 +55,6 @@ const CLUB_LOGOS: Record<string, string> = {
   'TSV Winsen': '/club-logos/tsv-winsen.png'
 }
 
-// "14. August 2026" — the operator-facing form of the stored ISO timestamp.
-const formatDate = (iso: string): string =>
-  new Date(iso).toLocaleDateString('de-DE', { day: 'numeric', month: 'long', year: 'numeric' })
-
-// "vor 2 Tagen" — a relative form for the last update, so recency reads at a glance.
-const relativeTime = new Intl.RelativeTimeFormat('de', { numeric: 'auto' })
-const formatRelative = (iso: string): string => {
-  const rtf = relativeTime
-  const mins = Math.round((new Date(iso).getTime() - Date.now()) / 60000)
-  if (Math.abs(mins) < 60) return rtf.format(mins, 'minute')
-  const hours = Math.round(mins / 60)
-  if (Math.abs(hours) < 24) return rtf.format(hours, 'hour')
-  return rtf.format(Math.round(hours / 24), 'day')
-}
-
 // The editable payload the panel submits to confirm/save a row. The LK is not among the fields —
 // it is derived (ADR-0020): `playerId` is the nuLiga link and `noId` the explicit "keine
 // nuLiga-ID" choice; the server fetches or defaults the LK. (Matches ConfirmRequest minus id.)
@@ -96,6 +82,8 @@ interface RegistrationDetailProps {
 export const RegistrationDetail = ({ reg, onConfirm, onCancel, onDelete }: RegistrationDetailProps) => {
   const isConfirmed = reg.status === 'confirmed'
   const isCancelled = reg.status === 'cancelled'
+  // '' when there is no update to show or the stored value is unparseable (see formatRelative).
+  const updatedRelative = reg.updatedAt ? formatRelative(reg.updatedAt) : ''
   const [playerId, setPlayerId] = useState(reg.playerId ?? '')
   const [competition, setCompetition] = useState<CompetitionSlug>(reg.competition)
   const [club, setClub] = useState<Club>(reg.club)
@@ -183,7 +171,7 @@ export const RegistrationDetail = ({ reg, onConfirm, onCancel, onDelete }: Regis
         )}
         <div className="text-muted-foreground mt-3 text-xs">
           Angemeldet am {formatDate(reg.createdAt)}
-          {reg.updatedAt && reg.updatedAt !== reg.createdAt && ` · aktualisiert ${formatRelative(reg.updatedAt)}`}
+          {reg.updatedAt && reg.updatedAt !== reg.createdAt && updatedRelative && ` · aktualisiert ${updatedRelative}`}
         </div>
 
         {/* Editable entry — each value appears exactly once. */}
