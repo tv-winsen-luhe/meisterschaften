@@ -21,17 +21,15 @@ const STATUS_LABELS: Record<StatusFilter, string> = {
   all: 'Alle',
   new: 'Neu',
   confirmed: 'Bestätigt',
-  hidden: 'Versteckt',
   cancelled: 'Abgemeldet'
 }
 const GROUP_LABELS: Record<string, string> = {
   new: 'Neu — zu bestätigen',
   confirmed: 'Bestätigt — öffentlich',
-  hidden: 'Versteckt',
   cancelled: 'Abgemeldet'
 }
-const ORDER: Record<string, number> = { new: 0, confirmed: 1, hidden: 2, cancelled: 3 }
-const TABS: StatusFilter[] = ['all', 'new', 'confirmed', 'hidden', 'cancelled']
+const ORDER: Record<string, number> = { new: 0, confirmed: 1, cancelled: 2 }
+const TABS: StatusFilter[] = ['all', 'new', 'confirmed', 'cancelled']
 
 // Auth is edge-only (Cloudflare Access, ADR-0008). An expired Access session answers
 // `/api/admin/*` with a 302 to the cross-origin login; `redirect: 'manual'` (see client) turns
@@ -52,7 +50,7 @@ const errorMessage = async (res: Response): Promise<string> => {
 
 // The admin SPA: a `client:only` React island on the Hono typed `hc` client, built on shadcn/ui
 // primitives in the neutral default look (ADR-0016). Stat tiles, status tabs, search, and the
-// editable registration cards drive the confirm/hide/delete/refresh-LK flows. Auth is edge-only
+// editable registration cards drive the confirm/cancel/delete/refresh-LK flows. Auth is edge-only
 // (Cloudflare Access, ADR-0008): there is no in-app login — the operator is already
 // authenticated by Cloudflare Access before this island ever loads.
 export const AdminApp = () => {
@@ -163,8 +161,11 @@ export const AdminApp = () => {
     [client, load, showToast]
   )
 
-  const hide = useCallback(
-    (id: number) => mutate(() => client.api.admin.hide.$post({ json: { id } }), 'Versteckt.'),
+  // Operator cancel by id (ADR-0018): records a drop-out the desk was told about. The card owns
+  // the confirmation dialog, so this just performs the mutation. Distinct from the public
+  // self-service /api/cancel (by person) — no member notification.
+  const cancel = useCallback(
+    (id: number) => mutate(() => client.api.admin.cancel.$post({ json: { id } }), 'Abgemeldet.'),
     [client, mutate]
   )
 
@@ -301,7 +302,7 @@ export const AdminApp = () => {
                     <span className="h-px flex-1 bg-border" />
                   </div>
                 )}
-                <RegistrationCard reg={reg} onConfirm={confirm} onHide={hide} onDelete={remove} />
+                <RegistrationCard reg={reg} onConfirm={confirm} onCancel={cancel} onDelete={remove} />
               </div>
             )
           })

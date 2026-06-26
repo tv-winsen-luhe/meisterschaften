@@ -27,7 +27,6 @@ describe('in-memory registrations store · listConfirmed', () => {
     const store = createInMemoryRegistrationsStore([
       reg({ status: 'new', firstName: 'New' }),
       reg({ status: 'cancelled', firstName: 'Gone' }),
-      reg({ status: 'hidden', firstName: 'Hidden' }),
       reg({ status: 'confirmed', firstName: 'Real', lk: '12.0' })
     ])
 

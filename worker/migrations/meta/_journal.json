@@ -22,6 +22,13 @@
       "when": 1782432702957,
       "tag": "0002_minor_lorna_dane",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1782482821340,
+      "tag": "0003_retire_hidden_status",
+      "breakpoints": true
     }
   ]
 }

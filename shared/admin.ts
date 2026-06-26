@@ -12,7 +12,7 @@ import { CLUBS } from './registration'
 // Field-validation messages mirror the legacy admin handler (behaviour-preserving for the
 // operator): same German text, so a malformed edit reports exactly as before.
 
-export const REGISTRATION_STATUSES = ['new', 'confirmed', 'hidden', 'cancelled'] as const
+export const REGISTRATION_STATUSES = ['new', 'confirmed', 'cancelled'] as const
 export type RegistrationStatus = (typeof REGISTRATION_STATUSES)[number]
 
 // A registration as the admin list shows it — the full row minus the internal `ip` column
@@ -69,10 +69,14 @@ export type ConfirmRequest = z.infer<typeof confirmRequestSchema>
 export const confirmResponseSchema = z.object({ ok: z.literal(true), lkFetched: z.string().nullable() })
 export type ConfirmResponse = z.infer<typeof confirmResponseSchema>
 
-export const hideRequestSchema = z.object({ id })
-export type HideRequest = z.infer<typeof hideRequestSchema>
-export const hideResponseSchema = z.object({ ok: z.literal(true) })
-export type HideResponse = z.infer<typeof hideResponseSchema>
+// Operator cancel, keyed by a single registration id (ADR-0018). Distinct from the public
+// self-service cancel (by person, `cancelRequestSchema` in registration.ts): the operator
+// records a drop-out who told the desk, sends no member notification, and converges on the
+// same terminal `cancelled` state. Same shape the former `hide` carried — a bare id.
+export const cancelRegistrationRequestSchema = z.object({ id })
+export type CancelRegistrationRequest = z.infer<typeof cancelRegistrationRequestSchema>
+export const cancelRegistrationResponseSchema = z.object({ ok: z.literal(true) })
+export type CancelRegistrationResponse = z.infer<typeof cancelRegistrationResponseSchema>
 
 export const deleteRequestSchema = z.object({ id })
 export type DeleteRequest = z.infer<typeof deleteRequestSchema>

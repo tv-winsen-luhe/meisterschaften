@@ -225,17 +225,17 @@ describe('registration domain · confirm', () => {
   })
 })
 
-describe('registration domain · hide', () => {
-  it('moves a row to hidden', async () => {
+describe('registration domain · cancelById (operator)', () => {
+  it('moves a row to cancelled', async () => {
     const row = reg({ status: 'confirmed' })
     const store = createInMemoryRegistrationsStore([row])
-    const result = await createRegistrationDomain(store).hide(row.id)
-    expect(result).toMatchObject({ ok: true, registration: { status: 'hidden' } })
+    const result = await createRegistrationDomain(store).cancelById(row.id)
+    expect(result).toMatchObject({ ok: true, registration: { status: 'cancelled' } })
   })
 
   it('returns NotFound for an unknown id', async () => {
     const store = createInMemoryRegistrationsStore()
-    expect(await createRegistrationDomain(store).hide(999999)).toEqual({ ok: false, error: 'NotFound' })
+    expect(await createRegistrationDomain(store).cancelById(999999)).toEqual({ ok: false, error: 'NotFound' })
   })
 })
 

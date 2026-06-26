@@ -112,10 +112,10 @@ describe('POST /api/admin/confirm', () => {
   })
 })
 
-describe('POST /api/admin/hide + /delete', () => {
-  it('hides a row', async () => {
+describe('POST /api/admin/cancel + /delete', () => {
+  it('cancels a row by id', async () => {
     const row = await seed({ status: 'confirmed' })
-    const res = await req('/api/admin/hide', {
+    const res = await req('/api/admin/cancel', {
       method: 'POST',
       headers: JSON_HEADERS,
       body: JSON.stringify({ id: row!.id })
@@ -124,11 +124,21 @@ describe('POST /api/admin/hide + /delete', () => {
     const persisted = await env.DB.prepare('SELECT status FROM registrations WHERE id = ?')
       .bind(row!.id)
       .first<{ status: string }>()
-    expect(persisted?.status).toBe('hidden')
+    expect(persisted?.status).toBe('cancelled')
+  })
+
+  it('returns 404 for an unknown id', async () => {
+    const res = await req('/api/admin/cancel', {
+      method: 'POST',
+      headers: JSON_HEADERS,
+      body: JSON.stringify({ id: 999999 })
+    })
+    expect(res.status).toBe(404)
+    expect(await res.json()).toEqual({ error: 'Anmeldung nicht gefunden.' })
   })
 
   it('rejects a malformed JSON body with the legacy envelope (not a 500 via onError)', async () => {
-    const res = await req('/api/admin/hide', { method: 'POST', headers: JSON_HEADERS, body: '{ not json' })
+    const res = await req('/api/admin/cancel', { method: 'POST', headers: JSON_HEADERS, body: '{ not json' })
     expect(res.status).toBe(400)
     expect(await res.json()).toEqual({ error: 'Ungültige Anfrage.' })
   })

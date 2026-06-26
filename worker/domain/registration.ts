@@ -12,7 +12,7 @@ export { isTooStrongForChallenger } from '../../shared'
 // domain persists through the injected Store and never writes SQL nor awaits nuLiga.
 //
 // VS2 lands the write path (register/revive); VS3 adds cancel; VS4 adds the admin
-// transitions confirm/hide. The authoritative confirm guard (canConfirm) lives in shared/.
+// transitions confirm/cancelById. The authoritative confirm guard (canConfirm) lives in shared/.
 
 // What register needs from the edge, on top of the validated request: the request time
 // (kept non-deterministic out of the domain) and the caller IP (an abuse signal stored
@@ -54,20 +54,23 @@ export interface ConfirmEdits {
 }
 
 // confirm applies the edits and moves the row to 'confirmed' when the result is confirmable;
-// hide moves it to 'hidden'. Both fail with NotFound for an unknown id; confirm additionally
-// fails NotConfirmable (carrying canConfirm's reason) when the result lacks a seeding basis.
+// cancelById moves it to 'cancelled'. Both fail with NotFound for an unknown id; confirm
+// additionally fails NotConfirmable (carrying canConfirm's reason) when the result lacks a
+// seeding basis.
 export type ConfirmResult =
   | { ok: true; registration: RegistrationRow }
   | { ok: false; error: 'NotFound' }
   | { ok: false; error: 'NotConfirmable'; reason: string }
 
-export type HideResult = { ok: true; registration: RegistrationRow } | { ok: false; error: 'NotFound' }
+export type CancelByIdResult = { ok: true; registration: RegistrationRow } | { ok: false; error: 'NotFound' }
 
 export interface RegistrationDomain {
   register(input: RegisterInput): Promise<RegisterResult>
   cancel(person: Person): Promise<CancelResult>
   confirm(id: number, edits: ConfirmEdits): Promise<ConfirmResult>
-  hide(id: number): Promise<HideResult>
+  // Operator cancel by a single registration id (ADR-0018): records a drop-out the desk was
+  // told about. Distinct from the self-service `cancel(person)` above — no member notification.
+  cancelById(id: number): Promise<CancelByIdResult>
 }
 
 export const createRegistrationDomain = (store: RegistrationsStore): RegistrationDomain => {
@@ -137,9 +140,9 @@ export const createRegistrationDomain = (store: RegistrationsStore): Registratio
       return { ok: true, registration: await store.setStatus(id, 'confirmed') }
     },
 
-    async hide(id) {
+    async cancelById(id) {
       if (!(await store.findById(id))) return { ok: false, error: 'NotFound' }
-      return { ok: true, registration: await store.setStatus(id, 'hidden') }
+      return { ok: true, registration: await store.setStatus(id, 'cancelled') }
     }
   }
 }

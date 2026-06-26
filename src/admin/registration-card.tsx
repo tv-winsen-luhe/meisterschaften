@@ -31,7 +31,6 @@ import {
 const cardStatus: Record<AdminRegistration['status'], string> = {
   new: 'border-l-foreground',
   confirmed: 'border-l-primary',
-  hidden: 'border-l-border opacity-60',
   cancelled: 'border-l-destructive opacity-60'
 }
 
@@ -64,7 +63,7 @@ export interface ConfirmPayload {
 interface RegistrationCardProps {
   reg: AdminRegistration
   onConfirm: (id: number, payload: ConfirmPayload) => void
-  onHide: (id: number) => void
+  onCancel: (id: number) => void
   onDelete: (reg: AdminRegistration) => void
 }
 
@@ -73,8 +72,9 @@ interface RegistrationCardProps {
 // state seeds from the row; the card remounts (keyed on the row's mutable fields) after a save,
 // so it always reflects the persisted state. canConfirm (shared/) drives the confirm
 // affordance: the primary button is disabled with the reason when the row is not confirmable.
-export const RegistrationCard = ({ reg, onConfirm, onHide, onDelete }: RegistrationCardProps) => {
+export const RegistrationCard = ({ reg, onConfirm, onCancel, onDelete }: RegistrationCardProps) => {
   const isConfirmed = reg.status === 'confirmed'
+  const isCancelled = reg.status === 'cancelled'
   const [playerId, setPlayerId] = useState(reg.playerId ?? '')
   const [lk, setLk] = useState(reg.lk ?? '')
   const [competition, setCompetition] = useState<CompetitionSlug>(reg.competition)
@@ -230,9 +230,30 @@ export const RegistrationCard = ({ reg, onConfirm, onHide, onDelete }: Registrat
         <Button className="max-[560px]:flex-1" disabled={blocked} title={blockedReason ?? undefined} onClick={submit}>
           {isConfirmed ? 'Speichern' : 'Bestätigen'}
         </Button>
-        <Button variant="outline" className="max-[560px]:flex-1" onClick={() => onHide(reg.id)}>
-          Verstecken
-        </Button>
+        {!isCancelled && (
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button variant="outline" className="max-[560px]:flex-1">
+                Absagen
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>
+                  Anmeldung von {reg.firstName} {reg.lastName} absagen?
+                </AlertDialogTitle>
+                <AlertDialogDescription>
+                  Der Eintrag wird abgemeldet und aus der öffentlichen Liste sowie der Auslosung entfernt. Eine erneute
+                  Teilnahme erfolgt über eine neue Anmeldung.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Abbrechen</AlertDialogCancel>
+                <AlertDialogAction onClick={() => onCancel(reg.id)}>Absagen</AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        )}
         <AlertDialog>
           <AlertDialogTrigger asChild>
             <Button
