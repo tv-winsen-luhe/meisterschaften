@@ -166,6 +166,13 @@ export const AdminApp = () => {
     await mutate(() => client.api.admin['refresh-lk'].$post(), 'LK aktualisiert.')
   }, [client, mutate, showToast])
 
+  // The Übersicht's "neu — zu bestätigen" call-to-action: open Anmeldungen pre-filtered to the
+  // "Neu" queue so the operator starts triage in one click (ADR-0019).
+  const goToNew = useCallback(() => {
+    setFilter('new')
+    setSurface('registrations')
+  }, [])
+
   // Until the first successful load, hold a loading/error screen rather than the full admin — a
   // failed load must not look like an empty registration list (the operator could mistake a
   // backend hiccup for "nobody signed up"). Once loaded, later refresh failures only toast.
@@ -199,7 +206,7 @@ export const AdminApp = () => {
           <PhaseStepper phase={phase} onChange={changePhase} />
         </header>
         {surface === 'overview' ? (
-          <OverviewSurface />
+          <OverviewSurface registrations={registrations} onGoToNew={goToNew} />
         ) : (
           <RegistrationsSurface
             registrations={registrations}
