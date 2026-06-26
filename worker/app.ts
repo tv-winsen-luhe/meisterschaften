@@ -43,6 +43,13 @@ export interface Env {
   TELEGRAM_CHAT_ID?: string
 }
 
+// Hono's env shape wraps the bindings under `Bindings`. Named so the generic is referenced
+// rather than inlined (`Hono<AppEnv>` not `Hono<{ Bindings: Env }>`) — see the no-inline-object
+// lint rule, which forbids the inline form in type position.
+interface AppEnv {
+  Bindings: Env
+}
+
 // ── The validation seam (ADR-0009) ──────────────────────────────────────────────────────
 // Three small primitives replace the per-route parse/validate/envelope preamble the legacy
 // handlers each repeated. `c.req.valid('json')` is typed from the schema, and AppType now
@@ -65,7 +72,7 @@ const v = <T extends ZodType>(schema: T) =>
 // Parse-guard: a malformed (unparseable) body answers with the same { error } envelope the
 // legacy try/catch did — so zValidator never throws an HTTPException into onError (which would
 // surface as a 500). It reads first; v() then re-reads the body from Hono's cache.
-const parseGuard: MiddlewareHandler<{ Bindings: Env }> = async (c, next) => {
+const parseGuard: MiddlewareHandler<AppEnv> = async (c, next) => {
   try {
     await c.req.json()
   } catch {
@@ -78,7 +85,7 @@ const parseGuard: MiddlewareHandler<{ Bindings: Env }> = async (c, next) => {
 // over field errors (legacy behaviour). Bots fill the hidden `website` field → silently
 // "succeed"; the success envelope differs per route (register vs cancel), so it is a parameter.
 const honeypot =
-  (trap: (c: Context<{ Bindings: Env }>) => Response): MiddlewareHandler<{ Bindings: Env }> =>
+  (trap: (c: Context<AppEnv>) => Response): MiddlewareHandler<AppEnv> =>
   async (c, next) => {
     let body: Record<string, unknown>
     try {
@@ -94,7 +101,7 @@ const honeypot =
 // remains the orthogonal kill-switch; "true" = visible, anything else = off.
 // Routes are chained off `new Hono()` so `typeof app` carries the route schema for the
 // typed `hc` client (a separate `app.get(...)` statement would not be reflected).
-export const app = new Hono<{ Bindings: Env }>()
+export const app = new Hono<AppEnv>()
   // Mirror the legacy JSON error envelope so every API route fails the same shape;
   // without this Hono would emit a plain-text 500 for the participants route.
   .onError((err, c) => c.json({ error: 'Serverfehler. Bitte später erneut versuchen.', detail: String(err) }, 500))

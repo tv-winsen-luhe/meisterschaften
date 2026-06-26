@@ -23,15 +23,23 @@ const config = defineConfig([
       'prefer-destructuring': ['error', { object: true, array: false }],
       // Explicit interfaces over `type X = {…}` aliases
       '@typescript-eslint/consistent-type-definitions': ['error', 'interface'],
-      // No inline object types — declare a named interface and reference it. Matches inline
-      // object types in param annotations, return types and variable annotations (but not
-      // `type X = {…}`, handled above, nor object types nested inside generics like Promise<{…}>).
+      // No inline object types — declare a named interface and reference it. The first selector
+      // catches direct annotations (params, return types, variables, nested interface props); the
+      // second catches object literals passed as generic arguments (Promise<{…}>, Map<_, {…}>).
+      // Deliberately NOT caught: `type X = {…}` (consistent-type-definitions handles that), object
+      // literals in intersections (`A & {…}` — keeps vendored shadcn `ComponentProps<…> & {…}` props
+      // legal), and generic args in value position (`new Hono<{…}>()`).
       'no-restricted-syntax': [
         'error',
         {
           selector: 'TSTypeAnnotation > TSTypeLiteral',
           message:
             'No inline object types — declare an explicit interface and reference it (applies to function params and return types too).'
+        },
+        {
+          selector: 'TSTypeAnnotation TSTypeParameterInstantiation > TSTypeLiteral',
+          message:
+            'No inline object types in generic arguments — declare an explicit interface and reference it (e.g. Promise<MyResult> instead of Promise<{…}>).'
         }
       ]
     }
