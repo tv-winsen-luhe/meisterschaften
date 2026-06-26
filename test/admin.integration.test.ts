@@ -100,20 +100,23 @@ describe('POST /api/admin/confirm', () => {
     expect(persisted?.lk).toBe('11.2')
   })
 
-  it('seeds a linked-but-unrated player at the default LK (ADR-0020)', async () => {
-    const row = await seed()
-    // nuLiga returns a page with no matching id → lkForPlayerId resolves null (unrated / not found).
+  it('leaves a linked-but-unrated player LK unresolved — never clobbers (ADR-0020)', async () => {
+    // Seed an already-confirmed, linked row carrying a real LK, then re-save it while nuLiga has no
+    // matching rating (unrated / outage). The stored LK must survive — a miss writes nothing — so a
+    // re-save to fix the club/Konkurrenz cannot silently reset a correct rating to the default.
+    const row = await seed({ status: 'confirmed', player_id: '12345678', lk: '11.2' })
     vi.stubGlobal('fetch', async () => new Response('<tr><td>no match here</td></tr>', { status: 200 }))
     const res = await req('/api/admin/confirm', {
       method: 'POST',
       headers: JSON_HEADERS,
-      body: JSON.stringify({ id: row!.id, competition: 'mens', club: 'TV Winsen', playerId: '12345678', noId: false })
+      body: JSON.stringify({ id: row!.id, competition: 'womens', club: 'TV Winsen', playerId: '12345678', noId: false })
     })
     expect(await res.json()).toEqual({ ok: true, lkFetched: null })
-    const persisted = await env.DB.prepare('SELECT lk FROM registrations WHERE id = ?')
+    const persisted = await env.DB.prepare('SELECT lk, competition FROM registrations WHERE id = ?')
       .bind(row!.id)
-      .first<{ lk: string }>()
-    expect(persisted?.lk).toBe('25.0')
+      .first<{ lk: string; competition: string }>()
+    // The edit applied (competition changed) but the LK was preserved, not reset to 25.0.
+    expect(persisted).toMatchObject({ lk: '11.2', competition: 'womens' })
   })
 
   it('rejects a malformed player id at the Zod boundary', async () => {

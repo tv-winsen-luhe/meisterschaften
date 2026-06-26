@@ -24,6 +24,14 @@ follows from one rule:
 > that nuLiga has no rating for (unrated / not yet rated). Otherwise the LK is the linked player's nuLiga
 > rating, refreshed by the weekly sync during Anmeldung and snapshotted at Auslosung (ADR-0010).
 
+How the default is reached differs by case, and this matters for safety:
+
+- **No-id choice** → the LK is materialised as `defaultLk` at confirm time (the domain writes it).
+- **Linked id** → the LK is whatever nuLiga returns, written by the confirm edge **only on a hit**. A
+  miss (unrated) or a nuLiga outage writes **nothing**, leaving the LK unresolved (`null`) — which the
+  seeding order treats as `defaultLk` via `COALESCE`. This is deliberate: a re-save (e.g. to fix the
+  club) during a transient outage must never clobber a previously-resolved rating down to 25.0.
+
 Consequences for the model: the typed-LK path is removed — `resolveSeedingBasis` derives the LK from
 `playerId`/`noId` only, `canConfirm` checks that the ID-or-no-ID choice has been made (not that a number
 was typed), the operator `setLk` override is dropped, and the detail panel shows the LK **read-only**

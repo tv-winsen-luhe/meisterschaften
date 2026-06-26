@@ -122,19 +122,17 @@ export const createRegistrationDomain = (store: RegistrationsStore): Registratio
       if (!(await store.findById(id))) return { ok: false, error: 'NotFound' }
 
       // Derive the basis from the operator's id/no-id choice through the same resolveSeedingBasis
-      // as the card, so both provably agree (ADR-0020). A linked id stores a null LK here — the
-      // edge fetches the real rating from nuLiga; the no-id choice stores the default LK.
+      // as the card, so both provably agree (ADR-0020). The LK is written here only on the no-id
+      // path (the default 25); on the linked path the LK is left untouched so the edge's nuLiga
+      // fetch is the only thing that sets it — and a failed or unrated fetch never clobbers a
+      // previously-resolved rating. basis.lk is non-null only for the no-id path.
       const basis = resolveSeedingBasis({ playerId: edits.playerId, noId: edits.noId })
-      const fields: EditableFields = {
-        competition: edits.competition,
-        club: edits.club,
-        playerId: basis.playerId,
-        lk: basis.lk
-      }
+      const fields: EditableFields = { competition: edits.competition, club: edits.club, playerId: basis.playerId }
+      if (basis.lk !== null) fields.lk = basis.lk
 
       // The authoritative guard: a confirm with neither a linked id nor the no-id choice is
       // rejected with the same reason the admin renders.
-      const guard = canConfirm({ playerId: fields.playerId ?? null, lk: fields.lk ?? null })
+      const guard = canConfirm(basis)
       if (guard !== true) return { ok: false, error: 'NotConfirmable', reason: guard }
 
       await store.setFields(id, fields)

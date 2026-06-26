@@ -43,9 +43,11 @@ export const STATUS_META: Record<AdminRegistration['status'], StatusMeta> = {
   cancelled: { label: 'Abgemeldet', dot: 'bg-red-500', badge: 'border-red-300 bg-red-50 text-red-900' }
 }
 
-// Konkurrenz labels come from the tournament content model so the detail panel never re-states a
-// label tournament.ts already owns.
+// Konkurrenz label + capacity come from the tournament content model so the admin never re-states
+// what tournament.ts already owns — both lookups live here, beside each other.
 export const competitionLabel = (slug: string): string => competitions.find(c => c.slug === slug)?.label ?? slug
+export const competitionCapacity = (slug: string): number | undefined =>
+  competitions.find(c => c.slug === slug)?.capacity
 
 const CLUB_LOGOS: Record<string, string> = {
   'TV Winsen': '/club-logos/tv-winsen.svg',
@@ -57,8 +59,9 @@ const formatDate = (iso: string): string =>
   new Date(iso).toLocaleDateString('de-DE', { day: 'numeric', month: 'long', year: 'numeric' })
 
 // "vor 2 Tagen" — a relative form for the last update, so recency reads at a glance.
+const relativeTime = new Intl.RelativeTimeFormat('de', { numeric: 'auto' })
 const formatRelative = (iso: string): string => {
-  const rtf = new Intl.RelativeTimeFormat('de', { numeric: 'auto' })
+  const rtf = relativeTime
   const mins = Math.round((new Date(iso).getTime() - Date.now()) / 60000)
   if (Math.abs(mins) < 60) return rtf.format(mins, 'minute')
   const hours = Math.round(mins / 60)

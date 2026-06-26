@@ -7,19 +7,18 @@ import {
   CLUBS,
   drawSize
 } from '../../../shared'
-import { competitions } from '@/data/tournament'
 import { cn } from '@/admin/lib/utils'
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/admin/ui/empty'
 import { Table, TableBody, TableCell, TableFooter, TableHead, TableHeader, TableRow } from '@/admin/ui/table'
-import { competitionLabel } from './registration-detail'
+import { competitionCapacity, competitionLabel } from './registration-detail'
 
 // The Konkurrenzen in story order (Herren, Herren Challenger, Damen) — COMPETITION_SLUGS already
-// carries them in that order. Label and capacity come from the tournament content model so the
-// Übersicht never re-states what tournament.ts already owns.
+// carries them in that order. Label and capacity come from the tournament content model (via the
+// shared helpers) so the Übersicht never re-states what tournament.ts already owns.
 const FIELDS = COMPETITION_SLUGS.map(slug => ({
   slug,
   label: competitionLabel(slug),
-  capacity: competitions.find(c => c.slug === slug)?.capacity
+  capacity: competitionCapacity(slug)
 }))
 
 interface OverviewSurfaceProps {
