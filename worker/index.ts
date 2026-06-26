@@ -20,7 +20,7 @@ export default {
   async scheduled(_event: ScheduledController, env: Env, ctx: ExecutionContext): Promise<void> {
     ctx.waitUntil(
       (async () => {
-        if ((await createD1AppStateStore(env.DB).getPhase()) !== 'anmeldung') return
+        if ((await createD1AppStateStore(env.DB).getPhase()) !== 'signup') return
         await buildSeedingLk(createD1RegistrationsStore(env.DB)).syncAll()
       })()
     )

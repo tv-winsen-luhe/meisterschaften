@@ -35,7 +35,7 @@ the draw, LKs must keep updating and the provisional Setzliste must reflect them
 - **At Auslosung:** the draw (ADR-0003) reads each player's current LK and snapshots it into its
   immutable draw/seeding record. That snapshot _is_ the freeze.
 - **After Auslosung:** the cron is pointless, so it is **phase-gated** — the `scheduled` handler runs
-  `syncAll()` only while the phase (ADR-0006) is `anmeldung`. No suppression flag; `registrations.lk`
+  `syncAll()` only while the phase (ADR-0006) is `signup`. No suppression flag; `registrations.lk`
   is simply never read back into the immutable draw.
 
 ## Consequences

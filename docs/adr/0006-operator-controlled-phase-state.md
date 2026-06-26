@@ -12,8 +12,9 @@ to decide whether the phase is derived from the calendar or controlled by the op
 
 ## Decision
 
-The current phase is a single operator-controlled value stored in D1 (`anmeldung` / `auslosung` /
-`live` / `post-event`), toggled in the admin. The public site and API read it at runtime and render
+The current phase is a single operator-controlled value stored in D1 (`signup` / `draw` /
+`live` / `post-event` — English identifiers; the German names Anmeldung/Auslosung are display copy
+only), toggled in the admin. The public site and API read it at runtime and render
 accordingly. Dates still drive copy (e.g. "Anmeldeschluss 19.08.") but never drive state.
 `PUBLIC_LIST_ENABLED` is kept as an independent emergency kill-switch layered on top, orthogonal to
 the phase.

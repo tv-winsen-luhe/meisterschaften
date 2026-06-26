@@ -6,15 +6,16 @@ import { z } from 'zod'
 // camelCase on the wire, like every other contract here.
 //
 // The phase is the one value every public surface keys off and the only thing the weekly
-// nuLiga cron is gated on (it runs only during `anmeldung`). It defaults to `anmeldung`,
-// the phase the event is in today.
+// nuLiga cron is gated on (it runs only during `signup`). It defaults to `signup`,
+// the phase the event is in today. Values are English identifiers; the German names
+// Anmeldung/Auslosung are display copy (see the admin's PHASE_LABELS).
 
-export const PHASES = ['anmeldung', 'auslosung', 'live', 'post-event'] as const
+export const PHASES = ['signup', 'draw', 'live', 'post-event'] as const
 export const phaseSchema = z.enum(PHASES)
 export type Phase = z.infer<typeof phaseSchema>
 
 // The phase a fresh app-state record carries before the operator ever toggles it.
-export const DEFAULT_PHASE: Phase = 'anmeldung'
+export const DEFAULT_PHASE: Phase = 'signup'
 
 // GET /api/phase — the current phase every surface reads at runtime.
 export const phaseResponseSchema = z.object({ phase: phaseSchema })

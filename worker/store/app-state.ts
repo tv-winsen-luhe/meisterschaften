@@ -24,7 +24,7 @@ export const createD1AppStateStore = (d1: D1Database): AppStateStore => {
     async getPhase() {
       // A read failure (transient D1 error, or the table not yet present in a deploy window)
       // degrades to the default rather than throwing: the cron then behaves as it did before
-      // the gate (runs during the default Anmeldung), GET /api/phase stays a 200, and the
+      // the gate (runs during the default signup phase), GET /api/phase stays a 200, and the
       // public surface keeps its default framing — one safe fallback for every reader.
       try {
         const rows = await db.select().from(appState).where(eq(appState.id, APP_STATE_ID)).limit(1)

@@ -81,9 +81,11 @@ and TSV Winsen (22./23. August 2026). Unlike the sibling `matchday` site, this o
 
 General principles (apply everywhere, override defaults):
 
-- **Code is always English** — file names, variables, functions, types, comments, commit messages.
-  Only user-facing content is German (see Locale). A German domain term as a slug/identifier
-  (e.g. a competition name) is fine; the surrounding code that handles it stays English.
+- **Code is always English** — file names, variables, functions, types, comments, commit messages,
+  **and data/wire/DB values** (the `competition` slugs `mens`/`womens`/…, the phase values
+  `signup`/`draw`/`live`/`post-event`). Only user-facing content is German (see Locale). The German
+  domain terms in `CONTEXT.md` (Konkurrenz, Auslosung, Setzung, …) are the ubiquitous language — they
+  name concepts and appear in UI copy, but they are never used as identifiers or stored values.
 - **Follow best practices, but always prefer the simple solution** — reach for the smallest change
   that does the job correctly. Don't add abstraction, indirection, or configurability before it's needed.
 

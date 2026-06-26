@@ -21,10 +21,10 @@ const JSON_HEADERS = { 'content-type': 'application/json' }
 const req = (path: string, init: RequestInit = {}) => app.request(path, init, env)
 
 describe('GET /api/phase', () => {
-  it('defaults to anmeldung on a fresh app-state', async () => {
+  it('defaults to signup on a fresh app-state', async () => {
     const res = await req('/api/phase')
     expect(res.status).toBe(200)
-    expect(await res.json()).toEqual({ phase: 'anmeldung' })
+    expect(await res.json()).toEqual({ phase: 'signup' })
   })
 
   it('reflects a persisted phase', async () => {
@@ -38,11 +38,11 @@ describe('POST /api/admin/phase', () => {
     const res = await req('/api/admin/phase', {
       method: 'POST',
       headers: JSON_HEADERS,
-      body: JSON.stringify({ phase: 'auslosung' })
+      body: JSON.stringify({ phase: 'draw' })
     })
     expect(res.status).toBe(200)
-    expect(await res.json()).toEqual({ ok: true, phase: 'auslosung' })
-    expect(await (await req('/api/phase')).json()).toEqual({ phase: 'auslosung' })
+    expect(await res.json()).toEqual({ ok: true, phase: 'draw' })
+    expect(await (await req('/api/phase')).json()).toEqual({ phase: 'draw' })
   })
 
   it('keeps a single row across repeated sets', async () => {
@@ -75,15 +75,15 @@ describe('weekly cron · phase gate', () => {
     await waitOnExecutionContext(ctx)
   }
 
-  it('runs syncAll during anmeldung (fetches the nuLiga rosters)', async () => {
+  it('runs syncAll during signup (fetches the nuLiga rosters)', async () => {
     const fetchSpy = vi.fn(async () => new Response('', { status: 200 }))
     vi.stubGlobal('fetch', fetchSpy)
     await runScheduled()
     expect(fetchSpy).toHaveBeenCalled()
   })
 
-  it('no-ops outside anmeldung (never touches nuLiga)', async () => {
-    await env.DB.prepare("INSERT INTO app_state (id, phase) VALUES (1, 'auslosung')").run()
+  it('no-ops outside signup (never touches nuLiga)', async () => {
+    await env.DB.prepare("INSERT INTO app_state (id, phase) VALUES (1, 'draw')").run()
     const fetchSpy = vi.fn(async () => new Response('', { status: 200 }))
     vi.stubGlobal('fetch', fetchSpy)
     await runScheduled()

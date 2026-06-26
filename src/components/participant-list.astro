@@ -348,8 +348,8 @@ const seedsFor = (capacity?: number) => (capacity ? Math.floor(capacity / 4) : 0
   // status caption; the list itself stays visible (the draw/live views consume it too). This
   // surface only *reflects* the phase — it does not gate registration (the Anmeldung→Auslosung
   // seeding freeze is the draw's job, a later epic), so it makes no "registration closed" claim.
-  const PHASE_CAPTIONS: Record<Exclude<Phase, 'anmeldung'>, string> = {
-    auslosung: 'Die Auslosung läuft — die endgültige Setzung wird ermittelt.',
+  const PHASE_CAPTIONS: Record<Exclude<Phase, 'signup'>, string> = {
+    draw: 'Die Auslosung läuft — die endgültige Setzung wird ermittelt.',
     live: 'Das Turnier läuft.',
     'post-event': 'Die Winsener Meisterschaften 2026 sind beendet. Danke fürs Mitspielen!'
   }
@@ -357,7 +357,7 @@ const seedsFor = (capacity?: number) => (capacity ? Math.floor(capacity / 4) : 0
   const logoTv = root?.dataset.logoTv ?? ''
   const logoTsv = root?.dataset.logoTsv ?? ''
   // The Anmeldung caption is server-rendered (it interpolates the signup deadline). Capture it
-  // once so applyPhase can restore it verbatim when the operator reverts to 'anmeldung'.
+  // once so applyPhase can restore it verbatim when the operator reverts to 'signup'.
   const statusEl = root?.querySelector<HTMLElement>('[data-status]') ?? null
   const defaultCaption = statusEl?.textContent ?? ''
 
@@ -476,22 +476,22 @@ const seedsFor = (capacity?: number) => (capacity ? Math.floor(capacity / 4) : 0
   }
 
   // The phase the public surface keys off (ADR-0006). Read at runtime, best-effort: any
-  // failure falls back to 'anmeldung' so the list keeps its default signup framing.
+  // failure falls back to 'signup' so the list keeps its default signup framing.
   const loadPhase = async (): Promise<Phase> => {
     try {
       const res = await client.api.phase.$get()
-      if (!res.ok) return 'anmeldung'
+      if (!res.ok) return 'signup'
       return (await res.json()).phase
     } catch {
-      return 'anmeldung'
+      return 'signup'
     }
   }
 
   // React to the phase by swapping the status caption — and restoring the original on a revert
-  // to 'anmeldung', so an operator flipping back recovers the signup framing without a reload.
+  // to 'signup', so an operator flipping back recovers the signup framing without a reload.
   const applyPhase = (phase: Phase) => {
     if (!statusEl) return
-    statusEl.textContent = phase === 'anmeldung' ? defaultCaption : PHASE_CAPTIONS[phase]
+    statusEl.textContent = phase === 'signup' ? defaultCaption : PHASE_CAPTIONS[phase]
   }
 
   const load = async () => {

@@ -232,8 +232,8 @@ export const app = new Hono<{ Bindings: Env }>()
     const seedingLk = buildSeedingLk(createD1RegistrationsStore(c.env.DB))
     return c.json({ ok: true, updated: await seedingLk.syncAll() } satisfies RefreshLkResponse)
   })
-  // POST /api/admin/phase — the operator sets the phase (ADR-0006). Zod validates the slug;
-  // the set is the only transition gate the foundation realises — advancing past 'anmeldung'
+  // POST /api/admin/phase — the operator sets the phase (ADR-0006). Zod validates the value;
+  // the set is the only transition gate the foundation realises — advancing past 'signup'
   // makes the weekly cron a no-op (it reads this value). Returns the persisted phase.
   .post('/api/admin/phase', parseGuard, v(setPhaseRequestSchema), async c => {
     const { phase } = c.req.valid('json')

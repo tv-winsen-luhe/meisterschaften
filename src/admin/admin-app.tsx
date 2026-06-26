@@ -6,8 +6,8 @@ import { RegistrationCard, type ConfirmPayload } from './registration-card'
 import './admin.css'
 
 const PHASE_LABELS: Record<Phase, string> = {
-  anmeldung: 'Anmeldung',
-  auslosung: 'Auslosung',
+  signup: 'Anmeldung',
+  draw: 'Auslosung',
   live: 'Live',
   'post-event': 'Post-Event'
 }
@@ -131,7 +131,7 @@ export const AdminApp = () => {
   )
 
   // Set the operator-controlled phase (ADR-0006): the public site reflects it and the weekly
-  // cron is gated to 'anmeldung'. Goes through mutate, so it shares the 401-regate/error/toast
+  // cron is gated to 'signup'. Goes through mutate, so it shares the 401-regate/error/toast
   // behaviour of every other admin action and the success reload re-fetches the current phase.
   const changePhase = useCallback(
     (next: Phase) => {
