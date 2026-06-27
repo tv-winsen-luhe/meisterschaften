@@ -1,8 +1,36 @@
 import type { D1Database } from '@cloudflare/workers-types'
 import { drizzle } from 'drizzle-orm/d1'
 import { and, asc, count, eq, gt, inArray, sql } from 'drizzle-orm'
-import { ACTIVE_STATUSES, DEFAULT_LK, isActive, type RegistrationStatus } from '../../shared'
+import { ACTIVE_STATUSES, isActive, seedingValue, type RegistrationStatus } from '../../shared'
 import { registrations, type NewRegistrationRow, type RegistrationRow } from '../db/schema'
+
+// The fields the Setzliste order reads — a structural subset both a RegistrationRow and the D1
+// projection satisfy, so the one comparator below sorts either.
+interface SeedingOrdered {
+  competition: string
+  lk: string | null
+  createdAt: string
+}
+
+// The provisional Setzliste order both listConfirmed adapters share: by Konkurrenz, then ascending
+// seeding LK (the rule lives in shared/ seedingValue), then registration time. With small N (ADR-0021)
+// listConfirmed sorts in JS rather than SQL, so D1 and the in-memory double run *this* one comparator
+// — no SQL CAST/COALESCE vs parseFloat pair kept equal by hand.
+const bySeedingThenTime = (a: SeedingOrdered, b: SeedingOrdered): number =>
+  a.competition.localeCompare(b.competition) ||
+  seedingValue(a.lk) - seedingValue(b.lk) ||
+  a.createdAt.localeCompare(b.createdAt)
+
+// Narrow any confirmed row (a full RegistrationRow or the D1 projection) to the public list shape,
+// in one place so both adapters' listConfirmed project identically — the comparator and the
+// projection are now both shared, so the two adapters can't drift on either.
+const toConfirmedParticipant = (r: ConfirmedParticipant): ConfirmedParticipant => ({
+  firstName: r.firstName,
+  lastName: r.lastName,
+  club: r.club,
+  competition: r.competition,
+  lk: r.lk
+})
 
 // updated_at is a persistence fact ("when was this row last written"), stamped here on every
 // value-changing write rather than threaded through the domain. Insert/revive use the same
@@ -155,21 +183,21 @@ export const createD1RegistrationsStore = (d1: D1Database): RegistrationsStore =
 
   return {
     async listConfirmed() {
-      return db
+      // Fetch confirmed rows and sort in JS (ADR-0021, small N) through the shared comparator, so the
+      // seeding order is the one in shared/ seedingValue — not a SQL CAST mirrored by hand. createdAt
+      // is selected only to feed the tiebreak, then dropped from the public projection.
+      const rows = await db
         .select({
           firstName: registrations.firstName,
           lastName: registrations.lastName,
           club: registrations.club,
           competition: registrations.competition,
-          lk: registrations.lk
+          lk: registrations.lk,
+          createdAt: registrations.createdAt
         })
         .from(registrations)
         .where(eq(registrations.status, 'confirmed'))
-        .orderBy(
-          asc(registrations.competition),
-          sql`CAST(COALESCE(${registrations.lk}, ${DEFAULT_LK}) AS REAL) ASC`,
-          asc(registrations.createdAt)
-        )
+      return rows.sort(bySeedingThenTime).map(toConfirmedParticipant)
     },
 
     listAll() {
@@ -264,14 +292,6 @@ export const createInMemoryRegistrationsStore = (seed: RegistrationRow[] = []): 
   const rows = [...seed]
   let nextId = rows.reduce((max, r) => Math.max(max, r.id), 0) + 1
 
-  // Match the D1 adapter's SQL `CAST(COALESCE(lk, DEFAULT_LK) AS REAL)`: SQLite casts a
-  // non-numeric string to 0.0, so coerce NaN → 0 (parseFloat alone would yield NaN and
-  // sort differently). Keeps the test double faithful to production ordering.
-  const seedingLk = (lk: string | null) => {
-    const n = parseFloat(lk ?? DEFAULT_LK)
-    return Number.isNaN(n) ? 0 : n
-  }
-
   const eqCi = (a: string, b: string) => a.toLowerCase() === b.toLowerCase()
   const matchesPerson = (r: RegistrationRow, person: PersonInCompetition) =>
     eqCi(r.email, person.email) && eqCi(r.lastName, person.lastName) && r.competition === person.competition
@@ -285,19 +305,8 @@ export const createInMemoryRegistrationsStore = (seed: RegistrationRow[] = []): 
     async listConfirmed() {
       return rows
         .filter(r => r.status === 'confirmed')
-        .sort(
-          (a, b) =>
-            a.competition.localeCompare(b.competition) ||
-            seedingLk(a.lk) - seedingLk(b.lk) ||
-            a.createdAt.localeCompare(b.createdAt)
-        )
-        .map(r => ({
-          firstName: r.firstName,
-          lastName: r.lastName,
-          club: r.club,
-          competition: r.competition,
-          lk: r.lk
-        }))
+        .sort(bySeedingThenTime)
+        .map(toConfirmedParticipant)
     },
 
     async listAll() {
