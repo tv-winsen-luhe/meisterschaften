@@ -50,6 +50,20 @@ export interface DrawStore {
 
   /** Every drawn competition the surface lists — assembled the same way as getDraw. */
   listDraws(): Promise<CompetitionDraw[]>
+
+  /**
+   * Tear down one competition's draw (debug-only, ADR-0029): delete its draw record(s) and matches
+   * across every bracket, returning it to "not drawn" and freeing the unique index for a re-draw.
+   * Returns the number of draw records removed (0 when the field was not drawn). Reverses
+   * „Jetzt auslosen" — the exception the live path never has (ADR-0026/0027 stand for the operator).
+   */
+  deleteByCompetition(competition: string): Promise<number>
+
+  /**
+   * Tear down every draw (debug-only, ADR-0029): the cascade behind "back to signup". Deletes all
+   * draw records and matches; returns the number of draw records removed.
+   */
+  deleteAll(): Promise<number>
 }
 
 // Map a stored match row to the wire shape (the text columns narrow to their domain enums; the
@@ -144,6 +158,22 @@ export const createD1DrawStore = (d1: D1Database): DrawStore => {
           matchRows.filter(m => m.competition === draw.competition && m.bracket === draw.bracket)
         )
       )
+    },
+
+    async deleteByCompetition(competition) {
+      // Matches and draw record fall together, in one batch = one transaction (the mirror of save):
+      // a competition is never left with orphaned matches and no draw record, or vice versa. The
+      // returned draw rows give the count the caller reports.
+      const [, removed] = await db.batch([
+        db.delete(matches).where(eq(matches.competition, competition)),
+        db.delete(draws).where(eq(draws.competition, competition)).returning({ id: draws.id })
+      ])
+      return removed.length
+    },
+
+    async deleteAll() {
+      const [, removed] = await db.batch([db.delete(matches), db.delete(draws).returning({ id: draws.id })])
+      return removed.length
     }
   }
 }
@@ -209,6 +239,22 @@ export const createInMemoryDrawStore = (): DrawStore => {
           matchRows.filter(m => m.competition === draw.competition && m.bracket === draw.bracket)
         )
       )
+    },
+
+    async deleteByCompetition(competition) {
+      const removed = drawRows.filter(d => d.competition === competition).length
+      // Mutate in place (the arrays are closed over): drop this competition's draw records and
+      // matches across every bracket — the in-memory mirror of the D1 batch delete.
+      drawRows.splice(0, drawRows.length, ...drawRows.filter(d => d.competition !== competition))
+      matchRows.splice(0, matchRows.length, ...matchRows.filter(m => m.competition !== competition))
+      return removed
+    },
+
+    async deleteAll() {
+      const removed = drawRows.length
+      drawRows.length = 0
+      matchRows.length = 0
+      return removed
     }
   }
   return store

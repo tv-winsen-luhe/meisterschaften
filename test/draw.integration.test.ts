@@ -4,7 +4,7 @@ import { CHALLENGER_MIN_LK, type CompetitionDraw } from '../shared'
 import { app } from '../worker/app'
 import { createDrawService } from '../worker/draw'
 import { createInMemoryDrawStore } from '../worker/store/draw'
-import { createInMemoryRegistrationsStore } from '../worker/store/registrations'
+import { createInMemoryRegistrationsStore } from '../worker/store/registrations.memory'
 import type { RegistrationRow } from '../worker/db/schema'
 import { createFakeRandomSource } from './fake-random'
 

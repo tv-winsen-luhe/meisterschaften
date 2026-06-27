@@ -1,4 +1,4 @@
-import { CalendarDays, ClipboardList, LayoutDashboard, ListOrdered, LogOut, Shuffle, Trophy } from 'lucide-react'
+import { Bug, CalendarDays, ClipboardList, LayoutDashboard, ListOrdered, LogOut, Shuffle, Trophy } from 'lucide-react'
 import {
   Sidebar,
   SidebarContent,
@@ -17,7 +17,7 @@ import {
 // The two surfaces this slice ships (ADR-0019). The overview is the home dashboard; registrations is
 // the registration workbench. Surface switching is client-side inside the single island (ADR-0008) —
 // these are not Astro routes.
-export type Surface = 'overview' | 'registrations' | 'seeding' | 'competitions'
+export type Surface = 'overview' | 'registrations' | 'seeding' | 'competitions' | 'debug'
 
 // Navigation is one flat list in event-flow order (ADR-0023): overview (home), then the phase
 // surfaces in the order the event runs them. Registrations is live; the later phases are disabled
@@ -56,11 +56,14 @@ interface AppSidebarProps {
   // The "new" queue size, shown as an ambient badge on registrations (ADR-0023) now that the
   // overview no longer carries the big call-to-action.
   newCount: number
+  // Whether the debug-only reset surface exists in this environment (RESET_ENABLED, ADR-0029).
+  // Off in production, so the nav entry never shows there.
+  showDebug: boolean
 }
 
 // The shell's navigation (ADR-0019): an icon-collapsible sidebar that answers "where am I",
 // independent of the phase stepper's "where is the event". Neutral, light-only (ADR-0016).
-export const AppSidebar = ({ active, onSelect, newCount }: AppSidebarProps) => (
+export const AppSidebar = ({ active, onSelect, newCount, showDebug }: AppSidebarProps) => (
   <Sidebar collapsible="icon">
     <SidebarHeader>
       <SidebarMenu>
@@ -130,6 +133,21 @@ export const AppSidebar = ({ active, onSelect, newCount }: AppSidebarProps) => (
       {/* Set off from the nav by a separator (ADR-0023). */}
       <SidebarSeparator />
       <SidebarMenu>
+        {/* Debug-only reset surface (ADR-0029): present solely when RESET_ENABLED is on, set apart in
+            the footer so it never reads as part of the operator's event-flow navigation. */}
+        {showDebug && (
+          <SidebarMenuItem>
+            <SidebarMenuButton
+              isActive={active === 'debug'}
+              tooltip="Debug"
+              onClick={() => onSelect('debug')}
+              className="text-amber-700 data-[active=true]:bg-amber-50 data-[active=true]:text-amber-900"
+            >
+              <Bug />
+              <span>Debug</span>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+        )}
         <SidebarMenuItem>
           {/* Edge-only auth (ADR-0008): logout hands off to the Cloudflare Access endpoint. */}
           <SidebarMenuButton asChild tooltip="Abmelden">

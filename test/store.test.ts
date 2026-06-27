@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { createInMemoryRegistrationsStore } from '../worker/store/registrations'
+import { createInMemoryRegistrationsStore } from '../worker/store/registrations.memory'
 import type { RegistrationRow } from '../worker/db/schema'
 
 let nextId = 1
