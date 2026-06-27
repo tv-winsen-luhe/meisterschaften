@@ -145,8 +145,10 @@ When a concept here drifts or a new one appears, update this file rather than in
   screen (TV/beamer) during the live draw event. The draw is precomputed atomically; the show is pure
   playback advancing a **reveal cursor** (an index into the reveal sequence — how many steps have been
   shown). _(See ADR-0003.)_
-- **Hauptrunde** — the main KO bracket; the title is decided here.
-- **Nebenrunde** — a Trostrunde: a second KO bracket for the Hauptrunde's first-round losers (plus
+- **Hauptrunde** (bracket value `main`) — the main KO bracket; the title is decided here. The German
+  name is the concept; the stored/wire `bracket` discriminator value is the English `main` (CLAUDE.md
+  — German terms never become stored values). _(See ADR-0025.)_
+- **Nebenrunde** (bracket value `consolation`) — a Trostrunde: a second KO bracket for the Hauptrunde's first-round losers (plus
   players who took a Freilos in round 1 and then lost in round 2). Round-2+ losers are out. Guarantees
   every entrant at least two matches. It is a full DTB draw in its own right — seeded by LK, with its
   own Freilose, drawn randomly — but **not** revealed Los für Los: it is drawn after the Hauptrunde

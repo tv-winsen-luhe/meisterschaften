@@ -22,10 +22,13 @@ as rows and are being played.
 **The draw writes real `matches` rows; there is no separate draw blob.** The bracket the audience
 sees and the Spielplan/Ergebnisse epics consume are the same rows.
 
-- Each match row carries a **bracket discriminator** — `hauptrunde` | `nebenrunde` — alongside
-  `competition`, so the two brackets per Konkurrenz live in one table. The Nebenrunde simply inserts a
-  second set of rows later, into the same model (it is _not_ a separate artifact, and it gets no
-  Auslosungs-Show — ADR-0004).
+- Each match row carries a **bracket discriminator** — `main` | `consolation` — alongside
+  `competition`, so the two brackets per Konkurrenz live in one table. The Nebenrunde (consolation)
+  simply inserts a second set of rows later, into the same model (it is _not_ a separate artifact, and
+  it gets no Auslosungs-Show — ADR-0004). _(Correction, 2026-06-27: this ADR first wrote the values as
+  the German `hauptrunde`/`nebenrunde`; the stored/wire values are English — `main`/`consolation` — per
+  CLAUDE.md, which reserves the German ubiquitous-language terms for concepts and UI copy, never for
+  stored values. Hauptrunde/Nebenrunde remain the concept names.)_
 - **Feeders are implicit, not stored.** A match at `(round r, position p)` is fed by the matches at
   `(r−1, 2p)` and `(r−1, 2p+1)`. No `feederMatchId` columns — the tree topology yields them, exactly as
   the public preview already computes (`2*m` / `2*m+1` in `tournament-draw.astro`). An empty slot in
@@ -39,8 +42,9 @@ sees and the Spielplan/Ergebnisse epics consume are the same rows.
 
 The draw-specific data ADR-0003 names that the matches model does _not_ need — the frozen seeding
 snapshot, the ordered Los sequence for playback, and the reveal cursor — live in their own draw
-table(s), **per bracket**, separate from `matches`. (Their exact shape is a later decision in this
-epic.)
+table(s), **per bracket**, separate from `matches`. (Resolved in this epic: a single draw record per
+`(competition, bracket)` holds the seeding snapshot, the reveal sequence, and the cursor; its very
+existence _is_ the per-Konkurrenz "schon gelost?" flag — ADR-0027.)
 
 ## Consequences
 

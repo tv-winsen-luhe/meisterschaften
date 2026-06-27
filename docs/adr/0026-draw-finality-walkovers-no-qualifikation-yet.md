@@ -33,7 +33,8 @@ Friday-evening round, triggered only if a Konkurrenz draws more than 16 entrants
 **The Qualifikation is deferred, but the model is not closed against it.** We do not build a quali
 system now: it is conditional (only if a field exceeds 16), uncertain, and its format is undefined —
 building it speculatively is pure cost (CLAUDE.md: simplest solution; ADR-0021: small N). Should it
-become real, it is an **additive** change: the `bracket` discriminator gains a `qualifikation` value,
+become real, it is an **additive** change: the `bracket` discriminator gains a `qualifying` value
+(English, like `main`/`consolation` — ADR-0025; Qualifikation stays the concept name),
 `matches` gains a cross-bracket feed (Qualifikant → Hauptfeld slot) by migration (ADR-0025), the draw
 procedure (a reusable pure module) is run once more for the quali field, and **this ADR is reopened** —
 Lucky Loser become DTB-relevant the moment a Qualifikation exists.
