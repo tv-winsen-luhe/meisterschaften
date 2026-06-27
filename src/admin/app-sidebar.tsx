@@ -1,4 +1,4 @@
-import { CalendarDays, ClipboardList, LayoutDashboard, LogOut, Shuffle, Trophy } from 'lucide-react'
+import { CalendarDays, ClipboardList, LayoutDashboard, ListOrdered, LogOut, Shuffle, Trophy } from 'lucide-react'
 import {
   Sidebar,
   SidebarContent,
@@ -17,7 +17,7 @@ import {
 // The two surfaces this slice ships (ADR-0019). The overview is the home dashboard; registrations is
 // the registration workbench. Surface switching is client-side inside the single island (ADR-0008) —
 // these are not Astro routes.
-export type Surface = 'overview' | 'registrations' | 'competitions'
+export type Surface = 'overview' | 'registrations' | 'seeding' | 'competitions'
 
 // Navigation is one flat list in event-flow order (ADR-0023): overview (home), then the phase
 // surfaces in the order the event runs them. Registrations is live; the later phases are disabled
@@ -42,6 +42,9 @@ interface PhaseEntry {
 }
 const PHASES: PhaseEntry[] = [
   { label: 'Anmeldungen', icon: ClipboardList, surface: 'registrations' },
+  // The provisional seeding list (issue #72): the pre-draw review the operator eyeballs before
+  // auslosen, so it sits just before Auslosung in event-flow order.
+  { label: 'Setzliste', icon: ListOrdered, surface: 'seeding' },
   { label: 'Auslosung', icon: Shuffle, surface: 'competitions' },
   { label: 'Spielplan', icon: CalendarDays },
   { label: 'Ergebnisse', icon: Trophy }
