@@ -143,12 +143,45 @@ export const canConfirm = (reg: ConfirmableFields): true | string => {
   return true
 }
 
-// The Challenger-LK judgment, owned once in shared/ (ADR-0011) so the registration notifier,
-// the domain, and the admin affordance all read the same rule — no duplicated threshold. The
-// Challenger field is protected upward (only LK >= CHALLENGER_MIN_LK), so a stronger LK hints
-// at the championship field.
-export const isTooStrongForChallenger = (competition: string, lk: string | null): boolean => {
-  if (competition !== 'mens-challenger' || !lk) return false
-  const n = parseFloat(lk)
-  return !Number.isNaN(n) && n < CHALLENGER_MIN_LK
+// The single-entry Challenger judgment: is this LK too strong for a field capped at `threshold`?
+// The LK scale runs 1.0 (strongest) … 25.0 (weakest), so "too strong" is a value *below* the cap.
+// Goes through seedingValue, so a missing or unratable LK seeds at DEFAULT_LK (the weakest) and is
+// never too strong (glossary: no LK ⇒ counts as 25.0). The core both judgments below share, so the
+// "stronger than the cap" rule lives in exactly one place (ADR-0011: definition once).
+const isLkTooStrongForChallenger = (lk: string | null, threshold: number): boolean => seedingValue(lk) < threshold
+
+// The Challenger-LK judgment at confirm time, owned once in shared/ (ADR-0011) so the registration
+// notifier, the domain, and the admin affordance all read the same rule — no duplicated threshold.
+// Gated to the Challenger field and the fixed CHALLENGER_MIN_LK: a stronger entry raises the soft
+// confirm-time hint (ADR-0024 — the cap only binds hard at the draw), nudging toward the
+// championship field.
+export const isTooStrongForChallenger = (competition: string, lk: string | null): boolean =>
+  competition === 'mens-challenger' && isLkTooStrongForChallenger(lk, CHALLENGER_MIN_LK)
+
+// One entry the Challenger eligibility check judges — by LK alone (a structural subset of a
+// registration / a seeding row), kept generic so both consumers pass their own richer rows through.
+export interface ChallengerEntry {
+  lk: string | null
+}
+
+// The result of judging a Challenger field: whether it may be drawn, and which entries are too
+// strong (in input order) — so the caller can both gate and point at the offenders.
+export interface ChallengerEligibilityResult<E extends ChallengerEntry> {
+  eligible: boolean
+  tooStrong: E[]
+}
+
+// The field-level Challenger judgment, owned once in shared/ (ADR-0011): given a Challenger field's
+// `entries` and a `threshold`, which entries are too strong for the cap, and is the field therefore
+// drawable. This is the **authority** the draw guard reuses (Slice 7) — a too-strong entry blocks
+// the field's draw on the frozen LKs (ADR-0024) — and the **affordance** the provisional seeding
+// list renders to mark too-strong entries before the draw. Pure and threshold-parameterised (the
+// draw will pass the operator-tuned `CHALLENGER_MIN_LK`); it does not gate on competition — the
+// caller already holds the Challenger field's entries.
+export const challengerEligibility = <E extends ChallengerEntry>(
+  entries: readonly E[],
+  threshold: number
+): ChallengerEligibilityResult<E> => {
+  const tooStrong = entries.filter(e => isLkTooStrongForChallenger(e.lk, threshold))
+  return { eligible: tooStrong.length === 0, tooStrong }
 }

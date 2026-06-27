@@ -12,6 +12,7 @@ import { PHASE_LABELS, PhaseStepper } from './phase-stepper'
 import { CompetitionsSurface } from './surfaces/competitions-surface'
 import { OverviewSurface } from './surfaces/overview-surface'
 import { type CompetitionFilter, RegistrationsSurface, type StatusFilter } from './surfaces/registrations-surface'
+import { SeedingSurface } from './surfaces/seeding-surface'
 import { type ConfirmPayload } from './surfaces/registration-detail'
 
 // Auth is edge-only (Cloudflare Access, ADR-0008). An expired Access session answers
@@ -288,6 +289,8 @@ export const AdminApp = () => {
             onGoToCompetition={goToCompetition}
             onOpenRegistration={goToRegistration}
           />
+        ) : surface === 'seeding' ? (
+          <SeedingSurface registrations={registrations} />
         ) : surface === 'competitions' ? (
           <CompetitionsSurface
             registrations={registrations}
