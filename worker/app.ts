@@ -15,20 +15,26 @@ import {
   participantsResponseSchema,
   registerRequestSchema,
   setPhaseRequestSchema,
+  undrawRequestSchema,
+  type BackToSignupResponse,
   type CancelRegistrationResponse,
   type ConfirmResponse,
   type DeleteResponse,
   type DrawResponse,
   type ParticipantsResponse,
   type PhaseResponse,
+  type ReadmitResponse,
   type RefreshLkResponse,
-  type SetPhaseResponse
+  type ResetCapabilityResponse,
+  type SetPhaseResponse,
+  type UndrawResponse
 } from '../shared'
 import { createD1AppStateStore } from './store/app-state'
 import { createD1DrawStore } from './store/draw'
 import { createD1RegistrationsStore } from './store/registrations'
 import { createRegistrationDomain } from './domain/registration'
 import { createDrawService } from './draw'
+import { createResetService } from './reset'
 import { buildSeedingLk, matchAndNotify } from './registration-effects'
 import { notifyCancellation } from './notify'
 
@@ -47,6 +53,10 @@ export interface Env {
   // (e.g. locally), the notification is silently skipped.
   TELEGRAM_BOT_TOKEN?: string
   TELEGRAM_CHAT_ID?: string
+  // Debug-only reset levers (ADR-0029). Absent in production: the reset routes exist only when this
+  // is exactly "true" (set in .dev.vars locally, toggled on the deployed instance during the
+  // pre-event test window and removed before go-live). Unset ⇒ the capability does not exist.
+  RESET_ENABLED?: string
 }
 
 // Hono's env shape wraps the bindings under `Bindings`. Named so the generic is referenced
@@ -102,6 +112,24 @@ const honeypot =
     if (typeof body.website === 'string' && body.website.trim()) return trap(c)
     await next()
   }
+
+// Debug-reset gate (ADR-0029): the reset routes exist only when RESET_ENABLED is exactly "true".
+// Absent/anything-else ⇒ 403, so the capability simply does not exist in production. This is the
+// server-side authority; the admin's Debug surface only mirrors the flag for affordance. Ordered
+// before parsing/validation so a disabled environment refuses before reading the body.
+const resetGuard: MiddlewareHandler<AppEnv> = async (c, next) => {
+  if (c.env.RESET_ENABLED !== 'true') return c.json({ error: 'Reset ist in dieser Umgebung deaktiviert.' }, 403)
+  await next()
+}
+
+// The reset orchestration over the three D1 stores it spans (draw + registrations + app-state). The
+// cascade/guard rules live in the service (worker/reset.ts); the route just composes and calls it.
+const resetService = (env: Env) =>
+  createResetService({
+    drawStore: createD1DrawStore(env.DB),
+    registrationsStore: createD1RegistrationsStore(env.DB),
+    appStateStore: createD1AppStateStore(env.DB)
+  })
 
 // GET /api/participants — the public list. Behaviour-preserving: PUBLIC_LIST_ENABLED
 // remains the orthogonal kill-switch; "true" = visible, anything else = off.
@@ -284,6 +312,38 @@ export const app = new Hono<AppEnv>()
       return c.json({ error: result.reason, ...(result.tooStrong ? { tooStrong: result.tooStrong } : {}) }, status)
     }
     return c.json({ ok: true, draw: result.draw } satisfies DrawResponse)
+  })
+  // ── Debug-only reset (ADR-0029) ─────────────────────────────────────────────────────────
+  // Three flag-gated levers that reverse the forward transitions the model treats as final (the
+  // draw — ADR-0026/0027 — and confirm). Under `/api/admin/*` like every operator route (ADR-0008's
+  // born-public invariant has no debug exception), behind Cloudflare Access, AND behind RESET_ENABLED
+  // (resetGuard). Not an operator feature — the flag retires it for the live event.
+  //
+  // GET /api/admin/reset — report the flag so the admin's Debug surface knows to render itself. Not
+  // flag-gated (it answers `enabled: false` when off); behind Access like every admin read.
+  .get('/api/admin/reset', async c =>
+    c.json({ enabled: c.env.RESET_ENABLED === 'true' } satisfies ResetCapabilityResponse, 200, {
+      'cache-control': 'no-store'
+    })
+  )
+  // POST /api/admin/reset/undraw — tear down one competition's draw (record + matches), returning it
+  // to „not drawn". Idempotent: an undrawn field reports undrawn: 0, not an error.
+  .post('/api/admin/reset/undraw', resetGuard, parseGuard, v(undrawRequestSchema), async c => {
+    const { undrawn } = await resetService(c.env).undraw(c.req.valid('json').competition)
+    return c.json({ ok: true, undrawn } satisfies UndrawResponse)
+  })
+  // POST /api/admin/reset/readmit — move every confirmed entry back to new. Guarded: refused (409)
+  // while any draw still references confirmed entries (undraw / back-to-signup first). No body.
+  .post('/api/admin/reset/readmit', resetGuard, async c => {
+    const result = await resetService(c.env).readmit()
+    if (!result.ok) return c.json({ error: result.reason }, 409)
+    return c.json({ ok: true, readmitted: result.readmitted } satisfies ReadmitResponse)
+  })
+  // POST /api/admin/reset/back-to-signup — cascade an undraw of all competitions, then set the phase
+  // to signup. Leaves registration status untouched (confirmed is valid during signup). No body.
+  .post('/api/admin/reset/back-to-signup', resetGuard, async c => {
+    const { undrawn } = await resetService(c.env).backToSignup()
+    return c.json({ ok: true, phase: 'signup', undrawn } satisfies BackToSignupResponse)
   })
 // The typed client (`hc`) derives its route types from this. The catch-all that
 // delegates legacy routes is registered in index.ts (the worker entry the client

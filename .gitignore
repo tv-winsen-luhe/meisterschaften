@@ -16,6 +16,8 @@ pnpm-debug.log*
 # environment variables
 .env
 .env.production
+# local wrangler dev vars / secrets (RESET_ENABLED toggle, Telegram tokens) — see ADR-0029
+.dev.vars
 
 # macOS-specific files
 .DS_Store

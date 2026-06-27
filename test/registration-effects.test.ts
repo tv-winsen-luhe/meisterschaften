@@ -9,7 +9,7 @@ import type { RegistrationRow } from '../worker/db/schema'
 import { notifyRegistration } from '../worker/notify'
 import { matchAndNotify } from '../worker/registration-effects'
 import { createInMemoryRosterSource, createSeedingLk, type RosterSource } from '../worker/seeding-lk'
-import { createInMemoryRegistrationsStore } from '../worker/store/registrations'
+import { createInMemoryRegistrationsStore } from '../worker/store/registrations.memory'
 
 const env = {} as Env // no Telegram creds; notifyRegistration is stubbed regardless
 

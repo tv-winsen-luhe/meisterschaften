@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { createInMemoryRegistrationsStore } from '../worker/store/registrations'
+import { createInMemoryRegistrationsStore } from '../worker/store/registrations.memory'
 import { createRegistrationDomain, isTooStrongForChallenger, type RegisterInput } from '../worker/domain/registration'
 import type { RegistrationRow } from '../worker/db/schema'
 

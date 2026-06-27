@@ -10,6 +10,7 @@ import { SidebarInset, SidebarProvider, SidebarTrigger } from '@/admin/ui/sideba
 import { AppSidebar, type Surface } from './app-sidebar'
 import { PHASE_LABELS, PhaseStepper } from './phase-stepper'
 import { CompetitionsSurface } from './surfaces/competitions-surface'
+import { DebugSurface } from './surfaces/debug-surface'
 import { OverviewSurface } from './surfaces/overview-surface'
 import { type CompetitionFilter, RegistrationsSurface, type StatusFilter } from './surfaces/registrations-surface'
 import { SeedingSurface } from './surfaces/seeding-surface'
@@ -44,6 +45,9 @@ export const AdminApp = () => {
   const [registrations, setRegistrations] = useState<AdminRegistration[]>([])
   const [draws, setDraws] = useState<CompetitionDraw[]>([])
   const [phase, setPhase] = useState<Phase | null>(null)
+  // Whether the debug-only reset surface exists in this environment (RESET_ENABLED, ADR-0029). Off in
+  // production, so the Debug nav entry and surface never appear there.
+  const [resetEnabled, setResetEnabled] = useState(false)
   const [surface, setSurface] = useState<Surface>('overview')
   // The competition a draw is currently running for, so its card shows a pending button (and a second
   // click can't fire). Cleared when the action resolves.
@@ -97,6 +101,14 @@ export const AdminApp = () => {
         if (phaseRes.ok) setPhase((await phaseRes.json()).phase)
       } catch {
         // ignore — phase keeps its last known value
+      }
+      // Whether the debug-only reset levers exist here (RESET_ENABLED, ADR-0029) — best-effort, like
+      // the reads above: a failure leaves the Debug surface hidden (the safe default).
+      try {
+        const resetRes = await client.api.admin.reset.$get()
+        if (resetRes.ok) setResetEnabled((await resetRes.json()).enabled)
+      } catch {
+        // ignore — reset capability keeps its last known value
       }
     } catch {
       toast.error('Konnte nicht laden.')
@@ -206,6 +218,23 @@ export const AdminApp = () => {
     await mutate(() => client.api.admin['refresh-lk'].$post(), 'LK aktualisiert.')
   }, [client, mutate])
 
+  // The debug-only reset levers (ADR-0029): all three go through mutate, so they share the
+  // 401-regate/error/toast behaviour, and the success reload re-fetches draws + phase so the UI
+  // reflects the teardown. The surface owns the confirmation dialogs; these just perform the request.
+  const undraw = useCallback(
+    (competition: CompetitionSlug) =>
+      mutate(() => client.api.admin.reset.undraw.$post({ json: { competition } }), 'Auslosung zurückgesetzt.'),
+    [client, mutate]
+  )
+  const readmit = useCallback(
+    () => mutate(() => client.api.admin.reset.readmit.$post(), 'Spieler neu zugelassen.'),
+    [client, mutate]
+  )
+  const backToSignup = useCallback(
+    () => mutate(() => client.api.admin.reset['back-to-signup'].$post(), 'Zurück zur Anmeldung.'),
+    [client, mutate]
+  )
+
   // The overview's "new — to confirm" call-to-action: open registrations pre-filtered to the
   // "new" queue so the operator starts triage in one click (ADR-0019).
   const goToNew = useCallback(() => {
@@ -270,6 +299,7 @@ export const AdminApp = () => {
           setSurface(s)
         }}
         newCount={newCount}
+        showDebug={resetEnabled}
       />
       <SidebarInset className="min-h-0 overflow-hidden">
         {/* The phase stepper sits above every surface (ADR-0019). Non-sticky so the registrations
@@ -299,6 +329,8 @@ export const AdminApp = () => {
             onDraw={drawCompetition}
             drawingCompetition={drawingCompetition}
           />
+        ) : surface === 'debug' && resetEnabled ? (
+          <DebugSurface draws={draws} onUndraw={undraw} onReadmit={readmit} onBackToSignup={backToSignup} />
         ) : (
           <RegistrationsSurface
             registrations={registrations}

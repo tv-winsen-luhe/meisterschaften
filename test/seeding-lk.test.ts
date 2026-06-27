@@ -7,7 +7,7 @@ import {
   type RosterEntry,
   type RosterSource
 } from '../worker/seeding-lk'
-import { createInMemoryRegistrationsStore } from '../worker/store/registrations'
+import { createInMemoryRegistrationsStore } from '../worker/store/registrations.memory'
 import type { RegistrationRow } from '../worker/db/schema'
 
 const entry = (overrides: Partial<RosterEntry>): RosterEntry => ({
