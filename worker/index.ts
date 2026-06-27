@@ -1,9 +1,7 @@
 /// <reference types="@cloudflare/workers-types" />
 
 import { app, type Env } from './app'
-import { buildSeedingLk } from './registration-effects'
-import { createD1AppStateStore } from './store/app-state'
-import { createD1RegistrationsStore } from './store/registrations'
+import { createDepsFromEnv } from './deps'
 
 // The Hono app (worker/app.ts) now owns every route — the public API (participants/register/
 // cancel) and the admin API (/api/admin/*). The catch-all serves the static Astro site (incl.
@@ -20,8 +18,9 @@ export default {
   async scheduled(_event: ScheduledController, env: Env, ctx: ExecutionContext): Promise<void> {
     ctx.waitUntil(
       (async () => {
-        if ((await createD1AppStateStore(env.DB).getPhase()) !== 'signup') return
-        await buildSeedingLk(createD1RegistrationsStore(env.DB)).syncAll()
+        const deps = createDepsFromEnv(env)
+        if ((await deps.appState.getPhase()) !== 'signup') return
+        await deps.seedingLk.syncAll()
       })()
     )
   }
