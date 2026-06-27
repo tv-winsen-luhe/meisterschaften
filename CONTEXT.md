@@ -105,6 +105,9 @@ When a concept here drifts or a new one appears, update this file rather than in
   every entrant at least two matches. It is a full DTB draw in its own right — seeded by LK, with its
   own Freilose, drawn randomly — but **not** revealed Los für Los: it is drawn after the Hauptrunde
   first round and published directly, with no Auslosungs-Show. _(See ADR-0004.)_
+- **Spiel um Platz 3** — a placement match between the two Hauptrunde semifinal losers, played once a
+  semifinal exists (from four entrants up). The Hauptrunde has one; the Nebenrunde does not. It is a
+  real match — scheduled and recorded like any other — and counts toward the court load (ADR-0023).
 - **Draw procedure** — the single reusable operation behind both brackets: given a set of players with
   seeding LK, produce a seeded DTB bracket with Freilose. The Hauptrunde runs it once up front with a
   live reveal; the Nebenrunde runs it after round 1 with no reveal.
