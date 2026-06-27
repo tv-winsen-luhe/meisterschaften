@@ -1,6 +1,9 @@
 # ADR-0006: Phase is an operator-controlled state in D1, with transition gates
 
-- Status: accepted
+- Status: accepted; **revised by ADR-0027** (the four phases collapse to three — `signup` →
+  `tournament` → `post-event`; the `draw`/`live` distinction becomes a per-Konkurrenz-derived
+  presentation, not an operator-set value). The core decision below — phase is operator-controlled
+  state in D1, not date-derived, with freeze gates — still holds for the two remaining transitions.
 - Date: 2026-06-25
 
 ## Context
