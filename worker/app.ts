@@ -8,21 +8,27 @@ import {
   cancelRegistrationRequestSchema,
   cancelRequestSchema,
   confirmRequestSchema,
+  createCryptoRandomSource,
   deleteRequestSchema,
+  drawRequestSchema,
+  drawsResponseSchema,
   participantsResponseSchema,
   registerRequestSchema,
   setPhaseRequestSchema,
   type CancelRegistrationResponse,
   type ConfirmResponse,
   type DeleteResponse,
+  type DrawResponse,
   type ParticipantsResponse,
   type PhaseResponse,
   type RefreshLkResponse,
   type SetPhaseResponse
 } from '../shared'
 import { createD1AppStateStore } from './store/app-state'
+import { createD1DrawStore } from './store/draw'
 import { createD1RegistrationsStore } from './store/registrations'
 import { createRegistrationDomain } from './domain/registration'
+import { createDrawService } from './draw'
 import { buildSeedingLk, matchAndNotify } from './registration-effects'
 import { notifyCancellation } from './notify'
 
@@ -244,6 +250,31 @@ export const app = new Hono<AppEnv>()
     const { phase } = c.req.valid('json')
     await createD1AppStateStore(c.env.DB).setPhase(phase)
     return c.json({ ok: true, phase } satisfies SetPhaseResponse)
+  })
+  // GET /api/admin/draws — every drawn Konkurrenz (Hauptrunde bracket). The „Konkurrenzen" surface
+  // combines this with the admin list it already holds to derive each field's lifecycle (ADR-0027).
+  .get('/api/admin/draws', async c => {
+    const draws = await createD1DrawStore(c.env.DB).listDraws()
+    return c.json(drawsResponseSchema.parse({ draws }), 200, { 'cache-control': 'no-store' })
+  })
+  // POST /api/admin/draw — the „Jetzt auslosen" action (ADR-0025). The draw service guards the
+  // preconditions (phase = tournament, not yet drawn, full field), computes the bracket with crypto
+  // randomness, and writes the matches + draw record atomically. A failed guard maps to 400/409 with
+  // the operator-facing reason; the gate values (AlreadyDrawn → 409) match the HTTP semantics.
+  .post('/api/admin/draw', parseGuard, v(drawRequestSchema), async c => {
+    const phase = await createD1AppStateStore(c.env.DB).getPhase()
+    const service = createDrawService({
+      registrationsStore: createD1RegistrationsStore(c.env.DB),
+      drawStore: createD1DrawStore(c.env.DB),
+      randomSource: createCryptoRandomSource()
+    })
+    const result = await service.draw({
+      competition: c.req.valid('json').competition,
+      phase,
+      now: new Date().toISOString()
+    })
+    if (!result.ok) return c.json({ error: result.reason }, result.error === 'AlreadyDrawn' ? 409 : 400)
+    return c.json({ ok: true, draw: result.draw } satisfies DrawResponse)
   })
 // The typed client (`hc`) derives its route types from this. The catch-all that
 // delegates legacy routes is registered in index.ts (the worker entry the client

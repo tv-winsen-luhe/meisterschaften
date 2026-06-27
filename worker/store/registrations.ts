@@ -1,7 +1,7 @@
 import type { D1Database } from '@cloudflare/workers-types'
 import { drizzle } from 'drizzle-orm/d1'
 import { and, asc, count, eq, gt, inArray, sql } from 'drizzle-orm'
-import { ACTIVE_STATUSES, isActive, seedingValue, type RegistrationStatus } from '../../shared'
+import { ACTIVE_STATUSES, type DrawPlayer, isActive, seedingValue, type RegistrationStatus } from '../../shared'
 import { registrations, type NewRegistrationRow, type RegistrationRow } from '../db/schema'
 
 // The fields the Setzliste order reads — a structural subset both a RegistrationRow and the D1
@@ -116,6 +116,14 @@ export interface RegistrationsStore {
    */
   listAll(): Promise<RegistrationRow[]>
 
+  /**
+   * The confirmed entries of one Konkurrenz in seeding order (the same comparator the public list
+   * uses: ascending seeding LK, then registration time) — the draw's input. Projected to just the
+   * id + LK the draw needs: the id the bracket slots reference, the LK it snapshots (ADR-0010).
+   * Seeding order stays owned here, beside the comparator, not re-encoded in the draw.
+   */
+  confirmedForDraw(competition: string): Promise<DrawPlayer[]>
+
   /** A single row by id, or null. */
   findById(id: number): Promise<RegistrationRow | null>
 
@@ -205,6 +213,21 @@ export const createD1RegistrationsStore = (d1: D1Database): RegistrationsStore =
         .select()
         .from(registrations)
         .orderBy(asc(registrations.status), asc(registrations.competition), asc(registrations.createdAt))
+    },
+
+    async confirmedForDraw(competition) {
+      // Fetch this field's confirmed rows and order them in JS through the shared comparator (ADR-0021,
+      // small N) — the same seeding order the public list uses — then project to the draw's id + LK.
+      const rows = await db
+        .select({
+          id: registrations.id,
+          lk: registrations.lk,
+          competition: registrations.competition,
+          createdAt: registrations.createdAt
+        })
+        .from(registrations)
+        .where(and(eq(registrations.competition, competition), eq(registrations.status, 'confirmed')))
+      return rows.sort(bySeedingThenTime).map(r => ({ id: r.id, lk: r.lk }))
     },
 
     async findById(id) {
@@ -316,6 +339,13 @@ export const createInMemoryRegistrationsStore = (seed: RegistrationRow[] = []): 
           a.competition.localeCompare(b.competition) ||
           a.createdAt.localeCompare(b.createdAt)
       )
+    },
+
+    async confirmedForDraw(competition) {
+      return rows
+        .filter(r => r.competition === competition && r.status === 'confirmed')
+        .sort(bySeedingThenTime)
+        .map(r => ({ id: r.id, lk: r.lk }))
     },
 
     async findById(id) {

@@ -43,6 +43,13 @@
       "when": 1782586114893,
       "tag": "0005_collapse_phase",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1782573166975,
+      "tag": "0006_workable_power_pack",
+      "breakpoints": true
     }
   ]
 }

@@ -17,7 +17,7 @@ import {
 // The two surfaces this slice ships (ADR-0019). Übersicht is the home dashboard; Anmeldungen is the
 // registration workbench. Surface switching is client-side inside the single island (ADR-0008) —
 // these are not Astro routes.
-export type Surface = 'overview' | 'registrations'
+export type Surface = 'overview' | 'registrations' | 'competitions'
 
 // Navigation is one flat list in event-flow order (ADR-0023): Übersicht (home), then the phase
 // surfaces in the order the event runs them. Anmeldungen is live; the later phases are disabled
@@ -42,7 +42,7 @@ interface PhaseEntry {
 }
 const PHASES: PhaseEntry[] = [
   { label: 'Anmeldungen', icon: ClipboardList, surface: 'registrations' },
-  { label: 'Auslosung', icon: Shuffle },
+  { label: 'Auslosung', icon: Shuffle, surface: 'competitions' },
   { label: 'Spielplan', icon: CalendarDays },
   { label: 'Ergebnisse', icon: Trophy }
 ]
@@ -107,7 +107,7 @@ export const AppSidebar = ({ active, onSelect, newCount }: AppSidebarProps) => (
                     <p.icon />
                     <span>{p.label}</span>
                   </SidebarMenuButton>
-                  {newCount > 0 && <SidebarMenuBadge>{newCount}</SidebarMenuBadge>}
+                  {p.surface === 'registrations' && newCount > 0 && <SidebarMenuBadge>{newCount}</SidebarMenuBadge>}
                 </SidebarMenuItem>
               ) : (
                 <SidebarMenuItem key={p.label}>
