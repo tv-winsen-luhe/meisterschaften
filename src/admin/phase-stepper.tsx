@@ -13,13 +13,12 @@ import {
   AlertDialogTitle
 } from '@/admin/ui/alert-dialog'
 
-// The German display names for the operator-controlled phase (ADR-0006). English identifiers on
-// the wire (shared/phase.ts); these are the only place the phase is named for the operator, so the
-// shell's toast imports them from here rather than keeping a second copy.
+// The German display names for the operator-controlled phase (ADR-0006, ADR-0027). English
+// identifiers on the wire (shared/phase.ts); these are the only place the phase is named for the
+// operator, so the shell's toast imports them from here rather than keeping a second copy.
 export const PHASE_LABELS: Record<Phase, string> = {
   signup: 'Anmeldung',
-  draw: 'Auslosung',
-  live: 'Live',
+  tournament: 'Turnier',
   'post-event': 'Post-Event'
 }
 
@@ -43,17 +42,17 @@ export const PhaseStepper = ({ phase, onChange }: PhaseStepperProps) => {
   }
 
   // The consequence of the chosen transition, named in the dialog so the warning describes the
-  // actual move (not a single static message). A step backward is flagged as unusual; each forward
-  // step states what it sets in motion. Backward is a deliberate escape hatch (ADR-0006): it just
-  // sets the phase value — the cron re-gates itself and the immutable draw snapshot stands (ADR-0003).
+  // actual move (not a single static message). Only two genuine forward transitions exist
+  // (ADR-0027): closing the Anmeldung freezes the Setzung; ending the event unlocks the purge —
+  // the per-Konkurrenz Auslosung is no longer a phase. A step backward is flagged as unusual.
+  // Backward is a deliberate escape hatch (ADR-0006): it just sets the phase value — the cron
+  // re-gates itself and the immutable draw snapshots stand (ADR-0003).
   const consequence = (target: Phase): string => {
     if (currentIndex >= 0 && PHASES.indexOf(target) < currentIndex)
-      return 'Rückschritt in eine frühere Phase — nur zur Korrektur eines Versehens. Die Auslosung bleibt unverändert.'
+      return 'Rückschritt in eine frühere Phase — nur zur Korrektur eines Versehens. Bereits ausgeloste Konkurrenzen bleiben unverändert.'
     switch (target) {
-      case 'draw':
-        return 'Mit dem Verlassen der Anmeldung wird die Setzung eingefroren und die wöchentliche nuLiga-Synchronisierung (LK-Aktualisierung) beendet.'
-      case 'live':
-        return 'Das Turnierwochenende beginnt. Die Ergebniserfassung wird aktiv.'
+      case 'tournament':
+        return 'Mit dem Verlassen der Anmeldung wird die Setzung eingefroren und die wöchentliche nuLiga-Synchronisierung (LK-Aktualisierung) beendet. Danach werden die Konkurrenzen einzeln ausgelost.'
       case 'post-event':
         return 'Das Turnier ist beendet. Brackets und Spielplan werden schreibgeschützt; die Löschung der Kontaktdaten wird verfügbar.'
       case 'signup':

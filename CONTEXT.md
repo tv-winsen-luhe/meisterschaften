@@ -7,21 +7,33 @@ When a concept here drifts or a new one appears, update this file rather than in
 
 - **Meisterschaften** — the joint club championship of TV Winsen/Luhe and TSV Winsen, held on one
   weekend (22./23.08.2026). Vereinsintern: members only, no LK rating effect.
-- **Phase** — the event moves through four phases, and the site presents itself differently in each.
-  The phase is a single operator-controlled value stored in D1 and toggled in the admin (not derived
-  from dates); every public surface keys off it. _(See ADR-0006.)_
+- **Phase** — the event moves through **three** operator-set phases, kept to the two transitions that
+  are genuine global decisions; the site presents itself differently in each. The phase is a single
+  value stored in D1 and toggled in the admin (not derived from dates); every public surface keys off
+  it. The granular middle — _which_ Konkurrenz is drawn / running — is **not** the phase; it is
+  per-Konkurrenz state (see Konkurrenz-Lebenszyklus), and the public presentation inside `tournament`
+  is **derived** from it. _(See ADR-0006, revised by ADR-0027.)_
   1. **Anmeldung** (phase value `signup`) — registration is open; members sign up, the participant
      list fills. **Naming:** the one German word _Anmeldung_ maps to **two** English identifiers, on
      purpose, because they name two different things: `signup` is this **phase** (the activity / the
      open time-window), while `registration` (the row, `registrations` table, the Registration domain)
      is the **record** a member creates. Phase ≠ aggregate — the split is deliberate, not a synonym
      slip; keep `signup` for the phase and `registration` for the entry.
-  2. **Auslosung** — registration is closed; the draw is made and seedings fixed.
-  3. **Live** — the tournament weekend; matches are played and results come in.
-  4. **Post-Event** — the tournament is over; final results and champions stand. Results (names, club,
-     Konkurrenz, scores, brackets) are archived as a lasting public record; contact data (email,
-     phone, IP) is purged in an explicit operator-initiated step, per the privacy policy. _(See
-     ADR-0007.)_
+  2. **Turnier** (phase value `tournament`) — registration is closed (the freeze fires, the cron
+     stops); the draws and the weekend happen here. What the public sees is **derived** per Konkurrenz,
+     not a manual flip: Auslosung-pending (nothing drawn yet) → Auslosungs-Show (a reveal cursor is
+     live) → bracket → Live-Board (matches running). Entering this phase is the single global act of
+     **closing registration**; the per-Konkurrenz draws are separate actions within it.
+  3. **Post-Event** (phase value `post-event`) — the tournament is over; final results and champions
+     stand. Results (names, club, Konkurrenz, scores, brackets) are archived as a lasting public
+     record; contact data (email, phone, IP) is purged in an explicit operator-initiated step, per the
+     privacy policy. _(See ADR-0007.)_
+- **Konkurrenz-Lebenszyklus** — each Konkurrenz carries its own draw lifecycle, independent of the
+  global phase and of the other Konkurrenzen: _not drawn → drawn (Hauptrunde bracket exists) → running
+  → done_, plus a transient "reveal in progress" while its Auslosungs-Show cursor is advancing. This
+  is the per-bracket „schon gelost?" state; it lives in the admin **„Konkurrenzen" section**, where the
+  operator triggers **„Jetzt auslosen"** per field. „Jetzt auslosen" is a per-Konkurrenz action, never
+  a phase transition. _(See ADR-0027, ADR-0025.)_
 - **Setzungs-Freeze** — before the draw, LKs keep updating and the **provisorische Setzliste**
   (seeding preview) reflects them live. At Auslosung the draw snapshots each player's current LK into
   its immutable draw record (ADR-0003) — that snapshot _is_ the frozen seeding, and the LK that
@@ -54,7 +66,12 @@ When a concept here drifts or a new one appears, update this file rather than in
   Auslosung**, on the frozen LK — that is the only LK that counts (Setzungs-Freeze). During Anmeldung
   the LK is still provisional, so confirming a too-strong entry raises a **hint, not a block**; the
   operator may confirm it. If the field's composition shifts before the draw, the lever is the global
-  **`CHALLENGER_MIN_LK`** threshold, adjusted for the whole field — never a per-player override. _(See
+  **`CHALLENGER_MIN_LK`** threshold, adjusted for the whole field — never a per-player override. At the
+  draw the operator confirms/adjusts that threshold (default = the `shared/` constant) and the chosen
+  value is **snapshotted into the draw record** (audited as part of the freeze) — there is no standing
+  DB preference. One pure predicate `challengerEligibility(entries, threshold)` in `shared/` is both
+  the draw's hard guard (a too-strong entry blocks the field's draw) and the provisorische Setzliste's
+  affordance — authority in the draw, affordance in the client, definition once (ADR-0011). _(See
   ADR-0024.)_
 - **Anmeldung / Registration** (D1 table `registrations`) — one member's entry into one Konkurrenz.
   Status flow: `new` → `confirmed` → `cancelled`. **`cancelled`** is the single "no longer participating,
@@ -92,14 +109,20 @@ When a concept here drifts or a new one appears, update this file rather than in
   no-ID is explicitly set); `resolveSeedingBasis` (beside it) derives the basis fields from that input.
   There is deliberately no operator LK override. _(See ADR-0011, ADR-0020.)_
 - **Setzung (seeding)** — ordering players in the draw by LK so the strongest are kept apart early.
-  Follows the DTB Turnierordnung 2024:
-  - **Number of seeds** by draw size: 8 → 2, 16 → 4, 32 → 8, 48+ → 16.
-  - **Placement**: Nr. 1 on the first line, Nr. 2 on the last line; Nr. 3 and 4 on prescribed lines,
-    all further seeds distributed **by lot** (Losverfahren) — so even seed placement contributes Lose
-    to the show.
-  - **Freilose (byes)**: given in round 1 whenever the entry count is not a power of two; assigned to
-    the seeds first, highest seed first. _(Exact line indices and bye order are implemented against the
-    official DTB Turnierordnung 2024 — the authoritative text, not an approximation.)_
+  Follows the DTB Turnierordnung 2026 (Stand 09.11.2025), §§ 30–32:
+  - **Number of seeds** by draw size (§30.5a): 8 → 2, 16 → 4, 24/32 → 8, 48/64/128 → 16. Our fields
+    are 8 or 16.
+  - **Placement** (§30.5b table): Nr. 1 on the first line, Nr. 2 on the last line. **Nr. 3 and 4 are
+    drawn by lot onto two fixed lines** (16-field: lines 5 and 12) — the lines are prescribed, the lot
+    only decides which of the two seeds lands on which. Larger fields draw the further seed groups
+    (Nr. 5–8, 9–12, 13–16) by lot onto their prescribed lines the same way — so seed placement itself
+    contributes Lose to the show.
+  - **Freilose (byes / „Rasten", §31)**: given in round 1 whenever the entry count is not a power of
+    two; assigned **to the seeds first, in Setzliste order** (highest seed first). Any **remaining
+    byes are drawn by lot, spread evenly across the sections** (halves/quarters/eighths) of the draw
+    plan — this is the case once there are more byes than seeds (e.g. 9 entrants in a 16-draw → 7 byes,
+    4 to seeds, 3 by lot). _(Exact line indices and bye order are implemented against the official DTB
+    Turnierordnung 2026 — the authoritative text, not an approximation.)_
 - **Draw size** — the next power of two ≥ number of confirmed players; the gap to that size is filled
   with Freilose.
 
@@ -108,23 +131,43 @@ When a concept here drifts or a new one appears, update this file rather than in
 - **Auslosung (the draw)** — assigning seeded and unseeded players into bracket positions, producing
   the bracket for each Konkurrenz. Automatic and unriggable (DTB-Ranglistenturnier conventions), with
   no operator edit step. _(See ADR-0002.)_
-- **Los** — a single draw step: one unseeded player being placed into one open bracket slot. The
-  Auslosung proceeds Los für Los so it can be revealed dramatically, one placement at a time.
-- **Auslosungs-Show** — the public presentation mode that plays the draw back Los für Los on a large
+- **Los** — a placement step **where the lot decided**: a seed drawn onto one of its two prescribed
+  lines (Nr. 3/4+), a remaining bye drawn onto a section, or an unseeded player drawn into the next
+  open slot. The deterministic placements (Nr. 1 / Nr. 2, byes that go straight to seeds) are reveal
+  steps too, but they are not Lose — nothing was drawn. The Auslosung proceeds Los für Los so the
+  random steps can be revealed dramatically, one at a time.
+- **Reveal sequence** — the draw's playback artifact: one flat, ordered list of **reveal steps** in
+  DTB §32.4 order (seeds, then byes, then unseeded top-to-bottom). Each step places one entrant (or a
+  Freilos) onto one position and carries a `kind` — `seed-fixed` | `seed-lot` | `bye` | `draw`. The
+  same sequence, fully applied, _is_ the bracket (the source of the `matches` slots); the show is pure
+  playback over it. _(See ADR-0003, ADR-0025.)_
+- **Auslosungs-Show** — the public presentation mode that plays the reveal sequence back on a large
   screen (TV/beamer) during the live draw event. The draw is precomputed atomically; the show is pure
-  playback advancing a **reveal cursor** (how many Lose have been shown). _(See ADR-0003.)_
+  playback advancing a **reveal cursor** (an index into the reveal sequence — how many steps have been
+  shown). _(See ADR-0003.)_
 - **Hauptrunde** — the main KO bracket; the title is decided here.
 - **Nebenrunde** — a Trostrunde: a second KO bracket for the Hauptrunde's first-round losers (plus
   players who took a Freilos in round 1 and then lost in round 2). Round-2+ losers are out. Guarantees
   every entrant at least two matches. It is a full DTB draw in its own right — seeded by LK, with its
   own Freilose, drawn randomly — but **not** revealed Los für Los: it is drawn after the Hauptrunde
-  first round and published directly, with no Auslosungs-Show. _(See ADR-0004.)_
+  first round and published directly, with no Auslosungs-Show. **A Nebenrunde exists only when the
+  Hauptrunde first round lies _before_ the semifinals — i.e. draw size ≥ 8.** At draw size 4 (exactly
+  four entrants) the first round _is_ the semifinal, so its two losers are the same two players the
+  Spiel um Platz 3 already pairs — there is no separate Nebenrunde, the Spiel um Platz 3 _is_ the
+  consolation and every entrant still gets two matches. Below four there is neither. _(See ADR-0004.)_
 - **Spiel um Platz 3** — a placement match between the two Hauptrunde semifinal losers, played once a
   semifinal exists (from four entrants up). The Hauptrunde has one; the Nebenrunde does not. It is a
-  real match — scheduled and recorded like any other — and counts toward the court load (ADR-0023).
+  real match — scheduled and recorded like any other — and counts toward the court load (ADR-0023). At
+  exactly four entrants it doubles as the consolation (see Nebenrunde): the two semifinal losers have
+  no separate Nebenrunde, so this match is their guaranteed second match.
 - **Draw procedure** — the single reusable operation behind both brackets: given a set of players with
-  seeding LK, produce a seeded DTB bracket with Freilose. The Hauptrunde runs it once up front with a
-  live reveal; the Nebenrunde runs it after round 1 with no reveal.
+  seeding LK, produce a seeded DTB bracket with Freilose. A **pure module in `shared/`** (beside the
+  existing draw math in `shared/draw.ts`): `drawBracket({ players, size, random }) → { seeding, slots,
+reveal sequence }`. Randomness enters through an injected **`RandomSource`** port (a crypto adapter
+  in prod, a deterministic fake in tests — the ADR-0010 port pattern). The selection is **unbiased**
+  (rejection sampling, not `value % n`) — fairness is a product feature here, not a detail (ADR-0002).
+  The Hauptrunde runs it once up front with a live reveal; the Nebenrunde runs it after round 1 with no
+  reveal. _(See ADR-0004, ADR-0025.)_
 - **Match** — a single tie between two players; best of 2 sets, Match-Tie-Break to 10 at 1:1. A match
   exists as a bracket position from the moment of the draw; until results arrive it names its feeders
   ("Sieger M3 vs Sieger M4"). Default planned length: **90 minutes**.

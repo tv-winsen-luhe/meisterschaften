@@ -344,13 +344,12 @@ const seedsFor = (capacity?: number) => (capacity ? Math.floor(capacity / 4) : 0
 
   const client = hc<AppType>(location.origin)
 
-  // The phase the public surface keys off (ADR-0006). Each phase shows a phase-appropriate
-  // status caption; the list itself stays visible (the draw/live views consume it too). This
-  // surface only *reflects* the phase — it does not gate registration (the Anmeldung→Auslosung
-  // seeding freeze is the draw's job, a later epic), so it makes no "registration closed" claim.
+  // The phase the public surface keys off (ADR-0006, ADR-0027). Each phase shows a
+  // phase-appropriate status caption; the list itself stays visible. Within `tournament` the
+  // public middle is derived per Konkurrenz (the draw is no longer a phase) — until the Draw
+  // slices land it shows the "Anmeldung geschlossen / Auslosung steht bevor" state.
   const PHASE_CAPTIONS: Record<Exclude<Phase, 'signup'>, string> = {
-    draw: 'Die Auslosung läuft — die endgültige Setzung wird ermittelt.',
-    live: 'Das Turnier läuft.',
+    tournament: 'Die Anmeldung ist geschlossen — die Auslosung steht bevor.',
     'post-event': 'Die Winsener Meisterschaften 2026 sind beendet. Danke fürs Mitspielen!'
   }
   const root = document.querySelector<HTMLElement>('[data-participants]')
