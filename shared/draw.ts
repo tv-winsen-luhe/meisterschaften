@@ -1,4 +1,6 @@
+import { z } from 'zod'
 import type { Phase } from './phase'
+import { seedingValue } from './registration'
 
 // Draw math, owned once in shared/ so the overview (its first consumer) and the future
 // draw read the same rule (CONTEXT: Draw size / byes). Pure, no deps — ADR-0021 keeps
@@ -192,19 +194,25 @@ export const createCryptoRandomSource = (): RandomSource => ({
 
 // A player entering the draw. `id` is the registration id the slots reference; `lk` is snapshotted
 // into the seeding record (the seeding freeze, ADR-0010). Players arrive **in seeding order**
-// (strongest first) — the caller owns that order (the shared seeding comparator); the draw assigns
-// seed numbers 1..seedCount to the first `seedCount` of them.
+// (strongest first) — the caller owns that order (the shared seeding comparator, including the
+// createdAt tie-break the draw cannot see); the draw assigns seed numbers 1..seedCount to the first
+// `seedCount` of them. drawBracket *verifies* this contract (non-decreasing seedingValue), so a
+// mis-sort fails loudly rather than silently producing a wrong bracket.
 export interface DrawPlayer {
   id: number
   lk: string | null
 }
 
-// One frozen seed: its number, the player, and the LK it was seeded by (the snapshot).
-export interface SeedingEntry {
-  seed: number
-  playerId: number
-  lk: string | null
-}
+// One frozen seed: its number, the player, and the LK it was seeded by (the snapshot). A Zod schema,
+// not a bare interface, because it crosses a JSON text column (draws.seeding): the Store parses it on
+// read so a malformed or stale row fails loudly at the seam, closing the one raw cast in the ADR-0009
+// type chain. The type is inferred, so schema and type can never drift.
+export const seedingEntrySchema = z.object({
+  seed: z.number().int().positive(),
+  playerId: z.number().int().positive(),
+  lk: z.string().nullable()
+})
+export type SeedingEntry = z.infer<typeof seedingEntrySchema>
 
 // One reveal step (CONTEXT: Reveal sequence), in §32.4 order: a fixed seed (Nr.1/2), a seed drawn by
 // lot (Nr.3/4), the byes (§31), then the unseeded. Most kinds *place* `playerId` onto `position`; a
@@ -291,6 +299,16 @@ const distributeByes = (
 export const drawBracket = ({ players, size, random }: DrawInput): DrawResult => {
   if (drawSize(players.length) !== size) {
     throw new Error(`drawBracket: ${players.length} players do not fit a draw of size ${size}`)
+  }
+  // Verify the seeding-order precondition the interface documents (DrawPlayer): players must arrive
+  // strongest-first, i.e. non-decreasing in seedingValue. The caller still *owns* the order (it alone
+  // holds the createdAt tie-break among equal LKs, which the module cannot see); this guard only
+  // refuses a clearly-stronger player sitting below a weaker one — the silent mis-seed that would
+  // otherwise yield a valid-looking but wrong bracket. Equal LKs are a legitimate tie, never rejected.
+  for (let i = 1; i < players.length; i++) {
+    if (seedingValue(players[i - 1].lk) > seedingValue(players[i].lk)) {
+      throw new Error(`drawBracket: players are not in seeding order (strongest first) at index ${i}`)
+    }
   }
   const { seedCount, seedGroups } = bracketStructure(size)
 

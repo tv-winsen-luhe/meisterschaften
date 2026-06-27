@@ -272,6 +272,25 @@ describe('drawBracket — guards', () => {
     // 17 players overflow an 8-draw.
     expect(() => drawBracket({ players: field(17), size: 8, random: createFakeRandomSource([]) })).toThrow()
   })
+
+  it('rejects players not in seeding order — a stronger LK below a weaker one (the unchecked precondition)', () => {
+    // The caller owns the seeding order (the shared comparator), but the module verifies it rather
+    // than trusting it: a strictly-stronger player (lower LK) sitting below a weaker one is the silent
+    // mis-seed drawBracket used to accept. field(8) is ascending LK; reversed, every pair inverts.
+    // A full 8-draw fills 6 free lines with 5 lots; a valid sequence so the only possible throw is the
+    // order guard, not an exhausted RandomSource.
+    const misordered = field(8).reverse()
+    expect(() =>
+      drawBracket({ players: misordered, size: 8, random: createFakeRandomSource([0, 0, 0, 0, 0]) })
+    ).toThrow()
+  })
+
+  it('accepts equal LKs — ties are legitimate (the tie-break is the caller-owned createdAt order)', () => {
+    // seedingValue is equal across the field, so the order is non-decreasing and the guard must not
+    // fire — two unrated players both seed at the default LK, a common real case.
+    const tied = Array.from({ length: 8 }, (_, i) => ({ id: i + 1, lk: '10.0' }))
+    expect(() => drawBracket({ players: tied, size: 8, random: createFakeRandomSource([0, 0, 0, 0, 0]) })).not.toThrow()
+  })
 })
 
 describe('materializeMatches', () => {
