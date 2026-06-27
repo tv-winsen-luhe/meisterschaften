@@ -164,6 +164,37 @@ describe('POST /api/register (integration)', () => {
     expect(await res.json()).toEqual({ error: 'Du bist für diese Konkurrenz bereits angemeldet.' })
   })
 
+  it('rejects a 4th sign-up from the same IP within the hour (soft rate limit)', async () => {
+    // Three recent rows from one IP put the count at the RATE_LIMIT of 3; the 4th request is
+    // rejected with 429 before it reaches the domain. created_at is `now` so the rows fall inside
+    // the route's live `now − 1h` window. The rate check runs ahead of the dup/validation paths,
+    // so the body content is irrelevant — it never gets that far.
+    const ip = '5.5.5.5'
+    const now = new Date().toISOString()
+    await env.DB.batch(
+      ['rl1', 'rl2', 'rl3'].map((slug, i) =>
+        env.DB.prepare(
+          `INSERT INTO registrations (created_at, competition, first_name, last_name, club, email, ip, status)
+           VALUES (?, 'mens', ?, ?, 'TV Winsen', ?, ?, 'new')`
+        ).bind(now, slug, slug, `${slug}-${i}@ip.de`, ip)
+      )
+    )
+
+    const res = await app.request(
+      '/api/register',
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', 'cf-connecting-ip': ip },
+        body: JSON.stringify({ ...valid, email: 'rate-limited@example.com' })
+      },
+      env
+    )
+    expect(res.status).toBe(429)
+    expect(await res.json()).toEqual({
+      error: 'Zu viele Anmeldungen in kurzer Zeit. Bitte versuch es später erneut.'
+    })
+  })
+
   it('persists a new registration on the happy path (end to end, incl. the background match)', async () => {
     // Keep the background nuLiga match offline: an empty roster yields no match.
     vi.stubGlobal('fetch', async () => new Response('', { status: 200 }))
