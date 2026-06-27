@@ -32,7 +32,7 @@ Drift is closed not by sharing the _schema_ but by single-sourcing the _values_ 
 all at **build time** via the Astro frontmatter (SSR-stripped, zero client cost):
 
 - **Competition slugs** — `signupCompetitions` is derived from `COMPETITION_SLUGS` membership and the
-  `selectable` boolean is removed. The form can no longer offer a Konkurrenz the contract rejects;
+  `selectable` boolean is removed. The form can no longer offer a competition the contract rejects;
   "open a field for registration" becomes a single edit to the contract. This also makes the code
   conform to the glossary, which already defines registerable as "in `COMPETITION_SLUGS`."
 - **Club names** — the radios render from `CLUBS`, with logos keyed through a

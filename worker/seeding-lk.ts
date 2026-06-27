@@ -6,7 +6,7 @@ import type { RegistrationsStore } from './store/registrations'
 // logic — parseClubRoster / normalizeName / findRosterMatch — lives here exactly once
 // (parseClubRoster/findRosterMatch stay exported for their unit tests). Thin orchestrations
 // compose lookup with the Store: matchOnRegister (sign-up) and syncAll (cron + admin LK
-// refresh). The Setzungs-Freeze lives with the draw, not here.
+// refresh). The seeding freeze lives with the draw, not here.
 
 // One player as parsed from a nuLiga club ranking page. camelCase (TS/wire convention);
 // the snake_case D1 columns are a separate concern handled in the Drizzle mapping.

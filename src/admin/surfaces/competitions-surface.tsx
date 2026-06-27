@@ -23,14 +23,14 @@ interface CompetitionsSurfaceProps {
   registrations: AdminRegistration[]
   draws: CompetitionDraw[]
   phase: Phase | null
-  // Start the draw for one Konkurrenz; resolves to whether it succeeded (the shell toasts + reloads).
+  // Start the draw for one competition; resolves to whether it succeeded (the shell toasts + reloads).
   onDraw: (competition: CompetitionSlug) => Promise<boolean>
   // True while a draw request is in flight, so the triggered card shows a pending button.
   drawingCompetition: CompetitionSlug | null
 }
 
-// The Konkurrenzen surface (ADR-0027): one card per Konkurrenz with its draw lifecycle — *nicht
-// ausgelost* → *ausgelost* — and the „Jetzt auslosen" action, active once registration is closed
+// The competitions surface (ADR-0027): one card per competition with its draw lifecycle — *not
+// drawn* → *drawn* — and the „Jetzt auslosen" action, active once registration is closed
 // (`tournament`) and the field is a full, un-drawn bracket (ADR-0025). A drawn field shows its
 // bracket. Names are joined from the admin list the shell already holds; the draw carries only ids.
 export const CompetitionsSurface = ({
@@ -215,8 +215,8 @@ interface SlotProps {
   nameById: Map<number, string>
   seedByPlayer: Map<number, number>
 }
-// One bracket slot: a drawn player (round 1) with their seed badge, or an empty feeder — a Freilos in
-// round 1, otherwise a "Sieger" placeholder for a not-yet-played match (ADR-0025).
+// One bracket slot: a drawn player (round 1) with their seed badge, or an empty feeder — a bye
+// ("Freilos") in round 1, otherwise a winner ("Sieger") placeholder for a not-yet-played match (ADR-0025).
 const Slot = ({ regId, round, nameById, seedByPlayer }: SlotProps) => {
   if (regId === null) {
     return (

@@ -45,11 +45,11 @@ export const appState = sqliteTable('app_state', {
 export type AppStateRow = typeof appState.$inferSelect
 
 // The materialized bracket (ADR-0025): the draw writes real `matches` rows, there is no separate
-// bracket blob. A `bracket` discriminator (`hauptrunde`/`nebenrunde`) lets both brackets of a
-// Konkurrenz share one table. Feeders are implicit — a match at (round, position) is fed by
+// bracket blob. A `bracket` discriminator (main/consolation) lets both brackets of a
+// competition share one table. Feeders are implicit — a match at (round, position) is fed by
 // (round−1, 2·position) and (round−1, 2·position+1), so there are no feeder columns. An empty
-// round-1 slot would be a Freilos; an empty later-round slot is a not-yet-decided feeder — the round
-// disambiguates. This epic introduces the table minimally; Spielplan/Ergebnisse add columns later.
+// round-1 slot would be a bye; an empty later-round slot is a not-yet-decided feeder — the round
+// disambiguates. This epic introduces the table minimally; schedule/results add columns later.
 export const matches = sqliteTable(
   'matches',
   {
@@ -71,7 +71,7 @@ export type NewMatchRow = typeof matches.$inferInsert
 
 // The draw record (ADR-0003, ADR-0025): the draw-specific data the `matches` aggregate does not need
 // — the frozen seeding snapshot, the ordered reveal sequence for playback, and the reveal cursor —
-// kept per Konkurrenz+bracket. Its existence *is* the "schon gelost?" lifecycle flag (ADR-0027), so
+// kept per competition+bracket. Its existence *is* the "already drawn?" lifecycle flag (ADR-0027), so
 // (competition, bracket) is unique. `seeding`/`revealSequence` are JSON text (small N, ADR-0021).
 export const draws = sqliteTable(
   'draws',

@@ -41,10 +41,10 @@ export const contactEmail = 'sportwart@tennisverein-winsen.de'
 export const entryFee = 5
 
 /**
- * Court-throughput assumption behind the admin's Gesamtauslastung gauge (ADR-0023 follow-up). The
- * Anlage has 6 courts; at ~90 min per match a court turns ~6 matches in a ~9 h playing day, across
+ * Court-throughput assumption behind the admin's total-utilization gauge (ADR-0023 follow-up). The
+ * venue has 6 courts; at ~90 min per match a court turns ~6 matches in a ~9 h playing day, across
  * both event days. `matchSlotsPerWeekend` (= 72) is the 100 % the gauge measures the projected
- * match load against. A planning figure, not a schedule — the Spielplan will own the real timetable.
+ * match load against. A planning figure, not a schedule — the schedule will own the real timetable.
  */
 export const courtSchedule = {
   courts: 6,
@@ -56,9 +56,9 @@ export const matchSlotsPerWeekend = courtSchedule.courts * courtSchedule.matches
 
 /**
  * Provisional court-slot reservation for the planned Damen-Freizeit field, which shares the event
- * weekend's courts (ADR-0023). A placeholder until the format is decided (Gespräche 02.07): set the
+ * weekend's courts (ADR-0023). A placeholder until the format is decided (talks 02.07): set the
  * real figure once group format, size and match length are known. Shown as its own segment in the
- * Gesamtauslastung so the championship load and this reservation read against the same 72-slot budget.
+ * total-utilization gauge so the championship load and this reservation read against the same 72-slot budget.
  */
 export const freizeitReservedSlots = 10
 
@@ -120,10 +120,10 @@ export const competitions: readonly Competition[] = [
 ] as const
 
 /**
- * Competitions offered in the signup form — exactly the registerable Konkurrenzen, i.e. those whose
+ * Competitions offered in the signup form — exactly the registerable competitions, i.e. those whose
  * slug is in the contract (`COMPETITION_SLUGS`). Derived, not a separate flag: the form provably
  * cannot offer a value `registerRequestSchema` would reject, and opening a field for registration is
- * a single edit to the contract. "Planned" Konkurrenzen (e.g. Damen Freizeit) are absent until then.
+ * a single edit to the contract. "Planned" competitions (e.g. Damen Freizeit) are absent until then.
  */
 export const signupCompetitions = competitions.filter(c => (COMPETITION_SLUGS as readonly string[]).includes(c.slug))
 

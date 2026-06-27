@@ -76,7 +76,7 @@ export type RegisterResponse = z.infer<typeof registerResponseSchema>
 // The self-service cancellation contract — the single source of truth for the POST
 // /api/cancel JSON shape, shared by the worker and the abmelden form. camelCase on the
 // wire (the form's name= attributes move to camelCase atomically with this). A cancel
-// matches on email + last name across all Konkurrenzen, so it needs only those two.
+// matches on email + last name across all competitions, so it needs only those two.
 //
 // Messages mirror the previous hand-rolled handler: a missing or malformed email both
 // reported the same message, and email was checked before the last name.
@@ -125,7 +125,7 @@ export const resolveSeedingBasis = ({ playerId, noId = false }: SeedingBasisInpu
 // runs 1.0 (strongest) to 25.0 (weakest), so ordering ascending by this puts the strongest first; a
 // missing or unratable LK therefore seeds as the weakest (25.0), never the strongest. Owns the
 // "string LK → sort number" rule once (CONTEXT: seedingValue) so the participant list and the future
-// Setzung share one encoding — replacing the SQL CAST / in-memory parseFloat pair a comment kept in
+// seeding share one encoding — replacing the SQL CAST / in-memory parseFloat pair a comment kept in
 // sync. (LK stays a string on the row; this is the conversion at the sort boundary, ADR-0021.)
 export const seedingValue = (lk: string | null): number => {
   const n = parseFloat(lk ?? DEFAULT_LK)
@@ -146,7 +146,7 @@ export const canConfirm = (reg: ConfirmableFields): true | string => {
 // The Challenger-LK judgment, owned once in shared/ (ADR-0011) so the registration notifier,
 // the domain, and the admin affordance all read the same rule — no duplicated threshold. The
 // Challenger field is protected upward (only LK >= CHALLENGER_MIN_LK), so a stronger LK hints
-// at the Hauptfeld.
+// at the championship field.
 export const isTooStrongForChallenger = (competition: string, lk: string | null): boolean => {
   if (competition !== 'mens-challenger' || !lk) return false
   const n = parseFloat(lk)

@@ -14,8 +14,8 @@ export default {
   fetch: app.fetch,
 
   // Weekly LK sync from nuLiga (Monday morning, see wrangler.toml [triggers]): refresh seeding
-  // LK across the whole roster via seedingLk.syncAll. Gated to the Anmeldung phase (ADR-0006):
-  // once the draw snapshots LK at Auslosung, seeding is frozen, so outside Anmeldung the sync
+  // LK across the whole roster via seedingLk.syncAll. Gated to the signup phase (ADR-0006):
+  // once the draw snapshots LK at draw time, seeding is frozen, so outside signup the sync
   // is a no-op — no suppression flag, just this one phase read.
   async scheduled(_event: ScheduledController, env: Env, ctx: ExecutionContext): Promise<void> {
     ctx.waitUntil(

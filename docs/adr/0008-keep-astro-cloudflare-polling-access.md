@@ -22,7 +22,7 @@ interactive surfaces, and operator auth.
 1. **Keep the stack.** Astro 7 static site + single Cloudflare Worker + D1. No framework switch, no new
    datastore.
 2. **Live updates via polling, not push.** Public live components re-fetch `/api/…` on a timer
-   (Live-Board ~10–20s; Auslosungs-Show ~1–2s while running). No SSE, no WebSockets, no Durable
+   (live board ~10–20s; draw reveal show ~1–2s while running). No SSE, no WebSockets, no Durable
    Objects — the data is read-heavy, write-rare, and latency-tolerant. The draw TV is driven directly
    from the operator's own device (HDMI/cast), so there is no second device to synchronise; this
    assumption is what makes polling sufficient for the reveal.
@@ -30,7 +30,7 @@ interactive surfaces, and operator auth.
    (no SSR — the admin is fully dynamic and gated, so there is nothing to pre-render; just a static
    shell that hydrates). It replaces the legacy worker-HTML `adminPage()` string. All operator
    functionality lives here as React components sharing one API client and state: registrations CRUD +
-   LK refresh, the scheduling grid (`dnd-kit`), draw trigger & show control, the Auslosungs-Show
+   LK refresh, the scheduling grid (`dnd-kit`), draw trigger & show control, the draw reveal show
    animation (`motion`), results entry, phase toggle + freeze, export, and the post-event purge.
    **React is the single client framework.** The public marketing/list pages stay
    zero-JS-by-default — React is confined to the gated admin area.

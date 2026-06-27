@@ -32,7 +32,7 @@ when" — a milestone narrative for the now-public repo — and nothing more.
 - **Publishing is manual and per-milestone.** The draft accrues `fix`/`feat`
   notes across many merges; we hit publish only when a coherent milestone has
   shipped — mapped to the epics (`v0.1.0` online registration → `v0.2.0`
-  Auslosung → `v0.3.0` Live → `v0.4.0` Post-Event). Per-merge publishing would
+  draw → `v0.3.0` live → `v0.4.0` post-event). Per-merge publishing would
   make the Releases page noise, not narrative.
 - **Semver is a milestone label, not a compatibility signal.** A website has no
   consumers, so `major` carries no external meaning. We let `fix`/`feat` drive

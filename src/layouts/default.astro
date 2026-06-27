@@ -48,8 +48,8 @@ const ogImageUrl = ogImage && Astro.site ? new URL(ogImage, Astro.site).toString
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="color-scheme" content="light" />
     {
-      /* Vereinsinternes Event: aus Suchmaschinen heraushalten, aber per Link teilbar (ADR-0017).
-        noindex (Crawlen erlaubt, damit es gesehen wird) — nicht robots Disallow. */
+      /* Club-internal event: keep out of search engines, but shareable by link (ADR-0017).
+        noindex (crawling allowed so it can be seen) — not a robots Disallow. */
     }
     <meta name="robots" content="noindex, follow" />
     <link rel="canonical" href={canonicalUrl} />

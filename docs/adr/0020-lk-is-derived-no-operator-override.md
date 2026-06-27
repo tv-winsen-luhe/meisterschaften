@@ -22,7 +22,7 @@ follows from one rule:
 
 > **No resolvable nuLiga rating → `defaultLk` (25.0)** — whether the cause is no linked ID, or an ID
 > that nuLiga has no rating for (unrated / not yet rated). Otherwise the LK is the linked player's nuLiga
-> rating, refreshed by the weekly sync during Anmeldung and snapshotted at Auslosung (ADR-0010).
+> rating, refreshed by the weekly sync during signup and snapshotted at the draw (ADR-0010).
 
 How the default is reached differs by case, and this matters for safety:
 

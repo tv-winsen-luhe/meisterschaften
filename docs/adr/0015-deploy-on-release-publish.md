@@ -11,8 +11,8 @@ second half: **deploy now fires when a release is published**, and a push to
 We want control over the **go-live moment**. With continuous deployment, every
 merge to `main` instantly changes the live site — which is wrong for this site
 specifically: it runs a four-phase event (ADR-0006) and a live tournament
-weekend, and half-finished work for a later phase (e.g. the Auslosung) must not
-surface in production during the Anmeldung phase. Publishing a release is the
+weekend, and half-finished work for a later phase (e.g. the draw) must not
+surface in production during the signup phase. Publishing a release is the
 deliberate "ship it now" act; merging to `main` is just "this is reviewed and
 queued." Production reflects the **last published release**, not the tip of
 `main`.

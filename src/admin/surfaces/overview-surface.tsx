@@ -15,9 +15,9 @@ import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/
 import { CLUB_LOGOS, competitionCapacity, competitionLabel } from './registration-detail'
 import { RecentSignups } from './recent-signups'
 
-// The Konkurrenzen in story order (Herren, Herren Challenger, Damen) — COMPETITION_SLUGS already
+// The competitions in story order (Herren, Herren Challenger, Damen) — COMPETITION_SLUGS already
 // carries them in that order. Label and capacity come from the tournament content model (via the
-// shared helpers) so the Übersicht never re-states what tournament.ts already owns.
+// shared helpers) so the overview never re-states what tournament.ts already owns.
 const FIELDS = COMPETITION_SLUGS.map(slug => ({
   slug,
   label: competitionLabel(slug),
@@ -26,17 +26,17 @@ const FIELDS = COMPETITION_SLUGS.map(slug => ({
 
 interface OverviewSurfaceProps {
   registrations: AdminRegistration[]
-  // Jump to Anmeldungen pre-filtered to "Neu" — the one job the signup phase demands.
+  // Jump to registrations pre-filtered to "new" — the one job the signup phase demands.
   onGoToNew: () => void
-  // Jump to Anmeldungen pre-filtered to one Konkurrenz (the clickable cards).
+  // Jump to registrations pre-filtered to one competition (the clickable cards).
   onGoToCompetition: (slug: CompetitionSlug) => void
-  // Open one registration's detail (the clickable "Letzte Anmeldungen" rows).
+  // Open one registration's detail (the clickable "recent registrations" rows).
   onOpenRegistration: (reg: AdminRegistration) => void
 }
 
-// The Übersicht surface (ADR-0019, redesigned in ADR-0023): the at-a-glance dashboard the operator
-// lands on. A thin summary line (with a clickable "Neu" that opens the triage queue) over one card
-// per Konkurrenz — status breakdown, projected Auslosung, club split, fill. Small N (ADR-0021): the
+// The overview surface (ADR-0019, redesigned in ADR-0023): the at-a-glance dashboard the operator
+// lands on. A thin summary line (with a clickable "new" that opens the triage queue) over one card
+// per competition — status breakdown, projected draw, club split, fill. Small N (ADR-0021): the
 // set is three fields, so it favours a glance over scale, and the content sits in a measured,
 // centered column (ADR-0023) rather than sprawling full-bleed. Semantic status colour (amber = neu,
 // green = bestätigt, red = abgemeldet) is the only colour, the carve-out from ADR-0016 (ADR-0019).
@@ -83,8 +83,8 @@ export const OverviewSurface = ({
     confirmed: rows.reduce((s, r) => s + r.confirmed, 0)
   }
 
-  // Projected match load (ADR-0023 follow-up): main draw + Trostrunde per field, summed over the
-  // active players (confirmed + neu — cancelled are out). `fullMatches` is the same at full field
+  // Projected match load (ADR-0023 follow-up): main draw + consolation per field, summed over the
+  // active players (confirmed + new — cancelled are out). `fullMatches` is the same at full field
   // capacity (≈ 54), shown as a reference marker against the weekend court budget.
   const matchesNeeded = rows.reduce((s, r) => s + matchCount(r.new + r.confirmed), 0)
   const fullMatches = rows.reduce((s, r) => s + matchCount(r.capacity ?? 0), 0)

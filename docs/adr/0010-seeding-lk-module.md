@@ -1,4 +1,4 @@
-# ADR-0010: A pure Setzungs-LK module behind a roster port; the freeze lives with the draw
+# ADR-0010: A pure seeding-LK module behind a roster port; the freeze lives with the draw
 
 - Status: accepted
 - Date: 2026-06-25
@@ -8,9 +8,9 @@
 LK handling is spread across `fetchClubRoster`/`fetchAllRosters`/`fetchNuligaMap`/`parseClubRoster`/
 `normalizeName`/`findRosterMatch`/`autoMatchPlayer`/`refreshLk`. The name-matching logic is duplicated
 between `autoMatchPlayer` (per-signup) and `refreshLk` (bulk cron/admin), both reach straight into D1,
-and rosters are re-fetched every time. LK feeds **Setzung** (seeding), and the **Setzungs-Freeze**
+and rosters are re-fetched every time. LK feeds **seeding**, and the **seeding freeze**
 (ADR-0006) must stop the weekly nuLiga sync from shifting an already-drawn bracket — while _before_
-the draw, LKs must keep updating and the provisional Setzliste must reflect them live.
+the draw, LKs must keep updating and the provisional seeding list must reflect them live.
 
 ## Decision
 
@@ -28,13 +28,13 @@ the draw, LKs must keep updating and the provisional Setzliste must reflect them
   (cron/admin). Each sync run fetches each club roster **once** and reuses it across lookups — fixing
   the per-call re-fetch.
 
-**`seedingLk` has no freeze logic.** The Setzungs-Freeze is realized by the draw, not the LK module:
+**`seedingLk` has no freeze logic.** The seeding freeze is realized by the draw, not the LK module:
 
-- **Before Auslosung:** the cron keeps `registrations.lk` current; the provisional Setzliste (seeding
+- **Before the draw:** the cron keeps `registrations.lk` current; the provisional seeding list (seeding
   preview) reflects live LK and updates as it changes.
-- **At Auslosung:** the draw (ADR-0003) reads each player's current LK and snapshots it into its
+- **At the draw:** the draw (ADR-0003) reads each player's current LK and snapshots it into its
   immutable draw/seeding record. That snapshot _is_ the freeze.
-- **After Auslosung:** the cron is pointless, so it is **phase-gated** — the `scheduled` handler runs
+- **After the draw:** the cron is pointless, so it is **phase-gated** — the `scheduled` handler runs
   `syncAll()` only while the phase (ADR-0006) is `signup`. No suppression flag; `registrations.lk`
   is simply never read back into the immutable draw.
 
@@ -46,4 +46,4 @@ the draw, LKs must keep updating and the provisional Setzliste must reflect them
 - `seedingLk` builds on the Store (ADR-0009) for the `setLk` side; it is the injected LK dependency
   for the Registration domain (candidate #4) and the draw's seeding step.
 - Refines ADR-0006: the freeze is "the draw snapshots its seeding inputs," and the cron is gated to
-  the Anmeldung phase — not a cron that "respects a freeze flag."
+  the signup phase — not a cron that "respects a freeze flag."

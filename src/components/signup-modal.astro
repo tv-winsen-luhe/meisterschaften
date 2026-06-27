@@ -207,15 +207,15 @@ const clubLogos = { 'TV Winsen': tvLogo, 'TSV Winsen': tsvLogo } satisfies Recor
     width: min(560px, calc(100vw - 24px));
     max-width: 100%;
     max-height: calc(100dvh - 24px);
-    /* Bei zu hohem Inhalt scrollt das Modal selbst; overscroll-contain verhindert,
-       dass die Scroll-Geste am oberen/unteren Rand auf den Hintergrund durchschlägt. */
+    /* When the content is too tall the modal scrolls itself; overscroll-contain prevents
+       the scroll gesture at the top/bottom edge from bleeding through to the background. */
     overflow-y: auto;
     overscroll-behavior: contain;
   }
   .signup-dialog::backdrop {
     background: rgba(12, 30, 58, 0.85);
   }
-  /* Hintergrund-Scroll sperren, solange das Modal offen ist (showModal() tut das nicht von selbst). */
+  /* Lock background scroll while the modal is open (showModal() does not do this on its own). */
   html.signup-lock {
     overflow: hidden;
   }
@@ -692,8 +692,8 @@ const clubLogos = { 'TV Winsen': tvLogo, 'TSV Winsen': tsvLogo } satisfies Recor
     titleEl?.focus({ preventScroll: true })
   }
 
-  // Hintergrund-Scroll freigeben. Wird in jedem Schließ-Pfad explizit aufgerufen
-  // (Button, Backdrop) und zusätzlich am close-Event (deckt Esc ab).
+  // Release background scroll. Called explicitly in every close path
+  // (button, backdrop) and additionally on the close event (covers Esc).
   const unlockScroll = () => document.documentElement.classList.remove('signup-lock')
 
   const closeDialog = () => {
@@ -703,8 +703,8 @@ const clubLogos = { 'TV Winsen': tvLogo, 'TSV Winsen': tsvLogo } satisfies Recor
   }
 
   if (dialog) {
-    // Nur entsperren, wenn der Dialog wirklich zu ist — verhindert, dass ein
-    // verspätetes close-Event (Schließen → schnelles Wieder-Öffnen) den Lock killt.
+    // Only unlock if the dialog is really closed — prevents a
+    // late close event (close → quick re-open) from killing the lock.
     dialog.addEventListener('close', () => {
       if (!dialog.open) unlockScroll()
     })

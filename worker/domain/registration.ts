@@ -31,7 +31,7 @@ export interface RegisterInput {
 
 // register/revive succeed with the persisted row and which transition fired; the edge
 // schedules the LK match + notification from it. The only failure is the one-active-entry
-// invariant — a second active sign-up for the same person+Konkurrenz.
+// invariant — a second active sign-up for the same person+competition.
 export type RegisterResult =
   | { ok: true; outcome: 'registered' | 'revived'; registration: RegistrationRow }
   | { ok: false; error: 'AlreadyRegistered' }
@@ -79,8 +79,8 @@ export const createRegistrationDomain = (store: RegistrationsStore): Registratio
     async register(input) {
       const person = { email: input.email, lastName: input.lastName, competition: input.competition }
 
-      // One active entry per person+Konkurrenz: a member already signed up (new or
-      // confirmed) cannot accidentally double-enter the same Konkurrenz.
+      // One active entry per person+competition: a member already signed up (new or
+      // confirmed) cannot accidentally double-enter the same competition.
       if (await store.findActiveRegistration(person)) return { ok: false, error: 'AlreadyRegistered' }
 
       // Re-registering after a cancellation revives the old row (keeps its player_id/LK

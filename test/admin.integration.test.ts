@@ -103,7 +103,7 @@ describe('POST /api/admin/confirm', () => {
   it('leaves a linked-but-unrated player LK unresolved — never clobbers (ADR-0020)', async () => {
     // Seed an already-confirmed, linked row carrying a real LK, then re-save it while nuLiga has no
     // matching rating (unrated / outage). The stored LK must survive — a miss writes nothing — so a
-    // re-save to fix the club/Konkurrenz cannot silently reset a correct rating to the default.
+    // re-save to fix the club/competition cannot silently reset a correct rating to the default.
     const row = await seed({ status: 'confirmed', player_id: '12345678', lk: '11.2' })
     vi.stubGlobal('fetch', async () => new Response('<tr><td>no match here</td></tr>', { status: 200 }))
     const res = await req('/api/admin/confirm', {

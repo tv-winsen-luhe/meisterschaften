@@ -4,7 +4,7 @@ import { and, asc, count, eq, gt, inArray, sql } from 'drizzle-orm'
 import { ACTIVE_STATUSES, type DrawPlayer, isActive, seedingValue, type RegistrationStatus } from '../../shared'
 import { registrations, type NewRegistrationRow, type RegistrationRow } from '../db/schema'
 
-// The fields the Setzliste order reads — a structural subset both a RegistrationRow and the D1
+// The fields the seeding list order reads — a structural subset both a RegistrationRow and the D1
 // projection satisfy, so the one comparator below sorts either.
 interface SeedingOrdered {
   competition: string
@@ -12,7 +12,7 @@ interface SeedingOrdered {
   createdAt: string
 }
 
-// The provisional Setzliste order both listConfirmed adapters share: by Konkurrenz, then ascending
+// The provisional seeding list order both listConfirmed adapters share: by competition, then ascending
 // seeding LK (the rule lives in shared/ seedingValue), then registration time. With small N (ADR-0021)
 // listConfirmed sorts in JS rather than SQL, so D1 and the in-memory double run *this* one comparator
 // — no SQL CAST/COALESCE vs parseFloat pair kept equal by hand.
@@ -46,7 +46,7 @@ export interface ConfirmedParticipant {
   lk: string | null
 }
 
-// A person within a single Konkurrenz — the key the registration lifecycle matches on.
+// A person within a single competition — the key the registration lifecycle matches on.
 // email + lastName are compared case-insensitively (the legacy COLLATE NOCASE behaviour).
 export interface PersonInCompetition {
   email: string
@@ -54,7 +54,7 @@ export interface PersonInCompetition {
   competition: string
 }
 
-// A person across all Konkurrenzen — the key a self-service cancellation matches on:
+// A person across all competitions — the key a self-service cancellation matches on:
 // one cancel withdraws every active entry for this email + last name. Compared
 // case-insensitively, like PersonInCompetition.
 export interface Person {
@@ -105,19 +105,19 @@ export interface ReviveFields {
 export interface RegistrationsStore {
   /**
    * Confirmed entries for the public list, ordered as the participant list expects:
-   * by Konkurrenz, then ascending seeding LK (missing LK counts as DEFAULT_LK), then
-   * registration time. The seeding order is load-bearing for the provisional Setzliste.
+   * by competition, then ascending seeding LK (missing LK counts as DEFAULT_LK), then
+   * registration time. The seeding order is load-bearing for the provisional seeding list.
    */
   listConfirmed(): Promise<ConfirmedParticipant[]>
 
   /**
    * Every registration for the admin list, ordered as the legacy admin SELECT did
-   * (status, then Konkurrenz, then registration time). Also the input syncAll walks.
+   * (status, then competition, then registration time). Also the input syncAll walks.
    */
   listAll(): Promise<RegistrationRow[]>
 
   /**
-   * The confirmed entries of one Konkurrenz in seeding order (the same comparator the public list
+   * The confirmed entries of one competition in seeding order (the same comparator the public list
    * uses: ascending seeding LK, then registration time) — the draw's input. Projected to just the
    * id + LK the draw needs: the id the bracket slots reference, the LK it snapshots (ADR-0010).
    * Seeding order stays owned here, beside the comparator, not re-encoded in the draw.
@@ -127,10 +127,10 @@ export interface RegistrationsStore {
   /** A single row by id, or null. */
   findById(id: number): Promise<RegistrationRow | null>
 
-  /** The still-active entry (new/confirmed) for this person+Konkurrenz, or null. */
+  /** The still-active entry (new/confirmed) for this person+competition, or null. */
   findActiveRegistration(person: PersonInCompetition): Promise<RegistrationRow | null>
 
-  /** A previously cancelled entry for this person+Konkurrenz that a re-registration revives, or null. */
+  /** A previously cancelled entry for this person+competition that a re-registration revives, or null. */
   findCancelledRegistration(person: PersonInCompetition): Promise<RegistrationRow | null>
 
   /** Insert a new registration and return the persisted row. */
@@ -156,7 +156,7 @@ export interface RegistrationsStore {
 
   /**
    * Withdraw every still-active (new/confirmed) entry matching this person across all
-   * Konkurrenzen, flipping each to 'cancelled'. Returns the rows that were cancelled
+   * competitions, flipping each to 'cancelled'. Returns the rows that were cancelled
    * (for the cancellation notification); an empty array means nothing matched.
    */
   cancelActiveByPerson(person: Person): Promise<RegistrationRow[]>
@@ -182,7 +182,7 @@ export const createD1RegistrationsStore = (d1: D1Database): RegistrationsStore =
     return rows[0] ?? null
   }
 
-  // The cancel match key: email + lastName case-insensitively, across all Konkurrenzen.
+  // The cancel match key: email + lastName case-insensitively, across all competitions.
   const emailLastNameWhere = (person: Person) =>
     and(
       sql`${registrations.email} = ${person.email} collate nocase`,

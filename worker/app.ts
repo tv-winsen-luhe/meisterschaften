@@ -251,7 +251,7 @@ export const app = new Hono<AppEnv>()
     await createD1AppStateStore(c.env.DB).setPhase(phase)
     return c.json({ ok: true, phase } satisfies SetPhaseResponse)
   })
-  // GET /api/admin/draws — every drawn Konkurrenz (Hauptrunde bracket). The „Konkurrenzen" surface
+  // GET /api/admin/draws — every drawn competition (main bracket). The competitions surface (UI: „Konkurrenzen")
   // combines this with the admin list it already holds to derive each field's lifecycle (ADR-0027).
   .get('/api/admin/draws', async c => {
     const draws = await createD1DrawStore(c.env.DB).listDraws()

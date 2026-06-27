@@ -4,11 +4,15 @@
 
 General principles (apply everywhere, override defaults):
 
-- **Code is always English** — file names, variables, functions, types, comments, commit messages,
-  **and data/wire/DB values** (the `competition` slugs `mens`/`womens`/…, the phase values
-  `signup`/`draw`/`live`/`post-event`). Only user-facing content is German (see Locale). The German
-  domain terms in `CONTEXT.md` (Konkurrenz, Auslosung, Setzung, …) are the ubiquitous language — they
-  name concepts and appear in UI copy, but they are never used as identifiers or stored values.
+- **English everywhere except user-facing copy** — file names, variables, functions, types,
+  **comments**, commit messages, **data/wire/DB values** (the `competition` slugs `mens`/`womens`/…,
+  the phase values `signup`/`tournament`/`post-event`), **and docs prose** are all English. Comments use
+  the English identifier, never the German domain noun (`competition` not Konkurrenz, `draw` not
+  Auslosung, `main`/`consolation` not Hauptrunde/Nebenrunde). German survives in exactly two places:
+  **user-facing content** (UI copy, toast/error strings, `aria-label`s, and the German URL route slugs
+  `/abmelden`, `/datenschutz`, `/impressum`) and **glossary aliases** — in `CONTEXT.md` the German term
+  appears only as a parenthetical `(de: Konkurrenz)` after the English headword, the one bridge from the
+  German the club speaks to the code. _(See ADR-0028.)_
 - **Follow best practices, but always prefer the simple solution** — reach for the smallest change
   that does the job correctly. Don't add abstraction, indirection, or configurability before it's needed.
 
