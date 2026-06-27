@@ -49,3 +49,8 @@ export const consolationMatches = (confirmed: number): number => {
 
 /** Total matches a field runs: main draw + Trostrunde (R1-loser consolation). */
 export const matchCount = (confirmed: number): number => mainDrawMatches(confirmed) + consolationMatches(confirmed)
+
+// TODO (Auslosung): bracket *structure* (seed lines, per-round match counts) currently lives only in
+// the public preview's client JS (tournament-draw.astro: SEED_POS / ROUNDS / capacity/2^(r+1)). When the
+// real Auslosung is built, lift that structure into a `bracketStructure(size)` here so the preview, the
+// Auslosungs-Show, and the Spielplan validator read one source — don't add a second implementation.

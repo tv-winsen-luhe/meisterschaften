@@ -121,6 +121,17 @@ export const resolveSeedingBasis = ({ playerId, noId = false }: SeedingBasisInpu
   return { playerId: playerId.trim() || null, lk: null }
 }
 
+// The number a row is seeded by: its LK parsed, with no resolvable rating ⇒ DEFAULT_LK. The LK scale
+// runs 1.0 (strongest) to 25.0 (weakest), so ordering ascending by this puts the strongest first; a
+// missing or unratable LK therefore seeds as the weakest (25.0), never the strongest. Owns the
+// "string LK → sort number" rule once (CONTEXT: seedingValue) so the participant list and the future
+// Setzung share one encoding — replacing the SQL CAST / in-memory parseFloat pair a comment kept in
+// sync. (LK stays a string on the row; this is the conversion at the sort boundary, ADR-0021.)
+export const seedingValue = (lk: string | null): number => {
+  const n = parseFloat(lk ?? DEFAULT_LK)
+  return Number.isNaN(n) ? Number(DEFAULT_LK) : n
+}
+
 // The authoritative confirmation precondition (ADR-0011, sharpened by ADR-0020), living once in
 // shared/ so the domain enforces it and the admin renders its reason from the same source. A
 // registration is confirmable once it carries a seeding basis: a linked nuLiga player id, or the

@@ -33,6 +33,13 @@ When a concept here drifts or a new one appears, update this file rather than in
   in-memory fake in tests) and returns `{ playerId, lk } | null`. It never touches D1; persistence is
   the Store's job, composed by thin orchestration (`matchOnRegister` at signup, `resolveLkOnConfirm`
   at confirm, `syncAll` on cron/admin). It holds no freeze logic. _(See ADR-0010.)_
+- **seedingValue** — a pure helper (`seedingValue(lk)` in `shared/`) that turns a registration's LK
+  string into the number it is seeded by: the LK parsed, with **no resolvable rating ⇒ `defaultLk`
+  (25.0)** — so a missing or unratable LK seeds as the weakest, never the strongest. Not to be confused
+  with **seedingLk** above: `seedingLk` _looks up_ a player's rating from nuLiga; `seedingValue` _orders_
+  by an LK already on the row. It owns the "string LK → sort number" rule once, so the participant list
+  and the future Setzung share it rather than re-encoding it per surface. (LK stays stored as a string;
+  this is the conversion at the sort boundary — ADR-0021.)
 
 ## Participants & fields
 
@@ -73,9 +80,10 @@ When a concept here drifts or a new one appears, update this file rather than in
   as pure predicates in `shared/`: the domain enforces them, the React admin reuses them for affordance
   (authority in the domain, affordance in the client, definition in one place). _(See ADR-0011.)_
 - **LK (Leistungsklasse)** — a player's nuLiga rating, synced weekly from nuLiga and used only for
-  **Setzung** (seeding). It is **never entered by hand**: a player's LK is whatever nuLiga has for their
-  linked `player_id`, and any player with no resolvable rating — no linked ID, or an ID nuLiga has no
-  rating for (unrated / not yet rated) — defaults to `defaultLk` (25.0).
+  **Setzung** (seeding). The scale runs **1.0 (strongest) to 25.0 (weakest)**, so ordering ascending by
+  LK puts the strongest first. It is **never entered by hand**: a player's LK is whatever nuLiga has for
+  their linked `player_id`, and any player with no resolvable rating — no linked ID, or an ID nuLiga has
+  no rating for (unrated / not yet rated) — defaults to `defaultLk` (25.0), i.e. treated as the weakest.
 - **Seeding basis** — the minimal input that makes a Registration confirmable and seedable. The LK
   itself is **derived, not supplied** (see LK): the only seeding input the operator gives is whether the
   entry is **linked to a nuLiga `player_id`** or **explicitly has none** („keine nuLiga-ID"). From that,
