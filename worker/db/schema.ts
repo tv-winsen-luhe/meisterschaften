@@ -83,6 +83,10 @@ export const draws = sqliteTable(
     seeding: text('seeding').notNull(),
     revealSequence: text('reveal_sequence').notNull(),
     revealCursor: integer('reveal_cursor').notNull().default(0),
+    // The Challenger LK cap frozen at the draw (ADR-0024): the threshold the field was judged against,
+    // snapshotted here as part of the freeze — no standing DB preference. Null for non-Challenger
+    // fields (no cap binds) and for any draw written before this column existed.
+    challengerMinLk: integer('challenger_min_lk'),
     createdAt: text('created_at').notNull()
   },
   table => [uniqueIndex('idx_draws_competition_bracket').on(table.competition, table.bracket)]

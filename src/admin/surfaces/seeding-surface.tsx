@@ -7,6 +7,7 @@ import {
   challengerEligibility,
   COMPETITION_SLUGS,
   drawSize,
+  isChallengerField,
   isSupportedDrawSize,
   seedingValue
 } from '../../../shared'
@@ -53,7 +54,7 @@ export const SeedingSurface = ({ registrations }: SeedingSurfaceProps) => {
       const seedCount = isSupportedDrawSize(size) ? bracketStructure(size).seedCount : 0
       // The Challenger field is judged against the current cap; other fields have none, so the set of
       // too-strong rows stays empty. challengerEligibility takes the field's entries directly.
-      const tooStrong = slug === 'mens-challenger' ? challengerEligibility(confirmed, CHALLENGER_MIN_LK).tooStrong : []
+      const tooStrong = isChallengerField(slug) ? challengerEligibility(confirmed, CHALLENGER_MIN_LK).tooStrong : []
       const tooStrongIds = new Set(tooStrong.map(r => r.id))
       const rows: SeedingRow[] = confirmed.map((reg, i) => ({
         reg,

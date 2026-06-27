@@ -67,7 +67,10 @@ describe('isTooStrongForChallenger', () => {
     ['mens-challenger', '25.0', false],
     ['mens-challenger', null, false],
     ['mens-challenger', 'abc', false],
-    // Other fields are never judged — the cap is the Challenger field's alone.
+    // The whole `-challenger` family is judged (fail-closed): the planned Damen Freizeit field is
+    // cap-gated the moment it goes live, not silently exempt.
+    ['womens-challenger', '15.0', true],
+    // Championship fields are never judged — the cap is the Challenger family's alone.
     ['mens', '5.0', false],
     ['womens', '5.0', false]
   ])('%s LK %s → %s', (competition, lk, expected) => {

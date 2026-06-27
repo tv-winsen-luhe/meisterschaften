@@ -150,13 +150,20 @@ export const canConfirm = (reg: ConfirmableFields): true | string => {
 // "stronger than the cap" rule lives in exactly one place (ADR-0011: definition once).
 const isLkTooStrongForChallenger = (lk: string | null, threshold: number): boolean => seedingValue(lk) < threshold
 
+// Which competitions are protected Challenger fields. Owned once (ADR-0011) so the confirm-time hint,
+// the seeding affordance, and the draw cap guard never drift on "is this a Challenger field?". Matches
+// the `-challenger` family by slug, so a second recreational field (the planned „Damen Freizeit",
+// `womens-challenger`) is cap-gated the moment it becomes registerable — fail-closed for a protected
+// field, rather than silently bypassing the cap until someone remembers to add it here.
+export const isChallengerField = (competition: string): boolean => competition.endsWith('-challenger')
+
 // The Challenger-LK judgment at confirm time, owned once in shared/ (ADR-0011) so the registration
 // notifier, the domain, and the admin affordance all read the same rule — no duplicated threshold.
 // Gated to the Challenger field and the fixed CHALLENGER_MIN_LK: a stronger entry raises the soft
 // confirm-time hint (ADR-0024 — the cap only binds hard at the draw), nudging toward the
 // championship field.
 export const isTooStrongForChallenger = (competition: string, lk: string | null): boolean =>
-  competition === 'mens-challenger' && isLkTooStrongForChallenger(lk, CHALLENGER_MIN_LK)
+  isChallengerField(competition) && isLkTooStrongForChallenger(lk, CHALLENGER_MIN_LK)
 
 // One entry the Challenger eligibility check judges — by LK alone (a structural subset of a
 // registration / a seeding row), kept generic so both consumers pass their own richer rows through.

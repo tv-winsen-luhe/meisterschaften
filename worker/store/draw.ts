@@ -28,6 +28,9 @@ export interface SaveDrawInput {
   seeding: SeedingEntry[]
   revealSequence: RevealStep[]
   matches: MatchSlots[]
+  // The Challenger cap frozen into this draw (ADR-0024), or null when no cap binds (non-Challenger
+  // fields). Snapshotted, not a standing preference.
+  challengerMinLk: number | null
   createdAt: string
 }
 
@@ -119,6 +122,7 @@ export const createD1DrawStore = (d1: D1Database): DrawStore => {
           size: input.size,
           seeding: JSON.stringify(input.seeding),
           revealSequence: JSON.stringify(input.revealSequence),
+          challengerMinLk: input.challengerMinLk,
           createdAt: input.createdAt
         }),
         ...matchInserts
@@ -170,6 +174,7 @@ export const createInMemoryDrawStore = (): DrawStore => {
         seeding: JSON.stringify(input.seeding),
         revealSequence: JSON.stringify(input.revealSequence),
         revealCursor: 0,
+        challengerMinLk: input.challengerMinLk,
         createdAt: input.createdAt
       })
       for (const m of input.matches) {

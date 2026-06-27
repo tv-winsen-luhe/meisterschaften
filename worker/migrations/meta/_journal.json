@@ -50,6 +50,13 @@
       "when": 1782573166975,
       "tag": "0006_workable_power_pack",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "6",
+      "when": 1782589629321,
+      "tag": "0007_orange_susan_delgado",
+      "breakpoints": true
     }
   ]
 }

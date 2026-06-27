@@ -1,0 +1,1 @@
+ALTER TABLE `draws` ADD `challenger_min_lk` integer;
