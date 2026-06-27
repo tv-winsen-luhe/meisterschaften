@@ -309,6 +309,7 @@ const drawCompetitions = competitions
 
 <script>
   import { hc } from 'hono/client'
+  import { bracketStructure } from '../../shared'
   import type { AppType } from '../../worker/app'
   import type { Participant, ParticipantsResponse } from '../../shared'
 
@@ -318,11 +319,19 @@ const drawCompetitions = competitions
 
   const client = hc<AppType>(location.origin)
 
-  // Seed positions per draw size (0-indexed first-round slot): 1 top, 2 bottom, 3 & 4 in the middle.
-  const SEED_POS: Record<number, Record<number, number>> = {
-    16: { 1: 0, 2: 15, 3: 8, 4: 7 },
-    8: { 1: 0, 2: 7 }
+  // Seed line (0-indexed first-round slot) per seed number, derived from the shared bracketStructure
+  // — the single source the real Auslosung also uses (ADR-0025), so the preview's Setzung can't drift
+  // from the draw's. The lot seeds (Nr.3/4) are shown on their prescribed lines in seed order; the
+  // actual lot only runs at the Auslosung.
+  const seedLines = (capacity: number): Record<number, number> => {
+    const lines: Record<number, number> = {}
+    for (const group of bracketStructure(capacity).seedGroups) {
+      group.seeds.forEach((seed, i) => (lines[seed] = group.lines[i]))
+    }
+    return lines
   }
+
+  // Round labels are display copy (not topology), so they stay here; the count comes from the size.
   const ROUNDS: Record<number, string[]> = {
     16: ['Achtelfinale', 'Viertelfinale', 'Halbfinale', 'Finale'],
     8: ['Viertelfinale', 'Halbfinale', 'Finale']
@@ -365,9 +374,9 @@ const drawCompetitions = competitions
 
   const buildBracket = (bracket: HTMLElement, capacity: number, players: Entry[]) => {
     const rounds = ROUNDS[capacity]
-    const seedPos = SEED_POS[capacity]
-    if (!rounds || !seedPos) return
-    const seeds = Math.floor(capacity / 4)
+    if (!rounds) return
+    const seedPos = seedLines(capacity)
+    const seeds = bracketStructure(capacity).seedCount
 
     // Place the strongest LKs (feed is already LK-sorted) at their seed positions.
     const slots: Slot[] = Array.from({ length: capacity }, () => null)

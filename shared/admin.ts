@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { CLUBS, clubSchema } from './club'
 import { competitionSlug } from './competition'
+import { BRACKETS, MATCH_OUTCOMES } from './draw'
 import { REGISTRATION_STATUSES } from './registration'
 
 // The admin (operator) contract — the single source of truth for the /api/admin/* JSON
@@ -89,3 +90,58 @@ export type DeleteResponse = z.infer<typeof deleteResponseSchema>
 
 export const refreshLkResponseSchema = z.object({ ok: z.literal(true), updated: z.number().int().nonnegative() })
 export type RefreshLkResponse = z.infer<typeof refreshLkResponseSchema>
+
+// ── Draw / Konkurrenzen (ADR-0025, ADR-0027) ──────────────────────────────────────────────────
+// The wire contract for the per-Konkurrenz draw the „Konkurrenzen" surface reads and triggers.
+// camelCase, like every other contract here; the snake_case D1 columns are translated once in the
+// Drizzle mapping. Match rows are the materialized bracket (feeders implicit via round/position).
+
+// One match row as the bracket exposes it. Slots are registration ids (the names are joined client
+// -side from the admin list); a round-1 slot is a player, a later-round slot is a not-yet-decided
+// feeder (null). `winnerRegId`/`outcome` stay null until results land (none this epic — full field).
+export const matchSchema = z.object({
+  id: z.number().int().positive(),
+  competition: competitionSlug,
+  bracket: z.enum(BRACKETS),
+  round: z.number().int().positive(),
+  position: z.number().int().nonnegative(),
+  slot1RegId: z.number().int().positive().nullable(),
+  slot2RegId: z.number().int().positive().nullable(),
+  winnerRegId: z.number().int().positive().nullable(),
+  outcome: z.enum(MATCH_OUTCOMES).nullable()
+})
+export type Match = z.infer<typeof matchSchema>
+
+// One frozen seed in the draw record's Setzungs-Snapshot: seed number, the player, the LK it was
+// seeded by (ADR-0010 freeze).
+export const seedingEntrySchema = z.object({
+  seed: z.number().int().positive(),
+  playerId: z.number().int().positive(),
+  lk: z.string().nullable()
+})
+
+// A drawn Konkurrenz as the surface shows it: the field, its draw size, the frozen seeding, and the
+// materialized bracket. (The reveal sequence + cursor live in the draw record but aren't surfaced
+// yet — no animation this epic.)
+export const competitionDrawSchema = z.object({
+  competition: competitionSlug,
+  bracket: z.enum(BRACKETS),
+  size: z.number().int().positive(),
+  seeding: z.array(seedingEntrySchema),
+  matches: z.array(matchSchema)
+})
+export type CompetitionDraw = z.infer<typeof competitionDrawSchema>
+
+// GET /api/admin/draws — every drawn Konkurrenz (Hauptrunde). The surface combines this with the
+// registrations list it already holds to derive each field's "schon gelost?" lifecycle.
+export const drawsResponseSchema = z.object({ draws: z.array(competitionDrawSchema) })
+export type DrawsResponse = z.infer<typeof drawsResponseSchema>
+
+// POST /api/admin/draw — start the draw for one Konkurrenz (the „Jetzt auslosen" button).
+export const drawRequestSchema = z.object({
+  competition: z.enum(competitionSlug.options, { error: 'Ungültige Konkurrenz.' })
+})
+export type DrawRequest = z.infer<typeof drawRequestSchema>
+
+export const drawResponseSchema = z.object({ ok: z.literal(true), draw: competitionDrawSchema })
+export type DrawResponse = z.infer<typeof drawResponseSchema>

@@ -2,13 +2,14 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { hc } from 'hono/client'
 import { toast } from 'sonner'
 import type { AppType } from '../../worker/app'
-import { type AdminRegistration, type CompetitionSlug, type Phase } from '../../shared'
+import { type AdminRegistration, type CompetitionDraw, type CompetitionSlug, type Phase } from '../../shared'
 import { Button } from '@/admin/ui/button'
 import { Separator } from '@/admin/ui/separator'
 import { Toaster } from '@/admin/ui/sonner'
 import { SidebarInset, SidebarProvider, SidebarTrigger } from '@/admin/ui/sidebar'
 import { AppSidebar, type Surface } from './app-sidebar'
 import { PHASE_LABELS, PhaseStepper } from './phase-stepper'
+import { CompetitionsSurface } from './surfaces/competitions-surface'
 import { OverviewSurface } from './surfaces/overview-surface'
 import { type CompetitionFilter, RegistrationsSurface, type StatusFilter } from './surfaces/registrations-surface'
 import { type ConfirmPayload } from './surfaces/registration-detail'
@@ -40,8 +41,12 @@ export const AdminApp = () => {
   const [ready, setReady] = useState(false)
   const [everLoaded, setEverLoaded] = useState(false)
   const [registrations, setRegistrations] = useState<AdminRegistration[]>([])
+  const [draws, setDraws] = useState<CompetitionDraw[]>([])
   const [phase, setPhase] = useState<Phase | null>(null)
   const [surface, setSurface] = useState<Surface>('overview')
+  // The Konkurrenz a draw is currently running for, so its card shows a pending button (and a second
+  // click can't fire). Cleared when the action resolves.
+  const [drawingCompetition, setDrawingCompetition] = useState<CompetitionSlug | null>(null)
   // The registrations filter/search live here, not in the surface, so they survive the operator
   // switching to another surface and back (the surface unmounts; the shell does not).
   const [filter, setFilter] = useState<StatusFilter>('all')
@@ -75,6 +80,14 @@ export const AdminApp = () => {
       setRegistrations(data.registrations)
       setEverLoaded(true)
       setReady(true)
+      // The drawn brackets are a best-effort read alongside the list: a failure must not take down the
+      // admin, so it updates the Konkurrenzen surface only on success (keeps the last known draws).
+      try {
+        const drawsRes = await client.api.admin.draws.$get()
+        if (drawsRes.ok) setDraws((await drawsRes.json()).draws)
+      } catch {
+        // ignore — draws keep their last known value
+      }
       // The phase is a public, best-effort read: a failure must not take down the admin list,
       // so it is fetched separately and updates the stepper only on success (a failed read
       // keeps the last known phase rather than blanking it).
@@ -172,6 +185,21 @@ export const AdminApp = () => {
     [client, mutate]
   )
 
+  // Start the draw for one Konkurrenz (ADR-0025). Goes through mutate, so it shares the
+  // 401-regate/error/toast behaviour and the success reload re-fetches the drawn brackets. The
+  // pending flag drives the card's button state and guards against a double-fire.
+  const drawCompetition = useCallback(
+    async (competition: CompetitionSlug): Promise<boolean> => {
+      setDrawingCompetition(competition)
+      try {
+        return await mutate(() => client.api.admin.draw.$post({ json: { competition } }), 'Konkurrenz ausgelost.')
+      } finally {
+        setDrawingCompetition(null)
+      }
+    },
+    [client, mutate]
+  )
+
   const refreshLk = useCallback(async () => {
     toast('Aktualisiere LK aus nuLiga …')
     await mutate(() => client.api.admin['refresh-lk'].$post(), 'LK aktualisiert.')
@@ -259,6 +287,14 @@ export const AdminApp = () => {
             onGoToNew={goToNew}
             onGoToCompetition={goToCompetition}
             onOpenRegistration={goToRegistration}
+          />
+        ) : surface === 'competitions' ? (
+          <CompetitionsSurface
+            registrations={registrations}
+            draws={draws}
+            phase={phase}
+            onDraw={drawCompetition}
+            drawingCompetition={drawingCompetition}
           />
         ) : (
           <RegistrationsSurface

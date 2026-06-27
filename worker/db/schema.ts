@@ -1,4 +1,4 @@
-import { sqliteTable, integer, text, index } from 'drizzle-orm/sqlite-core'
+import { sqliteTable, integer, text, index, uniqueIndex } from 'drizzle-orm/sqlite-core'
 import type { RegistrationStatus } from '../../shared'
 
 // Mirrors the `registrations` table. camelCase in TS, snake_case in D1 — the only naming
@@ -43,3 +43,50 @@ export const appState = sqliteTable('app_state', {
 })
 
 export type AppStateRow = typeof appState.$inferSelect
+
+// The materialized bracket (ADR-0025): the draw writes real `matches` rows, there is no separate
+// bracket blob. A `bracket` discriminator (`hauptrunde`/`nebenrunde`) lets both brackets of a
+// Konkurrenz share one table. Feeders are implicit — a match at (round, position) is fed by
+// (round−1, 2·position) and (round−1, 2·position+1), so there are no feeder columns. An empty
+// round-1 slot would be a Freilos; an empty later-round slot is a not-yet-decided feeder — the round
+// disambiguates. This epic introduces the table minimally; Spielplan/Ergebnisse add columns later.
+export const matches = sqliteTable(
+  'matches',
+  {
+    id: integer('id').primaryKey({ autoIncrement: true }),
+    competition: text('competition').notNull(),
+    bracket: text('bracket').notNull(),
+    round: integer('round').notNull(),
+    position: integer('position').notNull(),
+    slot1RegId: integer('slot1_reg_id'),
+    slot2RegId: integer('slot2_reg_id'),
+    winnerRegId: integer('winner_reg_id'),
+    outcome: text('outcome')
+  },
+  table => [index('idx_matches_competition').on(table.competition)]
+)
+
+export type MatchRow = typeof matches.$inferSelect
+export type NewMatchRow = typeof matches.$inferInsert
+
+// The draw record (ADR-0003, ADR-0025): the draw-specific data the `matches` aggregate does not need
+// — the frozen seeding snapshot, the ordered reveal sequence for playback, and the reveal cursor —
+// kept per Konkurrenz+bracket. Its existence *is* the "schon gelost?" lifecycle flag (ADR-0027), so
+// (competition, bracket) is unique. `seeding`/`revealSequence` are JSON text (small N, ADR-0021).
+export const draws = sqliteTable(
+  'draws',
+  {
+    id: integer('id').primaryKey({ autoIncrement: true }),
+    competition: text('competition').notNull(),
+    bracket: text('bracket').notNull(),
+    size: integer('size').notNull(),
+    seeding: text('seeding').notNull(),
+    revealSequence: text('reveal_sequence').notNull(),
+    revealCursor: integer('reveal_cursor').notNull().default(0),
+    createdAt: text('created_at').notNull()
+  },
+  table => [uniqueIndex('idx_draws_competition_bracket').on(table.competition, table.bracket)]
+)
+
+export type DrawRow = typeof draws.$inferSelect
+export type NewDrawRow = typeof draws.$inferInsert
