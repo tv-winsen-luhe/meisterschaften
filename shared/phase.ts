@@ -1,16 +1,22 @@
 import { z } from 'zod'
 
-// The operator-controlled phase contract (ADR-0006) — the single source of truth for the
-// phase value and the /api/phase + /api/admin/phase JSON shapes, shared by the worker
+// The operator-controlled phase contract (ADR-0006, ADR-0027) — the single source of truth for
+// the phase value and the /api/phase + /api/admin/phase JSON shapes, shared by the worker
 // (server validation + cron gate) and the client (public surfaces + React admin via `hc`).
 // camelCase on the wire, like every other contract here.
+//
+// Three values, two genuine operator transitions (ADR-0027): `signup` → `tournament` closes
+// registration and freezes the seeding (the precondition for any draw), and `tournament` →
+// `post-event` ends the event and unlocks the purge. The former `draw`/`live` distinction is
+// gone as an operator-set value — within `tournament` the public presentation is derived from
+// the per-Konkurrenz draw state, not flipped by hand.
 //
 // The phase is the one value every public surface keys off and the only thing the weekly
 // nuLiga cron is gated on (it runs only during `signup`). It defaults to `signup`,
 // the phase the event is in today. Values are English identifiers; the German names
-// Anmeldung/Auslosung are display copy (see the admin's PHASE_LABELS).
+// Anmeldung/Turnier are display copy (see the admin's PHASE_LABELS).
 
-export const PHASES = ['signup', 'draw', 'live', 'post-event'] as const
+export const PHASES = ['signup', 'tournament', 'post-event'] as const
 export const phaseSchema = z.enum(PHASES)
 export type Phase = z.infer<typeof phaseSchema>
 

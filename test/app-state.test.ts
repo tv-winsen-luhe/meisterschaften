@@ -7,13 +7,13 @@ describe('in-memory app-state store', () => {
   })
 
   it('honours a seeded initial phase', async () => {
-    expect(await createInMemoryAppStateStore('live').getPhase()).toBe('live')
+    expect(await createInMemoryAppStateStore('tournament').getPhase()).toBe('tournament')
   })
 
   it('returns the last phase set', async () => {
     const store = createInMemoryAppStateStore()
-    await store.setPhase('draw')
-    expect(await store.getPhase()).toBe('draw')
+    await store.setPhase('tournament')
+    expect(await store.getPhase()).toBe('tournament')
     await store.setPhase('post-event')
     expect(await store.getPhase()).toBe('post-event')
   })
