@@ -9,6 +9,7 @@ import {
   type MatchOutcome,
   type MatchSlots,
   type RevealStep,
+  revealStepSchema,
   type SeedingEntry,
   seedingEntrySchema
 } from '../../shared'
@@ -33,6 +34,22 @@ export interface SaveDrawInput {
   // fields). Snapshotted, not a standing preference.
   challengerMinLk: number | null
   createdAt: string
+  // Break-glass re-run of an unrevealed draw (cursor 0, ADR-0026): replace the competition's existing
+  // draw + matches in the *same* transaction as the new write, so a failed save can never leave the
+  // field draw-less. Default (false) is the first-ever draw, which must not collide with an existing one.
+  replace?: boolean
+}
+
+// One competition+bracket's reveal state (ADR-0003): the draw size (the bracket shape), the parsed
+// reveal sequence (playback artifact), and the cursor — how many steps the draw reveal show has shown.
+// The reveal sequence is parsed through its Zod schema at the Store seam (like `seeding`), so a
+// malformed `reveal_sequence` column fails loudly here, not as a wrong-looking reveal downstream.
+export interface RevealState {
+  competition: string
+  bracket: Bracket
+  size: number
+  cursor: number
+  steps: RevealStep[]
 }
 
 export interface DrawStore {
@@ -42,12 +59,30 @@ export interface DrawStore {
   /**
    * Persist a draw atomically: the draw record (seeding + reveal sequence) and its `matches` rows in
    * one transaction, so a competition is never half-drawn. The (competition, bracket) unique index
-   * makes a concurrent double-draw fail rather than write a second bracket.
+   * makes a concurrent double-draw fail rather than write a second bracket. With `replace: true` the
+   * competition's existing draw + matches are torn down in the *same* transaction first, so a re-run of
+   * an unrevealed draw (ADR-0026) swaps atomically — a save failure cannot leave the field draw-less.
    */
   save(input: SaveDrawInput): Promise<void>
 
   /** The assembled draw (seeding + materialized bracket) for one competition+bracket, or null. */
   getDraw(competition: string, bracket: Bracket): Promise<CompetitionDraw | null>
+
+  /**
+   * The reveal state (size + parsed reveal sequence + cursor) for one competition+bracket, or null —
+   * what the advance reads to clamp the next cursor (ADR-0003). The reveal sequence is parsed at the
+   * seam, so a malformed column throws here rather than feeding a wrong-looking reveal.
+   */
+  getReveal(competition: string, bracket: Bracket): Promise<RevealState | null>
+
+  /** Every drawn competition's reveal state — the public live bracket's source. */
+  listReveals(): Promise<RevealState[]>
+
+  /**
+   * Set the reveal cursor for one competition+bracket (ADR-0003): pure playback, the caller clamps it
+   * to [0, total]. Never touches the bracket or the reveal sequence — advancing reveals, never re-draws.
+   */
+  setCursor(competition: string, bracket: Bracket, cursor: number): Promise<void>
 
   /** Every drawn competition the surface lists — assembled the same way as getDraw. */
   listDraws(): Promise<CompetitionDraw[]>
@@ -101,6 +136,20 @@ const toCompetitionDraw = (draw: DrawRow, matchRows: MatchRow[]): CompetitionDra
   matches: matchRows.map(toMatch)
 })
 
+// Built once (mapped over every row of listReveals), like seedingArraySchema.
+const revealSequenceArraySchema = revealStepSchema.array()
+
+// Project a draw row to its reveal state — the reveal sequence parsed at the seam (a malformed
+// `reveal_sequence` throws here, the one cast the JSON column would otherwise hide), the cursor and
+// size carried straight through.
+const toRevealState = (draw: DrawRow): RevealState => ({
+  competition: draw.competition,
+  bracket: draw.bracket as Bracket,
+  size: draw.size,
+  cursor: draw.revealCursor,
+  steps: revealSequenceArraySchema.parse(JSON.parse(draw.revealSequence))
+})
+
 export const createD1DrawStore = (d1: D1Database): DrawStore => {
   const db = drizzle(d1)
 
@@ -141,24 +190,52 @@ export const createD1DrawStore = (d1: D1Database): DrawStore => {
       const matchInserts = Array.from({ length: Math.ceil(matchValues.length / CHUNK) }, (_, k) =>
         db.insert(matches).values(matchValues.slice(k * CHUNK, k * CHUNK + CHUNK))
       )
-      await db.batch([
-        db.insert(draws).values({
-          competition: input.competition,
-          bracket: input.bracket,
-          size: input.size,
-          seeding: JSON.stringify(input.seeding),
-          revealSequence: JSON.stringify(input.revealSequence),
-          challengerMinLk: input.challengerMinLk,
-          createdAt: input.createdAt
-        }),
-        ...matchInserts
-      ])
+      const drawInsert = db.insert(draws).values({
+        competition: input.competition,
+        bracket: input.bracket,
+        size: input.size,
+        seeding: JSON.stringify(input.seeding),
+        revealSequence: JSON.stringify(input.revealSequence),
+        challengerMinLk: input.challengerMinLk,
+        createdAt: input.createdAt
+      })
+      // A break-glass re-run tears down the old draw + matches in the *same* batch as the new write, so
+      // the swap is atomic (ADR-0026) and frees the unique index before the insert — a save failure can
+      // never leave the field draw-less. Deletes span every bracket, mirroring deleteByCompetition; at
+      // cursor 0 only `main` exists, so nothing else is touched. The fresh-draw path (no replace) keeps
+      // the unique index as the concurrent-double-draw guard.
+      if (input.replace) {
+        await db.batch([
+          db.delete(matches).where(eq(matches.competition, input.competition)),
+          db.delete(draws).where(eq(draws.competition, input.competition)),
+          drawInsert,
+          ...matchInserts
+        ])
+      } else {
+        await db.batch([drawInsert, ...matchInserts])
+      }
     },
 
     async getDraw(competition, bracket) {
       const draw = await this.findDraw(competition, bracket)
       if (!draw) return null
       return toCompetitionDraw(draw, await matchRowsFor(competition, bracket))
+    },
+
+    async getReveal(competition, bracket) {
+      const draw = await this.findDraw(competition, bracket)
+      return draw ? toRevealState(draw) : null
+    },
+
+    async listReveals() {
+      return (await db.select().from(draws)).map(toRevealState)
+    },
+
+    async setCursor(competition, bracket, cursor) {
+      await db
+        .update(draws)
+        .set({ revealCursor: cursor })
+        .where(and(eq(draws.competition, competition), eq(draws.bracket, bracket)))
     },
 
     async listDraws() {
@@ -205,7 +282,12 @@ export const createInMemoryDrawStore = (): DrawStore => {
     },
 
     async save(input) {
-      if (await store.findDraw(input.competition, input.bracket)) {
+      // A break-glass re-run (replace) drops the competition's existing draw + matches first, mirroring
+      // the D1 batch's in-transaction delete; a fresh draw still refuses to overwrite (the unique-index
+      // guard the D1 adapter enforces).
+      if (input.replace) {
+        await store.deleteByCompetition(input.competition)
+      } else if (await store.findDraw(input.competition, input.bracket)) {
         throw new Error(`draw already exists for ${input.competition}/${input.bracket}`)
       }
       drawRows.push({
@@ -242,6 +324,20 @@ export const createInMemoryDrawStore = (): DrawStore => {
         draw,
         matchRows.filter(m => m.competition === competition && m.bracket === bracket)
       )
+    },
+
+    async getReveal(competition, bracket) {
+      const draw = await store.findDraw(competition, bracket)
+      return draw ? toRevealState(draw) : null
+    },
+
+    async listReveals() {
+      return drawRows.map(toRevealState)
+    },
+
+    async setCursor(competition, bracket, cursor) {
+      const draw = drawRows.find(d => d.competition === competition && d.bracket === bracket)
+      if (draw) draw.revealCursor = cursor
     },
 
     async listDraws() {

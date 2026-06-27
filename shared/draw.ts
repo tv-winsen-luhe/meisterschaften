@@ -221,13 +221,20 @@ export type SeedingEntry = z.infer<typeof seedingEntrySchema>
 // placed by its own seed step); a remaining bye spread by lot onto a section has no player yet (its
 // neighbour is drawn in §32.4c), so `playerId` and `seed` are both null. Applying the sequence sets
 // `slots[position] = kind === 'bye' ? null : playerId`.
-export type RevealKind = 'seed-fixed' | 'seed-lot' | 'bye' | 'draw'
-export interface RevealStep {
-  kind: RevealKind
-  position: number
-  playerId: number | null
-  seed: number | null
-}
+//
+// A Zod schema, not a bare interface, for the same reason as seedingEntrySchema: the reveal sequence
+// crosses the `draws.reveal_sequence` JSON text column, so the Store parses it on read (the draw reveal
+// show now consumes it) — a malformed or stale row fails loudly at the seam, not as a wrong-looking
+// reveal on the beamer. The type is inferred, so schema and type can never drift.
+export const REVEAL_KINDS = ['seed-fixed', 'seed-lot', 'bye', 'draw'] as const
+export type RevealKind = (typeof REVEAL_KINDS)[number]
+export const revealStepSchema = z.object({
+  kind: z.enum(REVEAL_KINDS),
+  position: z.number().int().nonnegative(),
+  playerId: z.number().int().positive().nullable(),
+  seed: z.number().int().positive().nullable()
+})
+export type RevealStep = z.infer<typeof revealStepSchema>
 
 export interface DrawResult {
   // Seeds in seed order (Nr.1 first), each carrying its frozen LK.

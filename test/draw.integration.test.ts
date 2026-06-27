@@ -72,18 +72,44 @@ describe('createDrawService.draw', () => {
     expect(result).toMatchObject({ ok: false, error: 'not-tournament' })
   })
 
-  it('refuses a re-draw once the competition is drawn (ADR-0026)', async () => {
+  it('replaces an unrevealed draw on re-run (cursor 0), refuses once revealed (ADR-0026)', async () => {
     const drawStore = createInMemoryDrawStore()
     const svc = createDrawService({
       registrationsStore: createInMemoryRegistrationsStore(field(8)),
       drawStore,
       randomSource: createFakeRandomSource([0, 0, 0, 0, 0, 0, 0, 0, 0, 0])
     })
+    // While unrevealed (cursor 0, nothing public) a re-run is the only legitimate "repeat": it discards
+    // and re-draws. Both attempts succeed; the second replaces the first, leaving a single draw record.
     expect((await svc.draw({ competition: 'mens', phase: 'tournament', now: 'now' })).ok).toBe(true)
+    expect((await svc.draw({ competition: 'mens', phase: 'tournament', now: 'now' })).ok).toBe(true)
+    expect(await drawStore.listDraws()).toHaveLength(1)
+
+    // Reveal the first lot — now the draw is frozen and a further re-run is refused (no re-roll).
+    expect(await svc.advance('mens', 'forward')).toMatchObject({ ok: true, cursor: 1 })
     expect(await svc.draw({ competition: 'mens', phase: 'tournament', now: 'now' })).toMatchObject({
       ok: false,
       error: 'AlreadyDrawn'
     })
+  })
+
+  it('does not wipe a standing unrevealed draw when a re-run fails its preconditions', async () => {
+    // The break-glass replace deletes the old draw only after the new one is known valid: a re-run that
+    // fails (here: too few entries on the second attempt) must leave the existing draw untouched.
+    const drawStore = createInMemoryDrawStore()
+    const registrationsStore = createInMemoryRegistrationsStore(field(8))
+    const svc = createDrawService({
+      registrationsStore,
+      drawStore,
+      randomSource: createFakeRandomSource([0, 0, 0, 0, 0])
+    })
+    expect((await svc.draw({ competition: 'mens', phase: 'tournament', now: 'now' })).ok).toBe(true)
+    // A re-run in the wrong phase fails its gate before any teardown — the original draw still stands.
+    expect(await svc.draw({ competition: 'mens', phase: 'signup', now: 'now' })).toMatchObject({
+      ok: false,
+      error: 'not-tournament'
+    })
+    expect(await drawStore.findDraw('mens', 'main')).not.toBeNull()
   })
 
   it('draws a non-full field, filling it with byes and auto-resolving them (§31)', async () => {
@@ -234,6 +260,15 @@ const setPhase = (phase: string) =>
 const draw = (competition: string) =>
   req('/api/admin/draw', { method: 'POST', headers: JSON_HEADERS, body: JSON.stringify({ competition }) })
 
+// Reveal one lot — the re-run guard test needs the cursor off 0 to prove a started reveal freezes the
+// draw. The advance endpoint itself is exercised in draw-reveal.test.ts.
+const advance = (competition: string, direction: 'forward' | 'back') =>
+  req('/api/admin/draw/advance', {
+    method: 'POST',
+    headers: JSON_HEADERS,
+    body: JSON.stringify({ competition, direction })
+  })
+
 describe('POST /api/admin/draw + GET /api/admin/draws', () => {
   beforeAll(async () => {
     await applyD1Migrations(env.DB, env.TEST_MIGRATIONS)
@@ -271,12 +306,18 @@ describe('POST /api/admin/draw + GET /api/admin/draws', () => {
     expect(listed.draws).toEqual([expect.objectContaining({ competition: 'mens', size: 8 })])
   })
 
-  it('returns 409 on a re-draw of an already-drawn competition', async () => {
+  it('replaces an unrevealed draw on re-run, but returns 409 once the reveal has started', async () => {
     for (let i = 1; i <= 8; i++) await seedConfirmed(i)
     await setPhase('tournament')
     expect((await draw('mens')).status).toBe(200)
-    const second = await draw('mens')
-    expect(second.status).toBe(409)
+    // Cursor still 0 (unrevealed): the re-run replaces, not a conflict (ADR-0026).
+    expect((await draw('mens')).status).toBe(200)
+    const count = await env.DB.prepare('SELECT COUNT(*) AS c FROM draws').first<{ c: number }>()
+    expect(count?.c).toBe(1)
+
+    // Reveal the first lot, then a re-run is frozen out with 409.
+    expect((await advance('mens', 'forward')).status).toBe(200)
+    expect((await draw('mens')).status).toBe(409)
   })
 
   it('draws a non-full field, persisting the byes as resolved matches', async () => {
