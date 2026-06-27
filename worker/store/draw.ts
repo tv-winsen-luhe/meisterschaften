@@ -17,7 +17,8 @@ import { draws, matches, type DrawRow, type MatchRow, type NewMatchRow } from '.
 // tables the draw writes — the `draws` record (seeding snapshot + reveal sequence + cursor) and
 // the materialized `matches` — and the rule that they are written together, atomically. Two adapters
 // back it (D1/Drizzle in prod, in-memory in tests), like the registrations Store. It grows one
-// operation per slice; this epic writes the main bracket of a full field.
+// operation per slice; this epic writes the main bracket, full or non-full (§31 byes persisted as
+// resolved rows: winner set, outcome 'bye').
 
 // Everything one draw persists, handed over in one call so the Store can write it atomically.
 export interface SaveDrawInput {
@@ -97,11 +98,20 @@ export const createD1DrawStore = (d1: D1Database): DrawStore => {
         round: m.round,
         position: m.position,
         slot1RegId: m.slot1RegId,
-        slot2RegId: m.slot2RegId
+        slot2RegId: m.slot2RegId,
+        // A round-1 bye is already resolved at draw time (winner advances, no score, §32.4).
+        winnerRegId: m.winnerRegId,
+        outcome: m.outcome
       }))
-      // One D1 batch = one transaction: the draw record and the match rows land together or not at
-      // all. The unique (competition, bracket) index turns a racing second draw into a failed insert.
-      // The matches go in as a single multi-row insert (two statements total, not one per row).
+      // D1 caps bound parameters at 100 per query. A match row binds 8 columns, so a 16-draw's 15 rows
+      // (= 120 params) overflow a single multi-row insert — split them into chunks of ≤ 10 rows (≤ 80
+      // params). All inserts ride one D1 batch = one transaction, so the draw record and every match
+      // row land together or not at all; the unique (competition, bracket) index turns a racing second
+      // draw into a failed insert.
+      const CHUNK = 10
+      const matchInserts = Array.from({ length: Math.ceil(matchValues.length / CHUNK) }, (_, k) =>
+        db.insert(matches).values(matchValues.slice(k * CHUNK, k * CHUNK + CHUNK))
+      )
       await db.batch([
         db.insert(draws).values({
           competition: input.competition,
@@ -111,7 +121,7 @@ export const createD1DrawStore = (d1: D1Database): DrawStore => {
           revealSequence: JSON.stringify(input.revealSequence),
           createdAt: input.createdAt
         }),
-        db.insert(matches).values(matchValues)
+        ...matchInserts
       ])
     },
 
@@ -171,8 +181,9 @@ export const createInMemoryDrawStore = (): DrawStore => {
           position: m.position,
           slot1RegId: m.slot1RegId,
           slot2RegId: m.slot2RegId,
-          winnerRegId: null,
-          outcome: null
+          // A round-1 bye is already resolved at draw time (winner advances, no score, §32.4).
+          winnerRegId: m.winnerRegId,
+          outcome: m.outcome
         })
       }
     },

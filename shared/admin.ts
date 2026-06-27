@@ -97,8 +97,9 @@ export type RefreshLkResponse = z.infer<typeof refreshLkResponseSchema>
 // Drizzle mapping. Match rows are the materialized bracket (feeders implicit via round/position).
 
 // One match row as the bracket exposes it. Slots are registration ids (the names are joined client
-// -side from the admin list); a round-1 slot is a player, a later-round slot is a not-yet-decided
-// feeder (null). `winnerRegId`/`outcome` stay null until results land (none this epic — full field).
+// -side from the admin list); a round-1 slot is a player (or null for a bye), a later-round slot is a
+// not-yet-decided feeder (null). `winnerRegId`/`outcome` are set for a round-1 bye (winner advanced,
+// outcome 'bye', §31) and otherwise stay null until results land.
 export const matchSchema = z.object({
   id: z.number().int().positive(),
   competition: competitionSlug,
