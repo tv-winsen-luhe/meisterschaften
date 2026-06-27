@@ -24,7 +24,8 @@ When a concept here drifts or a new one appears, update this file rather than in
      ADR-0007.)_
 - **Setzungs-Freeze** — before the draw, LKs keep updating and the **provisorische Setzliste**
   (seeding preview) reflects them live. At Auslosung the draw snapshots each player's current LK into
-  its immutable draw record (ADR-0003) — that snapshot _is_ the frozen seeding. The weekly nuLiga cron
+  its immutable draw record (ADR-0003) — that snapshot _is_ the frozen seeding, and the LK that
+  decides Challenger eligibility (ADR-0024). The weekly nuLiga cron
   is phase-gated to run only during Anmeldung, so it is a no-op afterward (no suppression flag).
   Advancing into Post-Event likewise freezes brackets and the Spielplan (read-only). _(See ADR-0010.)_
 - **seedingLk** — a pure module that answers "what is this player's current nuLiga LK?" — `lookup(player)`
@@ -42,7 +43,12 @@ When a concept here drifts or a new one appears, update this file rather than in
 - **Hauptfeld** — an open championship field where the Winsener Meister/Meisterin title is decided
   (Damen, Herren).
 - **Challenger / Freizeit** — a protected field for recreational/returning players, capped by LK
-  (e.g. Herren Challenger is LK 20 and weaker, or no LK = counts as LK 25).
+  (e.g. Herren Challenger is LK 20 and weaker, or no LK = counts as LK 25). The cap **binds at the
+  Auslosung**, on the frozen LK — that is the only LK that counts (Setzungs-Freeze). During Anmeldung
+  the LK is still provisional, so confirming a too-strong entry raises a **hint, not a block**; the
+  operator may confirm it. If the field's composition shifts before the draw, the lever is the global
+  **`CHALLENGER_MIN_LK`** threshold, adjusted for the whole field — never a per-player override. _(See
+  ADR-0024.)_
 - **Anmeldung / Registration** (D1 table `registrations`) — one member's entry into one Konkurrenz.
   Status flow: `new` → `confirmed` → `cancelled`. **`cancelled`** is the single "no longer participating,
   keep the record" state, reached either by the member's self-service withdrawal (`/api/cancel`, by person)
