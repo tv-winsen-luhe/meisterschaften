@@ -1,16 +1,6 @@
 import { useState } from 'react'
 import { StickyNote, TriangleAlert } from 'lucide-react'
-import {
-  canConfirm,
-  COMPETITION_SLUGS,
-  CLUBS,
-  DEFAULT_LK,
-  isTooStrongForChallenger,
-  resolveSeedingBasis,
-  type AdminRegistration,
-  type Club,
-  type CompetitionSlug
-} from '../../../shared'
+import { COMPETITION_SLUGS, CLUBS, type AdminRegistration, type Club, type CompetitionSlug } from '../../../shared'
 import { competitions } from '@/data/tournament'
 import { cn } from '@/admin/lib/utils'
 import { formatDate, formatRelative } from '@/admin/lib/format'
@@ -31,6 +21,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle
 } from '@/admin/ui/alert-dialog'
+import { confirmPreview } from './confirm-preview'
 import { ContactActions } from './contact-actions'
 import { DetailActions } from './detail-actions'
 
@@ -82,8 +73,9 @@ interface RegistrationDetailProps {
 // nuLiga id + the „keine ID" switch; the LK is shown as a badge with its provenance (nuLiga vs
 // Standard), not a fake input. The Verein is a two-option logo toggle, not a dropdown (small N).
 // The edit state seeds from the row; the panel is remounted (keyed on the row's mutable fields by
-// the surface) after a save, so it always reflects the persisted state. The shared predicates
-// (canConfirm, resolveSeedingBasis, isTooStrongForChallenger — ADR-0011) drive the affordances.
+// the surface) after a save, so it always reflects the persisted state. confirmPreview (composing
+// the shared seeding rules — ADR-0011) derives every affordance: the LK badge, confirmability, the
+// Challenger judgment.
 export const RegistrationDetail = ({ reg, onConfirm, onCancel, onDelete }: RegistrationDetailProps) => {
   const isConfirmed = reg.status === 'confirmed'
   const isCancelled = reg.status === 'cancelled'
@@ -97,41 +89,26 @@ export const RegistrationDetail = ({ reg, onConfirm, onCancel, onDelete }: Regis
   // Drives the "stark fürs Challenger-Feld" second confirmation (ADR-0011).
   const [challengerOpen, setChallengerOpen] = useState(false)
 
-  // The seeding basis a confirm would persist — what canConfirm reads. Resolved once in shared/
-  // (incl. the no-ID ⇒ default rule), so the panel shows exactly what a confirm would write.
-  const idDigits = playerId.trim()
-  const basis = resolveSeedingBasis({ playerId, noId })
-  const confirmCheck = canConfirm(basis)
-  const blockedReason = confirmCheck === true ? null : confirmCheck
+  // The whole confirm prediction — the LK badge (a 3-state union), confirmability, the Challenger
+  // judgment, and the payload id — derived once in confirm-preview.ts (which composes the shared
+  // seeding rules), so the panel renders exactly what a confirm would result in. ADR-0011, ADR-0020.
+  const preview = confirmPreview(reg, { playerId, noId, competition })
+  const blockedReason = preview.confirmable === true ? null : preview.confirmable
   const blocked = blockedReason !== null
-
-  // The LK is derived (ADR-0020), shown read-only as what a save would result in, split into its
-  // value and its provenance (two badges). `lkPending` is the transient state where a fresh 8-digit
-  // id has been entered but nuLiga has not been queried for its rating yet.
-  const idMatches = idDigits === reg.playerId && !!reg.lk
-  const lkPending = !noId && idDigits.length === 8 && !idMatches
-  const lkValue = noId ? DEFAULT_LK : lkPending ? null : idMatches ? reg.lk : (reg.lk ?? null)
-  // The provenance is only worth a badge when it adds information: a nuLiga-sourced rating gets the
-  // „nuLiga" tag, a Standard default (no id) gets none — the bare value already says „default".
-  const lkFromNuliga = !noId && !lkPending && !!lkValue && !!reg.playerId
-
-  // The LK the Challenger guard can judge: the no-id default, or a linked row's already-known
-  // rating. A freshly entered id has no known LK yet (the edge fetches it), so the guard defers.
-  const effectiveLk = noId ? DEFAULT_LK : idDigits === reg.playerId ? reg.lk : null
-  const tooStrong = isTooStrongForChallenger(competition, effectiveLk)
+  const { lk, challenger } = preview
 
   const toggleNoId = (checked: boolean) => {
     setNoId(checked)
     if (checked) setPlayerId('')
   }
 
-  const doConfirm = () => onConfirm(reg.id, { competition, club, playerId: basis.playerId ?? '', noId })
+  const doConfirm = () => onConfirm(reg.id, { competition, club, playerId: preview.playerId, noId })
 
   const submit = () => {
     if (isCancelled || blocked) return
     // The Challenger field is protected upward (from LK 20). A stronger LK is confirmed explicitly
     // (or moved to the Hauptfeld) via the AlertDialog below.
-    if (tooStrong) {
+    if (challenger.tooStrong) {
       setChallengerOpen(true)
       return
     }
@@ -167,12 +144,12 @@ export const RegistrationDetail = ({ reg, onConfirm, onCancel, onDelete }: Regis
               {/* LK is a derived, read-only fact (ADR-0020) — shown among the identity facts as two
                   badges: the value, and its provenance (nuLiga / Standard). Reflects the Spieler-ID
                   below live; while a fresh id is unresolved it reads as pending. */}
-              {lkPending ? (
+              {lk.state === 'pending' ? (
                 <Badge variant="secondary">LK wird geholt …</Badge>
               ) : (
                 <>
-                  <Badge variant="default">LK {lkValue ?? '—'}</Badge>
-                  {lkFromNuliga && (
+                  <Badge variant="default">LK {lk.state === 'known' ? lk.lk : '—'}</Badge>
+                  {lk.state === 'known' && lk.source === 'nuliga' && (
                     <Badge variant="outline" className="font-normal">
                       nuLiga
                     </Badge>
@@ -269,7 +246,7 @@ export const RegistrationDetail = ({ reg, onConfirm, onCancel, onDelete }: Regis
               <AlertDescription className="text-amber-900/90">{blockedReason}</AlertDescription>
             </Alert>
           )}
-          {tooStrong && (
+          {challenger.tooStrong && (
             <Alert className="border-amber-300 bg-amber-50 text-amber-900 [&>svg]:text-amber-600">
               <TriangleAlert />
               <AlertTitle>Stark fürs Challenger-Feld</AlertTitle>
@@ -307,7 +284,7 @@ export const RegistrationDetail = ({ reg, onConfirm, onCancel, onDelete }: Regis
       <AlertDialog open={challengerOpen} onOpenChange={setChallengerOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>LK {effectiveLk} ist stark fürs Challenger-Feld</AlertDialogTitle>
+            <AlertDialogTitle>LK {challenger.judgedLk} ist stark fürs Challenger-Feld</AlertDialogTitle>
             <AlertDialogDescription>
               Das Challenger-Feld ist ab LK 20 geschützt. {reg.firstName} {reg.lastName} trotzdem im Challenger
               bestätigen? Sonst oben das Feld auf „Herren" stellen.

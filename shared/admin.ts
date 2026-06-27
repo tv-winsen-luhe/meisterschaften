@@ -43,11 +43,16 @@ export type AdminListResponse = z.infer<typeof adminListResponseSchema>
 // A row id — the key every mutation targets.
 const id = z.number('Ungültige ID.').int('Ungültige ID.').positive('Ungültige ID.')
 
-// An optional player id: empty (= no link / "keine nuLiga-ID") or exactly 8 digits.
+// A nuLiga player id is "complete" when it is exactly 8 digits. The single source for both the wire
+// contract (the playerId schema below) and the admin's LK-pending prediction (confirm-preview), so
+// "what counts as a full id" cannot drift between server validation and the badge.
+export const isCompletePlayerId = (value: string): boolean => /^\d{8}$/.test(value)
+
+// An optional player id: empty (= no link / "keine nuLiga-ID") or a complete 8-digit id.
 const playerId = z
   .string()
   .trim()
-  .refine(v => v === '' || /^\d{8}$/.test(v), 'Spieler-ID muss 8-stellig sein.')
+  .refine(v => v === '' || isCompletePlayerId(v), 'Spieler-ID muss 8-stellig sein.')
 
 // Confirm (and re-save a confirmed row): apply the editable fields and move the row to
 // 'confirmed'. The LK is never sent — it is derived (ADR-0020): a linked player id has its LK
