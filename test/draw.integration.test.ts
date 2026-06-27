@@ -189,6 +189,24 @@ describe('POST /api/admin/draw + GET /api/admin/draws', () => {
     expect(byes?.c).toBe(1)
   })
 
+  it('draws a 16-draw field with byes over D1 — match insert is chunked under D1 100-param cap', async () => {
+    // A 16-draw materializes 15 match rows × 8 columns = 120 bound params, over D1's 100-per-query
+    // limit; the store must chunk the insert. 13 entrants ⇒ a 16-draw with 3 byes (all to seeds).
+    for (let i = 1; i <= 13; i++) await seedConfirmed(i)
+    await setPhase('tournament')
+
+    const res = await draw('mens')
+    expect(res.status).toBe(200)
+    const body = (await res.json()) as { ok: true; draw: CompetitionDraw }
+    expect(body.draw.size).toBe(16)
+    expect(body.draw.matches).toHaveLength(15)
+
+    const count = await env.DB.prepare('SELECT COUNT(*) AS c FROM matches').first<{ c: number }>()
+    expect(count?.c).toBe(15)
+    const byes = await env.DB.prepare("SELECT COUNT(*) AS c FROM matches WHERE outcome = 'bye'").first<{ c: number }>()
+    expect(byes?.c).toBe(3)
+  })
+
   it('still rejects a field whose draw size has no seed table (e.g. 4) with 400', async () => {
     for (let i = 1; i <= 4; i++) await seedConfirmed(i)
     await setPhase('tournament')
