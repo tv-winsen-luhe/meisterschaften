@@ -1,19 +1,13 @@
 import type { Env } from './app'
 import type { RegistrationRow } from './db/schema'
 import { notifyRegistration } from './notify'
-import { createNuligaRosterSource, createSeedingLk, type SeedingLk } from './seeding-lk'
-import type { RegistrationsStore } from './store/registrations'
+import type { SeedingLk } from './seeding-lk'
 
 // The registration side-effect orchestration lives at the transport edge, not in the domain
 // (ADR-0011 amendment): the domain returns its Result; these named functions perform the I/O the
 // edge runs via ctx.waitUntil. Kept as plain functions rather than a domain-emitted effect union —
 // each transition emits essentially one effect, so a dispatcher would be indirection without payoff.
-
-// The single owner of the nuLiga-backed seedingLk wiring — previously re-constructed inline at the
-// register, confirm, refresh-lk and cron call sites. Tests build createSeedingLk with an in-memory
-// roster source directly instead of going through this.
-export const buildSeedingLk = (store: RegistrationsStore): SeedingLk =>
-  createSeedingLk({ rosterSource: createNuligaRosterSource(), store })
+// The seedingLk these receive is composed once in the composition root (worker/deps.ts, ADR-0030).
 
 // register's background side effect: look the new row up in nuLiga (filling its player_id/LK when
 // still unlinked) and send the Telegram notification with the LK in effect. A nuLiga/persistence

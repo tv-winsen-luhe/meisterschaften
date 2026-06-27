@@ -5,7 +5,7 @@ import tseslint from 'typescript-eslint'
 
 const config = defineConfig([
   {
-    ignores: ['.astro/**', 'dist/**', 'node_modules/**']
+    ignores: ['.astro/**', 'dist/**', 'node_modules/**', '.wrangler/**']
   },
   ...eslintPluginAstro.configs.recommended,
   {
