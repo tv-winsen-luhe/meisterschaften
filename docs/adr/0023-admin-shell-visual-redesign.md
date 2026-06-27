@@ -84,3 +84,7 @@ event") and the semantic status-colour carve-out both stand.
   light-only, no theming) and ADR-0020 (LK derived, never edited) both stand and are respected.
 - The WhatsApp action is best-effort: `wa.me` only works for mobile numbers, so it opens an empty chat for a
   landline. It is shown whenever a phone is stored rather than guessing mobile-vs-landline.
+- Numbers render in the app's standard font, not a monospace/`font-mono` face — counts, LK, the gauge and
+  card figures read like the rest of the UI. `tabular-nums` is kept where digits must align (tables, the
+  live gauge). The lone exception is the Spieler-ID input, where mono aids verifying an 8-digit id. Noted
+  because shadcn examples often default numbers to mono/tabular — don't reintroduce it wholesale.
