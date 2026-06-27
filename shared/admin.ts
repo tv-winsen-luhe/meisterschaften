@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import { CLUBS, clubSchema } from './club'
 import { competitionSlug } from './competition'
-import { BRACKETS, MATCH_OUTCOMES } from './draw'
+import { BRACKETS, MATCH_OUTCOMES, seedingEntrySchema } from './draw'
 import { REGISTRATION_STATUSES } from './registration'
 
 // The admin (operator) contract — the single source of truth for the /api/admin/* JSON
@@ -113,13 +113,9 @@ export const matchSchema = z.object({
 })
 export type Match = z.infer<typeof matchSchema>
 
-// One frozen seed in the draw record's seeding snapshot: seed number, the player, the LK it was
-// seeded by (ADR-0010 freeze).
-export const seedingEntrySchema = z.object({
-  seed: z.number().int().positive(),
-  playerId: z.number().int().positive(),
-  lk: z.string().nullable()
-})
+// The frozen seed shape (seedingEntrySchema) is owned by the draw module (it produces it) and parsed
+// at the store's JSON seam; the wire contract composes that one schema rather than re-declaring it, so
+// the API shape and the draw output can never drift.
 
 // A drawn competition as the surface shows it: the field, its draw size, the frozen seeding, and the
 // materialized bracket. (The reveal sequence + cursor live in the draw record but aren't surfaced

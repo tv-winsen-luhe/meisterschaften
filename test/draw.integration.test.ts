@@ -3,7 +3,7 @@ import { beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { CHALLENGER_MIN_LK, type CompetitionDraw } from '../shared'
 import { app } from '../worker/app'
 import { createDrawService } from '../worker/draw'
-import { createInMemoryDrawStore } from '../worker/store/draw'
+import { createD1DrawStore, createInMemoryDrawStore } from '../worker/store/draw'
 import { createInMemoryRegistrationsStore } from '../worker/store/registrations.memory'
 import type { RegistrationRow } from '../worker/db/schema'
 import { createFakeRandomSource } from './fake-random'
@@ -347,5 +347,17 @@ describe('POST /api/admin/draw + GET /api/admin/draws', () => {
 
     const snapshot = await env.DB.prepare('SELECT challenger_min_lk AS cap FROM draws').first<{ cap: number }>()
     expect(snapshot?.cap).toBe(CHALLENGER_MIN_LK)
+  })
+
+  it('fails loudly at the store seam on a malformed seeding column (ADR-0009 type-chain hole)', async () => {
+    // A stored row whose seeding JSON no longer matches the schema (here: a seed missing playerId/lk).
+    // The atomic write makes this unreachable in practice, but if it happens the parse must throw at
+    // the store — not surface as a wrong-looking bracket downstream (or, later, on the beamer).
+    await env.DB.prepare(
+      "INSERT INTO draws (competition, bracket, size, seeding, reveal_sequence, created_at) VALUES ('mens', 'main', 8, '[{\"seed\":1}]', '[]', 'now')"
+    ).run()
+
+    const store = createD1DrawStore(env.DB)
+    await expect(store.getDraw('mens', 'main')).rejects.toThrow()
   })
 })

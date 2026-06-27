@@ -9,7 +9,8 @@ import {
   type MatchOutcome,
   type MatchSlots,
   type RevealStep,
-  type SeedingEntry
+  type SeedingEntry,
+  seedingEntrySchema
 } from '../../shared'
 import { draws, matches, type DrawRow, type MatchRow, type NewMatchRow } from '../db/schema'
 
@@ -80,12 +81,23 @@ const toMatch = (row: MatchRow): Match => ({
   outcome: row.outcome as MatchOutcome | null
 })
 
-// Assemble a draw record + its match rows into the CompetitionDraw the surface reads.
+// Built once, not per row: toCompetitionDraw runs on every row of listDraws, and the array schema is
+// identical each time.
+const seedingArraySchema = seedingEntrySchema.array()
+
+// Assemble a draw record + its match rows into the CompetitionDraw the surface reads. The seeding is
+// parsed through its Zod schema, not cast: a malformed or stale `seeding` JSON column fails loudly
+// here at the store seam rather than as a wrong-looking bracket downstream — the one cast that used
+// to break the ADR-0009 type chain. A corrupt row is real inconsistency the atomic write makes
+// unreachable, so the throw is intentional: getDraw and listDraws both surface it. Note the blast
+// radius — because listDraws maps this over every row, one corrupt row fails the whole draws overview
+// (and reset's readmit count), not just its own field. We accept that: a corrupt row is a state that
+// should never exist, and degrading per-row would be defensive complexity guarding the unreachable.
 const toCompetitionDraw = (draw: DrawRow, matchRows: MatchRow[]): CompetitionDraw => ({
   competition: draw.competition as CompetitionSlug,
   bracket: draw.bracket as Bracket,
   size: draw.size,
-  seeding: JSON.parse(draw.seeding) as SeedingEntry[],
+  seeding: seedingArraySchema.parse(JSON.parse(draw.seeding)),
   matches: matchRows.map(toMatch)
 })
 
