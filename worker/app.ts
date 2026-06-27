@@ -258,7 +258,7 @@ export const app = new Hono<AppEnv>()
     return c.json(drawsResponseSchema.parse({ draws }), 200, { 'cache-control': 'no-store' })
   })
   // POST /api/admin/draw — the „Jetzt auslosen" action (ADR-0025). The draw service guards the
-  // preconditions (phase = tournament, not yet drawn, full field), computes the bracket with crypto
+  // preconditions (phase = tournament, not yet drawn, supported size), computes the bracket with crypto
   // randomness, and writes the matches + draw record atomically. A failed guard maps to 400/409 with
   // the operator-facing reason; the gate values (AlreadyDrawn → 409) match the HTTP semantics.
   .post('/api/admin/draw', parseGuard, v(drawRequestSchema), async c => {

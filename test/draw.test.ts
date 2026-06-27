@@ -65,18 +65,23 @@ describe('drawBlocker', () => {
     expect(drawBlocker('tournament', 1)).toBe('too-few')
   })
 
-  it('blocks a field with byes (not a power of two)', () => {
-    expect(drawBlocker('tournament', 7)).toBe('not-full-field')
-    expect(drawBlocker('tournament', 12)).toBe('not-full-field')
+  it('allows a non-full field — §31 fills it with byes', () => {
+    expect(drawBlocker('tournament', 7)).toBeNull() // 8-draw, 1 bye
+    expect(drawBlocker('tournament', 12)).toBeNull() // 16-draw, 4 byes
+    expect(drawBlocker('tournament', 9)).toBeNull() // 16-draw, 7 byes (4 to seeds, 3 by lot)
+    expect(drawBlocker('tournament', 13)).toBeNull() // 16-draw, 3 byes
   })
 
-  it('blocks a full field whose size has no seed table (2, 4, 32)', () => {
-    expect(drawBlocker('tournament', 2)).toBe('unsupported-size')
-    expect(drawBlocker('tournament', 4)).toBe('unsupported-size')
-    expect(drawBlocker('tournament', 32)).toBe('unsupported-size')
+  it('blocks a field whose draw size has no seed table (rounds to 2, 4, or 32)', () => {
+    expect(drawBlocker('tournament', 2)).toBe('unsupported-size') // size 2
+    expect(drawBlocker('tournament', 3)).toBe('unsupported-size') // size 4
+    expect(drawBlocker('tournament', 4)).toBe('unsupported-size') // size 4
+    expect(drawBlocker('tournament', 17)).toBe('unsupported-size') // size 32
+    expect(drawBlocker('tournament', 32)).toBe('unsupported-size') // size 32
   })
 
-  it('allows a full, supported field', () => {
+  it('allows a supported field (5–16 entrants round to an 8- or 16-draw)', () => {
+    expect(drawBlocker('tournament', 5)).toBeNull()
     expect(drawBlocker('tournament', 8)).toBeNull()
     expect(drawBlocker('tournament', 16)).toBeNull()
   })
@@ -167,9 +172,105 @@ describe('drawBracket — 16-draw (full field, Nr.3/4 by lot)', () => {
   })
 })
 
+describe('drawBracket — byes (§31)', () => {
+  // Helper: the bye lines (null slots) of a result.
+  const byeLines = (slots: (number | null)[]) => slots.flatMap((v, i) => (v === null ? [i] : []))
+
+  it('8-draw, 1 bye: the single bye goes to Nr.1 (highest seed), no lot', () => {
+    // 7 players, 1 bye ≤ 2 seeds ⇒ all byes to seeds, none by lot. Only the unseeded fill draws.
+    const result = drawBracket({ players: field(7), size: 8, random: createFakeRandomSource([0, 0, 0, 0]) })
+    // line:                                 0     1  2  3  4  5  6  7
+    expect(result.slots).toEqual([1, null, 3, 4, 5, 6, 7, 2])
+    expect(byeLines(result.slots)).toEqual([1]) // Nr.1's neighbour (line 0 ^ 1)
+    // The bye is its own reveal step, after the seeds and before the unseeded, naming the seed it frees.
+    expect(result.revealSequence).toEqual([
+      { kind: 'seed-fixed', position: 0, playerId: 1, seed: 1 },
+      { kind: 'seed-fixed', position: 7, playerId: 2, seed: 2 },
+      { kind: 'bye', position: 1, playerId: 1, seed: 1 },
+      { kind: 'draw', position: 2, playerId: 3, seed: null },
+      { kind: 'draw', position: 3, playerId: 4, seed: null },
+      { kind: 'draw', position: 4, playerId: 5, seed: null },
+      { kind: 'draw', position: 5, playerId: 6, seed: null },
+      { kind: 'draw', position: 6, playerId: 7, seed: null }
+    ])
+  })
+
+  it('8-draw, 3 byes: 2 go to the seeds, the 3rd is drawn by lot across the two free sections', () => {
+    // 5 players, 3 byes: Nr.1 + Nr.2 take one each; the remaining bye is lot-placed. The lot int(2)=0
+    // sends it to the upper free section (match 1, line 3); int(2)=1 would send it to the lower (line 5).
+    const upper = drawBracket({ players: field(5), size: 8, random: createFakeRandomSource([0, 0, 0]) })
+    expect(byeLines(upper.slots)).toEqual([1, 3, 6])
+    expect(upper.slots).toEqual([1, null, 3, null, 4, 5, null, 2])
+
+    const lower = drawBracket({ players: field(5), size: 8, random: createFakeRandomSource([1, 0, 0]) })
+    expect(byeLines(lower.slots)).toEqual([1, 5, 6])
+
+    // The lot-placed bye carries no player (its neighbour is drawn later, §32.4c); the seed byes do.
+    expect(upper.revealSequence.filter(s => s.kind === 'bye')).toEqual([
+      { kind: 'bye', position: 1, playerId: 1, seed: 1 },
+      { kind: 'bye', position: 6, playerId: 2, seed: 2 },
+      { kind: 'bye', position: 3, playerId: null, seed: null }
+    ])
+  })
+
+  it('16-draw, 3 byes: all go to the top three seeds, none by lot', () => {
+    // 13 players, 3 byes ≤ 4 seeds. One seed lot (Nr.3 → line 4), then the unseeded fill.
+    const result = drawBracket({
+      players: field(13),
+      size: 16,
+      random: createFakeRandomSource([0, 0, 0, 0, 0, 0, 0, 0, 0])
+    })
+    expect(result.slots).toEqual([1, null, 5, 6, 3, null, 7, 8, 9, 10, 11, 4, 12, 13, null, 2])
+    expect(byeLines(result.slots)).toEqual([1, 5, 14]) // neighbours of Nr.1, Nr.3, Nr.2
+    expect(result.revealSequence.filter(s => s.kind === 'bye')).toEqual([
+      { kind: 'bye', position: 1, playerId: 1, seed: 1 },
+      { kind: 'bye', position: 14, playerId: 2, seed: 2 },
+      { kind: 'bye', position: 5, playerId: 3, seed: 3 }
+    ])
+  })
+
+  it('16-draw, 7 byes: 4 to the seeds, the other 3 spread evenly across the sections by lot (§31.2b)', () => {
+    // 9 players, 7 byes. Seeds (one per quarter) each take a bye, then 3 remaining byes are spread:
+    // the root lot (int 2) gives one half two of them, the surviving half lot picks its quarter. With
+    // both lots = 0, the remaining byes land in matches 1, 3, 4 (lines 3, 7, 9).
+    const seq = [0, /* seed Nr.3/4 lot */ 0, 0 /* two distribution lots */, 0, 0, 0, 0 /* fill */]
+    const result = drawBracket({ players: field(9), size: 16, random: createFakeRandomSource(seq) })
+    expect(byeLines(result.slots)).toEqual([1, 3, 5, 7, 9, 10, 14])
+    expect(result.slots).toEqual([1, null, 5, null, 3, null, 6, null, 7, null, null, 4, 8, 9, null, 2])
+
+    // The byes are even across the four quarters: three quarters hold two, one holds a single bye.
+    const quarterByes = [0, 1, 2, 3].map(q => byeLines(result.slots).filter(l => Math.floor(l / 4) === q).length)
+    expect(quarterByes.sort()).toEqual([1, 2, 2, 2])
+
+    // Seed byes come first (in seed order), then the lot byes (player-less), then the unseeded draws.
+    const byeSteps = result.revealSequence.filter(s => s.kind === 'bye')
+    expect(byeSteps.slice(0, 4)).toEqual([
+      { kind: 'bye', position: 1, playerId: 1, seed: 1 },
+      { kind: 'bye', position: 14, playerId: 2, seed: 2 },
+      { kind: 'bye', position: 5, playerId: 3, seed: 3 },
+      { kind: 'bye', position: 10, playerId: 4, seed: 4 }
+    ])
+    expect(byeSteps.slice(4)).toEqual([
+      { kind: 'bye', position: 3, playerId: null, seed: null },
+      { kind: 'bye', position: 7, playerId: null, seed: null },
+      { kind: 'bye', position: 9, playerId: null, seed: null }
+    ])
+  })
+
+  it('every entrant lands once and the bye count equals the gap to the draw size', () => {
+    const result = drawBracket({ players: field(9), size: 16, random: createFakeRandomSource([0, 0, 0, 0, 0, 0, 0]) })
+    const placed = result.slots.filter((v): v is number => v !== null)
+    expect(new Set(placed).size).toBe(9)
+    expect(result.slots.filter(v => v === null)).toHaveLength(7)
+  })
+})
+
 describe('drawBracket — guards', () => {
-  it('rejects a field that is not a full bracket', () => {
-    expect(() => drawBracket({ players: field(7), size: 8, random: createFakeRandomSource([]) })).toThrow()
+  it('rejects a field that does not fit the given draw size', () => {
+    // 5 players round to an 8-draw, not a 16-draw — so size 16 is wrong for this field.
+    expect(() => drawBracket({ players: field(5), size: 16, random: createFakeRandomSource([]) })).toThrow()
+    // 17 players overflow an 8-draw.
+    expect(() => drawBracket({ players: field(17), size: 8, random: createFakeRandomSource([]) })).toThrow()
   })
 })
 
@@ -180,11 +281,13 @@ describe('materializeMatches', () => {
     // 8-draw: 4 + 2 + 1 = 7 matches.
     expect(m).toHaveLength(7)
     expect(m.filter(x => x.round === 1)).toEqual([
-      { round: 1, position: 0, slot1RegId: 1, slot2RegId: 3 },
-      { round: 1, position: 1, slot1RegId: 4, slot2RegId: 5 },
-      { round: 1, position: 2, slot1RegId: 6, slot2RegId: 7 },
-      { round: 1, position: 3, slot1RegId: 8, slot2RegId: 2 }
+      { round: 1, position: 0, slot1RegId: 1, slot2RegId: 3, winnerRegId: null, outcome: null },
+      { round: 1, position: 1, slot1RegId: 4, slot2RegId: 5, winnerRegId: null, outcome: null },
+      { round: 1, position: 2, slot1RegId: 6, slot2RegId: 7, winnerRegId: null, outcome: null },
+      { round: 1, position: 3, slot1RegId: 8, slot2RegId: 2, winnerRegId: null, outcome: null }
     ])
+    // A full field has no byes, so nothing is resolved at draw time.
+    expect(m.every(x => x.winnerRegId === null && x.outcome === null)).toBe(true)
     // Later rounds carry no slots — feeders are implicit via (round, position) (ADR-0025).
     expect(m.filter(x => x.round > 1).every(x => x.slot1RegId === null && x.slot2RegId === null)).toBe(true)
   })
@@ -196,6 +299,41 @@ describe('materializeMatches', () => {
       random: createFakeRandomSource([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0])
     })
     expect(materializeMatches(16, slots)).toHaveLength(15)
+  })
+
+  it('auto-resolves round-1 byes and advances the winner into round 2 (§32.4)', () => {
+    // 13-player 16-draw: Nr.1, Nr.3, Nr.2 take byes (lines 1, 5, 14 empty).
+    const { slots } = drawBracket({
+      players: field(13),
+      size: 16,
+      random: createFakeRandomSource([0, 0, 0, 0, 0, 0, 0, 0, 0])
+    })
+    const m = materializeMatches(16, slots)
+    expect(m).toHaveLength(15) // size − 1, byes included as resolved rows
+
+    const round1 = m.filter(x => x.round === 1)
+    const byes = round1.filter(x => x.outcome === 'bye')
+    // Three byes, each with the present player as winner, no score, the empty slot left null.
+    expect(byes).toEqual([
+      { round: 1, position: 0, slot1RegId: 1, slot2RegId: null, winnerRegId: 1, outcome: 'bye' },
+      { round: 1, position: 2, slot1RegId: 3, slot2RegId: null, winnerRegId: 3, outcome: 'bye' },
+      { round: 1, position: 7, slot1RegId: null, slot2RegId: 2, winnerRegId: 2, outcome: 'bye' }
+    ])
+    // A contested round-1 match stays open.
+    expect(round1.find(x => x.position === 1)).toMatchObject({
+      slot1RegId: 5,
+      slot2RegId: 6,
+      winnerRegId: null,
+      outcome: null
+    })
+
+    // The bye winners advance into their round-2 slots; the rest stay null (undecided feeders).
+    const round2 = m.filter(x => x.round === 2)
+    expect(round2.find(x => x.position === 0)).toMatchObject({ slot1RegId: 1, slot2RegId: null }) // Nr.1 advanced
+    expect(round2.find(x => x.position === 1)).toMatchObject({ slot1RegId: 3, slot2RegId: null }) // Nr.3 advanced
+    expect(round2.find(x => x.position === 3)).toMatchObject({ slot1RegId: null, slot2RegId: 2 }) // Nr.2 advanced
+    // No round-2 match is itself a bye — byes never meet this slice (≤ seeds, one per section).
+    expect(round2.every(x => x.outcome === null && x.winnerRegId === null)).toBe(true)
   })
 })
 

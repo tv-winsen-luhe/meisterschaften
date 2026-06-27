@@ -72,8 +72,8 @@ export const BRACKETS = ['main', 'consolation'] as const
 export type Bracket = (typeof BRACKETS)[number]
 
 // The non-score ways a match can resolve (CONTEXT: Match result). `bye` auto-resolves at draw
-// time; `walkover`/`retirement` are entered during Live. Owned here so the `matches.outcome` column
-// and its wire enum read one list; this epic (full fields, no byes) writes none of them.
+// time (the draw writes it for a non-full field, §31); `walkover`/`retirement` are entered during
+// Live. Owned here so the `matches.outcome` column and its wire enum read one list.
 export const MATCH_OUTCOMES = ['bye', 'walkover', 'retirement'] as const
 export type MatchOutcome = (typeof MATCH_OUTCOMES)[number]
 
@@ -134,29 +134,28 @@ export const isSupportedDrawSize = (size: number): boolean => SEED_GROUPS[size] 
 // Why a competition cannot be drawn yet. The single predicate both the worker enforces (authority)
 // and the competitions surface (UI: „Konkurrenzen") renders (affordance) — defined once so the button's disabled reason
 // can never drift from the server guard (the canConfirm pattern, ADR-0011). `null` = drawable.
-export type DrawBlocker = 'not-tournament' | 'too-few' | 'not-full-field' | 'unsupported-size'
+export type DrawBlocker = 'not-tournament' | 'too-few' | 'unsupported-size'
 
 // The operator-facing reason per blocker — one source for the server's 400 body and the button hint.
 export const DRAW_BLOCKER_REASON: Record<DrawBlocker, string> = {
   'not-tournament': 'Auslosung erst nach Anmeldeschluss (Phase „Turnier").',
   'too-few': 'Mindestens zwei bestätigte Anmeldungen nötig.',
-  'not-full-field': 'Nur volle Felder (Zweierpotenz, keine Freilose) können ausgelost werden.',
   'unsupported-size': 'Aktuell nur 8er- und 16er-Felder.'
 }
 
 /**
  * The draw gate for a competition with `confirmed` confirmed entries in the given phase: the first
  * reason it cannot be drawn, or `null` when it can. Mirrors the steps the draw needs — registration
- * closed (`tournament`), at least two entries, a full power-of-two field (no byes this epic), and
- * a size the seed table supports (8/16). The "already drawn" check is not here: it needs the store,
- * so the worker adds it; this is the pure, store-free part the client can run too.
+ * closed (`tournament`), at least two entries, and a draw size the seed table supports (8/16). Byes
+ * are no longer a blocker — §31 fills a non-full field — so only the size gate remains (a field of
+ * 5–8 rounds to 8, 9–16 to 16; 2/3/4 round to 2/4 and 17+ to 32, none of which have a seed table).
+ * The "already drawn" check is not here: it needs the store, so the worker adds it; this is the pure,
+ * store-free part the client can run too.
  */
 export const drawBlocker = (phase: Phase, confirmed: number): DrawBlocker | null => {
   if (phase !== 'tournament') return 'not-tournament'
   if (confirmed < 2) return 'too-few'
-  const size = drawSize(confirmed)
-  if (size !== confirmed) return 'not-full-field'
-  if (!isSupportedDrawSize(size)) return 'unsupported-size'
+  if (!isSupportedDrawSize(drawSize(confirmed))) return 'unsupported-size'
   return null
 }
 
@@ -187,9 +186,9 @@ export const createCryptoRandomSource = (): RandomSource => ({
 })
 
 // ── The draw procedure (CONTEXT: Draw procedure, ADR-0025) ──────────────────────────────────────
-// Pure: given seeded players and a RandomSource, produce a DTB-seeded full-field bracket. Full field
-// only (a power-of-two field, no byes) for this epic. The main bracket runs it once with a live
-// reveal; the consolation bracket will reuse it later with no reveal (ADR-0004).
+// Pure: given seeded players and a RandomSource, produce a DTB-seeded bracket — full field or a
+// non-full field with byes (§31). The main bracket runs this once with a live reveal; the consolation
+// bracket reuses it later with no reveal (ADR-0004).
 
 // A player entering the draw. `id` is the registration id the slots reference; `lk` is snapshotted
 // into the seeding record (the seeding freeze, ADR-0010). Players arrive **in seeding order**
@@ -207,31 +206,37 @@ export interface SeedingEntry {
   lk: string | null
 }
 
-// One reveal step (CONTEXT: Reveal sequence): it places one player onto one first-round line and
-// carries why — a fixed seed (Nr.1/2), a seed drawn by lot (Nr.3/4), or an unseeded draw (§32.4).
-// `seed` is the seed number for seed steps, null for `draw`. This epic has no `bye` kind (full field).
-export type RevealKind = 'seed-fixed' | 'seed-lot' | 'draw'
+// One reveal step (CONTEXT: Reveal sequence), in §32.4 order: a fixed seed (Nr.1/2), a seed drawn by
+// lot (Nr.3/4), the byes (§31), then the unseeded. Most kinds *place* `playerId` onto `position`; a
+// `bye` step is the exception — it marks `position` as an empty line and applying it leaves the line
+// null. A bye assigned to a seed carries that seed's `playerId`/`seed` (the seed it frees, already
+// placed by its own seed step); a remaining bye spread by lot onto a section has no player yet (its
+// neighbour is drawn in §32.4c), so `playerId` and `seed` are both null. Applying the sequence sets
+// `slots[position] = kind === 'bye' ? null : playerId`.
+export type RevealKind = 'seed-fixed' | 'seed-lot' | 'bye' | 'draw'
 export interface RevealStep {
   kind: RevealKind
   position: number
-  playerId: number
+  playerId: number | null
   seed: number | null
 }
 
 export interface DrawResult {
   // Seeds in seed order (Nr.1 first), each carrying its frozen LK.
   seeding: SeedingEntry[]
-  // First-round lines: index = 0-indexed line, value = registration id. Full field ⇒ no nulls.
-  slots: number[]
+  // First-round lines: index = 0-indexed line, value = a registration id, or null for a bye line (an
+  // empty line whose paired seed advances without a match). A full field has no nulls.
+  slots: (number | null)[]
   // The ordered playback artifact: seeds (fixed, then by lot), then unseeded top-to-bottom.
   revealSequence: RevealStep[]
 }
 
 /**
- * Compute a full-field DTB draw. `players` must be in seeding order (strongest first) and number a
- * power of two matching `size`. Throws otherwise — a full field is the contract here. Pure: all
- * randomness comes through `random` (seeds Nr.3/4 by lot, then the unseeded einlosen von oben nach
- * unten, §32.4), so the same players + same RandomSource always yield the same bracket.
+ * Compute a DTB draw. `players` must be in seeding order (strongest first) and number a field that
+ * fits `size` — i.e. `drawSize(players.length) === size` (a full power-of-two field, or a non-full
+ * field whose byes §31 fills). Throws otherwise. Pure: all randomness comes through `random` (seeds
+ * Nr.3/4 by lot §30.5b, the remaining byes by lot across sections §31.2b, then the unseeded einlosen
+ * von oben nach unten §32.4), so the same players + same RandomSource always yield the same bracket.
  */
 export interface DrawInput {
   players: DrawPlayer[]
@@ -239,18 +244,68 @@ export interface DrawInput {
   random: RandomSource
 }
 
+// Distribute `count` remaining byes (those left after the seeds, §31.2b) across the R1 matches in
+// `[lo, hi)` (match indices), even across the sections — halves, then quarters, then eighths — drawing
+// a lot only on a genuine tie (the §31.2a "auslosen, welche … eine Rast mehr" rule). `isFree` tells a
+// match still open from one already holding a seed's bye; a match takes at most one bye (two empty
+// lines would leave nobody to advance). Returns the chosen match indices, top-to-bottom.
+//
+// This balances only the post-seed remainder, so the *total* (seed byes + these) is even per section
+// only because today's seed tables place the seeds one per section — Nr.1/Nr.2 in opposite halves,
+// Nr.3/4 splitting the other diagonal (§30.5b) — giving every quarter exactly one seed bye before this
+// runs. A future seed table that grouped seeds would need this to account for the seed byes too.
+// `count` must not exceed the free capacity of `[lo, hi)`; the caller guarantees it (drawSize keeps
+// byes below size/2 for the supported sizes) and drawBracket asserts it before calling.
+const distributeByes = (
+  lo: number,
+  hi: number,
+  count: number,
+  isFree: (match: number) => boolean,
+  random: RandomSource
+): number[] => {
+  if (count === 0) return []
+  if (hi - lo === 1) return [lo] // a single match: it is free (count is only routed to capacity)
+  const mid = (lo + hi) >> 1
+  const freeIn = (a: number, b: number) => {
+    let n = 0
+    for (let m = a; m < b; m++) if (isFree(m)) n++
+    return n
+  }
+  const leftCap = freeIn(lo, mid)
+  const rightCap = freeIn(mid, hi)
+  const base = Math.floor(count / 2)
+  let leftN = Math.min(base, leftCap)
+  let rightN = Math.min(base, rightCap)
+  // Hand out whatever the even split could not place (the odd one, or a side that hit its cap), one
+  // at a time, lot-deciding only when both sides can still take it.
+  for (let rest = count - leftN - rightN; rest > 0; rest--) {
+    const leftCan = leftN < leftCap
+    const rightCan = rightN < rightCap
+    if (leftCan && rightCan) random.int(2) === 0 ? leftN++ : rightN++
+    else if (leftCan) leftN++
+    else rightN++
+  }
+  return [...distributeByes(lo, mid, leftN, isFree, random), ...distributeByes(mid, hi, rightN, isFree, random)]
+}
+
 export const drawBracket = ({ players, size, random }: DrawInput): DrawResult => {
-  if (players.length !== size) throw new Error(`drawBracket: expected a full field of ${size}, got ${players.length}`)
+  if (drawSize(players.length) !== size) {
+    throw new Error(`drawBracket: ${players.length} players do not fit a draw of size ${size}`)
+  }
   const { seedCount, seedGroups } = bracketStructure(size)
 
   const seeding: SeedingEntry[] = players.slice(0, seedCount).map((p, i) => ({ seed: i + 1, playerId: p.id, lk: p.lk }))
 
-  const slots: number[] = new Array<number>(size)
+  // During the draw a line is `undefined` (still free), `null` (a bye, set explicitly so the unseeded
+  // fill skips it), or a number (a placed player). By the end every line is a seed, a bye, or a draw,
+  // so the returned slots hold only numbers and the bye nulls.
+  const slots: (number | null)[] = new Array<number | null>(size)
   const revealSequence: RevealStep[] = []
 
-  // Seeds, in seed order. A fixed group places straight onto its line; a lot group draws which seed
-  // lands on which of its prescribed lines (Fisher-Yates over the line pool — a real shuffle, the
-  // last seat needs no draw). Each placement is one reveal step.
+  // (a, §32.4) Seeds, in seed order. A fixed group places straight onto its line; a lot group draws
+  // which seed lands on which of its prescribed lines (Fisher-Yates over the line pool — a real
+  // shuffle, the last seat needs no draw). Record each seed's line so its bye can find the neighbour.
+  const seedLine: number[] = [] // seedLine[seedNo] = first-round line
   for (const group of seedGroups) {
     const pool = [...group.lines]
     group.seeds.forEach(seedNo => {
@@ -259,13 +314,43 @@ export const drawBracket = ({ players, size, random }: DrawInput): DrawResult =>
       const [line] = pool.splice(idx, 1)
       const { playerId } = seeding[seedNo - 1]
       slots[line] = playerId
+      seedLine[seedNo] = line
       revealSequence.push({ kind: fixed ? 'seed-fixed' : 'seed-lot', position: line, playerId, seed: seedNo })
     })
   }
 
-  // The unseeded, einlosen von oben nach unten (§32.4): walk the free lines top→bottom and draw a
-  // random remaining unseeded player into each. The pot starts in seeding order; the last line takes
-  // the last player with no draw.
+  // (b, §32.4 / §31) Byes. First to the seeds in seeding order (highest seed first): each frees the
+  // neighbour line of its R1 match (line ^ 1 is the other line of the pair). Then, if more byes than
+  // seeds remain, spread the rest by lot evenly across the sections (§31.2b), one per still-free R1
+  // match, marking that match's lower line.
+  const byes = byeCount(players.length) // === size - players.length, since size === drawSize here
+  const seedByes = Math.min(byes, seedCount)
+  for (let seedNo = 1; seedNo <= seedByes; seedNo++) {
+    const byeLine = seedLine[seedNo] ^ 1
+    slots[byeLine] = null
+    revealSequence.push({ kind: 'bye', position: byeLine, playerId: seeding[seedNo - 1].playerId, seed: seedNo })
+  }
+  if (byes > seedByes) {
+    const isFree = (match: number) => slots[2 * match] === undefined && slots[2 * match + 1] === undefined
+    const remaining = byes - seedByes
+    let freeMatches = 0
+    for (let m = 0; m < size / 2; m++) if (isFree(m)) freeMatches++
+    // One bye per free match, max. drawSize keeps byes below size/2 for 8/16, so this always holds;
+    // assert it so a new size or seed table that broke the invariant fails here, not by silently
+    // overwriting a placed player inside distributeByes.
+    if (remaining > freeMatches) {
+      throw new Error(`drawBracket: ${remaining} byes exceed ${freeMatches} free matches in a draw of size ${size}`)
+    }
+    for (const match of distributeByes(0, size / 2, remaining, isFree, random)) {
+      const byeLine = 2 * match + 1
+      slots[byeLine] = null
+      revealSequence.push({ kind: 'bye', position: byeLine, playerId: null, seed: null })
+    }
+  }
+
+  // (c, §32.4) The unseeded, einlosen von oben nach unten: walk the still-free lines top→bottom and
+  // draw a random remaining unseeded player into each (bye lines are null, not undefined, so skipped).
+  // The pot starts in seeding order; the last free line takes the last player with no draw.
   const pot = players.slice(seedCount)
   for (let line = 0; line < size; line++) {
     if (slots[line] !== undefined) continue
@@ -278,34 +363,49 @@ export const drawBracket = ({ players, size, random }: DrawInput): DrawResult =>
   return { seeding, slots, revealSequence }
 }
 
-// A materialized match (ADR-0025): a bracket position with its two slot references. Feeders are
-// implicit, so rounds after the first carry null slots until results advance players into them.
+// A materialized match (ADR-0025): a bracket position with its two slot references and, once decided,
+// its winner + outcome. Feeders are implicit, so rounds after the first carry null slots until results
+// advance players into them — except a round-1 bye, which the draw resolves immediately.
 export interface MatchSlots {
   round: number
   position: number
   slot1RegId: number | null
   slot2RegId: number | null
+  winnerRegId: number | null
+  outcome: MatchOutcome | null
 }
 
 /**
- * Turn a full first-round `slots` array into the KO tree's match rows. Round 1 (1-based) pairs
- * adjacent lines (2p, 2p+1); later rounds are empty positions whose feeders are implicit via
- * (round, position). The main bracket KO tree only — third-place match and the consolation bracket are separate
- * slices. Total rows = size − 1.
+ * Turn a `slots` array (first-round lines, byes as null) into the KO tree's match rows. Round 1
+ * (1-based) pairs adjacent lines (2p, 2p+1); later rounds are empty positions whose feeders are
+ * implicit via (round, position). A round-1 match with one empty line is a **bye**: it auto-resolves
+ * (winner = the present player, `outcome = 'bye'`, no score, §32.4). Winners then propagate forward
+ * round by round through `feeders`, so each bye winner lands in its round-2 slot and the bracket is
+ * consistent the moment it is drawn. Only round 1 auto-resolves; a null slot in any later round is an
+ * undecided feeder, never a bye — so when two round-1 byes happen to feed the same round-2 match (e.g.
+ * a 5-player 8-draw) both winners advance and that round-2 match is simply contested, not a second bye.
+ * The main bracket KO tree only — third-place match and the consolation bracket are separate slices.
+ * Total rows = size − 1.
  */
-export const materializeMatches = (size: number, slots: number[]): MatchSlots[] => {
+export const materializeMatches = (size: number, slots: (number | null)[]): MatchSlots[] => {
   const { rounds } = bracketStructure(size)
   const matches: MatchSlots[] = []
+  // The winner of each match in the previous round, by position — what feeds the next round's slots.
+  let feeders: (number | null)[] = slots.map(s => s ?? null)
   for (let round = 1; round <= rounds; round++) {
     const count = size / 2 ** round
+    const winners: (number | null)[] = new Array<number | null>(count).fill(null)
     for (let position = 0; position < count; position++) {
-      matches.push({
-        round,
-        position,
-        slot1RegId: round === 1 ? (slots[2 * position] ?? null) : null,
-        slot2RegId: round === 1 ? (slots[2 * position + 1] ?? null) : null
-      })
+      const slot1RegId = feeders[2 * position] ?? null
+      const slot2RegId = feeders[2 * position + 1] ?? null
+      // A round-1 bye (exactly one slot filled) resolves now and advances its player; everything else
+      // stays open (a contested match, or a later round whose feeders are not yet decided).
+      const isBye = round === 1 && (slot1RegId === null) !== (slot2RegId === null)
+      const winnerRegId = isBye ? (slot1RegId ?? slot2RegId) : null
+      winners[position] = winnerRegId
+      matches.push({ round, position, slot1RegId, slot2RegId, winnerRegId, outcome: isBye ? 'bye' : null })
     }
+    feeders = winners
   }
   return matches
 }

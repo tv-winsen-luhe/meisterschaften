@@ -86,9 +86,17 @@ describe('createDrawService.draw', () => {
     })
   })
 
-  it('refuses a field that is not a full power-of-two bracket (byes not supported yet)', async () => {
-    const result = await service(field(7), []).draw({ competition: 'mens', phase: 'tournament', now: 'now' })
-    expect(result).toMatchObject({ ok: false, error: 'not-full-field' })
+  it('draws a non-full field, filling it with byes and auto-resolving them (§31)', async () => {
+    const result = await service(field(7), [0, 0, 0, 0]).draw({ competition: 'mens', phase: 'tournament', now: 'now' })
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+    expect(result.draw.size).toBe(8)
+    expect(result.draw.matches).toHaveLength(7)
+    // The 7th entrant rounds up to an 8-draw with one bye, resolved at draw time (winner, no score).
+    const byes = result.draw.matches.filter(m => m.outcome === 'bye')
+    expect(byes).toHaveLength(1)
+    expect(byes[0]).toMatchObject({ round: 1, outcome: 'bye' })
+    expect(byes[0]?.winnerRegId).not.toBeNull()
   })
 
   it('refuses a full field whose size has no seed table yet (e.g. 4 — only 8/16 are supported)', async () => {
@@ -167,8 +175,22 @@ describe('POST /api/admin/draw + GET /api/admin/draws', () => {
     expect(second.status).toBe(409)
   })
 
-  it('rejects a field with byes (not a power of two) with 400', async () => {
+  it('draws a non-full field, persisting the byes as resolved matches', async () => {
     for (let i = 1; i <= 7; i++) await seedConfirmed(i)
+    await setPhase('tournament')
+
+    const res = await draw('mens')
+    expect(res.status).toBe(200)
+    const body = (await res.json()) as { ok: true; draw: CompetitionDraw }
+    expect(body.draw.size).toBe(8)
+    expect(body.draw.matches).toHaveLength(7)
+
+    const byes = await env.DB.prepare("SELECT COUNT(*) AS c FROM matches WHERE outcome = 'bye'").first<{ c: number }>()
+    expect(byes?.c).toBe(1)
+  })
+
+  it('still rejects a field whose draw size has no seed table (e.g. 4) with 400', async () => {
+    for (let i = 1; i <= 4; i++) await seedConfirmed(i)
     await setPhase('tournament')
     const res = await draw('mens')
     expect(res.status).toBe(400)

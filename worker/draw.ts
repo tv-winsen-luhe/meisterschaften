@@ -16,7 +16,7 @@ import type { RegistrationsStore } from './store/registrations'
 // It guards the preconditions, reads the seeded field, runs the pure `drawBracket`, and writes the
 // bracket + draw record atomically through the DrawStore. The math is pure (shared/draw.ts); this is
 // only the wiring, so it is driven through the in-memory stores + a deterministic RandomSource in
-// tests. Main bracket of a **full field** only (no byes, sizes 8/16) this epic.
+// tests. Main bracket, full or non-full field (§31 byes), sizes 8/16.
 
 // Why a draw could not start. The pure preconditions are the shared DrawBlocker (so the client's
 // affordance reads the same rule, ADR-0011); `AlreadyDrawn` is the one that needs the store and so
@@ -52,7 +52,7 @@ export const createDrawService = (deps: DrawServiceDeps) => {
   return {
     /**
      * Draw the main bracket for one competition. Gated on the shared draw preconditions (phase, count,
-     * full + supported size) and on the field being un-drawn (ADR-0026). On success the bracket +
+     * supported size) and on the field being un-drawn (ADR-0026). On success the bracket +
      * draw record are persisted atomically and the assembled CompetitionDraw is returned.
      */
     async draw({ competition, phase, now }: DrawParams): Promise<DrawOutcome> {

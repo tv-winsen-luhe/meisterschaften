@@ -17,7 +17,8 @@ import { draws, matches, type DrawRow, type MatchRow, type NewMatchRow } from '.
 // tables the draw writes — the `draws` record (seeding snapshot + reveal sequence + cursor) and
 // the materialized `matches` — and the rule that they are written together, atomically. Two adapters
 // back it (D1/Drizzle in prod, in-memory in tests), like the registrations Store. It grows one
-// operation per slice; this epic writes the main bracket of a full field.
+// operation per slice; this epic writes the main bracket, full or non-full (§31 byes persisted as
+// resolved rows: winner set, outcome 'bye').
 
 // Everything one draw persists, handed over in one call so the Store can write it atomically.
 export interface SaveDrawInput {
@@ -97,7 +98,10 @@ export const createD1DrawStore = (d1: D1Database): DrawStore => {
         round: m.round,
         position: m.position,
         slot1RegId: m.slot1RegId,
-        slot2RegId: m.slot2RegId
+        slot2RegId: m.slot2RegId,
+        // A round-1 bye is already resolved at draw time (winner advances, no score, §32.4).
+        winnerRegId: m.winnerRegId,
+        outcome: m.outcome
       }))
       // One D1 batch = one transaction: the draw record and the match rows land together or not at
       // all. The unique (competition, bracket) index turns a racing second draw into a failed insert.
@@ -171,8 +175,9 @@ export const createInMemoryDrawStore = (): DrawStore => {
           position: m.position,
           slot1RegId: m.slot1RegId,
           slot2RegId: m.slot2RegId,
-          winnerRegId: null,
-          outcome: null
+          // A round-1 bye is already resolved at draw time (winner advances, no score, §32.4).
+          winnerRegId: m.winnerRegId,
+          outcome: m.outcome
         })
       }
     },
