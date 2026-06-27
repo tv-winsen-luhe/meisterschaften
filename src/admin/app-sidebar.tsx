@@ -5,27 +5,43 @@ import {
   SidebarFooter,
   SidebarGroup,
   SidebarGroupContent,
-  SidebarGroupLabel,
   SidebarHeader,
   SidebarMenu,
+  SidebarMenuBadge,
   SidebarMenuButton,
   SidebarMenuItem,
-  SidebarRail
+  SidebarRail,
+  SidebarSeparator
 } from '@/admin/ui/sidebar'
 
-// The two surfaces this slice ships (ADR-0019). Übersicht is a thin stub here; Anmeldungen is the
-// existing registration workbench. Surface switching is client-side inside the single island
-// (ADR-0008) — these are not Astro routes.
+// The two surfaces this slice ships (ADR-0019). Übersicht is the home dashboard; Anmeldungen is the
+// registration workbench. Surface switching is client-side inside the single island (ADR-0008) —
+// these are not Astro routes.
 export type Surface = 'overview' | 'registrations'
 
-const SURFACES: { id: Surface; label: string; icon: typeof LayoutDashboard }[] = [
-  { id: 'overview', label: 'Übersicht', icon: LayoutDashboard },
-  { id: 'registrations', label: 'Anmeldungen', icon: ClipboardList }
-]
+// Navigation is one flat list in event-flow order (ADR-0023): Übersicht (home), then the phase
+// surfaces in the order the event runs them. Anmeldungen is live; the later phases are disabled
+// placeholders so the frame is set before they exist (ADR-0019). The old Verwaltung/Turnier grouping
+// is dropped — it was a false axis (Anmeldungen is as much "tournament" as "administration").
+interface NavItem {
+  id: Surface
+  label: string
+  icon: typeof LayoutDashboard
+}
+const HOME: NavItem = {
+  id: 'overview',
+  label: 'Übersicht',
+  icon: LayoutDashboard
+}
 
-// The surfaces whose phase has not yet produced data: shown so the frame is set before they
-// exist, disabled so they cannot be entered (ADR-0019).
-const PLACEHOLDERS: { label: string; icon: typeof LayoutDashboard }[] = [
+interface PhaseEntry {
+  label: string
+  icon: typeof LayoutDashboard
+  // The live surfaces carry a Surface id; the not-yet-built phases are disabled placeholders.
+  surface?: Surface
+}
+const PHASES: PhaseEntry[] = [
+  { label: 'Anmeldungen', icon: ClipboardList, surface: 'registrations' },
   { label: 'Auslosung', icon: Shuffle },
   { label: 'Spielplan', icon: CalendarDays },
   { label: 'Ergebnisse', icon: Trophy }
@@ -34,18 +50,23 @@ const PLACEHOLDERS: { label: string; icon: typeof LayoutDashboard }[] = [
 interface AppSidebarProps {
   active: Surface
   onSelect: (surface: Surface) => void
+  // The "Neu" queue size, shown as an ambient badge on Anmeldungen (ADR-0023) now that the
+  // Übersicht no longer carries the big call-to-action.
+  newCount: number
 }
 
 // The shell's navigation (ADR-0019): an icon-collapsible sidebar that answers "where am I",
 // independent of the phase stepper's "where is the event". Neutral, light-only (ADR-0016).
-export const AppSidebar = ({ active, onSelect }: AppSidebarProps) => (
+export const AppSidebar = ({ active, onSelect, newCount }: AppSidebarProps) => (
   <Sidebar collapsible="icon">
     <SidebarHeader>
       <SidebarMenu>
         <SidebarMenuItem>
           <SidebarMenuButton size="lg" asChild className="pointer-events-none">
             <div>
-              <img src="/signet.svg" alt="TV Winsen" width={32} height={32} className="size-8 shrink-0" />
+              {/* Full club emblem, not the signet — a deliberate operator override (ADR-0023): the
+                  rim text is illegible at this size, accepted as decorative. */}
+              <img src="/club-logos/tv-winsen.svg" alt="TV Winsen" width={32} height={32} className="size-8 shrink-0" />
               <div className="grid flex-1 text-left text-sm leading-tight">
                 <span className="truncate font-semibold">Meisterschaften</span>
                 <span className="text-muted-foreground truncate text-xs">2026 · Admin</span>
@@ -58,39 +79,53 @@ export const AppSidebar = ({ active, onSelect }: AppSidebarProps) => (
 
     <SidebarContent>
       <SidebarGroup>
-        <SidebarGroupLabel>Verwaltung</SidebarGroupLabel>
         <SidebarGroupContent>
           <SidebarMenu>
-            {SURFACES.map(s => (
-              <SidebarMenuItem key={s.id}>
-                <SidebarMenuButton isActive={active === s.id} tooltip={s.label} onClick={() => onSelect(s.id)}>
-                  <s.icon />
-                  <span>{s.label}</span>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-            ))}
+            <SidebarMenuItem>
+              <SidebarMenuButton isActive={active === HOME.id} tooltip={HOME.label} onClick={() => onSelect(HOME.id)}>
+                <HOME.icon />
+                <span>{HOME.label}</span>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
           </SidebarMenu>
         </SidebarGroupContent>
       </SidebarGroup>
 
+      <SidebarSeparator />
+
       <SidebarGroup>
-        <SidebarGroupLabel>Turnier</SidebarGroupLabel>
         <SidebarGroupContent>
           <SidebarMenu>
-            {PLACEHOLDERS.map(p => (
-              <SidebarMenuItem key={p.label}>
-                <SidebarMenuButton disabled tooltip={`${p.label} — folgt`} className="opacity-50">
-                  <p.icon />
-                  <span>{p.label}</span>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-            ))}
+            {PHASES.map(p =>
+              p.surface ? (
+                <SidebarMenuItem key={p.label}>
+                  <SidebarMenuButton
+                    isActive={active === p.surface}
+                    tooltip={p.label}
+                    onClick={() => onSelect(p.surface!)}
+                  >
+                    <p.icon />
+                    <span>{p.label}</span>
+                  </SidebarMenuButton>
+                  {newCount > 0 && <SidebarMenuBadge>{newCount}</SidebarMenuBadge>}
+                </SidebarMenuItem>
+              ) : (
+                <SidebarMenuItem key={p.label}>
+                  <SidebarMenuButton disabled tooltip={`${p.label} — folgt`} className="opacity-50">
+                    <p.icon />
+                    <span>{p.label}</span>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              )
+            )}
           </SidebarMenu>
         </SidebarGroupContent>
       </SidebarGroup>
     </SidebarContent>
 
     <SidebarFooter>
+      {/* Set off from the nav by a separator (ADR-0023). */}
+      <SidebarSeparator />
       <SidebarMenu>
         <SidebarMenuItem>
           {/* Edge-only auth (ADR-0008): logout hands off to the Cloudflare Access endpoint. */}

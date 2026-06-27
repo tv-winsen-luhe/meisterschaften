@@ -40,6 +40,28 @@ export const contactEmail = 'sportwart@tennisverein-winsen.de'
 /** Entry fee per person, cash on site, in EUR. */
 export const entryFee = 5
 
+/**
+ * Court-throughput assumption behind the admin's Gesamtauslastung gauge (ADR-0023 follow-up). The
+ * Anlage has 6 courts; at ~90 min per match a court turns ~6 matches in a ~9 h playing day, across
+ * both event days. `matchSlotsPerWeekend` (= 72) is the 100 % the gauge measures the projected
+ * match load against. A planning figure, not a schedule — the Spielplan will own the real timetable.
+ */
+export const courtSchedule = {
+  courts: 6,
+  matchMinutes: 90,
+  matchesPerCourtPerDay: 6,
+  days: 2
+} as const
+export const matchSlotsPerWeekend = courtSchedule.courts * courtSchedule.matchesPerCourtPerDay * courtSchedule.days
+
+/**
+ * Provisional court-slot reservation for the planned Damen-Freizeit field, which shares the event
+ * weekend's courts (ADR-0023). A placeholder until the format is decided (Gespräche 02.07): set the
+ * real figure once group format, size and match length are known. Shown as its own segment in the
+ * Gesamtauslastung so the championship load and this reservation read against the same 72-slot budget.
+ */
+export const freizeitReservedSlots = 10
+
 /** Default LK for participants without a nuLiga entry (set in admin). Single source: shared/. */
 export const defaultLk = DEFAULT_LK
 

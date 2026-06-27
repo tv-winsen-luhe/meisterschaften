@@ -19,3 +19,33 @@ export const byeCount = (confirmed: number): number => {
   const size = drawSize(confirmed)
   return size === 0 ? 0 : size - confirmed
 }
+
+/**
+ * Matches in the Hauptrunde: `confirmed − 1` to crown the champion (every entrant but the winner
+ * loses once; a bye is not a match), plus the Spiel um Platz 3 once a semifinal exists. From four
+ * entrants up the round of four always resolves to two contested semifinals (byes only occur in
+ * round one), so that playoff is exact — not an estimate.
+ */
+export const mainDrawMatches = (confirmed: number): number =>
+  confirmed < 2 ? 0 : confirmed - 1 + (confirmed >= 4 ? 1 : 0)
+
+/**
+ * Matches in the Trostrunde — the consolation knockout (CONTEXT: Nebenrunde, ADR-0004). Its
+ * entrants are the Hauptrunde's first-round losers — `confirmed − drawSize/2` (the byes skip R1) —
+ * and, being a knockout, it runs `entrants − 1` matches (0 below two).
+ *
+ * Estimate, not an exact count: the Nebenrunde also takes the players who had a R1 Freilos and then
+ * lost in R2 (so every entrant gets ≥2 matches), and how many that is depends on the R2 pairings,
+ * not derivable from counts alone. It is therefore a slight under-count for fields with Freilose,
+ * and **exact for a full power-of-two field** (no byes) — which is the capacity figure the
+ * Gesamtauslastung headlines.
+ */
+export const consolationMatches = (confirmed: number): number => {
+  const size = drawSize(confirmed)
+  if (size === 0) return 0
+  const firstRoundLosers = confirmed - size / 2
+  return firstRoundLosers < 2 ? 0 : firstRoundLosers - 1
+}
+
+/** Total matches a field runs: main draw + Trostrunde (R1-loser consolation). */
+export const matchCount = (confirmed: number): number => mainDrawMatches(confirmed) + consolationMatches(confirmed)

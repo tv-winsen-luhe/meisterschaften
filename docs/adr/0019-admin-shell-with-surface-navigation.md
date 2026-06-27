@@ -1,6 +1,6 @@
 # ADR-0019: The admin becomes a navigable shell; the phase is its global header
 
-- Status: accepted
+- Status: accepted (Übersicht shape in point 1 superseded by ADR-0023)
 - Date: 2026-06-26
 
 ## Context

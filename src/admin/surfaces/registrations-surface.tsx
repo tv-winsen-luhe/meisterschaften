@@ -12,6 +12,7 @@ import { Drawer, DrawerContent, DrawerDescription, DrawerTitle } from '@/admin/u
 import { useIsMobile } from '@/admin/hooks/use-mobile'
 import { nextSelection } from './auto-advance'
 import { competitionLabel, RegistrationDetail, STATUS_META, type ConfirmPayload } from './registration-detail'
+import { compareBy, SORT_OPTIONS, type SortKey } from './registration-sort'
 
 export type StatusFilter = 'all' | AdminRegistration['status']
 export type CompetitionFilter = 'all' | CompetitionSlug
@@ -23,9 +24,6 @@ const STATUS_LABELS: Record<StatusFilter, string> = {
   confirmed: STATUS_META.confirmed.label,
   cancelled: STATUS_META.cancelled.label
 }
-// Status order in the queue: the "Neu" work-queue first, then confirmed, then the terminal
-// cancelled rows. Within a status, oldest first (the order they signed up).
-const ORDER: Record<string, number> = { new: 0, confirmed: 1, cancelled: 2 }
 const TABS: StatusFilter[] = ['new', 'confirmed', 'cancelled', 'all']
 
 // The detail panel seeds its edit state from the row and is remounted when any displayed field
@@ -36,6 +34,8 @@ const detailKey = (reg: AdminRegistration) =>
 
 interface RegistrationsSurfaceProps {
   registrations: AdminRegistration[]
+  // A registration to open on mount (deep-link from the Übersicht); null = default selection.
+  selectId: number | null
   filter: StatusFilter
   onFilterChange: (filter: StatusFilter) => void
   competitionFilter: CompetitionFilter
@@ -57,6 +57,7 @@ interface RegistrationsSurfaceProps {
 // they survive switching surfaces); the selection is local to this surface.
 export const RegistrationsSurface = ({
   registrations,
+  selectId,
   filter,
   onFilterChange,
   competitionFilter,
@@ -69,7 +70,10 @@ export const RegistrationsSurface = ({
   onRefreshLk
 }: RegistrationsSurfaceProps) => {
   const isMobile = useIsMobile()
-  const [selectedId, setSelectedId] = useState<number | null>(null)
+  // Seed from the deep-link target (the shell drops all filters first, so it is in the queue); the
+  // surface remounts per navigation, so this initialiser runs fresh each time it is opened.
+  const [selectedId, setSelectedId] = useState<number | null>(selectId ?? null)
+  const [sort, setSort] = useState<SortKey>('date-asc')
   const [drawerOpen, setDrawerOpen] = useState(false)
   const searchRef = useRef<HTMLInputElement>(null)
 
@@ -95,11 +99,8 @@ export const RegistrationsSurface = ({
     [scoped]
   )
   const visible = useMemo(
-    () =>
-      scoped
-        .filter(r => filter === 'all' || r.status === filter)
-        .sort((a, b) => ORDER[a.status] - ORDER[b.status] || a.createdAt.localeCompare(b.createdAt)),
-    [scoped, filter]
+    () => scoped.filter(r => filter === 'all' || r.status === filter).sort(compareBy(sort)),
+    [scoped, filter, sort]
   )
 
   // Keep the selection valid as the queue changes (filter/search/reload): drop it when the queue
@@ -111,6 +112,11 @@ export const RegistrationsSurface = ({
       setSelectedId(visible[0].id)
     }
   }, [visible, selectedId])
+
+  // Deep-link from the Übersicht on a phone: open the detail drawer for the pre-selected row.
+  useEffect(() => {
+    if (selectId != null && isMobile) setDrawerOpen(true)
+  }, [selectId, isMobile])
 
   // `/` focuses the search box, so the operator can filter without reaching for the mouse — unless
   // they are already typing in a field.
@@ -191,24 +197,33 @@ export const RegistrationsSurface = ({
               <span className="max-[420px]:sr-only">LK</span>
             </Button>
           </div>
-          <NativeSelect
-            aria-label="Konkurrenz filtern"
-            value={competitionFilter}
-            onChange={e => onCompetitionFilterChange(e.target.value as CompetitionFilter)}
-          >
-            <option value="all">Alle Konkurrenzen</option>
-            {COMPETITION_SLUGS.map(slug => (
-              <option key={slug} value={slug}>
-                {competitionLabel(slug)}
-              </option>
-            ))}
-          </NativeSelect>
+          <div className="grid grid-cols-2 gap-2">
+            <NativeSelect
+              aria-label="Konkurrenz filtern"
+              value={competitionFilter}
+              onChange={e => onCompetitionFilterChange(e.target.value as CompetitionFilter)}
+            >
+              <option value="all">Alle Konkurrenzen</option>
+              {COMPETITION_SLUGS.map(slug => (
+                <option key={slug} value={slug}>
+                  {competitionLabel(slug)}
+                </option>
+              ))}
+            </NativeSelect>
+            <NativeSelect aria-label="Sortierung" value={sort} onChange={e => setSort(e.target.value as SortKey)}>
+              {SORT_OPTIONS.map(o => (
+                <option key={o.value} value={o.value}>
+                  {o.label}
+                </option>
+              ))}
+            </NativeSelect>
+          </div>
           <Tabs value={filter} onValueChange={v => onFilterChange(v as StatusFilter)}>
             <TabsList className="w-full">
               {TABS.map(s => (
                 <TabsTrigger key={s} value={s}>
                   {STATUS_LABELS[s]}
-                  <span className="font-mono text-xs font-bold opacity-60">{counts[s]}</span>
+                  <span className="text-xs font-bold opacity-60">{counts[s]}</span>
                 </TabsTrigger>
               ))}
             </TabsList>
@@ -246,7 +261,7 @@ export const RegistrationsSurface = ({
                     {competitionLabel(reg.competition)}
                   </span>
                 </span>
-                <span className="text-muted-foreground shrink-0 font-mono text-xs tabular-nums">{reg.lk ?? '—'}</span>
+                <span className="text-muted-foreground shrink-0 text-xs tabular-nums">{reg.lk ?? '—'}</span>
               </button>
             ))
           )}

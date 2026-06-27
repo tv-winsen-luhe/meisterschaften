@@ -47,6 +47,10 @@ export const AdminApp = () => {
   const [filter, setFilter] = useState<StatusFilter>('all')
   const [competitionFilter, setCompetitionFilter] = useState<CompetitionFilter>('all')
   const [query, setQuery] = useState('')
+  // A registration the Übersicht asked to open (deep-link from "Letzte Anmeldungen"); the Anmeldungen
+  // surface seeds its selection from it. Cleared on every other navigation so it never re-selects a
+  // stale row when the surface remounts.
+  const [selectId, setSelectId] = useState<number | null>(null)
 
   // `redirect: 'manual'` so an Access login redirect surfaces as an opaque-redirect response
   // (status 0) instead of being transparently followed cross-origin — see isAuthRedirect.
@@ -176,6 +180,7 @@ export const AdminApp = () => {
   // The Übersicht's "neu — zu bestätigen" call-to-action: open Anmeldungen pre-filtered to the
   // "Neu" queue so the operator starts triage in one click (ADR-0019).
   const goToNew = useCallback(() => {
+    setSelectId(null)
     setFilter('new')
     setSurface('registrations')
   }, [])
@@ -183,8 +188,19 @@ export const AdminApp = () => {
   // A Konkurrenz row in the Übersicht opens Anmeldungen scoped to that field, all statuses — "show
   // me this Konkurrenz" (ADR-0019). The filter lives in the shell, so it survives the surface switch.
   const goToCompetition = useCallback((slug: CompetitionSlug) => {
+    setSelectId(null)
     setCompetitionFilter(slug)
     setFilter('all')
+    setSurface('registrations')
+  }, [])
+
+  // Deep-link from "Letzte Anmeldungen" to one player's detail: drop all filters so the row is
+  // visible whatever its status/Konkurrenz, then open the Anmeldungen surface on it (ADR-0023).
+  const goToRegistration = useCallback((reg: AdminRegistration) => {
+    setSelectId(reg.id)
+    setFilter('all')
+    setCompetitionFilter('all')
+    setQuery('')
     setSurface('registrations')
   }, [])
 
@@ -209,25 +225,45 @@ export const AdminApp = () => {
     )
   }
 
+  // The "Neu" queue size drives the sidebar badge (ADR-0023) — the ambient signal that replaced the
+  // Übersicht's old call-to-action block.
+  const newCount = registrations.filter(r => r.status === 'new').length
+
   return (
     // h-svh + overflow-hidden turns the shell into a fixed-height app frame: the header stays put
     // and each surface scrolls inside its own region (the Anmeldungen queue and detail panel keep
     // their action bars pinned) rather than the whole page scrolling.
     <SidebarProvider className="h-svh overflow-hidden">
-      <AppSidebar active={surface} onSelect={setSurface} />
+      <AppSidebar
+        active={surface}
+        onSelect={s => {
+          setSelectId(null)
+          setSurface(s)
+        }}
+        newCount={newCount}
+      />
       <SidebarInset className="min-h-0 overflow-hidden">
         {/* The phase stepper sits above every surface (ADR-0019). Non-sticky so the Anmeldungen
-            filter bar below can pin to the top while a long list scrolls, as it did before. */}
+            filter bar below can pin to the top while a long list scrolls, as it did before. The
+            trigger stays hard-left; the stepper is centered in the remaining width (ADR-0023). */}
         <header className="bg-background flex items-center gap-2 border-b px-4 py-3">
           <SidebarTrigger className="-ml-1" />
           <Separator orientation="vertical" className="mr-1 !h-5" />
-          <PhaseStepper phase={phase} onChange={changePhase} />
+          <div className="flex flex-1 justify-center">
+            <PhaseStepper phase={phase} onChange={changePhase} />
+          </div>
         </header>
         {surface === 'overview' ? (
-          <OverviewSurface registrations={registrations} onGoToNew={goToNew} onGoToCompetition={goToCompetition} />
+          <OverviewSurface
+            registrations={registrations}
+            onGoToNew={goToNew}
+            onGoToCompetition={goToCompetition}
+            onOpenRegistration={goToRegistration}
+          />
         ) : (
           <RegistrationsSurface
             registrations={registrations}
+            selectId={selectId}
             filter={filter}
             onFilterChange={setFilter}
             competitionFilter={competitionFilter}

@@ -122,8 +122,10 @@ When a concept here drifts or a new one appears, update this file rather than in
   (day + approximate time) after the Auslosung, the way nuTurnier does it. Planned times are
   explicitly approximate ("ca."), not guarantees. The operator places matches by hand on a courts×time
   grid; the system validates rather than auto-generates — it forbids scheduling a match before its
-  feeders finish, forbids more matches per slot than the 6 courts, and warns on back-to-back matches
-  for one player. _(See ADR-0005.)_
+  feeders finish, forbids more matches per slot than the 6 courts, caps each player at **2 matches per
+  day** (so a deep run, or a Hauptrunde exit plus the Nebenrunde, necessarily spreads across both event
+  days — the Nebenrunde is not a Saturday-only affair), and warns on back-to-back matches for one
+  player. _(See ADR-0005.)_
 - **Platz (court)** — one of 6 sand courts. Capacity constraint for the Spielplan: at most 6 matches
   run in the same time slot.
 - **Match-Status** — `geplant` → `läuft` (on a named Platz) → `beendet`. The operator updates it; the
