@@ -12,11 +12,11 @@ import {
 import type { DrawStore } from './store/draw'
 import type { RegistrationsStore } from './store/registrations'
 
-// The draw orchestration (ADR-0025, ADR-0027): the worker-side composition behind „Jetzt auslosen".
+// The draw orchestration (ADR-0025, ADR-0027): the worker-side composition behind the draw button (UI: „Jetzt auslosen").
 // It guards the preconditions, reads the seeded field, runs the pure `drawBracket`, and writes the
 // bracket + draw record atomically through the DrawStore. The math is pure (shared/draw.ts); this is
 // only the wiring, so it is driven through the in-memory stores + a deterministic RandomSource in
-// tests. Hauptrunde of a **full field** only (no Freilose, sizes 8/16) this epic.
+// tests. Main bracket of a **full field** only (no byes, sizes 8/16) this epic.
 
 // Why a draw could not start. The pure preconditions are the shared DrawBlocker (so the client's
 // affordance reads the same rule, ADR-0011); `AlreadyDrawn` is the one that needs the store and so
@@ -36,7 +36,7 @@ export interface DrawServiceDeps {
   randomSource: RandomSource
 }
 
-// What „Jetzt auslosen" hands the service: which Konkurrenz, the current phase (the gate), and the
+// What the draw button (UI: „Jetzt auslosen") hands the service: which competition, the current phase (the gate), and the
 // write timestamp (the edge owns `now`, so the orchestration stays pure-ish and testable).
 export interface DrawParams {
   competition: string
@@ -51,7 +51,7 @@ export const createDrawService = (deps: DrawServiceDeps) => {
 
   return {
     /**
-     * Draw the Hauptrunde for one Konkurrenz. Gated on the shared draw preconditions (phase, count,
+     * Draw the main bracket for one competition. Gated on the shared draw preconditions (phase, count,
      * full + supported size) and on the field being un-drawn (ADR-0026). On success the bracket +
      * draw record are persisted atomically and the assembled CompetitionDraw is returned.
      */

@@ -5,23 +5,23 @@
 
 ## Context
 
-The published privacy policy (`datenschutz`) commits that Anmeldedaten are stored only to prepare and
-run the event and are deleted after the tournament and its Auswertung; it lists the publicly shown
-fields as only Vorname, Nachname, Verein, Konkurrenz; and it carries a separate Vereinschronik /
-Vereinsarchiv legitimate-interest basis for archiving participation. Post-Event retention therefore
+The published privacy policy (`datenschutz`) commits that registration data is stored only to prepare
+and run the event and is deleted after the tournament and its evaluation; it lists the publicly shown
+fields as only first name, last name, club, competition; and it carries a separate Vereinschronik /
+Vereinsarchiv legitimate-interest basis for archiving participation. Post-event retention therefore
 has to honor that text, not invent a new policy.
 
 ## Decision
 
-At Post-Event:
+At post-event:
 
-- **Archive the results** — final Hauptrunde and Nebenrunde brackets, scores, and champions (names,
-  club, Konkurrenz) persist as a lasting public 2026 record, projected as the Post-Event view
+- **Archive the results** — final main and consolation brackets, scores, and champions
+  (names, club, competition) persist as a lasting public 2026 record, projected as the post-event view
   (champions highlighted, final brackets browsable). Legal basis: the Vereinschronik legitimate
   interest.
 - **Purge the contact data** — email, phone, and IP are deleted after the tournament and its
-  Auswertung, exactly as §Speicherdauer promises.
-- The purge is an **explicit, operator-initiated final step** of Post-Event (a deliberate, logged
+  evaluation, exactly as §Speicherdauer promises.
+- The purge is an **explicit, operator-initiated final step** of post-event (a deliberate, logged
   act), not a silent cron job.
 
 ## Consequences

@@ -3,13 +3,13 @@ import { competitions, signupDeadline } from '@/data/tournament'
 import tvLogo from '@/assets/logo.svg'
 import tsvLogo from '@/assets/tsv-winsen.png'
 
-// Open competitions only; Hauptfeld (mens/womens) = seeding board, Challenger = friendly list.
+// Open competitions only; championship field (mens/womens) = seeding board, Challenger = friendly list.
 const openCompetitions = competitions.filter(c => c.status === 'open')
 // Planned competitions get a quiet "in Planung" tile so the field is hinted at, not listed.
 const plannedCompetitions = competitions.filter(c => c.status === 'planned')
 const layoutFor = (slug: string) => (slug === 'mens' || slug === 'womens' ? 'board' : 'list')
 // Provisional seeds: the strongest LKs are seeded, one per quarter of the draw
-// (16 → an 1–4, 8 → an 1–2). Final seeding/draw happens at the Auslosung.
+// (16 → seeds 1–4, 8 → seeds 1–2). Final seeding/draw happens at the draw.
 const seedsFor = (capacity?: number) => (capacity ? Math.floor(capacity / 4) : 0)
 ---
 
@@ -346,7 +346,7 @@ const seedsFor = (capacity?: number) => (capacity ? Math.floor(capacity / 4) : 0
 
   // The phase the public surface keys off (ADR-0006, ADR-0027). Each phase shows a
   // phase-appropriate status caption; the list itself stays visible. Within `tournament` the
-  // public middle is derived per Konkurrenz (the draw is no longer a phase) — until the Draw
+  // public middle is derived per competition (the draw is no longer a phase) — until the Draw
   // slices land it shows the "Anmeldung geschlossen / Auslosung steht bevor" state.
   const PHASE_CAPTIONS: Record<Exclude<Phase, 'signup'>, string> = {
     tournament: 'Die Anmeldung ist geschlossen — die Auslosung steht bevor.',
@@ -355,7 +355,7 @@ const seedsFor = (capacity?: number) => (capacity ? Math.floor(capacity / 4) : 0
   const root = document.querySelector<HTMLElement>('[data-participants]')
   const logoTv = root?.dataset.logoTv ?? ''
   const logoTsv = root?.dataset.logoTsv ?? ''
-  // The Anmeldung caption is server-rendered (it interpolates the signup deadline). Capture it
+  // The signup caption is server-rendered (it interpolates the signup deadline). Capture it
   // once so applyPhase can restore it verbatim when the operator reverts to 'signup'.
   const statusEl = root?.querySelector<HTMLElement>('[data-status]') ?? null
   const defaultCaption = statusEl?.textContent ?? ''
@@ -467,7 +467,7 @@ const seedsFor = (capacity?: number) => (capacity ? Math.floor(capacity / 4) : 0
       empty.hidden = true
       entries.forEach((e, i) => {
         const rank = i + 1
-        // Separate the seeded players from the rest, which get drawn at the Auslosung.
+        // Separate the seeded players from the rest, which get drawn at the draw.
         if (seeds > 0 && rank === seeds + 1) list.appendChild(divider())
         list.appendChild(row(e, layout, rank, seeds > 0 && rank <= seeds))
       })

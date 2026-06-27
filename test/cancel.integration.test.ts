@@ -70,7 +70,7 @@ describe('POST /api/cancel (integration)', () => {
     expect(await res.json()).toEqual({ error: 'Ungültige Anfrage.' })
   })
 
-  it('withdraws every active entry for the person across Konkurrenzen and reports the count', async () => {
+  it('withdraws every active entry for the person across competitions and reports the count', async () => {
     vi.stubGlobal('fetch', async () => new Response('', { status: 200 }))
     await insertActive('multi@example.com', 'Multi', 'mens', 'new')
     await insertActive('multi@example.com', 'Multi', 'womens', 'confirmed')

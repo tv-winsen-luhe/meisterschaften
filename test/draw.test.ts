@@ -65,7 +65,7 @@ describe('drawBlocker', () => {
     expect(drawBlocker('tournament', 1)).toBe('too-few')
   })
 
-  it('blocks a field with Freilose (not a power of two)', () => {
+  it('blocks a field with byes (not a power of two)', () => {
     expect(drawBlocker('tournament', 7)).toBe('not-full-field')
     expect(drawBlocker('tournament', 12)).toBe('not-full-field')
   })

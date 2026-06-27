@@ -84,7 +84,7 @@ export const notifyRegistration = async (env: Env, r: RegistrationNotice): Promi
   await sendTelegram(env, text)
 }
 
-/** Telegram message about a cancellation (one person can cancel several Konkurrenzen). */
+/** Telegram message about a cancellation (one person can cancel several competitions). */
 export const notifyCancellation = async (env: Env, rows: CancelledNotice[]): Promise<void> => {
   if (rows.length === 0) return
 

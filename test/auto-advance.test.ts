@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { AdminRegistration } from '../shared'
 import { nextSelection } from '../src/admin/surfaces/auto-advance'
 
-// nextSelection is the Anmeldungen-triage auto-advance rule (ADR-0019), kept a pure function
+// nextSelection is the registrations triage auto-advance rule (ADR-0019), kept a pure function
 // separate from the surface so it is tested in isolation like the other pure predicates
 // (can-confirm, seeding-basis). Given the queue as it stood when the operator acted (already
 // filtered + sorted) and the id just acted on, it returns the next entry to open: the following

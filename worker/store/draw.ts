@@ -14,10 +14,10 @@ import {
 import { draws, matches, type DrawRow, type MatchRow, type NewMatchRow } from '../db/schema'
 
 // The deep draw Store (ADR-0025): callers speak in draws and brackets, never SQL. It owns the two
-// tables the Auslosung writes — the `draws` record (seeding snapshot + reveal sequence + cursor) and
+// tables the draw writes — the `draws` record (seeding snapshot + reveal sequence + cursor) and
 // the materialized `matches` — and the rule that they are written together, atomically. Two adapters
 // back it (D1/Drizzle in prod, in-memory in tests), like the registrations Store. It grows one
-// operation per slice; this epic writes the Hauptrunde of a full field.
+// operation per slice; this epic writes the main bracket of a full field.
 
 // Everything one draw persists, handed over in one call so the Store can write it atomically.
 export interface SaveDrawInput {
@@ -31,20 +31,20 @@ export interface SaveDrawInput {
 }
 
 export interface DrawStore {
-  /** The draw record for this Konkurrenz+bracket, or null — the "schon gelost?" check (ADR-0027). */
+  /** The draw record for this competition+bracket, or null — the "already drawn?" check (ADR-0027). */
   findDraw(competition: string, bracket: Bracket): Promise<DrawRow | null>
 
   /**
    * Persist a draw atomically: the draw record (seeding + reveal sequence) and its `matches` rows in
-   * one transaction, so a Konkurrenz is never half-drawn. The (competition, bracket) unique index
+   * one transaction, so a competition is never half-drawn. The (competition, bracket) unique index
    * makes a concurrent double-draw fail rather than write a second bracket.
    */
   save(input: SaveDrawInput): Promise<void>
 
-  /** The assembled draw (seeding + materialized bracket) for one Konkurrenz+bracket, or null. */
+  /** The assembled draw (seeding + materialized bracket) for one competition+bracket, or null. */
   getDraw(competition: string, bracket: Bracket): Promise<CompetitionDraw | null>
 
-  /** Every drawn Konkurrenz the surface lists — assembled the same way as getDraw. */
+  /** Every drawn competition the surface lists — assembled the same way as getDraw. */
   listDraws(): Promise<CompetitionDraw[]>
 }
 

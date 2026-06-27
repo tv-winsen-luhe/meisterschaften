@@ -6,7 +6,7 @@
 ## Context
 
 The Meisterschaften site already owns registration data (D1 `registrations`) and has a token-gated
-admin. The event continues past registration into a draw (Auslosung), a live weekend, and a
+admin. The event continues past registration into a draw, a live weekend, and a
 post-event phase. We had to decide whether the bracket and live results live **in this system** or in
 an **external tournament tool** (nuLiga, Turnier.de, mybigpoint, a spreadsheet) that the site mirrors.
 

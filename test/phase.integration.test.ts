@@ -5,7 +5,7 @@ import worker from '../worker/index'
 
 // Thin integration smoke over a real local D1: proves the phase wiring (Hono → Zod → app-state
 // Store → Drizzle → D1) and the cron's phase gate (ADR-0006), not logic. The app-state default
-// lives in the Store; the cron no-op outside Anmeldung is the only new behaviour.
+// lives in the Store; the cron no-op outside signup is the only new behaviour.
 beforeAll(async () => {
   await applyD1Migrations(env.DB, env.TEST_MIGRATIONS)
 })

@@ -9,12 +9,12 @@ import { z } from 'zod'
 // registration and freezes the seeding (the precondition for any draw), and `tournament` →
 // `post-event` ends the event and unlocks the purge. The former `draw`/`live` distinction is
 // gone as an operator-set value — within `tournament` the public presentation is derived from
-// the per-Konkurrenz draw state, not flipped by hand.
+// the per-competition draw state, not flipped by hand.
 //
 // The phase is the one value every public surface keys off and the only thing the weekly
 // nuLiga cron is gated on (it runs only during `signup`). It defaults to `signup`,
 // the phase the event is in today. Values are English identifiers; the German names
-// Anmeldung/Turnier are display copy (see the admin's PHASE_LABELS).
+// signup/tournament are display copy (see the admin's PHASE_LABELS).
 
 export const PHASES = ['signup', 'tournament', 'post-event'] as const
 export const phaseSchema = z.enum(PHASES)

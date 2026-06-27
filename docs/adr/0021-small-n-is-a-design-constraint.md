@@ -13,11 +13,11 @@ sees "a list of registrations" or "a grid of matches" and cannot tell that the c
 ## Decision
 
 Treat the small participant count as a **design constraint** that steers the admin (and the coming
-Auslosung / Spielplan / Ergebnisse surfaces) toward clarity-at-a-glance and away from anything built for
+draw / schedule / results surfaces) toward clarity-at-a-glance and away from anything built for
 volume.
 
-- **Encouraged**: render the full set at once (no paging), in-memory sort/filter, the whole Spielplan on
-  one grid, the Übersicht as a 3-row table.
+- **Encouraged**: render the full set at once (no paging), in-memory sort/filter, the whole schedule on
+  one grid, the overview as a 3-row table.
 - **Avoided**: pagination, "load more" / infinite scroll, list virtualisation (`react-window` & co.),
   server-side search/filter endpoints, and density tricks that only pay off at hundreds of rows.
 

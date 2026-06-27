@@ -38,7 +38,7 @@ export const STATUS_META: Record<AdminRegistration['status'], StatusMeta> = {
   cancelled: { label: 'Abgemeldet', dot: 'bg-red-500', badge: 'border-red-300 bg-red-50 text-red-900' }
 }
 
-// Konkurrenz label + capacity come from the tournament content model so the admin never re-states
+// competition label + capacity come from the tournament content model so the admin never re-states
 // what tournament.ts already owns — both lookups live here, beside each other.
 export const competitionLabel = (slug: string): string => competitions.find(c => c.slug === slug)?.label ?? slug
 export const competitionCapacity = (slug: string): number | undefined =>
@@ -71,7 +71,7 @@ interface RegistrationDetailProps {
 // (each value shown once), actions. Content sits in a measured, centered column (max-w-3xl) so it
 // uses the pane without sprawling. The LK is read-only (ADR-0020): the only seeding input is the
 // nuLiga id + the „keine ID" switch; the LK is shown as a badge with its provenance (nuLiga vs
-// Standard), not a fake input. The Verein is a two-option logo toggle, not a dropdown (small N).
+// Standard), not a fake input. The club is a two-option logo toggle, not a dropdown (small N).
 // The edit state seeds from the row; the panel is remounted (keyed on the row's mutable fields by
 // the surface) after a save, so it always reflects the persisted state. confirmPreview (composing
 // the shared seeding rules — ADR-0011) derives every affordance: the LK badge, confirmability, the
@@ -107,7 +107,7 @@ export const RegistrationDetail = ({ reg, onConfirm, onCancel, onDelete }: Regis
   const submit = () => {
     if (isCancelled || blocked) return
     // The Challenger field is protected upward (from LK 20). A stronger LK is confirmed explicitly
-    // (or moved to the Hauptfeld) via the AlertDialog below.
+    // (or moved to the championship field) via the AlertDialog below.
     if (challenger.tooStrong) {
       setChallengerOpen(true)
       return
@@ -304,7 +304,7 @@ interface MetaProps {
   label: string
   value: string
 }
-// A labelled provenance fact (Angemeldet / Zuletzt aktualisiert), grounded with a small caption so
+// A labelled provenance fact (registered at / last updated), grounded with a small caption so
 // it reads as data rather than floating text.
 const Meta = ({ label, value }: MetaProps) => (
   <div className="flex flex-col gap-0.5">

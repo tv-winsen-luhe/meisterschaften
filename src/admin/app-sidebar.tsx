@@ -14,15 +14,15 @@ import {
   SidebarSeparator
 } from '@/admin/ui/sidebar'
 
-// The two surfaces this slice ships (ADR-0019). Übersicht is the home dashboard; Anmeldungen is the
-// registration workbench. Surface switching is client-side inside the single island (ADR-0008) —
+// The two surfaces this slice ships (ADR-0019). The overview is the home dashboard; registrations is
+// the registration workbench. Surface switching is client-side inside the single island (ADR-0008) —
 // these are not Astro routes.
 export type Surface = 'overview' | 'registrations' | 'competitions'
 
-// Navigation is one flat list in event-flow order (ADR-0023): Übersicht (home), then the phase
-// surfaces in the order the event runs them. Anmeldungen is live; the later phases are disabled
-// placeholders so the frame is set before they exist (ADR-0019). The old Verwaltung/Turnier grouping
-// is dropped — it was a false axis (Anmeldungen is as much "tournament" as "administration").
+// Navigation is one flat list in event-flow order (ADR-0023): overview (home), then the phase
+// surfaces in the order the event runs them. Registrations is live; the later phases are disabled
+// placeholders so the frame is set before they exist (ADR-0019). The old administration/tournament
+// grouping is dropped — it was a false axis (registrations is as much "tournament" as "administration").
 interface NavItem {
   id: Surface
   label: string
@@ -50,8 +50,8 @@ const PHASES: PhaseEntry[] = [
 interface AppSidebarProps {
   active: Surface
   onSelect: (surface: Surface) => void
-  // The "Neu" queue size, shown as an ambient badge on Anmeldungen (ADR-0023) now that the
-  // Übersicht no longer carries the big call-to-action.
+  // The "new" queue size, shown as an ambient badge on registrations (ADR-0023) now that the
+  // overview no longer carries the big call-to-action.
   newCount: number
 }
 

@@ -30,7 +30,7 @@ interface PhaseStepperProps {
 // The global phase header (ADR-0019): it both shows where the event stands and sets it. Phases
 // before the current one read as done (check), the current one is highlighted, the rest are
 // upcoming. Every change — forward or back — goes through an alert-dialog that names the
-// consequence (leaving Anmeldung freezes the Setzung and ends the weekly nuLiga sync, ADR-0010),
+// consequence (leaving signup freezes the seeding and ends the weekly nuLiga sync, ADR-0010),
 // because a misclick has event-wide reach. The phase does not gate the sidebar (ADR-0019).
 export const PhaseStepper = ({ phase, onChange }: PhaseStepperProps) => {
   const [pending, setPending] = useState<Phase | null>(null)
@@ -43,8 +43,8 @@ export const PhaseStepper = ({ phase, onChange }: PhaseStepperProps) => {
 
   // The consequence of the chosen transition, named in the dialog so the warning describes the
   // actual move (not a single static message). Only two genuine forward transitions exist
-  // (ADR-0027): closing the Anmeldung freezes the Setzung; ending the event unlocks the purge —
-  // the per-Konkurrenz Auslosung is no longer a phase. A step backward is flagged as unusual.
+  // (ADR-0027): closing signup freezes the seeding; ending the event unlocks the purge —
+  // the per-competition draw is no longer a phase. A step backward is flagged as unusual.
   // Backward is a deliberate escape hatch (ADR-0006): it just sets the phase value — the cron
   // re-gates itself and the immutable draw snapshots stand (ADR-0003).
   const consequence = (target: Phase): string => {

@@ -1,7 +1,7 @@
 import type { Phase } from './phase'
 
-// Draw math, owned once in shared/ so the Übersicht (its first consumer) and the future
-// Auslosung read the same rule (CONTEXT: Draw size / Freilose). Pure, no deps — ADR-0021 keeps
+// Draw math, owned once in shared/ so the overview (its first consumer) and the future
+// draw read the same rule (CONTEXT: Draw size / byes). Pure, no deps — ADR-0021 keeps
 // the admin small, and this is the kind of single-source helper that stops the rule being
 // re-derived per surface.
 
@@ -16,15 +16,15 @@ export const drawSize = (confirmed: number): number => {
   return size
 }
 
-/** Freilose (byes): the gap between the draw size and the confirmed count (0 when no draw). */
+/** Byes: the gap between the draw size and the confirmed count (0 when no draw). */
 export const byeCount = (confirmed: number): number => {
   const size = drawSize(confirmed)
   return size === 0 ? 0 : size - confirmed
 }
 
 /**
- * Matches in the Hauptrunde: `confirmed − 1` to crown the champion (every entrant but the winner
- * loses once; a bye is not a match), plus the Spiel um Platz 3 once a semifinal exists. From four
+ * Matches in the main bracket: `confirmed − 1` to crown the champion (every entrant but the winner
+ * loses once; a bye is not a match), plus the third-place match once a semifinal exists. From four
  * entrants up the round of four always resolves to two contested semifinals (byes only occur in
  * round one), so that playoff is exact — not an estimate.
  */
@@ -32,20 +32,20 @@ export const mainDrawMatches = (confirmed: number): number =>
   confirmed < 2 ? 0 : confirmed - 1 + (confirmed >= 4 ? 1 : 0)
 
 /**
- * Matches in the Trostrunde — the consolation knockout (CONTEXT: Nebenrunde, ADR-0004). Its
- * entrants are the Hauptrunde's first-round losers — `confirmed − drawSize/2` (the byes skip R1) —
+ * Matches in the consolation bracket — the consolation knockout (CONTEXT: Consolation bracket, ADR-0004). Its
+ * entrants are the main bracket's first-round losers — `confirmed − drawSize/2` (the byes skip R1) —
  * and, being a knockout, it runs `entrants − 1` matches (0 below two).
  *
- * A Nebenrunde exists only when the Hauptrunde first round lies *before* the semifinals — i.e.
+ * A consolation bracket exists only when the main bracket first round lies *before* the semifinals — i.e.
  * **draw size ≥ 8** (ADR-0004). At draw size 4 the first round *is* the semifinal, so its two
- * losers are exactly the pair the Spiel um Platz 3 already plays — there is no separate Nebenrunde
+ * losers are exactly the pair the third-place match already plays — there is no separate consolation bracket
  * (and below four there is neither). So size ≤ 4 ⇒ 0, not the `entrants − 1` the formula would give.
  *
- * Estimate, not an exact count: the Nebenrunde also takes the players who had a R1 Freilos and then
+ * Estimate, not an exact count: the consolation bracket also takes the players who had a R1 bye and then
  * lost in R2 (so every entrant gets ≥2 matches), and how many that is depends on the R2 pairings,
- * not derivable from counts alone. It is therefore a slight under-count for fields with Freilose,
+ * not derivable from counts alone. It is therefore a slight under-count for fields with byes,
  * and **exact for a full power-of-two field** (no byes) — which is the capacity figure the
- * Gesamtauslastung headlines.
+ * total utilization headlines.
  */
 export const consolationMatches = (confirmed: number): number => {
   const size = drawSize(confirmed)
@@ -54,26 +54,26 @@ export const consolationMatches = (confirmed: number): number => {
   return firstRoundLosers < 2 ? 0 : firstRoundLosers - 1
 }
 
-/** Total matches a field runs: main draw + Trostrunde (R1-loser consolation). */
+/** Total matches a field runs: main draw + consolation (R1-loser consolation). */
 export const matchCount = (confirmed: number): number => mainDrawMatches(confirmed) + consolationMatches(confirmed)
 
 // ── Bracket structure (ADR-0025) ────────────────────────────────────────────────────────────────
 // The single home for the bracket *topology* — seed lines and per-round shape — that the public
 // preview's client JS (tournament-draw.astro: SEED_POS / ROUNDS) used to re-derive. The draw, the
-// future Auslosungs-Show, and the Spielplan validator read this one source. Feeders are implicit
+// future draw reveal show, and the schedule validator read this one source. Feeders are implicit
 // (ADR-0025): a match at (round r, position p) is fed by (r−1, 2p) and (r−1, 2p+1); the topology
 // here is what yields them, so they are never stored.
 
-// The two brackets a Konkurrenz can carry (ADR-0025): the main KO tree (Hauptrunde) and the
-// consolation (Nebenrunde/Trostrunde). Stored/wire values are English (CLAUDE.md — data values are
+// The two brackets a competition can carry (ADR-0025): the main KO tree (main bracket) and the
+// consolation (consolation bracket). Stored/wire values are English (CLAUDE.md — data values are
 // never the German ubiquitous-language terms); the German names live only in UI copy. This epic
 // only writes `main`; `consolation` exists in the model for ADR-0004's later slice.
 export const BRACKETS = ['main', 'consolation'] as const
 export type Bracket = (typeof BRACKETS)[number]
 
-// The non-score ways a match can resolve (CONTEXT: Match-Ergebnis). `bye` auto-resolves at draw
+// The non-score ways a match can resolve (CONTEXT: Match result). `bye` auto-resolves at draw
 // time; `walkover`/`retirement` are entered during Live. Owned here so the `matches.outcome` column
-// and its wire enum read one list; this epic (full fields, no Freilose) writes none of them.
+// and its wire enum read one list; this epic (full fields, no byes) writes none of them.
 export const MATCH_OUTCOMES = ['bye', 'walkover', 'retirement'] as const
 export type MatchOutcome = (typeof MATCH_OUTCOMES)[number]
 
@@ -130,9 +130,9 @@ export const bracketStructure = (size: number): BracketStructure => {
 /** Whether a draw of this size has a defined seed table (i.e. drawBracket won't throw). 8 and 16. */
 export const isSupportedDrawSize = (size: number): boolean => SEED_GROUPS[size] !== undefined
 
-// ── Draw gate (CONTEXT: Konkurrenz-Lebenszyklus, ADR-0011/0025/0027) ─────────────────────────────
-// Why a Konkurrenz cannot be drawn yet. The single predicate both the worker enforces (authority)
-// and the „Konkurrenzen" surface renders (affordance) — defined once so the button's disabled reason
+// ── Draw gate (CONTEXT: competition lifecycle, ADR-0011/0025/0027) ─────────────────────────────
+// Why a competition cannot be drawn yet. The single predicate both the worker enforces (authority)
+// and the competitions surface (UI: „Konkurrenzen") renders (affordance) — defined once so the button's disabled reason
 // can never drift from the server guard (the canConfirm pattern, ADR-0011). `null` = drawable.
 export type DrawBlocker = 'not-tournament' | 'too-few' | 'not-full-field' | 'unsupported-size'
 
@@ -145,9 +145,9 @@ export const DRAW_BLOCKER_REASON: Record<DrawBlocker, string> = {
 }
 
 /**
- * The draw gate for a Konkurrenz with `confirmed` confirmed entries in the given phase: the first
+ * The draw gate for a competition with `confirmed` confirmed entries in the given phase: the first
  * reason it cannot be drawn, or `null` when it can. Mirrors the steps the draw needs — registration
- * closed (`tournament`), at least two entries, a full power-of-two field (no Freilose this epic), and
+ * closed (`tournament`), at least two entries, a full power-of-two field (no byes this epic), and
  * a size the seed table supports (8/16). The "already drawn" check is not here: it needs the store,
  * so the worker adds it; this is the pure, store-free part the client can run too.
  */
@@ -187,12 +187,12 @@ export const createCryptoRandomSource = (): RandomSource => ({
 })
 
 // ── The draw procedure (CONTEXT: Draw procedure, ADR-0025) ──────────────────────────────────────
-// Pure: given seeded players and a RandomSource, produce a DTB-seeded full-field bracket. Vollfeld
-// only (a power-of-two field, no Freilose) for this epic. The Hauptrunde runs it once with a live
-// reveal; the Nebenrunde will reuse it later with no reveal (ADR-0004).
+// Pure: given seeded players and a RandomSource, produce a DTB-seeded full-field bracket. Full field
+// only (a power-of-two field, no byes) for this epic. The main bracket runs it once with a live
+// reveal; the consolation bracket will reuse it later with no reveal (ADR-0004).
 
 // A player entering the draw. `id` is the registration id the slots reference; `lk` is snapshotted
-// into the seeding record (the Setzungs-Freeze, ADR-0010). Players arrive **in seeding order**
+// into the seeding record (the seeding freeze, ADR-0010). Players arrive **in seeding order**
 // (strongest first) — the caller owns that order (the shared seeding comparator); the draw assigns
 // seed numbers 1..seedCount to the first `seedCount` of them.
 export interface DrawPlayer {
@@ -290,7 +290,7 @@ export interface MatchSlots {
 /**
  * Turn a full first-round `slots` array into the KO tree's match rows. Round 1 (1-based) pairs
  * adjacent lines (2p, 2p+1); later rounds are empty positions whose feeders are implicit via
- * (round, position). The Hauptrunde KO tree only — Spiel um Platz 3 and the Nebenrunde are separate
+ * (round, position). The main bracket KO tree only — third-place match and the consolation bracket are separate
  * slices. Total rows = size − 1.
  */
 export const materializeMatches = (size: number, slots: number[]): MatchSlots[] => {

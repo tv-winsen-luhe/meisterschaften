@@ -10,10 +10,10 @@ interface RecentSignupsProps {
   onOpen: (reg: AdminRegistration) => void
 }
 
-// "Letzte Anmeldungen" (ADR-0023): the five most recent signups by createdAt — the only cron-safe
+// "recent registrations" (ADR-0023): the five most recent signups by createdAt — the only cron-safe
 // timestamp (updatedAt is bumped by the LK sync, so it can't date a confirm or cancel). Each row
 // carries its current status dot, so a recently-cancelled signup still surfaces. Rows are clickable
-// and deep-link into the Anmeldungen detail of that player.
+// and deep-link into the registrations detail of that player.
 export const RecentSignups = ({ registrations, onOpen }: RecentSignupsProps) => {
   const recent = [...registrations].sort((a, b) => b.createdAt.localeCompare(a.createdAt)).slice(0, 5)
   return (

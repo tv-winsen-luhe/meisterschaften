@@ -44,7 +44,7 @@ export const AdminApp = () => {
   const [draws, setDraws] = useState<CompetitionDraw[]>([])
   const [phase, setPhase] = useState<Phase | null>(null)
   const [surface, setSurface] = useState<Surface>('overview')
-  // The Konkurrenz a draw is currently running for, so its card shows a pending button (and a second
+  // The competition a draw is currently running for, so its card shows a pending button (and a second
   // click can't fire). Cleared when the action resolves.
   const [drawingCompetition, setDrawingCompetition] = useState<CompetitionSlug | null>(null)
   // The registrations filter/search live here, not in the surface, so they survive the operator
@@ -52,9 +52,9 @@ export const AdminApp = () => {
   const [filter, setFilter] = useState<StatusFilter>('all')
   const [competitionFilter, setCompetitionFilter] = useState<CompetitionFilter>('all')
   const [query, setQuery] = useState('')
-  // A registration the Übersicht asked to open (deep-link from "Letzte Anmeldungen"); the Anmeldungen
-  // surface seeds its selection from it. Cleared on every other navigation so it never re-selects a
-  // stale row when the surface remounts.
+  // A registration the overview asked to open (deep-link from "recent registrations"); the
+  // registrations surface seeds its selection from it. Cleared on every other navigation so it never
+  // re-selects a stale row when the surface remounts.
   const [selectId, setSelectId] = useState<number | null>(null)
 
   // `redirect: 'manual'` so an Access login redirect surfaces as an opaque-redirect response
@@ -81,7 +81,7 @@ export const AdminApp = () => {
       setEverLoaded(true)
       setReady(true)
       // The drawn brackets are a best-effort read alongside the list: a failure must not take down the
-      // admin, so it updates the Konkurrenzen surface only on success (keeps the last known draws).
+      // admin, so it updates the competitions surface only on success (keeps the last known draws).
       try {
         const drawsRes = await client.api.admin.draws.$get()
         if (drawsRes.ok) setDraws((await drawsRes.json()).draws)
@@ -185,7 +185,7 @@ export const AdminApp = () => {
     [client, mutate]
   )
 
-  // Start the draw for one Konkurrenz (ADR-0025). Goes through mutate, so it shares the
+  // Start the draw for one competition (ADR-0025). Goes through mutate, so it shares the
   // 401-regate/error/toast behaviour and the success reload re-fetches the drawn brackets. The
   // pending flag drives the card's button state and guards against a double-fire.
   const drawCompetition = useCallback(
@@ -205,16 +205,16 @@ export const AdminApp = () => {
     await mutate(() => client.api.admin['refresh-lk'].$post(), 'LK aktualisiert.')
   }, [client, mutate])
 
-  // The Übersicht's "neu — zu bestätigen" call-to-action: open Anmeldungen pre-filtered to the
-  // "Neu" queue so the operator starts triage in one click (ADR-0019).
+  // The overview's "new — to confirm" call-to-action: open registrations pre-filtered to the
+  // "new" queue so the operator starts triage in one click (ADR-0019).
   const goToNew = useCallback(() => {
     setSelectId(null)
     setFilter('new')
     setSurface('registrations')
   }, [])
 
-  // A Konkurrenz row in the Übersicht opens Anmeldungen scoped to that field, all statuses — "show
-  // me this Konkurrenz" (ADR-0019). The filter lives in the shell, so it survives the surface switch.
+  // A competition row in the overview opens registrations scoped to that field, all statuses — "show
+  // me this competition" (ADR-0019). The filter lives in the shell, so it survives the surface switch.
   const goToCompetition = useCallback((slug: CompetitionSlug) => {
     setSelectId(null)
     setCompetitionFilter(slug)
@@ -222,8 +222,8 @@ export const AdminApp = () => {
     setSurface('registrations')
   }, [])
 
-  // Deep-link from "Letzte Anmeldungen" to one player's detail: drop all filters so the row is
-  // visible whatever its status/Konkurrenz, then open the Anmeldungen surface on it (ADR-0023).
+  // Deep-link from "recent registrations" to one player's detail: drop all filters so the row is
+  // visible whatever its status/competition, then open the registrations surface on it (ADR-0023).
   const goToRegistration = useCallback((reg: AdminRegistration) => {
     setSelectId(reg.id)
     setFilter('all')
@@ -253,13 +253,13 @@ export const AdminApp = () => {
     )
   }
 
-  // The "Neu" queue size drives the sidebar badge (ADR-0023) — the ambient signal that replaced the
-  // Übersicht's old call-to-action block.
+  // The "new" queue size drives the sidebar badge (ADR-0023) — the ambient signal that replaced the
+  // overview's old call-to-action block.
   const newCount = registrations.filter(r => r.status === 'new').length
 
   return (
     // h-svh + overflow-hidden turns the shell into a fixed-height app frame: the header stays put
-    // and each surface scrolls inside its own region (the Anmeldungen queue and detail panel keep
+    // and each surface scrolls inside its own region (the registrations queue and detail panel keep
     // their action bars pinned) rather than the whole page scrolling.
     <SidebarProvider className="h-svh overflow-hidden">
       <AppSidebar
@@ -271,7 +271,7 @@ export const AdminApp = () => {
         newCount={newCount}
       />
       <SidebarInset className="min-h-0 overflow-hidden">
-        {/* The phase stepper sits above every surface (ADR-0019). Non-sticky so the Anmeldungen
+        {/* The phase stepper sits above every surface (ADR-0019). Non-sticky so the registrations
             filter bar below can pin to the top while a long list scrolls, as it did before. The
             trigger stays hard-left; the stepper is centered in the remaining width (ADR-0023). */}
         <header className="bg-background flex items-center gap-2 border-b px-4 py-3">

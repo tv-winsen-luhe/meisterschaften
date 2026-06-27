@@ -1,7 +1,7 @@
 import type { AdminRegistration } from '../../../shared'
 
-// Auto-advance for the Anmeldungen triage (ADR-0019): after the operator acts on a row, open the
-// next one so the "Neu" queue can be worked without re-clicking. A pure function over the queue as
+// Auto-advance for the registrations triage (ADR-0019): after the operator acts on a row, open the
+// next one so the "new" queue can be worked without re-clicking. A pure function over the queue as
 // it stood at the moment of the action (already filtered + sorted) — the surface owns the queue,
 // this owns only the "which id next" rule, so it is tested in isolation like the other predicates.
 //

@@ -34,7 +34,7 @@ const detailKey = (reg: AdminRegistration) =>
 
 interface RegistrationsSurfaceProps {
   registrations: AdminRegistration[]
-  // A registration to open on mount (deep-link from the Übersicht); null = default selection.
+  // A registration to open on mount (deep-link from the overview); null = default selection.
   selectId: number | null
   filter: StatusFilter
   onFilterChange: (filter: StatusFilter) => void
@@ -49,9 +49,9 @@ interface RegistrationsSurfaceProps {
   onRefreshLk: () => void
 }
 
-// The Anmeldungen surface (ADR-0019): a two-pane triage workbench. The left pane is the filtered,
+// The registrations surface (ADR-0019): a two-pane triage workbench. The left pane is the filtered,
 // searchable queue; the right pane is the selected registration's detail/edit panel. After a
-// confirm the next entry opens automatically (nextSelection), so the operator works the "Neu"
+// confirm the next entry opens automatically (nextSelection), so the operator works the "new"
 // queue without re-clicking. On a narrow screen the panes collapse to one and the detail panel
 // becomes a bottom drawer. The shell owns the data, the mutations, and the filter/search state (so
 // they survive switching surfaces); the selection is local to this surface.
@@ -77,8 +77,8 @@ export const RegistrationsSurface = ({
   const [drawerOpen, setDrawerOpen] = useState(false)
   const searchRef = useRef<HTMLInputElement>(null)
 
-  // Everything matching the Konkurrenz filter + search, before the status tab is applied. The tab
-  // counts are taken over this scoped set, so "Neu 2" with Herren selected means 2 new in Herren —
+  // Everything matching the competition filter + search, before the status tab is applied. The tab
+  // counts are taken over this scoped set, so "new 2" with Herren selected means 2 new in Herren —
   // the counts never contradict the list. Memoised so clicking rows / toggling the drawer does not
   // re-scan the whole list on every render.
   const scoped = useMemo(() => {
@@ -113,7 +113,7 @@ export const RegistrationsSurface = ({
     }
   }, [visible, selectedId])
 
-  // Deep-link from the Übersicht on a phone: open the detail drawer for the pre-selected row.
+  // Deep-link from the overview on a phone: open the detail drawer for the pre-selected row.
   useEffect(() => {
     if (selectId != null && isMobile) setDrawerOpen(true)
   }, [selectId, isMobile])

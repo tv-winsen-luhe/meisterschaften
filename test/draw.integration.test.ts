@@ -57,7 +57,7 @@ describe('createDrawService.draw', () => {
     expect(round1.every(m => m.id > 0 && m.slot1RegId !== null && m.slot2RegId !== null)).toBe(true)
   })
 
-  it('seeds only this Konkurrenz — confirmed rows of other fields are ignored', async () => {
+  it('seeds only this competition — confirmed rows of other fields are ignored', async () => {
     const rows = [...field(8), confirmed(9, { competition: 'womens' }), confirmed(10, { competition: 'womens' })]
     const result = await service(rows, [0, 0, 0, 0, 0]).draw({
       competition: 'mens',
@@ -72,7 +72,7 @@ describe('createDrawService.draw', () => {
     expect(result).toMatchObject({ ok: false, error: 'not-tournament' })
   })
 
-  it('refuses a re-draw once the Konkurrenz is drawn (ADR-0026)', async () => {
+  it('refuses a re-draw once the competition is drawn (ADR-0026)', async () => {
     const drawStore = createInMemoryDrawStore()
     const svc = createDrawService({
       registrationsStore: createInMemoryRegistrationsStore(field(8)),
@@ -86,7 +86,7 @@ describe('createDrawService.draw', () => {
     })
   })
 
-  it('refuses a field that is not a full power-of-two bracket (Freilose not supported yet)', async () => {
+  it('refuses a field that is not a full power-of-two bracket (byes not supported yet)', async () => {
     const result = await service(field(7), []).draw({ competition: 'mens', phase: 'tournament', now: 'now' })
     expect(result).toMatchObject({ ok: false, error: 'not-full-field' })
   })
@@ -159,7 +159,7 @@ describe('POST /api/admin/draw + GET /api/admin/draws', () => {
     expect(listed.draws).toEqual([expect.objectContaining({ competition: 'mens', size: 8 })])
   })
 
-  it('returns 409 on a re-draw of an already-drawn Konkurrenz', async () => {
+  it('returns 409 on a re-draw of an already-drawn competition', async () => {
     for (let i = 1; i <= 8; i++) await seedConfirmed(i)
     await setPhase('tournament')
     expect((await draw('mens')).status).toBe(200)
@@ -167,7 +167,7 @@ describe('POST /api/admin/draw + GET /api/admin/draws', () => {
     expect(second.status).toBe(409)
   })
 
-  it('rejects a field with Freilose (not a power of two) with 400', async () => {
+  it('rejects a field with byes (not a power of two) with 400', async () => {
     for (let i = 1; i <= 7; i++) await seedConfirmed(i)
     await setPhase('tournament')
     const res = await draw('mens')

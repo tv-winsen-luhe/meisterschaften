@@ -34,7 +34,7 @@ are scattered across handlers, the cron, and the client. This builds on the Stor
 
 ### Boundary
 
-- **In the module:** business rules, the one-Konkurrenz-per-member uniqueness, the cancelled→new
+- **In the module:** business rules, the one-competition-per-member uniqueness, the cancelled→new
   revive, valid status transitions, the confirmation precondition, persistence via the Store.
 - **At the transport edge (thin handlers):** HTTP parsing + Zod shape/format validation
   (`@hono/zod-validator`, ADR-0009), rate-limiting (an abuse/HTTP concern), notification _sending_, and
@@ -44,7 +44,7 @@ are scattered across handlers, the cron, and the client. This builds on the Stor
 
 - Handlers become thin adapters: parse → call transition → map Result to response. The whole
   registration lifecycle has one home; tests assert Results against a fake Store — no HTTP, no D1.
-- This is the pattern the `Auslosung` and `Match-Ergebnis` domains will reuse — establishing it on the
+- This is the pattern the draw and match-result domains will reuse — establishing it on the
   simplest aggregate first.
 - Deletion test passes: delete the module and transitions + rules scatter back across handlers, cron,
   and client.

@@ -147,7 +147,7 @@ describe('POST /api/register (integration)', () => {
     expect(await res.json()).toEqual({ error: 'Bitte wähle eine gültige Konkurrenz.' })
   })
 
-  it('rejects a second active sign-up for the same person+Konkurrenz (one-active-entry invariant)', async () => {
+  it('rejects a second active sign-up for the same person+competition (one-active-entry invariant)', async () => {
     await createD1RegistrationsStore(env.DB).insert({
       createdAt: '2026-06-01T10:00:00.000Z',
       competition: 'mens',

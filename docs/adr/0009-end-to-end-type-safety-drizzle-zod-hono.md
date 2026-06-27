@@ -45,7 +45,7 @@ is the most awkward fit; it needs an HTTP host (Hono) under it anyway; and its m
   from the root tsconfig); both the worker and the client import the Zod schemas / types from there.
 - This subsumes candidate #3 (shared API contract + duplicated client fetch types): the contract is the
   Zod/`shared` module; a thin `hc`-based live-resource helper carries the polling cadence (ADR-0008).
-- The duplicated constants (`CHALLENGER_MIN_LK`, `DEFAULT_LK`) and the stringly-typed `Konkurrenz` slug
+- The duplicated constants (`CHALLENGER_MIN_LK`, `DEFAULT_LK`) and the stringly-typed competition slug
   move into `shared/` as a single typed source of truth crossing the seam.
 - **Reconciles ADR-0008:** Hono is adopted as the _worker's_ framework. The separate Worker still
   stays (ADR-0008); this is **not** the "fold the worker into Astro's `src/fetch.ts`" idea, which

@@ -1,4 +1,4 @@
-# ADR-0002: The Auslosung is automatic, live, and lot-by-lot — no manual intervention
+# ADR-0002: The draw is automatic, live, and lot-by-lot — no manual intervention
 
 - Status: accepted
 - Date: 2026-06-25
@@ -7,14 +7,14 @@
 
 The site owns the draw (ADR-0001). We considered letting an operator generate a seeded draw and then
 adjust positions before publishing. That was rejected: for a club championship, any human ability to
-move a player after seeing the draw is indistinguishable from rigging it (Betrug). The draw also
+move a player after seeing the draw is indistinguishable from rigging it. The draw also
 doubles as a social event — the organizers want to run it live and project it on a big TV.
 
 ## Decision
 
-The Auslosung runs as an automatic draw following DTB-Ranglistenturnier conventions (seed by LK,
+The draw runs as an automatic draw following DTB-Ranglistenturnier conventions (seed by LK,
 seeds to fixed bracket positions, byes to top seeds, unseeded players drawn randomly into the open
-slots). It is revealed **lot by lot** (Los für Los) in a presentation mode built for a large screen.
+slots). It is revealed **lot by lot** (lot step by lot step) in a presentation mode built for a large screen.
 
 There is **no operator edit step** on the draw outcome. The operator can trigger the draw and pace
 the reveal, but cannot change who lands where. Randomness uses a cryptographic source
@@ -23,8 +23,8 @@ the reveal, but cannot change who lands where. Randomness uses a cryptographic s
 ## Consequences
 
 - The draw is a deterministic-given-its-randomness procedure: inputs are the confirmed participants
-  and their seeding LK; output is the seeding, an ordered sequence of Lose, and the final bracket.
-- We need a public presentation ("Auslosungs-Show") mode distinct from the participant list.
+  and their seeding LK; output is the seeding, an ordered sequence of lots, and the final bracket.
+- We need a public presentation ("draw reveal show") mode distinct from the participant list.
 - Seeding correctness now matters a lot: LK must be synced and frozen before the draw (a player's LK
   can't shift mid-draw). See the seeding-freeze question.
 - Fairness is a product feature, not just an implementation detail — how randomness is generated and

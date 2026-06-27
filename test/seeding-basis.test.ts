@@ -38,7 +38,7 @@ describe('resolveSeedingBasis', () => {
 
 // seedingValue turns a row's LK string into the number it is seeded by (ascending → strongest
 // first, since the scale runs 1.0 strongest … 25.0 weakest). It owns the "no resolvable rating ⇒
-// DEFAULT_LK" rule once, so the participant list and the future Setzung share one encoding instead
+// DEFAULT_LK" rule once, so the participant list and the future seeding share one encoding instead
 // of the SQL-vs-JS pair this replaced. Missing OR unratable both seed as the weakest (25.0) — never
 // 0, which the old SQL CAST produced and which would have seeded junk as stronger than any player.
 describe('seedingValue', () => {

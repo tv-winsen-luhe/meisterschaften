@@ -36,7 +36,7 @@ const input = (overrides: Partial<RegisterInput> = {}): RegisterInput => ({
 })
 
 describe('registration domain · register', () => {
-  it('inserts a new registration when the person has no entry for the Konkurrenz', async () => {
+  it('inserts a new registration when the person has no entry for the competition', async () => {
     const store = createInMemoryRegistrationsStore()
     const result = await createRegistrationDomain(store).register(input({ phone: '0151', note: 'hi' }))
 
@@ -99,7 +99,7 @@ describe('registration domain · register', () => {
     expect(result.registration.lk).toBe('15.0')
   })
 
-  it('rejects a second active sign-up for the same person+Konkurrenz (one-active-entry invariant)', async () => {
+  it('rejects a second active sign-up for the same person+competition (one-active-entry invariant)', async () => {
     const store = createInMemoryRegistrationsStore([reg({ status: 'new' })])
     const result = await createRegistrationDomain(store).register(input())
     expect(result).toEqual({ ok: false, error: 'AlreadyRegistered' })
@@ -111,7 +111,7 @@ describe('registration domain · register', () => {
     expect(result).toEqual({ ok: false, error: 'AlreadyRegistered' })
   })
 
-  it('allows the same person to enter a different Konkurrenz', async () => {
+  it('allows the same person to enter a different competition', async () => {
     const store = createInMemoryRegistrationsStore([reg({ status: 'new', competition: 'mens' })])
     const result = await createRegistrationDomain(store).register(input({ competition: 'womens' }))
     expect(result).toMatchObject({ ok: true, outcome: 'registered' })
@@ -129,7 +129,7 @@ describe('registration domain · register', () => {
 })
 
 describe('registration domain · cancel', () => {
-  it('withdraws every active entry for the person across Konkurrenzen and returns them', async () => {
+  it('withdraws every active entry for the person across competitions and returns them', async () => {
     const store = createInMemoryRegistrationsStore([
       reg({ status: 'new', competition: 'mens' }),
       reg({ status: 'confirmed', competition: 'womens' }),

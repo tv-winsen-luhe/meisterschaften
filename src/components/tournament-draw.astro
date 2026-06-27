@@ -2,7 +2,7 @@
 import { competitions, signupDeadline } from '@/data/tournament'
 
 // Live draw per competition: the seeded players fill in from the participant feed,
-// every other slot is a "?" until the Auslosung. Challenger has a draw too — unlike
+// every other slot is a "?" until the draw. Challenger has a draw too — unlike
 // the participant list it is seeded here, since a draw without seeds makes no sense.
 const drawOrder = ['mens', 'mens-challenger', 'womens']
 const drawCompetitions = competitions
@@ -320,9 +320,9 @@ const drawCompetitions = competitions
   const client = hc<AppType>(location.origin)
 
   // Seed line (0-indexed first-round slot) per seed number, derived from the shared bracketStructure
-  // — the single source the real Auslosung also uses (ADR-0025), so the preview's Setzung can't drift
-  // from the draw's. The lot seeds (Nr.3/4) are shown on their prescribed lines in seed order; the
-  // actual lot only runs at the Auslosung.
+  // — the single source the real draw also uses (ADR-0025), so the preview's seeding can't drift
+  // from the draw's. The lot seeds (no. 3/4) are shown on their prescribed lines in seed order; the
+  // actual lot only runs at the draw.
   const seedLines = (capacity: number): Record<number, number> => {
     const lines: Record<number, number> = {}
     for (const group of bracketStructure(capacity).seedGroups) {

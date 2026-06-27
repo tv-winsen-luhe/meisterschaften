@@ -33,9 +33,9 @@ before it's needed_ — so adopting a component system is a deliberate exception
    and eat the polish-for-free that motivated (1). Consequence: the legacy look in `styles.ts` (the
    `--color-blue` focus ring, the press-down) is replaced, not preserved — `styles.ts` is deleted.
 
-3. **The Auslosungs-Show is carved out — it is not a shadcn surface.** The admin has two natures. The
+3. **The draw reveal show is carved out — it is not a shadcn surface.** The admin has two natures. The
    **operator CRUD surfaces** (registrations, results entry, phase control, scheduling grid) get
-   shadcn-default. The **presentation surface** (Auslosungs-Show, projected on a TV/beamer to a room of
+   shadcn-default. The **presentation surface** (draw reveal show, projected on a TV/beamer to a room of
    members) is its own large, event-toned view built with React + `motion`, sharing the data chain but
    not the component vocabulary — it needs no dialog/dropdown/table/cva-button. So shadcn is scoped as
    "the component system of the operator CRUD surfaces," a narrower line than "the styling of the whole
@@ -80,4 +80,4 @@ text-foreground`. `global.css` stays purely public — the zero-JS site never ca
 - ADR-0008 stands and is sharpened: React is still confined to the gated admin, and now shadcn is
   confined to the admin's CRUD surfaces specifically, enforced by location (`src/admin/`) and by a
   separate admin CSS entry — boundary as structure, not convention.
-- The Auslosungs-Show's styling is explicitly out of scope here; it gets its own treatment when built.
+- The draw reveal show's styling is explicitly out of scope here; it gets its own treatment when built.
