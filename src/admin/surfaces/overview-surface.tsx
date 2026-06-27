@@ -1,4 +1,4 @@
-import { ArrowRight, ClipboardCheck, LayoutDashboard } from 'lucide-react'
+import { ArrowRight, LayoutDashboard } from 'lucide-react'
 import {
   type AdminRegistration,
   byeCount,
@@ -6,12 +6,14 @@ import {
   type CompetitionSlug,
   CLUBS,
   drawSize,
-  isActive
+  isActive,
+  matchCount
 } from '../../../shared'
+import { courtSchedule, freizeitReservedSlots, matchSlotsPerWeekend } from '@/data/tournament'
 import { cn } from '@/admin/lib/utils'
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/admin/ui/empty'
-import { Table, TableBody, TableCell, TableFooter, TableHead, TableHeader, TableRow } from '@/admin/ui/table'
-import { competitionCapacity, competitionLabel } from './registration-detail'
+import { CLUB_LOGOS, competitionCapacity, competitionLabel } from './registration-detail'
+import { RecentSignups } from './recent-signups'
 
 // The Konkurrenzen in story order (Herren, Herren Challenger, Damen) — COMPETITION_SLUGS already
 // carries them in that order. Label and capacity come from the tournament content model (via the
@@ -26,16 +28,24 @@ interface OverviewSurfaceProps {
   registrations: AdminRegistration[]
   // Jump to Anmeldungen pre-filtered to "Neu" — the one job the signup phase demands.
   onGoToNew: () => void
-  // Jump to Anmeldungen pre-filtered to one Konkurrenz (the clickable table rows).
+  // Jump to Anmeldungen pre-filtered to one Konkurrenz (the clickable cards).
   onGoToCompetition: (slug: CompetitionSlug) => void
+  // Open one registration's detail (the clickable "Letzte Anmeldungen" rows).
+  onOpenRegistration: (reg: AdminRegistration) => void
 }
 
-// The Übersicht surface (ADR-0019): the at-a-glance dashboard the operator lands on. The "neu — zu
-// bestätigen" call-to-action plus a per-Konkurrenz table (status breakdown, projected Auslosung,
-// club split, fill). Small N (ADR-0021): the whole table is three rows, so it favours a glance over
-// scale. Semantic status colour (amber = neu, green = bestätigt, red = abgemeldet) is the only
-// colour, the bounded carve-out from ADR-0016's neutral rule recorded in ADR-0019.
-export const OverviewSurface = ({ registrations, onGoToNew, onGoToCompetition }: OverviewSurfaceProps) => {
+// The Übersicht surface (ADR-0019, redesigned in ADR-0023): the at-a-glance dashboard the operator
+// lands on. A thin summary line (with a clickable "Neu" that opens the triage queue) over one card
+// per Konkurrenz — status breakdown, projected Auslosung, club split, fill. Small N (ADR-0021): the
+// set is three fields, so it favours a glance over scale, and the content sits in a measured,
+// centered column (ADR-0023) rather than sprawling full-bleed. Semantic status colour (amber = neu,
+// green = bestätigt, red = abgemeldet) is the only colour, the carve-out from ADR-0016 (ADR-0019).
+export const OverviewSurface = ({
+  registrations,
+  onGoToNew,
+  onGoToCompetition,
+  onOpenRegistration
+}: OverviewSurfaceProps) => {
   if (registrations.length === 0) {
     return (
       <Empty className="m-5 border">
@@ -53,9 +63,6 @@ export const OverviewSurface = ({ registrations, onGoToNew, onGoToCompetition }:
     )
   }
 
-  const newCount = registrations.filter(r => r.status === 'new').length
-  const confirmedCount = registrations.filter(r => r.status === 'confirmed').length
-
   // Per-field tallies, derived from the same admin list (no new endpoint). Active = new + confirmed
   // — who is still in — which is also the population the club split counts.
   const rows = FIELDS.map(field => {
@@ -71,150 +78,203 @@ export const OverviewSurface = ({ registrations, onGoToNew, onGoToCompetition }:
     }
   })
   const totals = {
+    active: rows.reduce((s, r) => s + r.new + r.confirmed, 0),
     new: rows.reduce((s, r) => s + r.new, 0),
-    confirmed: rows.reduce((s, r) => s + r.confirmed, 0),
-    cancelled: rows.reduce((s, r) => s + r.cancelled, 0),
-    byClub: CLUBS.map((_, i) => rows.reduce((s, r) => s + r.byClub[i], 0))
+    confirmed: rows.reduce((s, r) => s + r.confirmed, 0)
   }
 
-  // The CTA's calm state must not over-claim: "Alles bestätigt" only fits when something is
-  // actually confirmed. With an all-cancelled list (no new, none confirmed) it would read as a
-  // healthy field, so that case gets a neutral "keine offenen" message instead.
-  const hasNew = newCount > 0
-  const ctaTitle = hasNew ? 'neu — zu bestätigen' : confirmedCount > 0 ? 'Alles bestätigt' : 'Keine offenen Anmeldungen'
-  const ctaHint = hasNew
-    ? 'Triage starten unter „Anmeldungen“.'
-    : confirmedCount > 0
-      ? 'Keine offenen Bestätigungen.'
-      : 'Es liegen keine neuen Anmeldungen vor.'
+  // Projected match load (ADR-0023 follow-up): main draw + Trostrunde per field, summed over the
+  // active players (confirmed + neu — cancelled are out). `fullMatches` is the same at full field
+  // capacity (≈ 54), shown as a reference marker against the weekend court budget.
+  const matchesNeeded = rows.reduce((s, r) => s + matchCount(r.new + r.confirmed), 0)
+  const fullMatches = rows.reduce((s, r) => s + matchCount(r.capacity ?? 0), 0)
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto p-5">
-      {/* The one job this phase demands: confirm the "Neu" queue. Amber while entries wait (the
-          semantic "neu" hue), calm once the queue is clear; either way it opens Anmeldungen. */}
-      <button
-        type="button"
-        onClick={onGoToNew}
-        className={cn(
-          'group flex items-center gap-4 rounded-xl border p-5 text-left transition-colors',
-          hasNew ? 'border-amber-300 bg-amber-50 hover:bg-amber-100' : 'bg-card hover:bg-accent'
-        )}
-      >
-        <span
-          className={cn(
-            'flex size-12 shrink-0 items-center justify-center rounded-lg',
-            hasNew ? 'bg-amber-200 text-amber-900' : 'bg-muted text-muted-foreground'
-          )}
-        >
-          {hasNew ? (
-            <span className="font-mono text-2xl font-bold tabular-nums">{newCount}</span>
-          ) : (
-            <ClipboardCheck className="size-6" />
-          )}
-        </span>
-        <div className="min-w-0 flex-1">
-          <p className="font-semibold">{ctaTitle}</p>
-          <p className="text-muted-foreground mt-0.5 text-sm">{ctaHint}</p>
-        </div>
-        <ArrowRight className="text-muted-foreground size-5 shrink-0 transition-transform group-hover:translate-x-0.5" />
-      </button>
+    <div className="min-h-0 flex-1 overflow-y-auto p-5">
+      <div className="mx-auto flex w-full max-w-4xl flex-col gap-6">
+        {/* Overview header (ADR-0023): the global status counts and the Gesamtauslastung grouped in
+            one grounded panel rather than floating loose above the cards. "Neu" is clickable when the
+            queue has entries, opening Anmeldungen filtered to Neu (the one-click triage). */}
+        <section className="bg-card flex flex-col gap-3 rounded-xl border p-4">
+          <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
+            <Summary label="Aktiv" value={totals.active} />
+            {totals.new > 0 ? (
+              <button
+                type="button"
+                onClick={onGoToNew}
+                className="group -my-1 -ml-1 inline-flex items-center gap-2 rounded-md py-1 pr-1 pl-1 transition-colors hover:bg-amber-50 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+                title="Neue Anmeldungen bestätigen"
+              >
+                <Summary label="Neu" value={totals.new} dot="bg-amber-500" emphasis />
+                <ArrowRight className="size-4 text-amber-600 transition-transform group-hover:translate-x-0.5" />
+              </button>
+            ) : (
+              <Summary label="Neu" value={0} />
+            )}
+            <Summary label="Bestätigt" value={totals.confirmed} dot="bg-emerald-500" />
+          </div>
+          <div className="border-t border-dashed" />
+          <CourtLoad
+            needed={matchesNeeded}
+            full={fullMatches}
+            reserved={freizeitReservedSlots}
+            budget={matchSlotsPerWeekend}
+          />
+        </section>
 
-      <section className="flex flex-col gap-2.5">
-        <SectionLabel>Konkurrenzen</SectionLabel>
-        <div className="rounded-lg border">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Konkurrenz</TableHead>
-                <TableHead className="text-right">Neu</TableHead>
-                <TableHead className="text-right">Best.</TableHead>
-                <TableHead className="text-right">Abgem.</TableHead>
-                <TableHead>Auslosung</TableHead>
-                <TableHead className="text-right">TV / TSV</TableHead>
-                <TableHead className="w-[200px]">Auslastung</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {rows.map(row => {
-                const size = drawSize(row.confirmed)
-                const byes = byeCount(row.confirmed)
-                return (
-                  <TableRow
-                    key={row.slug}
-                    role="button"
-                    tabIndex={0}
-                    onClick={() => onGoToCompetition(row.slug)}
-                    onKeyDown={e => {
-                      if (e.key === 'Enter' || e.key === ' ') {
-                        e.preventDefault()
-                        onGoToCompetition(row.slug)
-                      }
-                    }}
-                    className="cursor-pointer"
-                    title={`${row.label} in den Anmeldungen öffnen`}
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {rows.map(row => {
+            const size = drawSize(row.confirmed)
+            const byes = byeCount(row.confirmed)
+            const drawText = size === 0 ? null : byes > 0 ? `${size}er-Feld · ${byes} FL` : `${size}er-Feld`
+            return (
+              <button
+                key={row.slug}
+                type="button"
+                onClick={() => onGoToCompetition(row.slug)}
+                title={`${row.label} in den Anmeldungen öffnen`}
+                className="group bg-card hover:bg-accent/40 flex flex-col gap-3 rounded-xl border p-4 text-left transition-colors focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+              >
+                {/* Title + projected draw badge — the field's structural label. */}
+                <div className="flex items-center justify-between gap-2">
+                  <span className="font-semibold">{row.label}</span>
+                  <span className="text-muted-foreground inline-flex items-center gap-1.5 text-xs">
+                    {drawText && <span className="bg-muted rounded px-1.5 py-0.5 tabular-nums">{drawText}</span>}
+                    <ArrowRight className="size-4 shrink-0 transition-transform group-hover:translate-x-0.5" />
+                  </span>
+                </div>
+
+                {/* Hero — the dominant metric: how full the field is toward capacity (ADR-0023). */}
+                <Hero confirmed={row.confirmed} capacity={row.capacity} pending={row.new} />
+
+                {/* Quiet subline: the actionable "neu" (amber when waiting) and the club split. */}
+                <div className="flex items-center justify-between gap-2 text-sm">
+                  <span
+                    className={cn(
+                      'inline-flex items-center gap-1.5',
+                      row.new > 0 ? 'text-amber-900' : 'text-muted-foreground'
+                    )}
                   >
-                    <TableCell className="font-medium">{row.label}</TableCell>
-                    <Count value={row.new} dot={row.new > 0 ? 'bg-amber-500' : undefined} />
-                    <Count value={row.confirmed} />
-                    <Count value={row.cancelled} muted />
-                    <TableCell className="text-muted-foreground tabular-nums">
-                      {size === 0 ? '—' : `${size}er · ${byes} FL`}
-                    </TableCell>
-                    <TableCell className="text-muted-foreground text-right font-mono text-xs tabular-nums">
-                      {row.byClub[0]} / {row.byClub[1]}
-                    </TableCell>
-                    <TableCell>
-                      <Fill confirmed={row.confirmed} pending={row.new} capacity={row.capacity} />
-                    </TableCell>
-                  </TableRow>
-                )
-              })}
-            </TableBody>
-            <TableFooter>
-              <TableRow className="hover:bg-transparent">
-                <TableCell>Gesamt (aktiv)</TableCell>
-                <Count value={totals.new} />
-                <Count value={totals.confirmed} />
-                <Count value={totals.cancelled} muted />
-                <TableCell />
-                <TableCell className="text-muted-foreground text-right font-mono text-xs tabular-nums">
-                  {totals.byClub[0]} / {totals.byClub[1]}
-                </TableCell>
-                <TableCell />
-              </TableRow>
-            </TableFooter>
-          </Table>
+                    <span
+                      className={cn('size-1.5 rounded-full', row.new > 0 ? 'bg-amber-500' : 'bg-muted-foreground/40')}
+                      aria-hidden
+                    />
+                    <span className="font-semibold tabular-nums">{row.new}</span> neu
+                  </span>
+                  <span className="text-muted-foreground flex items-center gap-3 text-xs tabular-nums">
+                    {CLUBS.map((c, i) => (
+                      <span key={c} className="inline-flex items-center gap-1" title={c}>
+                        <img src={CLUB_LOGOS[c]} alt={c} className="size-4 object-contain" width={16} height={16} />
+                        {row.byClub[i]}
+                      </span>
+                    ))}
+                  </span>
+                </div>
+              </button>
+            )
+          })}
         </div>
-      </section>
+
+        <RecentSignups registrations={registrations} onOpen={onOpenRegistration} />
+      </div>
     </div>
   )
 }
 
-interface CountProps {
+interface SummaryProps {
+  label: string
   value: number
-  // A semantic status hue (ADR-0019) shown as a leading dot, e.g. amber for the Neu queue.
   dot?: string
-  muted?: boolean
+  // The clickable "Neu" reads stronger than the calm counts beside it.
+  emphasis?: boolean
 }
-const Count = ({ value, dot, muted }: CountProps) => (
-  <TableCell className={cn('text-right font-mono tabular-nums', muted && value > 0 && 'text-muted-foreground')}>
-    <span className="inline-flex items-center justify-end gap-1.5">
-      {dot && <span className={cn('size-1.5 rounded-full', dot)} aria-hidden />}
-      {value}
-    </span>
-  </TableCell>
+const Summary = ({ label, value, dot, emphasis }: SummaryProps) => (
+  <span className="inline-flex items-baseline gap-2">
+    {dot && <span className={cn('size-1.5 translate-y-[-1px] rounded-full', dot)} aria-hidden />}
+    <span className={cn('text-lg tabular-nums', emphasis ? 'font-bold text-amber-900' : 'font-semibold')}>{value}</span>
+    <span className="text-muted-foreground text-sm">{label}</span>
+  </span>
 )
 
-interface FillProps {
+interface CourtLoadProps {
+  // Projected championship matches at the current active registrations.
+  needed: number
+  // Championship matches at full field capacity — drives the headroom marker (≈ 57).
+  full: number
+  // Court slots reserved for the planned Damen-Freizeit field (provisional, ADR-0023).
+  reserved: number
+  // The weekend court budget that reads as 100 % (= 72).
+  budget: number
+}
+// The Gesamtauslastung gauge (ADR-0023 follow-up): weekend court pressure as two stacked segments —
+// the live championship load (solid) and the reserved Damen-Freizeit block (striped, provisional) —
+// against the 72-slot budget. The marker sits where a full championship plus the reservation would
+// land, so the operator sees whether the weekend still fits. Red once the total exceeds the budget.
+const CourtLoad = ({ needed, full, reserved, budget }: CourtLoadProps) => {
+  const used = needed + reserved
+  const pct = Math.round((used / budget) * 100)
+  const seg = (v: number) => `${Math.max(0, Math.min(100, (v / budget) * 100))}%`
+  const fullMark = Math.min(100, ((full + reserved) / budget) * 100)
+  const over = used > budget
+  return (
+    <div className="flex flex-col gap-2">
+      <div className="flex items-baseline justify-between gap-2">
+        <h2 className="text-muted-foreground text-xs font-semibold tracking-[0.08em] uppercase">Platzauslastung</h2>
+        <span className="text-sm tabular-nums">
+          <span className={cn('font-semibold', over && 'text-red-600')}>{used}</span>
+          <span className="text-muted-foreground">
+            {' '}
+            / {budget} Slots · {pct}%
+          </span>
+        </span>
+      </div>
+      <div className="bg-muted relative h-2 w-full overflow-hidden rounded-full">
+        <div
+          className={cn('absolute inset-y-0 left-0', over ? 'bg-red-500' : 'bg-foreground')}
+          style={{ width: seg(needed) }}
+        />
+        {/* Reserved Freizeit block — striped to read as provisional, not yet booked matches. */}
+        <div
+          className="absolute inset-y-0"
+          style={{
+            left: seg(needed),
+            width: seg(reserved),
+            backgroundImage: 'repeating-linear-gradient(45deg, var(--color-foreground) 0 2px, transparent 2px 5px)',
+            opacity: 0.5
+          }}
+          aria-hidden
+        />
+        <div className="bg-foreground/40 absolute inset-y-0 w-px" style={{ left: `${fullMark}%` }} aria-hidden />
+      </div>
+      <p className="text-muted-foreground text-xs">
+        Championship {needed} (voll ≈ {full}) · Damen Freizeit ~{reserved} reserviert (Format offen, 02.07)
+      </p>
+      <p className="text-muted-foreground text-xs">
+        {courtSchedule.courts} Plätze · {courtSchedule.matchMinutes} min · Sa+So
+      </p>
+    </div>
+  )
+}
+
+interface HeroProps {
   confirmed: number
   pending: number
   capacity: number | undefined
 }
-// The fill bar: bestätigt solid + neu as a lighter segment, toward capacity. Over-capacity is
-// revealed (the bar runs to the larger total and a red marker shows where the cap sits) rather
-// than clamped, so an over-subscribed field looks different from an exactly-full one (ADR-0019).
-const Fill = ({ confirmed, pending, capacity }: FillProps) => {
-  if (!capacity) return <span className="text-muted-foreground text-xs">—</span>
+// The card's dominant metric (ADR-0023): the confirmed count toward capacity as a big figure, with
+// the fill bar beneath it — bestätigt solid + neu as a lighter segment. Over-capacity is revealed
+// (the bar runs to the larger total and a red marker shows where the cap sits) rather than clamped,
+// so an over-subscribed field looks different from an exactly-full one (ADR-0019). When the field
+// has no capacity, the hero degrades to a plain confirmed count.
+const Hero = ({ confirmed, pending, capacity }: HeroProps) => {
+  if (!capacity) {
+    return (
+      <div className="flex items-baseline gap-1.5">
+        <span className="text-3xl leading-none font-bold tabular-nums">{confirmed}</span>
+        <span className="text-muted-foreground text-sm">bestätigt</span>
+      </div>
+    )
+  }
   const total = confirmed + pending
   const over = total > capacity
   const denom = over ? total : capacity
@@ -222,11 +282,13 @@ const Fill = ({ confirmed, pending, capacity }: FillProps) => {
   const pw = (pending / denom) * 100
   const capMark = over ? (capacity / denom) * 100 : 100
   return (
-    <div className="flex items-center gap-2">
-      <span className={cn('shrink-0 font-mono text-xs tabular-nums', over ? 'text-red-600' : 'text-muted-foreground')}>
-        {confirmed}/{capacity}
-      </span>
-      <div className="bg-muted relative h-1.5 flex-1 overflow-hidden rounded-full">
+    <div className="flex flex-col gap-2">
+      <div className="flex items-baseline gap-1.5">
+        <span className={cn('text-3xl leading-none font-bold tabular-nums', over && 'text-red-600')}>{confirmed}</span>
+        <span className="text-muted-foreground text-lg tabular-nums">/ {capacity}</span>
+        <span className="text-muted-foreground ml-1 text-sm">bestätigt</span>
+      </div>
+      <div className="bg-muted relative h-1.5 w-full overflow-hidden rounded-full">
         <div className="bg-foreground absolute inset-y-0 left-0 rounded-full" style={{ width: `${cw}%` }} />
         <div className="bg-foreground/30 absolute inset-y-0" style={{ left: `${cw}%`, width: `${pw}%` }} />
         {over && <div className="absolute inset-y-0 w-px bg-red-500" style={{ left: `${capMark}%` }} aria-hidden />}
@@ -234,10 +296,3 @@ const Fill = ({ confirmed, pending, capacity }: FillProps) => {
     </div>
   )
 }
-
-interface SectionLabelProps {
-  children: React.ReactNode
-}
-const SectionLabel = ({ children }: SectionLabelProps) => (
-  <h2 className="text-muted-foreground text-xs font-semibold tracking-[0.08em] uppercase">{children}</h2>
-)
