@@ -1,6 +1,6 @@
 import { applyD1Migrations, env } from 'cloudflare:test'
 import { beforeAll, beforeEach, describe, expect, it } from 'vitest'
-import type { CompetitionDraw } from '../shared'
+import { CHALLENGER_MIN_LK, type CompetitionDraw } from '../shared'
 import { app } from '../worker/app'
 import { createDrawService } from '../worker/draw'
 import { createInMemoryDrawStore } from '../worker/store/draw'
@@ -110,6 +110,100 @@ describe('createDrawService.draw', () => {
   })
 })
 
+// ── Challenger cap binds at the draw (ADR-0024, issue #73) ───────────────────────────────────────
+// The hard Challenger-LK guard on the frozen LKs: the draw snapshots the threshold, judges the field
+// with the shared challengerEligibility predicate (the single authority, Slice 6), and on a violation
+// blocks the draw and writes nothing. The only levers are the field-wide threshold or removing the
+// entry — there is no per-player override path. Non-Challenger fields carry no cap.
+describe('createDrawService.draw — Challenger cap', () => {
+  // An 8-strong Challenger field with the given LKs (id i+1, createdAt rising so the order is stable).
+  const challengerField = (lks: (string | null)[]) =>
+    lks.map((lk, i) => confirmed(i + 1, { competition: 'mens-challenger', lk }))
+
+  // Full unseeded fill for an 8-draw (5 lot steps) — only consumed on the pass cases that reach the draw.
+  const FULL_8 = [0, 0, 0, 0, 0]
+
+  it('blocks the draw when an entry is too strong, returns the offenders, and writes nothing', async () => {
+    const drawStore = createInMemoryDrawStore()
+    // One entry (LK 15.0) is stronger than the default cap of 20; the rest meet it.
+    const rows = challengerField(['20.0', '21.0', '22.0', '23.0', '24.0', '25.0', '25.0', '15.0'])
+    const svc = createDrawService({
+      registrationsStore: createInMemoryRegistrationsStore(rows),
+      drawStore,
+      randomSource: createFakeRandomSource([])
+    })
+
+    const result = await svc.draw({ competition: 'mens-challenger', phase: 'tournament', now: 'now' })
+    expect(result).toMatchObject({ ok: false, error: 'ChallengerTooStrong' })
+    if (result.ok) return
+    expect(result.tooStrong).toEqual([{ id: 8, lk: '15.0' }])
+    // Nothing persisted — the field stays un-drawn (snapshot → check → on violation write nothing).
+    expect(await drawStore.findDraw('mens-challenger', 'main')).toBeNull()
+  })
+
+  it('draws when every entry meets the cap, snapshotting the threshold into the draw record', async () => {
+    const drawStore = createInMemoryDrawStore()
+    const rows = challengerField(['20.0', '21.0', '22.0', '23.0', '24.0', '25.0', '25.0', '25.0'])
+    const svc = createDrawService({
+      registrationsStore: createInMemoryRegistrationsStore(rows),
+      drawStore,
+      randomSource: createFakeRandomSource(FULL_8)
+    })
+
+    const result = await svc.draw({ competition: 'mens-challenger', phase: 'tournament', now: 'now' })
+    expect(result.ok).toBe(true)
+    expect(result.ok && result.draw.size).toBe(8)
+    // The cap is frozen into the draw record — the default when the operator passes none.
+    expect((await drawStore.findDraw('mens-challenger', 'main'))?.challengerMinLk).toBe(CHALLENGER_MIN_LK)
+  })
+
+  it('honours the operator-tuned threshold over the default, snapshotting the chosen value', async () => {
+    const drawStore = createInMemoryDrawStore()
+    // LK 22.0 meets the default cap (20) but is too strong at a raised cap of 23.
+    const rows = challengerField(['22.0', '24.0', '25.0', '25.0', '25.0', '25.0', '25.0', '25.0'])
+    const svc = () =>
+      createDrawService({
+        registrationsStore: createInMemoryRegistrationsStore(rows),
+        drawStore,
+        randomSource: createFakeRandomSource(FULL_8)
+      })
+
+    const blocked = await svc().draw({
+      competition: 'mens-challenger',
+      phase: 'tournament',
+      challengerMinLk: 23,
+      now: 'now'
+    })
+    expect(blocked).toMatchObject({ ok: false, error: 'ChallengerTooStrong' })
+    expect(blocked.ok || blocked.tooStrong).toEqual([{ id: 1, lk: '22.0' }])
+    expect(await drawStore.findDraw('mens-challenger', 'main')).toBeNull()
+
+    // A lower cap of 10 admits the whole field; the chosen value is what gets frozen.
+    const passed = await svc().draw({
+      competition: 'mens-challenger',
+      phase: 'tournament',
+      challengerMinLk: 10,
+      now: 'now'
+    })
+    expect(passed.ok).toBe(true)
+    expect((await drawStore.findDraw('mens-challenger', 'main'))?.challengerMinLk).toBe(10)
+  })
+
+  it('does not gate non-Challenger fields — strong LKs draw freely, with no cap snapshot', async () => {
+    const drawStore = createInMemoryDrawStore()
+    // A Herren field of LK 1.0–8.0 (all far below the cap) draws without the Challenger guard firing.
+    const svc = createDrawService({
+      registrationsStore: createInMemoryRegistrationsStore(field(8)),
+      drawStore,
+      randomSource: createFakeRandomSource(FULL_8)
+    })
+
+    const result = await svc.draw({ competition: 'mens', phase: 'tournament', now: 'now' })
+    expect(result.ok).toBe(true)
+    expect((await drawStore.findDraw('mens', 'main'))?.challengerMinLk).toBeNull()
+  })
+})
+
 // ── HTTP integration over a real local D1 ────────────────────────────────────────────────────────
 // Smoke over the full wiring (Hono → Zod → draw service → DrawStore → Drizzle → D1): the route gates,
 // writes, and reads the bracket back. Auth is edge-only (ADR-0008), so there is none to test here.
@@ -122,6 +216,16 @@ const seedConfirmed = (i: number, competition = 'mens') =>
      VALUES (?, ?, ?, ?, 'TV Winsen', ?, 'confirmed', ?)`
   )
     .bind(`2026-06-${String(i).padStart(2, '0')}T10:00:00Z`, competition, `P${i}`, `Player${i}`, `p${i}@x.de`, `${i}.0`)
+    .run()
+
+// A confirmed row with an explicit competition + LK — for the Challenger-cap cases that need to place
+// an entry on a specific side of the threshold (seedConfirmed's `${i}.0` LK can't express that).
+const seedConfirmedLk = (i: number, competition: string, lk: string) =>
+  env.DB.prepare(
+    `INSERT INTO registrations (created_at, competition, first_name, last_name, club, email, status, lk)
+     VALUES (?, ?, ?, ?, 'TV Winsen', ?, 'confirmed', ?)`
+  )
+    .bind(`2026-06-${String(i).padStart(2, '0')}T10:00:00Z`, competition, `P${i}`, `Player${i}`, `p${i}@x.de`, lk)
     .run()
 
 const setPhase = (phase: string) =>
@@ -212,5 +316,36 @@ describe('POST /api/admin/draw + GET /api/admin/draws', () => {
     await setPhase('tournament')
     const res = await draw('mens')
     expect(res.status).toBe(400)
+  })
+
+  it('blocks a Challenger draw with a too-strong entry (400 + offenders), persisting nothing (ADR-0024)', async () => {
+    // Seven entries meet the cap (LK 25.0); one is too strong (LK 15.0 < 20).
+    for (let i = 1; i <= 7; i++) await seedConfirmedLk(i, 'mens-challenger', '25.0')
+    await seedConfirmedLk(8, 'mens-challenger', '15.0')
+    await setPhase('tournament')
+
+    const res = await draw('mens-challenger')
+    expect(res.status).toBe(400)
+    const body = (await res.json()) as { error: string; tooStrong: { id: number; lk: string }[] }
+    expect(body.error).toContain('Challenger')
+    expect(body.tooStrong).toHaveLength(1)
+    expect(body.tooStrong[0]?.lk).toBe('15.0')
+
+    // Nothing written — neither the draw record nor any match row.
+    const draws = await env.DB.prepare('SELECT COUNT(*) AS c FROM draws').first<{ c: number }>()
+    const matches = await env.DB.prepare('SELECT COUNT(*) AS c FROM matches').first<{ c: number }>()
+    expect(draws?.c).toBe(0)
+    expect(matches?.c).toBe(0)
+  })
+
+  it('draws a within-cap Challenger field and freezes the threshold into the draw record', async () => {
+    for (let i = 1; i <= 8; i++) await seedConfirmedLk(i, 'mens-challenger', '22.0')
+    await setPhase('tournament')
+
+    const res = await draw('mens-challenger')
+    expect(res.status).toBe(200)
+
+    const snapshot = await env.DB.prepare('SELECT challenger_min_lk AS cap FROM draws').first<{ cap: number }>()
+    expect(snapshot?.cap).toBe(CHALLENGER_MIN_LK)
   })
 })

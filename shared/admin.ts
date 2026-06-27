@@ -139,8 +139,12 @@ export const drawsResponseSchema = z.object({ draws: z.array(competitionDrawSche
 export type DrawsResponse = z.infer<typeof drawsResponseSchema>
 
 // POST /api/admin/draw — start the draw for one competition (the draw button, UI: „Jetzt auslosen").
+// `challengerMinLk` is the operator-tuned Challenger cap snapshotted into the draw record (ADR-0024);
+// omitted ⇒ the shared CHALLENGER_MIN_LK default. Only the Challenger field is gated on it. The LK
+// scale runs 1.0–25.0, so a positive integer threshold; there is no per-player override path.
 export const drawRequestSchema = z.object({
-  competition: z.enum(competitionSlug.options, { error: 'Ungültige Konkurrenz.' })
+  competition: z.enum(competitionSlug.options, { error: 'Ungültige Konkurrenz.' }),
+  challengerMinLk: z.number().int().positive().optional()
 })
 export type DrawRequest = z.infer<typeof drawRequestSchema>
 

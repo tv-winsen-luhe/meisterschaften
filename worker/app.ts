@@ -268,12 +268,21 @@ export const app = new Hono<AppEnv>()
       drawStore: createD1DrawStore(c.env.DB),
       randomSource: createCryptoRandomSource()
     })
+    const { competition, challengerMinLk } = c.req.valid('json')
     const result = await service.draw({
-      competition: c.req.valid('json').competition,
+      competition,
       phase,
+      challengerMinLk,
       now: new Date().toISOString()
     })
-    if (!result.ok) return c.json({ error: result.reason }, result.error === 'AlreadyDrawn' ? 409 : 400)
+    if (!result.ok) {
+      // AlreadyDrawn is a conflict (409); every other guard — including a too-strong Challenger field
+      // (ADR-0024) — is a precondition the operator must fix first (400). The reason carries the count
+      // and threshold (the toast the shell shows today); the too-strong entries ride along in the body
+      // for a surface that wants to list the offenders by id.
+      const status = result.error === 'AlreadyDrawn' ? 409 : 400
+      return c.json({ error: result.reason, ...(result.tooStrong ? { tooStrong: result.tooStrong } : {}) }, status)
+    }
     return c.json({ ok: true, draw: result.draw } satisfies DrawResponse)
   })
 // The typed client (`hc`) derives its route types from this. The catch-all that
