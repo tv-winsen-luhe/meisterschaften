@@ -35,12 +35,19 @@ const field = (n: number) => Array.from({ length: n }, (_, i) => confirmed(i + 1
 // ── Service over the in-memory stores ────────────────────────────────────────────────────────────
 describe('createDrawService.schedule', () => {
   // A drawn 4-field (two semifinals + final) over the in-memory stores, plus the store so the test can
-  // place matches directly. The full unseeded fill of a 4-draw is one lot step.
-  const drawn = async () => {
+  // place matches directly. The full unseeded fill of a 4-draw is one lot step. By default the reveal is
+  // played to the end (`cursor >= total`) so the schedule feed will emit the field at all (ADR-0036) —
+  // these tests are about the placed/revealed schedule, not the suspense gate; pass `{ reveal: false }`
+  // to hold the draw mid-reveal.
+  const drawn = async ({ reveal = true } = {}) => {
     const drawStore = createInMemoryDrawStore()
     const registrationsStore = createInMemoryRegistrationsStore(field(4))
     const service = createDrawService({ registrationsStore, drawStore, randomSource: createFakeRandomSource([0]) })
     await service.draw({ competition: 'mens', phase: 'tournament', now: 'now' })
+    if (reveal) {
+      let r = await service.advance('mens', 'forward')
+      while (r.ok && r.cursor < r.total) r = await service.advance('mens', 'forward')
+    }
     return { service, drawStore, registrationsStore }
   }
 
@@ -129,6 +136,47 @@ describe('createDrawService.schedule', () => {
     expect(row.slot1).toEqual({ kind: 'unknown' })
     expect(row.slot2).toMatchObject({ kind: 'player' }) // the surviving player still resolves
   })
+
+  // The reveal-cursor gate (ADR-0036, issue #104): the public schedule must not leak a pairing ahead of
+  // the on-stage reveal, the same suspense invariant publicDraws() enforces by slicing to the cursor.
+  describe('honors the reveal cursor (ADR-0036)', () => {
+    it('hides a placed main match while its draw is mid-reveal (cursor < total)', async () => {
+      const { service, drawStore } = await drawn({ reveal: false })
+      const semi = (await drawStore.listMatches()).find(m => m.round === 1)!
+      await drawStore.placeMatch(semi.id, { court: 2, day: 0, slot: 1 })
+
+      // Placed on the grid, but the draw show has not finished — the pairing stays server-side.
+      expect(await service.schedule()).toEqual([])
+    })
+
+    it('hides a placed main match after its reveal is rewound below total', async () => {
+      const { service, drawStore } = await drawn() // fully revealed
+      const semi = (await drawStore.listMatches()).find(m => m.round === 1)!
+      await drawStore.placeMatch(semi.id, { court: 2, day: 0, slot: 1 })
+      expect(await service.schedule()).toHaveLength(1) // shown while fully revealed
+
+      // The operator rewinds one lot — the bracket drops below `total` and its placed matches vanish again.
+      await service.advance('mens', 'back')
+      expect(await service.schedule()).toEqual([])
+    })
+
+    it('never gates the consolation bracket — it has no reveal show (ADR-0004)', async () => {
+      // Main mid-reveal, with a placed main match (must hide) and a placed consolation match (must show).
+      const { registrationsStore, drawStore } = await drawn({ reveal: false })
+      const semi = (await drawStore.listMatches()).find(m => m.round === 1)!
+      const placedMain = { ...semi, court: 2, day: 0, slot: 1 }
+      const conso = { ...semi, id: 999, bracket: 'consolation' as const, court: 1, day: 0, slot: 0 }
+      const holed = { ...drawStore, listMatches: async () => [placedMain, conso] }
+      const service = createDrawService({
+        registrationsStore,
+        drawStore: holed,
+        randomSource: createFakeRandomSource([0])
+      })
+
+      // The unrevealed main match is withheld; the consolation match — born public — is served.
+      expect((await service.schedule()).map(m => m.id)).toEqual([999])
+    })
+  })
 })
 
 // ── HTTP integration over a real local D1 ────────────────────────────────────────────────────────
@@ -161,7 +209,21 @@ describe('POST /api/admin/match/place + GET /api/schedule', () => {
     await env.DB.exec('DELETE FROM app_state')
   })
 
-  // Draw a 4-field over the real D1 so the test has real match rows to place.
+  // Play the reveal to the end so the schedule feed will emit the field at all (ADR-0036, #104).
+  const revealFully = async (competition: string) => {
+    let r = { cursor: 0, total: Number.POSITIVE_INFINITY }
+    do {
+      const res = await req('/api/admin/draw/advance', {
+        method: 'POST',
+        headers: JSON_HEADERS,
+        body: JSON.stringify({ competition, direction: 'forward' })
+      })
+      r = (await res.json()) as { cursor: number; total: number }
+    } while (r.cursor < r.total)
+  }
+
+  // Draw a 4-field over the real D1 so the test has real match rows to place, then reveal it fully so the
+  // public schedule serves placed matches (the gate is exercised directly in the service tests above).
   const drawField = async () => {
     for (let i = 1; i <= 4; i++) await seedConfirmed(i)
     await setPhase('tournament')
@@ -170,6 +232,7 @@ describe('POST /api/admin/match/place + GET /api/schedule', () => {
       headers: JSON_HEADERS,
       body: JSON.stringify({ competition: 'mens' })
     })
+    await revealFully('mens')
   }
 
   it('places a match, persists it, and serves it on the public schedule', async () => {
