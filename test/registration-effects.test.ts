@@ -1,17 +1,14 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
-
-// notifyRegistration is transport I/O (Telegram); stub it so we can assert which LK the
-// match→notify composition sends, without a Telegram round-trip.
-vi.mock('../worker/notify', () => ({ notifyRegistration: vi.fn() }))
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import type { Env } from '../worker/app'
 import type { RegistrationRow } from '../worker/db/schema'
-import { notifyRegistration } from '../worker/notify'
-import { matchAndNotify } from '../worker/registration-effects'
+import { buildRegistrationNotice, matchAndNotify } from '../worker/registration-effects'
 import { createInMemoryRosterSource, createSeedingLk, type RosterSource } from '../worker/seeding-lk'
 import { createInMemoryRegistrationsStore } from '../worker/store/registrations.memory'
 
-const env = {} as Env // no Telegram creds; notifyRegistration is stubbed regardless
+// buildRegistrationNotice owns the match→notice composition: which LK ends up on the notice (the
+// freshly matched one, or the row's stored LK if nuLiga is unreachable). It returns the notice as
+// data, so the choice is asserted on the return value — no vi.mock of the transport module.
 
 const reg = (overrides: Partial<RegistrationRow> = {}): RegistrationRow => ({
   id: 1,
@@ -31,12 +28,8 @@ const reg = (overrides: Partial<RegistrationRow> = {}): RegistrationRow => ({
   ...overrides
 })
 
-const noticeArg = () => vi.mocked(notifyRegistration).mock.calls[0][1]
-
-describe('matchAndNotify', () => {
-  beforeEach(() => vi.mocked(notifyRegistration).mockClear())
-
-  it('swallows a failing roster source and still notifies with the row’s stored LK', async () => {
+describe('buildRegistrationNotice', () => {
+  it('swallows a failing roster source and keeps the row’s stored LK on the notice', async () => {
     const failing: RosterSource = {
       async rosterFor() {
         throw new Error('nuLiga down')
@@ -45,21 +38,47 @@ describe('matchAndNotify', () => {
     const row = reg({ lk: '12.0' })
     const seedingLk = createSeedingLk({ rosterSource: failing, store: createInMemoryRegistrationsStore([row]) })
 
-    await expect(matchAndNotify(env, seedingLk, row)).resolves.toBeUndefined()
-    expect(notifyRegistration).toHaveBeenCalledTimes(1)
-    expect(noticeArg()).toMatchObject({ lk: '12.0' })
+    const notice = await buildRegistrationNotice(seedingLk, row)
+    expect(notice).toMatchObject({ lk: '12.0' })
   })
 
-  it('notifies with the freshly matched nuLiga LK and links the unmatched row', async () => {
+  it('puts the freshly matched nuLiga LK on the notice and links the unmatched row', async () => {
     const row = reg({ playerId: null, lk: null })
     const store = createInMemoryRegistrationsStore([row])
     const roster = createInMemoryRosterSource({
       'TV Winsen': [{ playerId: '12345678', lk: '9.0', firstName: 'Max', lastName: 'Muster' }]
     })
 
-    await matchAndNotify(env, createSeedingLk({ rosterSource: roster, store }), row)
+    const notice = await buildRegistrationNotice(createSeedingLk({ rosterSource: roster, store }), row)
 
-    expect(noticeArg()).toMatchObject({ lk: '9.0' })
+    expect(notice).toMatchObject({ lk: '9.0' })
     expect((await store.findById(1))?.playerId).toBe('12345678')
+  })
+})
+
+// matchAndNotify is the glue actually wired into ctx.waitUntil (app.ts). It is verified end-to-end
+// via a global-fetch spy (the established pattern in phase.integration.test.ts), not a module mock —
+// proving a Telegram request is dispatched and that the matched LK reaches the message body.
+describe('matchAndNotify', () => {
+  afterEach(() => vi.unstubAllGlobals())
+
+  const env = { TELEGRAM_BOT_TOKEN: 't', TELEGRAM_CHAT_ID: 'c' } as Env
+
+  it('dispatches one Telegram message carrying the freshly matched LK', async () => {
+    const fetchSpy = vi.fn(async () => new Response('', { status: 200 }))
+    vi.stubGlobal('fetch', fetchSpy)
+
+    const row = reg({ playerId: null, lk: null })
+    const store = createInMemoryRegistrationsStore([row])
+    const roster = createInMemoryRosterSource({
+      'TV Winsen': [{ playerId: '12345678', lk: '9.0', firstName: 'Max', lastName: 'Muster' }]
+    })
+
+    await expect(matchAndNotify(env, createSeedingLk({ rosterSource: roster, store }), row)).resolves.toBeUndefined()
+
+    expect(fetchSpy).toHaveBeenCalledTimes(1)
+    const body = JSON.parse((fetchSpy.mock.calls[0][1] as RequestInit).body as string)
+    expect(body.text).toContain('🎾 <b>Neue Anmeldung</b>')
+    expect(body.text).toContain('<b>LK (nuLiga):</b> 9.0')
   })
 })
