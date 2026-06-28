@@ -39,3 +39,28 @@ player is never in two matches at once and the validator never has to resolve cr
   impossible.
 - The grid's 6 court rows make the court-cap structural; feeder ordering is the one hard rule that needs
   real checking.
+
+## Amendment (2026-06-28): the court hard rule is per-cell occupancy, checked server-side — not just a slot count
+
+Building the validator (#89) showed the second consequence above to be wrong on one point: the grid's
+structural court guarantee **does not reach the API**, and this same Decision makes the place endpoint the
+authority. The admin grid only drops into empty cells, but the endpoint is reachable directly (and by a
+second operator, or a stale/retried client), so the server cannot lean on the grid's structure.
+
+A literal "more matches in one slot than the 6 courts" check is also too weak to be that authority: it
+counts a slot's total and never asks whether the _specific_ court is free, so two matches can land on the
+identical `court+day+slot` while the slot still holds ≤ 6 — corrupting the public schedule (two matches on
+one „Platz" at one time) and silently overwriting one in the admin grid's cell-keyed index.
+
+**Decision (amended):** the hard court rule `validatePlacement` enforces is **per-cell occupancy** — at
+most one match per `court+day+slot` (`court-taken`). Because the contract bounds `court` to the six
+courts, "more matches in a slot than courts" then falls out as a _consequence_ of per-cell occupancy and
+is never counted separately — which is the sense in which the court cap is structural. So the corrected
+statement is: **feeder ordering and court occupancy are both hard rules the validator checks server-side;
+the six-court slot cap is their emergent consequence, not a third check.**
+
+A DB unique index on `(court, day, slot)` would close the last gap — two near-simultaneous placements that
+both validate against state without the other's row yet (a TOCTOU race). We deliberately leave it out:
+ADR-0005 has a single desk operator placing by hand, so the race is not realistic, and the validator
+covers every non-simultaneous path (move, retry, stale client, direct API). If concurrent operators ever
+become real, the index — mirroring the draw's `(competition, bracket)` uniqueness — is the backstop.

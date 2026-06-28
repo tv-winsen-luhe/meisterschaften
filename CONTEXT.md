@@ -231,8 +231,9 @@ reveal sequence }`. Randomness enters through an injected **`RandomSource`** por
   run, or a main-bracket exit plus the consolation bracket, tends to spread across both event days — the
   consolation bracket is not a Saturday-only affair) and back-to-back matches with no rest gap.
   _(See ADR-0005, ADR-0033.)_
-- **Court** (de: Platz) — one of 6 sand courts. Capacity constraint for the schedule: at most 6 matches
-  run in the same time slot.
+- **Court** (de: Platz) — one of 6 sand courts. Capacity constraint for the schedule: at most **one match
+  per court per time slot** (the validator enforces this per-cell occupancy server-side, ADR-0033); with 6
+  courts, "at most 6 matches in a slot" follows as its consequence, never a separate count.
 - **Match status** (de: Match-Status; stored/wire values English `planned` → `running` → `done`, UI
   labels „geplant" → „läuft" → „beendet" per ADR-0028). The transition to `running` captures the
   **actual court** the match is on — which may differ from its planned court (a court frees up early), so
