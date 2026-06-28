@@ -235,7 +235,9 @@ reveal sequence }`. Randomness enters through an injected **`RandomSource`** por
   (a name), a **Freilos** (a round-1 bye), a **Sieger M{n}** feeder (the still-undecided winner of an
   earlier match, ADR-0025), or — when a feeder cannot be resolved — **offen** (undecided). „offen" is a
   graceful degrade, not a normal state: the public feed serves it rather than failing, never „Freilos"
-  (which in a later round would read as a free pass). _(See ADR-0035.)_
+  (which in a later round would read as a free pass). On the **admin grid** a healthy undecided slot is
+  always „Sieger M{n}", so an „offen" there is _always_ an inconsistency — it is styled as a warning (the
+  operator's tell; the repair is re-running the draw), not the calm line spectators see. _(See ADR-0035.)_
 - **Court** (de: Platz) — one of 6 sand courts. Capacity constraint for the schedule: at most **one match
   per court per time slot** (the validator enforces this per-cell occupancy server-side, ADR-0033); with 6
   courts, "at most 6 matches in a slot" follows as its consequence, never a separate count.

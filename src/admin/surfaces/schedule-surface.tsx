@@ -20,6 +20,7 @@ import { tournament } from '@/data/tournament'
 import { cn } from '@/admin/lib/utils'
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/admin/ui/empty'
 import { competitionLabel } from './registration-detail'
+import { type GridMatch, MatchCard, type SlotLabel } from './schedule-match-card'
 import { hardBlockMessage, SoftWarningDialog } from './schedule-warnings'
 
 // The schedule surface (UI: „Spielplan", ADR-0005, issue #88): the operator places drawn matches onto a
@@ -36,15 +37,6 @@ interface ScheduleSurfaceProps {
   // Place a match into a cell, move it, or clear it back to the backlog (null). Resolves to whether the
   // write succeeded (the shell toasts + reloads); the surface reflects the new state on the reload.
   onPlace: (id: number, placement: Placement | null) => Promise<boolean>
-}
-
-// A match prepared for the grid: its display number, competition, and the two resolved slot labels.
-interface GridMatch {
-  match: Match
-  number: number
-  competitionLabel: string
-  slot1: string
-  slot2: string
 }
 
 // A drop the operator must confirm: a sound-but-unwise placement (soft warnings only). Held until the
@@ -76,17 +68,23 @@ export const ScheduleSurface = ({ registrations, draws, onPlace }: ScheduleSurfa
   // The schedulable matches: a main bracket's real matches (a bye is auto-resolved, never played, so it
   // is never schedulable). An un-revealed bracket's *unplaced* matches stay hidden — projecting the
   // admin must not spoil a draw still being revealed — but a *placed* match is always shown even if its
-  // reveal was later rewound, so the operator can still move or unplace it (its placement is already
-  // public on the schedule feed). Feeders are resolved per bracket so „Sieger M3" reads stable.
+  // reveal was later rewound, so the operator can still move or unplace it (the public feed withholds it
+  // again while the bracket is rewound, ADR-0036 — but the operator must still be able to manage it).
+  // Feeders are resolved per bracket so „Sieger M3" reads stable.
   const gridMatches = useMemo<GridMatch[]>(() => {
-    const slotText = (view: SlotView): string =>
-      view.kind === 'player'
-        ? (nameById.get(view.regId) ?? `#${view.regId}`)
-        : view.kind === 'bye'
-          ? 'Freilos'
-          : view.kind === 'feeder'
-            ? `Sieger M${view.matchNumber}`
-            : 'offen'
+    // The flag is derivable from the kind — `unknown` is the only unresolved („offen") slot — so compute
+    // the label once and tag it, rather than repeating `unresolved: false` on every other branch.
+    const slotText = (view: SlotView): SlotLabel => {
+      const text =
+        view.kind === 'player'
+          ? (nameById.get(view.regId) ?? `#${view.regId}`)
+          : view.kind === 'bye'
+            ? 'Freilos'
+            : view.kind === 'feeder'
+              ? `Sieger M${view.matchNumber}`
+              : 'offen'
+      return { text, unresolved: view.kind === 'unknown' }
+    }
 
     const out: GridMatch[] = []
     for (const draw of draws) {
@@ -323,21 +321,4 @@ const DayGrid = ({ day, label, placedByCell, selected, onCellClick, onUnplace }:
       </div>
     </div>
   </section>
-)
-
-interface MatchCardProps {
-  match: GridMatch
-}
-// The compact match label shared by the backlog chip and a placed cell: M{number} · competition, then
-// the two contestants (a player, a „Freilos" bye, or a „Sieger M{n}" feeder).
-const MatchCard = ({ match }: MatchCardProps) => (
-  <div className="flex flex-col gap-0.5">
-    <div className="text-muted-foreground flex items-center gap-1.5 text-[11px] font-semibold tracking-wide uppercase">
-      <span className="tabular-nums">M{match.number}</span>
-      <span aria-hidden>·</span>
-      <span className="truncate normal-case">{match.competitionLabel}</span>
-    </div>
-    <div className="truncate text-sm">{match.slot1}</div>
-    <div className="text-muted-foreground truncate text-sm">{match.slot2}</div>
-  </div>
 )
