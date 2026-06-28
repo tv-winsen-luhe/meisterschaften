@@ -136,10 +136,14 @@ concept here drifts or a new one appears, update this file rather than inventing
 - **Draw** (de: Auslosung) — assigning seeded and unseeded players into bracket positions, producing
   the bracket for each competition. Automatic and unriggable (DTB-Ranglistenturnier conventions), with
   no operator edit step. _(See ADR-0002.)_
-- **Lot step** (de: Los) — a placement step **where the lot decided**: a seed drawn onto one of its two
-  prescribed lines (Nr. 3/4+), a remaining bye drawn onto a section, or an unseeded player drawn into
-  the next open slot. The deterministic placements (Nr. 1 / Nr. 2, byes that go straight to seeds) are
-  reveal steps too, but they are not lot steps — nothing was drawn. The draw proceeds lot step by lot
+- **Lot step** (de: Los) — a placement step **where the lot decided**: a seed _gezogen_ onto one of its
+  two prescribed lines (Nr. 3/4+; DTB §30.5b calls each pairing a „Ziehung"), a remaining bye _eingelost_
+  onto a section (§31.2b), or an unseeded player _eingelost_ into the next open slot (§32.4c). The
+  deterministic placements (Nr. 1 / Nr. 2 onto their fixed table lines, byes that go straight to seeds)
+  are reveal steps too, but they are **not** lot steps — nothing was drawn (§30.5b fixes Nr. 1/2 by table;
+  §31.2 _assigns_ the seed byes in seeding-list order). The word „Los" therefore names a **drawn** step
+  only: the show reveals the deterministic placements in sequence but never announces one as a Los, and
+  its pacing language stays event-level („Auslosung"), not a per-step „Los". The draw proceeds step by
   step so the random steps can be revealed dramatically, one at a time.
 - **Reveal sequence** — the draw's playback artifact: one flat, ordered list of **reveal steps** in
   DTB §32.4 order (seeds, then byes, then unseeded top-to-bottom). Each step places one entrant (or a
