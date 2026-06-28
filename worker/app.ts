@@ -136,7 +136,9 @@ const resetGuard: MiddlewareHandler<AppEnv> = async (c, next) => {
 // `env.DB` exists only per request in Workers — never at module load.
 //
 // Routes are chained off `new Hono()` so `typeof app` carries the route schema for the typed `hc`
-// client (a separate `app.get(...)` statement would not be reflected).
+// client (a separate `app.get(...)` statement would not be reflected). This single chain is a
+// deliberate, load-bearing shape, not just style — splitting into `.route()` groups is deferred and
+// gated on a type-propagation spike (ADR-0037).
 export const createApp = (makeDeps: (env: Env) => Deps = createDepsFromEnv) =>
   new Hono<AppEnv>()
     // Mirror the legacy JSON error envelope so every API route fails the same shape;
