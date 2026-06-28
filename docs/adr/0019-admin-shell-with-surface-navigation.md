@@ -50,6 +50,14 @@ The work was scoped through a grilling session; the design decisions below are i
    policy, and the no-event-branding stance all stand. Recorded here because it sharpens, rather than
    simply restates, ADR-0016.
 
+   _Amendment (#120):_ the carve-out widens from one axis to two. The schedule grid gives each competition
+   a distinct accent on its match cards (`competitionAccent`), so the operator can tell a card's field at a
+   glance when several competitions are drawn. Like status colour, it is information encoded as form, not
+   brand theming, and it never stands alone — it rides _alongside_ the „M{n} · {competition}" label, so a
+   colour-blind or low-vision operator still reads the field from the text. The neutral base, light-only,
+   and no-event-branding stances are unchanged; the rule is now "colour carries information (status, field),
+   never decoration."
+
 ## Consequences
 
 - Future operator surfaces inherit a home and a consistent frame instead of each defining its own chrome.

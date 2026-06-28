@@ -93,6 +93,7 @@ export const ScheduleSurface = ({ registrations, draws, onPlace }: ScheduleSurfa
         out.push({
           match,
           number,
+          competition: draw.competition,
           competitionLabel: competitionLabel(draw.competition),
           slot1: slotText(slot1),
           slot2: slotText(slot2)
