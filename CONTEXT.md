@@ -243,7 +243,9 @@ reveal sequence }`. Randomness enters through an injected **`RandomSource`** por
   explicitly approximate ("ca."), not guarantees. The operator places matches by hand on a courts×time
   grid of **fixed 90-minute slots**; the system validates rather than auto-generates, on the principle
   **block the impossible, warn the unwise**: it _forbids_ (hard) scheduling a match before its feeders
-  finish and more matches per slot than the 6 courts — the only physically impossible states — and
+  finish — enforced **structurally**, so a match cannot sit earlier than its real (non-bye) feeder chain
+  allows even before those feeders are placed — and more matches per slot than the 6 courts — the only
+  physically impossible states — and
   _warns_ (soft, operator may override) on a player's load: more than **2 matches per day** (so a deep
   run, or a main-bracket exit plus the consolation bracket, tends to spread across both event days — the
   consolation bracket is not a Saturday-only affair) and back-to-back matches with no rest gap.

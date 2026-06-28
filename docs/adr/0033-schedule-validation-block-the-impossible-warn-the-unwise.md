@@ -64,3 +64,41 @@ both validate against state without the other's row yet (a TOCTOU race). We deli
 ADR-0005 has a single desk operator placing by hand, so the race is not realistic, and the validator
 covers every non-simultaneous path (move, retry, stale client, direct API). If concurrent operators ever
 become real, the index — mirroring the draw's `(competition, bracket)` uniqueness — is the backstop.
+
+## Amendment (2026-06-29): feeder-order is structural, not only pairwise — a match can't sit earlier than its real feeder chain
+
+The Decision's feeder-order rule was implemented **pairwise**: `validatePlacement` blocks the candidate
+only against feeders that are **already placed**. That leaves a gap the original Context disavows — "the
+validator never paints them into a corner":
+
+- The operator places a later-round match (a Viertelfinale) while its feeder (the Achtelfinale) is still
+  in the backlog. No placed feeder exists, so the placement is allowed — into any slot, including the
+  first.
+- When the operator later places that feeder, the now-placed successor check fires and blocks it from
+  every slot at-or-after the dependent match. If the dependent match went into an early slot, its feeder
+  has **nowhere legal to go** — the operator is in the corner, and only learns at the wall.
+
+The pairwise check keeps any _committed_ plan sound (whichever match is placed second is validated), but
+it lets the operator _build toward_ an impossible one.
+
+**Decision (amended):** feeder-order is also enforced **structurally**. A match's absolute slot
+(`day · slotsPerDay + slot`) must be **≥ the depth of its longest chain of real feeder matches** — the
+matches actually played, and therefore scheduled. A round-1 **bye** is never scheduled (CONTEXT: Bye), so
+it contributes no slot: a later-round match fed only through byes keeps its early slots. This depends only
+on the candidate and the bracket's bye pattern — not on what else is placed — so it rejects a too-early
+placement the moment it is attempted, before any corner can form.
+
+This stays "block the impossible": a match at absolute slot _s_ whose real feeder chain has depth _d > s_
+cannot be completed — there are not _d_ distinct earlier slots for the chain. It is the same
+physical-impossibility test the court rule uses, so it is a **facet of the existing feeder-order hard
+rule, not a third rule**. The pairwise check remains, for ordering against feeders that _are_ placed;
+together they make an out-of-order plan impossible to either commit or approach.
+
+**Consequences:**
+
+- A later-round match can no longer be dropped into a slot too early for its feeder chain, even while
+  those feeders sit in the backlog — closing the corner the original Context disavowed.
+- Bye-only feeder chains stay placeable in early slots; the guard counts real (scheduled) matches, so it
+  never blocks a slot a bye legitimately leaves free.
+- The earliest legal slot becomes a property the grid can surface proactively (grey the too-early cells
+  when a match is picked up), not only a rejection at drop time.
