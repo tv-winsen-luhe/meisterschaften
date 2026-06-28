@@ -125,8 +125,16 @@ describe('createDrawService.draw', () => {
     expect(byes[0]?.winnerRegId).not.toBeNull()
   })
 
-  it('refuses a full field whose size has no seed table yet (e.g. 4 — only 8/16 are supported)', async () => {
-    const result = await service(field(4), []).draw({ competition: 'mens', phase: 'tournament', now: 'now' })
+  it('draws a 4-player field — the smallest supported draw (sub-DTB extension, ADR-0034)', async () => {
+    const result = await service(field(4), [0]).draw({ competition: 'mens', phase: 'tournament', now: 'now' })
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+    expect(result.draw.size).toBe(4)
+    expect(result.draw.matches).toHaveLength(3) // two semifinals + final
+  })
+
+  it('refuses a field whose size has no seed table (rounds to 2 — a bare final, not a draw)', async () => {
+    const result = await service(field(2), []).draw({ competition: 'mens', phase: 'tournament', now: 'now' })
     expect(result).toMatchObject({ ok: false, error: 'unsupported-size' })
   })
 
@@ -329,8 +337,9 @@ describe('POST /api/admin/draw + GET /api/admin/draws', () => {
     expect(byes?.c).toBe(3)
   })
 
-  it('still rejects a field whose draw size has no seed table (e.g. 4) with 400', async () => {
-    for (let i = 1; i <= 4; i++) await seedConfirmed(i)
+  it('still rejects a field whose draw size has no seed table (rounds to 2) with 400', async () => {
+    // 4 is now supported (ADR-0034); 2 entrants are a bare final (size 2), which still has no table.
+    for (let i = 1; i <= 2; i++) await seedConfirmed(i)
     await setPhase('tournament')
     const res = await draw('mens')
     expect(res.status).toBe(400)

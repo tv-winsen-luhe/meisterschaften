@@ -8,9 +8,6 @@ const openCompetitions = competitions.filter(c => c.status === 'open')
 // Planned competitions get a quiet "in Planung" tile so the field is hinted at, not listed.
 const plannedCompetitions = competitions.filter(c => c.status === 'planned')
 const layoutFor = (slug: string) => (slug === 'mens' || slug === 'womens' ? 'board' : 'list')
-// Provisional seeds: the strongest LKs are seeded, one per quarter of the draw
-// (16 → seeds 1–4, 8 → seeds 1–2). Final seeding/draw happens at the draw.
-const seedsFor = (capacity?: number) => (capacity ? Math.floor(capacity / 4) : 0)
 ---
 
 <div class="participants" data-participants data-logo-tv={tvLogo.src} data-logo-tsv={tsvLogo.src}>
@@ -22,7 +19,6 @@ const seedsFor = (capacity?: number) => (capacity ? Math.floor(capacity / 4) : 0
           data-group={c.slug}
           data-layout={layoutFor(c.slug)}
           data-capacity={c.capacity}
-          data-seeds={layoutFor(c.slug) === 'board' ? seedsFor(c.capacity) : 0}
         >
           <div class="pl-group__top">
             <header class="pl-group__head">
@@ -336,6 +332,7 @@ const seedsFor = (capacity?: number) => (capacity ? Math.floor(capacity / 4) : 0
 
 <script>
   import { hc } from 'hono/client'
+  import { displaySeedCount } from '../../shared'
   import type { AppType } from '../../worker/app'
   import type { Participant, ParticipantsResponse, Phase } from '../../shared'
 
@@ -438,7 +435,10 @@ const seedsFor = (capacity?: number) => (capacity ? Math.floor(capacity / 4) : 0
       const list = group.querySelector<HTMLElement>('[data-list]')!
       const empty = group.querySelector<HTMLElement>('[data-empty]')!
       const capacity = Number(group.dataset.capacity)
-      const seeds = Number(group.dataset.seeds) || 0
+      // Provisional seeds follow the confirmed field, not the capacity (ADR-0034) — the shared rule the
+      // draw preview uses too, so the two surfaces never disagree. Only the seeding board seeds; an empty
+      // field returns early (below) before this is read, so no entries.length guard is needed here.
+      const seeds = layout === 'board' ? displaySeedCount(entries.length) : 0
       const freeLabel = group.querySelector<HTMLElement>('[data-free-label]')
       const meter = group.querySelector<HTMLElement>('[data-meter]')
       const segs = group.querySelectorAll<HTMLElement>('.pl-meter__seg')

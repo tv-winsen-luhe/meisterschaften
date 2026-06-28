@@ -23,7 +23,6 @@ const drawCompetitions = competitions
           aria-controls={`dm-panel-${c.slug}`}
           aria-selected={i === 0 ? 'true' : 'false'}
           data-tab={c.slug}
-          data-capacity={c.capacity}
         >
           {c.label}
         </button>
@@ -40,7 +39,6 @@ const drawCompetitions = competitions
           id={`dm-panel-${c.slug}`}
           aria-labelledby={`dm-tab-${c.slug}`}
           data-panel={c.slug}
-          data-capacity={c.capacity}
           hidden={i !== 0}
         >
           <div class="dm-scroll" data-scroll>
@@ -322,7 +320,7 @@ const drawCompetitions = competitions
 
 <script>
   import { hc } from 'hono/client'
-  import { bracketStructure } from '../../shared'
+  import { bracketStructure, displayDrawSize } from '../../shared'
   import type { AppType } from '../../worker/app'
   import type { Participant, ParticipantsResponse, PublicDraw, PublicRevealStep } from '../../shared'
 
@@ -339,23 +337,11 @@ const drawCompetitions = competitions
   // appears within a step, light enough for a phone on event Wi-Fi (small N, ADR-0021).
   const POLL_MS = 1500
 
-  // Seed line (0-indexed first-round slot) per seed number, derived from the shared bracketStructure
-  // — the single source the real draw also uses (ADR-0025), so the preview's seeding can't drift
-  // from the draw's. The lot seeds (no. 3/4) are shown on their prescribed lines in seed order; the
-  // actual lot only runs at the draw.
-  const seedLines = (capacity: number): Record<number, number> => {
-    const lines: Record<number, number> = {}
-    for (const group of bracketStructure(capacity).seedGroups) {
-      group.seeds.forEach((seed, i) => (lines[seed] = group.lines[i]))
-    }
-    return lines
-  }
-
-  // Round labels are display copy (not topology), so they stay here; the count comes from the size.
-  const ROUNDS: Record<number, string[]> = {
-    16: ['Achtelfinale', 'Viertelfinale', 'Halbfinale', 'Finale'],
-    8: ['Viertelfinale', 'Halbfinale', 'Finale']
-  }
+  // Round labels, outermost → final. A bracket reads the tail for its size (16 → all four, 8 → last
+  // three, 4 → last two), so one ordered list covers every size and a new size needs no parallel entry
+  // — the round *count* is topology (log2(size)), the labels are display copy (mirrors admin/lib/bracket.ts).
+  const ROUND_LABELS = ['Achtelfinale', 'Viertelfinale', 'Halbfinale', 'Finale']
+  const roundLabels = (size: number): string[] => ROUND_LABELS.slice(ROUND_LABELS.length - Math.log2(size))
 
   const root = document.querySelector<HTMLElement>('[data-draw]')
 
@@ -425,8 +411,8 @@ const drawCompetitions = competitions
     size: number,
     cellFor: (roundIndex: number, slotIndex: number) => HTMLElement
   ) => {
-    const rounds = ROUNDS[size]
-    if (!rounds) return
+    const rounds = roundLabels(size)
+    if (!rounds.length) return
     bracket.innerHTML = ''
     for (let r = 0; r < rounds.length; r++) {
       const matchCount = size / 2 ** (r + 1)
@@ -457,16 +443,23 @@ const drawCompetitions = competitions
   }
 
   // The provisional preview (before the draw): the strongest LKs sit on their seed lines, every other
-  // line is „?". Pure affordance — the lot has not run; bracketStructure owns the seed positions.
-  const buildPreview = (bracket: HTMLElement, capacity: number, players: Entry[]) => {
-    const seedPos = seedLines(capacity)
-    const seeds = bracketStructure(capacity).seedCount
-    const slots: Slot[] = Array.from({ length: capacity }, () => null)
-    players.slice(0, seeds).forEach((player, i) => {
+  // line is „?". Pure affordance — the lot has not run. The size follows the **confirmed field**, not the
+  // competition capacity (ADR-0034): 7 confirmed shows an 8-bracket, not a 16, mirroring the real draw.
+  // displayDrawSize clamps to the supported sizes (4/8/16), so bracketStructure never throws.
+  const buildPreview = (bracket: HTMLElement, players: Entry[]) => {
+    const size = displayDrawSize(players.length)
+    // One bracketStructure — the single topology source the real draw also uses (ADR-0025), so the
+    // preview's seed lines and count can't drift from the draw's. Lot seeds (Nr.3/4) sit on the first
+    // of their prescribed lines until the actual lot runs at the draw.
+    const struct = bracketStructure(size)
+    const seedPos: Record<number, number> = {}
+    for (const group of struct.seedGroups) group.seeds.forEach((seed, i) => (seedPos[seed] = group.lines[i]))
+    const slots: Slot[] = Array.from({ length: size }, () => null)
+    players.slice(0, struct.seedCount).forEach((player, i) => {
       const pos = seedPos[i + 1]
       if (pos !== undefined) slots[pos] = { seed: i + 1, player }
     })
-    renderBracket(bracket, capacity, (r, i) => (r === 0 ? slotEl(slots[i]) : tbdEl()))
+    renderBracket(bracket, size, (r, i) => (r === 0 ? slotEl(slots[i]) : tbdEl()))
   }
 
   // The live reveal: the server sends only the steps revealed so far (sliced to the cursor), each placing
@@ -517,12 +510,11 @@ const drawCompetitions = competitions
     const drawByComp = new Map(draws.map(d => [d.competition as string, d]))
     root.querySelectorAll<HTMLElement>('[data-panel]').forEach(panel => {
       const slug = panel.dataset.panel!
-      const capacity = Number(panel.dataset.capacity)
       const bracket = panel.querySelector<HTMLElement>('[data-bracket]')
       if (!bracket) return
       const drawn = drawByComp.get(slug)
       if (drawn) buildReveal(bracket, drawn)
-      else buildPreview(bracket, capacity, byComp.get(slug) ?? [])
+      else buildPreview(bracket, byComp.get(slug) ?? [])
     })
   }
 
