@@ -173,11 +173,16 @@ export const DrawShow = ({ competition, onLoad, onAdvance, onExit }: DrawShowPro
 
   return (
     <Stage>
-      {/* Top bar: which field, how far the reveal stands, and the way out. */}
+      {/* Top bar: the club mark, which field, how far the reveal stands, and the way out. */}
       <div className="flex items-center justify-between gap-4 border-b border-[#0c1e3a]/10 px-8 py-5">
-        <div>
-          <div className="text-[11px] font-bold tracking-[0.22em] text-[#c2673b] uppercase">Auslosung</div>
-          <div className="text-2xl font-bold text-[#0c1e3a]">{competitionLabel(competition)}</div>
+        <div className="flex items-center gap-4">
+          {/* Club branding on the beamer: the full emblem (the navy ring text is decorative at this size). */}
+          <img src="/club-logos/tv-winsen.svg" alt="TV Winsen" width={48} height={48} className="size-12 shrink-0" />
+          <div className="h-9 w-px bg-[#0c1e3a]/15" />
+          <div>
+            <div className="text-[11px] font-bold tracking-[0.22em] text-[#c2673b] uppercase">Auslosung</div>
+            <div className="text-2xl font-bold text-[#0c1e3a]">{competitionLabel(competition)}</div>
+          </div>
         </div>
         <div className="flex items-center gap-6">
           <div className="text-right">
