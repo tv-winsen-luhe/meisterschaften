@@ -179,6 +179,11 @@ export const displaySeedCount = (confirmed: number): number => bracketStructure(
 // can never drift from the server guard (the canConfirm pattern, ADR-0011). `null` = drawable.
 export type DrawBlocker = 'not-tournament' | 'too-few' | 'unsupported-size'
 
+// The minimum confirmed entries for a real knockout field (ADR-0034): below 4 a draw would carry a bye
+// semifinal (a player walks to the final). The single source the gate and the public „ab 4" affordances
+// (draw preview, participant board) share, so the threshold can't drift across surfaces.
+export const MIN_DRAW_ENTRIES = 4
+
 // The operator-facing reason per blocker — one source for the server's 400 body and the button hint.
 export const DRAW_BLOCKER_REASON: Record<DrawBlocker, string> = {
   'not-tournament': 'Auslosung erst nach Anmeldeschluss (Phase „Turnier").',
@@ -200,7 +205,7 @@ export const DRAW_BLOCKER_REASON: Record<DrawBlocker, string> = {
  */
 export const drawBlocker = (phase: Phase, confirmed: number): DrawBlocker | null => {
   if (phase !== 'tournament') return 'not-tournament'
-  if (confirmed < 4) return 'too-few'
+  if (confirmed < MIN_DRAW_ENTRIES) return 'too-few'
   if (!isSupportedDrawSize(drawSize(confirmed))) return 'unsupported-size'
   return null
 }

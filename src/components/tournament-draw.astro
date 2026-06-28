@@ -120,6 +120,41 @@ const drawCompetitions = competitions
     min-width: min-content;
   }
 
+  /* The pre-draw „needs ≥4" notice — shown instead of a bracket while a field is below the draw floor
+     (ADR-0034), centered in the area the bracket would fill. */
+  .dm-needfour {
+    width: 100%;
+    min-height: 180px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    text-align: center;
+    padding: 32px 20px;
+    border: 1px dashed rgba(12, 30, 58, 0.25);
+    border-radius: 8px;
+    color: var(--color-navy);
+  }
+  .dm-needfour__count {
+    font-size: 40px;
+    font-weight: 900;
+    letter-spacing: -0.03em;
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
+    color: #c2673b;
+  }
+  .dm-needfour__lead {
+    font-size: 15px;
+    font-weight: 800;
+    letter-spacing: -0.01em;
+  }
+  .dm-needfour__sub {
+    font-size: 13px;
+    font-weight: 600;
+    color: rgba(12, 30, 58, 0.55);
+  }
+
   /* — A round column — */
   .dm-round {
     display: flex;
@@ -320,7 +355,7 @@ const drawCompetitions = competitions
 
 <script>
   import { hc } from 'hono/client'
-  import { bracketStructure, displayDrawSize } from '../../shared'
+  import { bracketStructure, displayDrawSize, MIN_DRAW_ENTRIES } from '../../shared'
   import type { AppType } from '../../worker/app'
   import type { Participant, ParticipantsResponse, PublicDraw, PublicRevealStep } from '../../shared'
 
@@ -442,11 +477,43 @@ const drawCompetitions = competitions
     }
   }
 
+  // Below the draw floor (ADR-0034) there is no real field yet: show a „needs ≥4" count card, never a
+  // bracket. A 4-skeleton for 2–3 confirmed would look ready, but the draw can't be cast — and after
+  // registration closes it never will. Phase-agnostic: during signup it reads as a countdown, after
+  // close as „didn't reach 4".
+  const needFourEl = (count: number): HTMLElement => {
+    const remaining = MIN_DRAW_ENTRIES - count
+    const wrap = document.createElement('div')
+    wrap.className = 'dm-needfour'
+
+    const c = document.createElement('div')
+    c.className = 'dm-needfour__count'
+    c.textContent = `${count} / ${MIN_DRAW_ENTRIES}`
+    wrap.appendChild(c)
+
+    const lead = document.createElement('div')
+    lead.className = 'dm-needfour__lead'
+    lead.textContent = `Noch ${remaining} ${remaining === 1 ? 'Anmeldung' : 'Anmeldungen'} bis zur Auslosung`
+    wrap.appendChild(lead)
+
+    const sub = document.createElement('div')
+    sub.className = 'dm-needfour__sub'
+    sub.textContent = 'Ein Feld wird ab 4 Spieler:innen ausgelost.'
+    wrap.appendChild(sub)
+
+    return wrap
+  }
+
   // The provisional preview (before the draw): the strongest LKs sit on their seed lines, every other
   // line is „?". Pure affordance — the lot has not run. The size follows the **confirmed field**, not the
   // competition capacity (ADR-0034): 7 confirmed shows an 8-bracket, not a 16, mirroring the real draw.
   // displayDrawSize clamps to the supported sizes (4/8/16), so bracketStructure never throws.
   const buildPreview = (bracket: HTMLElement, players: Entry[]) => {
+    if (players.length < MIN_DRAW_ENTRIES) {
+      bracket.innerHTML = ''
+      bracket.appendChild(needFourEl(players.length))
+      return
+    }
     const size = displayDrawSize(players.length)
     // One bracketStructure — the single topology source the real draw also uses (ADR-0025), so the
     // preview's seed lines and count can't drift from the draw's. Lot seeds (Nr.3/4) sit on the first
