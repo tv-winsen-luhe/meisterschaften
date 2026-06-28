@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import { toast } from 'sonner'
 import { CalendarDays, X } from 'lucide-react'
 import {
   type AdminRegistration,
@@ -8,15 +9,18 @@ import {
   type Match,
   numberMatches,
   type Placement,
+  type SoftViolation,
   SLOT_INDICES,
   type SlotView,
   slotTime,
+  validatePlacement,
   viewSlot
 } from '../../../shared'
 import { tournament } from '@/data/tournament'
 import { cn } from '@/admin/lib/utils'
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/admin/ui/empty'
 import { competitionLabel } from './registration-detail'
+import { hardBlockMessage, SoftWarningDialog } from './schedule-warnings'
 
 // The schedule surface (UI: „Spielplan", ADR-0005, issue #88): the operator places drawn matches onto a
 // courts × time grid, spanning both event days. A tracer bullet — placement only, no validation yet
@@ -43,10 +47,25 @@ interface GridMatch {
   slot2: string
 }
 
+// A drop the operator must confirm: a sound-but-unwise placement (soft warnings only). Held until the
+// operator overrides or cancels (ADR-0033 — the operator is the authority on player load).
+interface PendingDrop {
+  id: number
+  placement: Placement
+  soft: SoftViolation[]
+}
+
 export const ScheduleSurface = ({ registrations, draws, onPlace }: ScheduleSurfaceProps) => {
   // The match the operator has picked up, waiting for a cell (or a second tap to drop it). Cleared on a
   // successful place.
   const [selected, setSelected] = useState<number | null>(null)
+  // A drop awaiting the operator's confirmation past its soft warnings (null ⇒ none pending).
+  const [pending, setPending] = useState<PendingDrop | null>(null)
+
+  // Every match across every drawn field, with its current placement — what `validatePlacement` reads
+  // to judge a drop (court cap spans all fields; round dependency is per bracket). The wire `Match`
+  // structurally satisfies the validator's input, so no mapping is needed.
+  const allMatches = useMemo<Match[]>(() => draws.flatMap(d => d.matches), [draws])
 
   const nameById = useMemo(() => {
     const map = new Map<number, string>()
@@ -105,7 +124,27 @@ export const ScheduleSurface = ({ registrations, draws, onPlace }: ScheduleSurfa
 
   const place = async (id: number, placement: Placement | null) => {
     const ok = await onPlace(id, placement)
-    if (ok) setSelected(null)
+    if (ok) {
+      setSelected(null)
+      setPending(null)
+    }
+  }
+
+  // Drop the in-hand match into a cell, gated by the shared validator (ADR-0033). A hard violation
+  // blocks the drop (the match stays in hand); soft warnings open a confirm dialog the operator can
+  // override; a clean placement goes straight through. Clearing to the backlog never runs this path.
+  const dropInto = (placement: Placement) => {
+    if (selected === null) return
+    const { hard, soft } = validatePlacement(allMatches, { id: selected, placement })
+    if (hard.length > 0) {
+      toast.error(hardBlockMessage(hard))
+      return
+    }
+    if (soft.length > 0) {
+      setPending({ id: selected, placement, soft })
+      return
+    }
+    void place(selected, placement)
   }
 
   const onCellClick = (day: number, slot: number, court: number) => {
@@ -115,7 +154,7 @@ export const ScheduleSurface = ({ registrations, draws, onPlace }: ScheduleSurfa
       setSelected(prev => (prev === cell.match.id ? null : cell.match.id))
     } else if (selected !== null) {
       // An empty cell with a match in hand: drop it here.
-      void place(selected, { court, day, slot })
+      dropInto({ court, day, slot })
     }
   }
 
@@ -163,6 +202,12 @@ export const ScheduleSurface = ({ registrations, draws, onPlace }: ScheduleSurfa
           />
         ))}
       </div>
+
+      <SoftWarningDialog
+        soft={pending?.soft ?? null}
+        onConfirm={() => pending && void place(pending.id, pending.placement)}
+        onCancel={() => setPending(null)}
+      />
     </div>
   )
 }

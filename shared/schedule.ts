@@ -108,3 +108,127 @@ export const viewSlot = (
   const feeder = fp ? matchAt(fp.round, fp.position) : undefined
   return { kind: 'feeder', matchNumber: feeder ? (numbers.get(feeder.id) ?? 0) : 0 }
 }
+
+// ── Placement validation (ADR-0033: block the impossible, warn the unwise) ────────────────────────
+
+// The minimal match shape `validatePlacement` reads: a bracket position (so feeders resolve within the
+// right competition+bracket), its two player slots, and its current grid cell (null ⇒ in the backlog).
+// The wire `Match` and the store row both satisfy this structurally — neither has to be imported here.
+interface PlacedMatch {
+  id: number
+  competition: string
+  bracket: string
+  round: number
+  position: number
+  slot1RegId: number | null
+  slot2RegId: number | null
+  court: number | null
+  day: number | null
+  slot: number | null
+}
+
+// A **hard** violation — a physically impossible state the placement endpoint blocks (ADR-0033).
+//  - `feeder-order`: the candidate would share or precede the slot of a match it depends on by round —
+//    a match it feeds, or one whose winner feeds it. `otherMatchId` is the conflicting match.
+//  - `court-taken`: the candidate's court+day+slot cell already holds another match — two matches cannot
+//    share one court at one time. `otherMatchId` is the match already there. With `court` bounded to the
+//    six courts, this also makes "more matches in a slot than courts" structurally impossible (ADR-0033 —
+//    the grid's court rows make the court cap structural).
+export type HardViolation =
+  | { rule: 'feeder-order'; otherMatchId: number }
+  | { rule: 'court-taken'; otherMatchId: number }
+
+// A **soft** violation — a player-load comfort concern the operator may override (ADR-0033).
+//  - `player-load`: the player would hold more than 2 matches on the candidate's day. `count` is the total.
+//  - `back-to-back`: the player would play two matches in adjacent same-day slots, with no rest gap.
+export type SoftViolation =
+  | { rule: 'player-load'; regId: number; count: number }
+  | { rule: 'back-to-back'; regId: number; otherMatchId: number }
+
+export interface PlacementValidation {
+  hard: HardViolation[]
+  soft: SoftViolation[]
+}
+
+// The match being placed: its `id` (it must appear in the `matches` set so its bracket position and
+// players are known) and the proposed grid cell.
+export interface PlacementCandidate {
+  id: number
+  placement: Placement
+}
+
+// Day-major slot ordinal across the whole event, so a later day's slot 0 sorts after an earlier day's
+// last slot. The one ordering both the feeder rule (strictly after) and the rest gap read from.
+const absoluteSlot = (day: number, slot: number): number => day * SCHEDULE.slotsPerDay + slot
+
+/**
+ * Validate placing one match (the candidate `id`) into a grid cell, against every other match's
+ * placement — the single definition of "is this placement sound" (ADR-0033), reused two ways
+ * (the ADR-0011 `challengerEligibility` pattern): the place endpoint enforces `hard` as the
+ * server-side authority, and the admin grid surfaces `hard` (blocked drops) and `soft` (overridable
+ * warnings) as live affordance. Pure and deterministic — no I/O, no clock.
+ *
+ * `matches` is every match (the candidate included, at its *current* cell); the candidate is reasoned
+ * about at the proposed `placement`, the others at their stored cells, so the same call serves both a
+ * place-from-backlog and a move. Rests on the one-active-entry invariant (CONTEXT.md): a regId is one
+ * person, so player load is a plain count with no cross-field clash to resolve.
+ */
+export const validatePlacement = (
+  matches: readonly PlacedMatch[],
+  candidate: PlacementCandidate
+): PlacementValidation => {
+  const hard: HardViolation[] = []
+  const soft: SoftViolation[] = []
+
+  // The candidate must be among `matches` for its round/position/players to be known. An unknown id is
+  // the caller's contract violation (the id schema guards it), not a state to reason about.
+  const self = matches.find(m => m.id === candidate.id)
+  if (!self) return { hard, soft }
+
+  const { day, slot } = candidate.placement
+  const here = absoluteSlot(day, slot)
+
+  // The other matches that already hold a cell — the candidate at its proposed cell is judged against these.
+  const placed = matches.filter(
+    (m): m is PlacedMatch & { court: number; day: number; slot: number } =>
+      m.id !== candidate.id && m.court !== null && m.day !== null && m.slot !== null
+  )
+  const at = (round: number, position: number) =>
+    placed.find(
+      m =>
+        m.competition === self.competition && m.bracket === self.bracket && m.round === round && m.position === position
+    )
+
+  // Hard — round dependency, both directions, so the rule holds whichever match is placed first.
+  // A feeder occupies its whole slot, so the dependent match can only start the next slot on: the
+  // candidate must be strictly after each feeder whose winner fills one of its slots, and strictly
+  // before the match its own winner feeds.
+  for (const which of [1, 2] as const) {
+    const fp = feederPosition(self.round, self.position, which)
+    const feeder = fp && at(fp.round, fp.position)
+    if (feeder && here <= absoluteSlot(feeder.day, feeder.slot))
+      hard.push({ rule: 'feeder-order', otherMatchId: feeder.id })
+  }
+  const successor = at(self.round + 1, Math.floor(self.position / 2))
+  if (successor && here >= absoluteSlot(successor.day, successor.slot))
+    hard.push({ rule: 'feeder-order', otherMatchId: successor.id })
+
+  // Hard — court occupancy: at most one match per court+day+slot cell (the public schedule and the admin
+  // grid both render a cell as a single match). With `court` bounded to the six courts, this also makes
+  // "more matches in a slot than courts" impossible without ever counting (ADR-0033).
+  const { court } = candidate.placement
+  const taken = placed.find(m => m.court === court && m.day === day && m.slot === slot)
+  if (taken) hard.push({ rule: 'court-taken', otherMatchId: taken.id })
+
+  // Soft — per named player (an undecided feeder/bye slot is null and carries no load yet).
+  const players = [self.slot1RegId, self.slot2RegId].filter((r): r is number => r !== null)
+  for (const regId of players) {
+    const sameDay = placed.filter(m => m.day === day && (m.slot1RegId === regId || m.slot2RegId === regId))
+    const load = sameDay.length + 1
+    if (load > 2) soft.push({ rule: 'player-load', regId, count: load })
+    const adjacent = sameDay.find(m => Math.abs(m.slot - slot) === 1)
+    if (adjacent) soft.push({ rule: 'back-to-back', regId, otherMatchId: adjacent.id })
+  }
+
+  return { hard, soft }
+}
