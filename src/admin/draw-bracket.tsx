@@ -65,9 +65,9 @@ export const DrawBracket = ({ size, steps, currentPosition, reduce }: DrawBracke
           const matchCount = size / 2 ** round
           return (
             <div key={round} className="flex w-56 shrink-0 flex-col">
-              <div className="mb-3 flex items-center justify-between border-b border-white/15 pb-2 text-[11px] font-bold tracking-[0.14em] text-lime-300/70 uppercase">
+              <div className="mb-3 flex items-center justify-between border-b border-[#0c1e3a]/15 pb-2 text-[11px] font-bold tracking-[0.14em] text-[#0c1e3a] uppercase">
                 <span>{roundLabel(round, totalRounds)}</span>
-                <span className="text-white/35 tabular-nums">{matchCount}</span>
+                <span className="text-[#0c1e3a]/35 tabular-nums">{matchCount}</span>
               </div>
               {/* Space *between* matches (gap-3) wider than the gap *within* a match (gap-1) groups each
                   pair and keeps the lines off each other — they fill the column, they don't glue to it. */}
@@ -136,10 +136,15 @@ const Cell = ({ round, slotIndex, lines, byeWinners, currentPosition, reduce }: 
         className={cn(
           FRAME,
           'rounded-lg transition-shadow duration-500',
-          isCurrent && 'shadow-[0_0_38px_-4px_rgba(163,230,53,0.85)] ring-4 ring-lime-400'
+          // The signature: the just-drawn line is „marked" in neon (the slot fills neon), ringed in navy.
+          isCurrent && 'shadow-[0_0_34px_-6px_rgba(206,255,0,0.95)] ring-2 ring-[#0c1e3a]'
         )}
       >
-        {step.kind === 'bye' ? <Bye /> : <PlayerSlot player={step.player} seed={step.seed} />}
+        {step.kind === 'bye' ? (
+          <Bye active={isCurrent} />
+        ) : (
+          <PlayerSlot player={step.player} seed={step.seed} active={isCurrent} />
+        )}
       </motion.div>
     )
   }
@@ -149,13 +154,24 @@ const Cell = ({ round, slotIndex, lines, byeWinners, currentPosition, reduce }: 
 }
 
 const Tbd = () => (
-  <div className="flex h-full min-h-0 w-full items-center justify-center rounded-lg border-2 border-dashed border-white/15 text-lg font-bold text-white/25">
+  <div className="flex h-full min-h-0 w-full items-center justify-center rounded-lg border-2 border-dashed border-[#0c1e3a]/20 text-lg font-bold text-[#0c1e3a]/30">
     ?
   </div>
 )
 
-const Bye = () => (
-  <div className="flex h-full min-h-0 w-full items-center justify-center rounded-lg border-2 border-dashed border-white/15 bg-white/5 text-xs font-semibold tracking-wide text-white/45">
+// `active` is the focus line — the one the announce band is naming — given the neon „marker" fill.
+interface ActiveProps {
+  active?: boolean
+}
+const Bye = ({ active }: ActiveProps) => (
+  <div
+    className={cn(
+      'flex h-full min-h-0 w-full items-center justify-center rounded-lg border-2 border-dashed text-xs font-semibold tracking-wide',
+      active
+        ? 'border-[#0c1e3a] bg-[#ceff00] text-[#0c1e3a]'
+        : 'border-[#0c1e3a]/20 bg-[#0c1e3a]/[0.03] text-[#0c1e3a]/45'
+    )}
+  >
     Freilos
   </div>
 )
@@ -163,12 +179,18 @@ const Bye = () => (
 interface PlayerSlotProps {
   player: PlayerDisplay | null
   seed: number | null
+  active?: boolean
 }
-const PlayerSlot = ({ player, seed }: PlayerSlotProps) => (
-  <div className="flex h-full min-h-0 w-full items-center gap-2.5 rounded-lg bg-white px-3 text-slate-900">
+const PlayerSlot = ({ player, seed, active }: PlayerSlotProps) => (
+  <div
+    className={cn(
+      'flex h-full min-h-0 w-full items-center gap-2.5 rounded-lg border-[1.5px] bg-white px-3 text-[#0c1e3a]',
+      active ? 'border-[#0c1e3a] bg-[#ceff00]' : seed !== null ? 'border-[#0c1e3a]/70' : 'border-[#0c1e3a]/15'
+    )}
+  >
     {seed !== null && (
       <span
-        className="inline-flex size-5 shrink-0 items-center justify-center rounded-full bg-slate-900 text-[11px] font-bold text-white tabular-nums"
+        className="inline-flex size-5 shrink-0 items-center justify-center rounded-full bg-[#0c1e3a] text-[11px] font-bold text-white tabular-nums"
         title={`An ${seed} gesetzt`}
       >
         {seed}
@@ -176,7 +198,10 @@ const PlayerSlot = ({ player, seed }: PlayerSlotProps) => (
     )}
     <span className="flex-1 truncate text-base font-bold">{player ? playerName(player) : '—'}</span>
     {player && (
-      <span className="shrink-0 text-xs font-semibold text-slate-500 tabular-nums">
+      // LK is data — blue — except on the neon marker, where navy keeps it legible.
+      <span
+        className={cn('shrink-0 text-xs font-semibold tabular-nums', active ? 'text-[#0c1e3a]/70' : 'text-[#199cf9]')}
+      >
         {player.lk ? `LK ${player.lk}` : 'LK folgt'}
       </span>
     )}

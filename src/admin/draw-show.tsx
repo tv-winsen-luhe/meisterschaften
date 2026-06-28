@@ -127,7 +127,7 @@ export const DrawShow = ({ competition, onLoad, onAdvance, onExit }: DrawShowPro
   if (status === 'loading') {
     return (
       <Stage>
-        <div className="flex flex-1 items-center justify-center text-white/50">Lädt …</div>
+        <div className="flex flex-1 items-center justify-center text-[#525252]">Lädt …</div>
       </Stage>
     )
   }
@@ -138,14 +138,14 @@ export const DrawShow = ({ competition, onLoad, onAdvance, onExit }: DrawShowPro
     return (
       <Stage>
         <div className="flex flex-1 flex-col items-center justify-center gap-6 text-center">
-          <p className="text-xl text-white/70">
+          <p className="text-xl text-[#0c1e3a]/70">
             {failed ? 'Die Auslosung konnte nicht geladen werden.' : 'Diese Konkurrenz ist noch nicht ausgelost.'}
           </p>
           <div className="flex gap-3">
             {failed && (
               <button
                 onClick={() => void refresh()}
-                className="inline-flex items-center gap-2 rounded-lg bg-lime-400 px-5 py-2.5 font-semibold text-slate-950 hover:bg-lime-300"
+                className="inline-flex items-center gap-2 rounded-lg bg-[#0c1e3a] px-5 py-2.5 font-semibold text-white hover:bg-[#0c1e3a]/90"
               >
                 <RotateCw className="size-4" />
                 Erneut versuchen
@@ -153,7 +153,7 @@ export const DrawShow = ({ competition, onLoad, onAdvance, onExit }: DrawShowPro
             )}
             <button
               onClick={onExit}
-              className="rounded-lg border border-white/25 px-5 py-2.5 font-semibold text-white hover:bg-white/10"
+              className="rounded-lg border border-[#0c1e3a]/25 px-5 py-2.5 font-semibold text-[#0c1e3a] hover:bg-[#0c1e3a]/5"
             >
               Schließen
             </button>
@@ -174,23 +174,23 @@ export const DrawShow = ({ competition, onLoad, onAdvance, onExit }: DrawShowPro
   return (
     <Stage>
       {/* Top bar: which field, how far the reveal stands, and the way out. */}
-      <div className="flex items-center justify-between gap-4 px-8 py-5">
+      <div className="flex items-center justify-between gap-4 border-b border-[#0c1e3a]/10 px-8 py-5">
         <div>
-          <div className="text-[11px] font-bold tracking-[0.22em] text-lime-300/80 uppercase">Auslosung</div>
-          <div className="text-2xl font-bold text-white">{competitionLabel(competition)}</div>
+          <div className="text-[11px] font-bold tracking-[0.22em] text-[#c2673b] uppercase">Auslosung</div>
+          <div className="text-2xl font-bold text-[#0c1e3a]">{competitionLabel(competition)}</div>
         </div>
         <div className="flex items-center gap-6">
           <div className="text-right">
-            <div className="text-[11px] font-semibold tracking-[0.18em] text-white/45 uppercase">
+            <div className="text-[11px] font-semibold tracking-[0.18em] text-[#0c1e3a]/45 uppercase">
               {complete ? 'Komplett' : 'Los'}
             </div>
-            <div className="text-2xl font-bold text-white tabular-nums">
-              {cursor} <span className="text-white/40">/ {total}</span>
+            <div className="text-2xl font-bold text-[#0c1e3a] tabular-nums">
+              {cursor} <span className="text-[#0c1e3a]/35">/ {total}</span>
             </div>
           </div>
           <button
             onClick={onExit}
-            className="inline-flex items-center gap-2 rounded-lg border border-white/20 px-4 py-2 text-sm font-semibold text-white/80 transition-colors hover:bg-white/10 hover:text-white"
+            className="inline-flex items-center gap-2 rounded-lg border border-[#0c1e3a]/20 px-4 py-2 text-sm font-semibold text-[#0c1e3a]/70 transition-colors hover:bg-[#0c1e3a]/5 hover:text-[#0c1e3a]"
           >
             <MonitorX className="size-4" />
             Beenden
@@ -228,11 +228,11 @@ export const DrawShow = ({ competition, onLoad, onAdvance, onExit }: DrawShowPro
 
       {/* A stale reveal pauses the controls; the operator re-reads to resync before revealing the next lot. */}
       {stale && (
-        <div className="mx-auto mb-1 flex items-center gap-3 rounded-lg border border-amber-400/40 bg-amber-400/10 px-4 py-2 text-sm font-medium text-amber-200">
+        <div className="mx-auto mb-1 flex items-center gap-3 rounded-lg border border-amber-500/40 bg-amber-50 px-4 py-2 text-sm font-medium text-amber-900">
           Anzeige veraltet — Verbindung unterbrochen.
           <button
             onClick={() => void refresh()}
-            className="inline-flex items-center gap-1.5 rounded-md bg-amber-400 px-3 py-1 font-semibold text-slate-950 hover:bg-amber-300"
+            className="inline-flex items-center gap-1.5 rounded-md bg-amber-500 px-3 py-1 font-semibold text-white hover:bg-amber-600"
           >
             <RotateCw className="size-3.5" />
             Erneut laden
@@ -242,11 +242,11 @@ export const DrawShow = ({ competition, onLoad, onAdvance, onExit }: DrawShowPro
 
       {/* Controls: the operator paces the show one lot at a time — forward only (a revealed lot is
           revealed; the public bracket mirrors the cursor, so there is no stepping back). */}
-      <div className="flex items-center justify-center px-8 py-6">
+      <div className="flex items-center justify-center border-t border-[#0c1e3a]/10 px-8 py-6">
         <button
           onClick={() => void step()}
           disabled={busy || stale || complete}
-          className="inline-flex items-center gap-2 rounded-xl bg-lime-400 px-8 py-3.5 text-base font-bold text-slate-950 transition-colors hover:bg-lime-300 disabled:cursor-not-allowed disabled:opacity-30"
+          className="inline-flex items-center gap-2 rounded-xl bg-[#0c1e3a] px-8 py-3.5 text-base font-bold text-white transition-colors hover:bg-[#0c1e3a]/90 disabled:cursor-not-allowed disabled:opacity-30"
         >
           {complete ? 'Auslosung komplett' : 'Nächstes Los'}
           {!complete && <ChevronRight className="size-5" />}
@@ -260,9 +260,14 @@ interface ChildrenProps {
   children: React.ReactNode
 }
 
-// The full-screen dark stage that replaces the admin chrome while the show runs.
+// The full-screen stage that replaces the admin chrome while the Auslosung runs — white in the club's
+// palette so it stays readable on a beamer in a sunlit hall (a dark stage washes out).
 const Stage = ({ children }: ChildrenProps) => (
-  <div role="dialog" aria-label="Auslosungs-Show" className="fixed inset-0 z-50 flex flex-col bg-slate-950 select-none">
+  <div
+    role="dialog"
+    aria-label="Auslosung"
+    className="fixed inset-0 z-50 flex flex-col bg-white text-[#0c1e3a] select-none"
+  >
     {children}
   </div>
 )
@@ -276,7 +281,7 @@ interface AnnounceProps {
 // line with the LK and where it landed. Before the first lot it invites the operator to begin.
 const Announce = ({ step, cursor, complete }: AnnounceProps) => {
   if (cursor === 0 || !step) {
-    return <p className="text-2xl font-semibold text-white/55">Bereit — „Nächstes Los“ enthüllt das erste Los.</p>
+    return <p className="text-2xl font-semibold text-[#525252]">Bereit — „Nächstes Los“ enthüllt das erste Los.</p>
   }
 
   const position = step.position + 1 // 1-based for the audience
@@ -304,7 +309,9 @@ const Announce = ({ step, cursor, complete }: AnnounceProps) => {
       <Eyebrow>{seeded ? `Gesetzt · Nr. ${step.seed}` : 'Gezogen'}</Eyebrow>
       <Name>{step.player ? playerName(step.player) : '—'}</Name>
       <Sub>
-        {step.player?.lk ? `LK ${step.player.lk} · ` : ''}
+        {/* LK is data — blue here as in the bracket, so the hero carries the same navy/clay/blue palette. */}
+        {step.player?.lk && <span className="text-[#199cf9]">LK {step.player.lk}</span>}
+        {step.player?.lk && ' · '}
         {complete ? 'Auslosung komplett' : `Position ${position}`}
       </Sub>
     </>
@@ -312,11 +319,11 @@ const Announce = ({ step, cursor, complete }: AnnounceProps) => {
 }
 
 const Eyebrow = ({ children }: ChildrenProps) => (
-  <span className="mb-2 text-sm font-bold tracking-[0.22em] text-lime-300 uppercase">{children}</span>
+  <span className="mb-2 text-sm font-bold tracking-[0.22em] text-[#c2673b] uppercase">{children}</span>
 )
 const Name = ({ children }: ChildrenProps) => (
-  <span className="max-w-5xl text-5xl leading-tight font-black text-white sm:text-6xl">{children}</span>
+  <span className="max-w-5xl text-5xl leading-tight font-black text-[#0c1e3a] sm:text-6xl">{children}</span>
 )
 const Sub = ({ children }: ChildrenProps) => (
-  <span className="mt-3 text-lg font-medium text-white/55 tabular-nums">{children}</span>
+  <span className="mt-3 text-lg font-medium text-[#525252] tabular-nums">{children}</span>
 )
