@@ -266,13 +266,17 @@ export const placeMatchResponseSchema = z.object({ ok: z.literal(true) })
 export type PlaceMatchResponse = z.infer<typeof placeMatchResponseSchema>
 
 // What occupies one slot of a scheduled match on the public schedule: a known player (joined by name),
-// an empty round-1 bye line („Freilos"), or a not-yet-decided feeder labelled by the match it waits on
-// („Sieger M{matchNumber}"). The server resolves the shared SlotView (shared/schedule.ts) and joins the
-// player name, so the public page renders without the registration list.
+// an empty round-1 bye line („Freilos"), a not-yet-decided feeder labelled by the match it waits on
+// („Sieger M{matchNumber}"), or an `unknown` slot („offen") — the graceful degrade when a feeder cannot
+// be resolved (ADR-0035). `matchNumber` stays `.positive()`: a real feeder number always is, and the
+// degraded case is its own kind rather than a `0` sentinel that would 500 the whole feed. The server
+// resolves the shared SlotView (shared/schedule.ts) and joins the player name, so the public page
+// renders without the registration list.
 export const scheduleSlotSchema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('player'), firstName: z.string(), lastName: z.string() }),
   z.object({ kind: z.literal('bye') }),
-  z.object({ kind: z.literal('feeder'), matchNumber: z.number().int().positive() })
+  z.object({ kind: z.literal('feeder'), matchNumber: z.number().int().positive() }),
+  z.object({ kind: z.literal('unknown') })
 ])
 export type ScheduleSlot = z.infer<typeof scheduleSlotSchema>
 

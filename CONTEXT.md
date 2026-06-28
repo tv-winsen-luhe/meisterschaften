@@ -231,6 +231,11 @@ reveal sequence }`. Randomness enters through an injected **`RandomSource`** por
   run, or a main-bracket exit plus the consolation bracket, tends to spread across both event days — the
   consolation bracket is not a Saturday-only affair) and back-to-back matches with no rest gap.
   _(See ADR-0005, ADR-0033.)_
+- **Schedule slot** — one contestant line of a scheduled match, resolved for display as one of: a **player**
+  (a name), a **Freilos** (a round-1 bye), a **Sieger M{n}** feeder (the still-undecided winner of an
+  earlier match, ADR-0025), or — when a feeder cannot be resolved — **offen** (undecided). „offen" is a
+  graceful degrade, not a normal state: the public feed serves it rather than failing, never „Freilos"
+  (which in a later round would read as a free pass). _(See ADR-0035.)_
 - **Court** (de: Platz) — one of 6 sand courts. Capacity constraint for the schedule: at most **one match
   per court per time slot** (the validator enforces this per-cell occupancy server-side, ADR-0033); with 6
   courts, "at most 6 matches in a slot" follows as its consequence, never a separate count.

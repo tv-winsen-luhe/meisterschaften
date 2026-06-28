@@ -256,15 +256,18 @@ export const createDrawService = (deps: DrawServiceDeps) => {
       }
       const players = await registrationsStore.revealPlayers([...ids])
 
-      // Resolve one slot's SlotView (shared rule) into the wire shape, joining the player name. A player
-      // id with no row (only reachable if a registration was hard-deleted under a frozen draw) degrades
-      // to a feeder-less „—"; we surface it as a bye line rather than throwing.
+      // Resolve one slot's SlotView (shared rule) into the wire shape, joining the player name. Both ways a
+      // referent can vanish under a frozen draw degrade to the same honest „offen" line (`unknown`,
+      // ADR-0035), never a whole-feed 500 and never the „Freilos" free-pass lie: a named player with no row
+      // (a registration hard-deleted), and a feeder the shared rule could not resolve. „Freilos" is reserved
+      // for a true round-1 bye, where there genuinely is no opponent.
       const toSlot = (view: SlotView): ScheduleSlot => {
         if (view.kind === 'player') {
           const p = players.get(view.regId)
-          return p ? { kind: 'player', firstName: p.firstName, lastName: p.lastName } : { kind: 'bye' }
+          return p ? { kind: 'player', firstName: p.firstName, lastName: p.lastName } : { kind: 'unknown' }
         }
         if (view.kind === 'feeder') return { kind: 'feeder', matchNumber: view.matchNumber }
+        if (view.kind === 'unknown') return { kind: 'unknown' }
         return { kind: 'bye' }
       }
 

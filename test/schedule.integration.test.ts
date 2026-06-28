@@ -1,6 +1,6 @@
 import { applyD1Migrations, env } from 'cloudflare:test'
 import { beforeAll, beforeEach, describe, expect, it } from 'vitest'
-import type { ScheduleResponse } from '../shared'
+import { scheduleResponseSchema, type ScheduleResponse } from '../shared'
 import { app } from '../worker/app'
 import { createDrawService } from '../worker/draw'
 import { createInMemoryDrawStore } from '../worker/store/draw'
@@ -41,7 +41,7 @@ describe('createDrawService.schedule', () => {
     const registrationsStore = createInMemoryRegistrationsStore(field(4))
     const service = createDrawService({ registrationsStore, drawStore, randomSource: createFakeRandomSource([0]) })
     await service.draw({ competition: 'mens', phase: 'tournament', now: 'now' })
-    return { service, drawStore }
+    return { service, drawStore, registrationsStore }
   }
 
   it('is empty until a match is placed', async () => {
@@ -75,6 +75,59 @@ describe('createDrawService.schedule', () => {
     // The final (M3) is fed by the two semifinals (M1, M2) — both undecided, so both slots are feeders.
     expect(row.slot1).toEqual({ kind: 'feeder', matchNumber: 1 })
     expect(row.slot2).toEqual({ kind: 'feeder', matchNumber: 2 })
+  })
+
+  it('serves an unresolvable feeder as „offen", and the whole feed still parses (ADR-0035)', async () => {
+    const { drawStore, registrationsStore } = await drawn()
+    const drawn1 = await drawStore.listMatches()
+    const final = drawn1.find(m => m.round === 2)!
+    const semi1 = drawn1.find(m => m.round === 1 && m.position === 0)! // feeds the final's slot 1
+    await drawStore.placeMatch(final.id, { court: 1, day: 1, slot: 0 })
+
+    // Simulate a feeder row hard-deleted under a frozen draw: the final is placed, but the semifinal
+    // feeding its slot 1 no longer resolves. Pre-ADR-0035 this surfaced `matchNumber: 0` and the
+    // schema parse 500'd the whole response; now the slot degrades to `unknown` and the feed serves.
+    const holed = {
+      ...drawStore,
+      listMatches: async () => (await drawStore.listMatches()).filter(m => m.id !== semi1.id)
+    }
+    const service = createDrawService({
+      registrationsStore,
+      drawStore: holed,
+      randomSource: createFakeRandomSource([0])
+    })
+
+    const matchesOut = await service.schedule()
+    expect(matchesOut.find(m => m.id === final.id)!.slot1).toEqual({ kind: 'unknown' })
+    // The strict wire contract still accepts the whole feed — the 500 is gone.
+    expect(() => scheduleResponseSchema.parse({ matches: matchesOut })).not.toThrow()
+  })
+
+  it('serves a hard-deleted player as „offen", not the misleading „Freilos" line (ADR-0035)', async () => {
+    const { drawStore, registrationsStore } = await drawn()
+    const semi = (await drawStore.listMatches()).find(m => m.round === 1)!
+    await drawStore.placeMatch(semi.id, { court: 2, day: 0, slot: 1 })
+
+    // Simulate a confirmed player's registration hard-deleted under a frozen draw: the slot is filled by a
+    // real regId, but the name no longer resolves. It must degrade to the same `unknown` („offen") as a
+    // vanished feeder — never „Freilos", which in a later round would read as a free pass into it.
+    const holed = {
+      ...registrationsStore,
+      revealPlayers: async (ids: number[]) => {
+        const players = await registrationsStore.revealPlayers(ids)
+        players.delete(semi.slot1RegId!)
+        return players
+      }
+    }
+    const service = createDrawService({
+      registrationsStore: holed,
+      drawStore,
+      randomSource: createFakeRandomSource([0])
+    })
+
+    const [row] = await service.schedule()
+    expect(row.slot1).toEqual({ kind: 'unknown' })
+    expect(row.slot2).toMatchObject({ kind: 'player' }) // the surviving player still resolves
   })
 })
 

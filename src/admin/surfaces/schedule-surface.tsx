@@ -84,7 +84,9 @@ export const ScheduleSurface = ({ registrations, draws, onPlace }: ScheduleSurfa
         ? (nameById.get(view.regId) ?? `#${view.regId}`)
         : view.kind === 'bye'
           ? 'Freilos'
-          : `Sieger M${view.matchNumber}`
+          : view.kind === 'feeder'
+            ? `Sieger M${view.matchNumber}`
+            : 'offen'
 
     const out: GridMatch[] = []
     for (const draw of draws) {
