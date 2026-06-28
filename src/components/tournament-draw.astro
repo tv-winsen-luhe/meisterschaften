@@ -121,38 +121,43 @@ const drawCompetitions = competitions
   }
 
   /* The pre-draw „needs ≥4" notice — shown instead of a bracket while a field is below the draw floor
-     (ADR-0034), centered in the area the bracket would fill. */
+     (ADR-0034). Left-anchored like the bracket's first column (the field starts here, hasn't grown
+     right yet); the four pips are the signature — the draw floor filling toward four. */
   .dm-needfour {
-    width: 100%;
-    min-height: 180px;
     display: flex;
     flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: 8px;
-    text-align: center;
-    padding: 32px 20px;
-    border: 1px dashed rgba(12, 30, 58, 0.25);
-    border-radius: 8px;
+    align-items: flex-start;
+    gap: 16px;
+    max-width: 460px;
+    padding: 44px 4px;
     color: var(--color-navy);
   }
-  .dm-needfour__count {
-    font-size: 40px;
-    font-weight: 900;
-    letter-spacing: -0.03em;
-    line-height: 1;
-    font-variant-numeric: tabular-nums;
+  .dm-needfour__eyebrow {
+    font-size: 12px;
+    font-weight: 800;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
     color: #c2673b;
   }
-  .dm-needfour__lead {
-    font-size: 15px;
-    font-weight: 800;
-    letter-spacing: -0.01em;
+  .dm-needfour__pips {
+    display: flex;
+    gap: 14px;
   }
-  .dm-needfour__sub {
-    font-size: 13px;
+  .dm-pip {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    border: 1.5px dashed rgba(12, 30, 58, 0.3);
+  }
+  .dm-pip--filled {
+    border: none;
+    background: var(--color-navy);
+  }
+  .dm-needfour__caption {
+    font-size: 15px;
     font-weight: 600;
-    color: rgba(12, 30, 58, 0.55);
+    line-height: 1.45;
+    color: rgba(12, 30, 58, 0.62);
   }
 
   /* — A round column — */
@@ -486,20 +491,29 @@ const drawCompetitions = competitions
     const wrap = document.createElement('div')
     wrap.className = 'dm-needfour'
 
-    const c = document.createElement('div')
-    c.className = 'dm-needfour__count'
-    c.textContent = `${count} / ${MIN_DRAW_ENTRIES}`
-    wrap.appendChild(c)
+    const eyebrow = document.createElement('div')
+    eyebrow.className = 'dm-needfour__eyebrow'
+    eyebrow.textContent = 'Auslosung ab vier'
+    wrap.appendChild(eyebrow)
 
-    const lead = document.createElement('div')
-    lead.className = 'dm-needfour__lead'
-    lead.textContent = `Noch ${remaining} ${remaining === 1 ? 'Anmeldung' : 'Anmeldungen'} bis zur Auslosung`
-    wrap.appendChild(lead)
+    // The signature: four marks for the draw floor — the confirmed entrants fill in, the rest stay open.
+    // The field fills toward four; below that there is no draw yet (so never a bracket). The filled mark
+    // echoes a seed head without claiming a seeding, so it reads from the draw's own world.
+    const pips = document.createElement('div')
+    pips.className = 'dm-needfour__pips'
+    pips.setAttribute('role', 'img')
+    pips.setAttribute('aria-label', `${count} von ${MIN_DRAW_ENTRIES} Plätzen belegt`)
+    for (let i = 0; i < MIN_DRAW_ENTRIES; i++) {
+      const pip = document.createElement('span')
+      pip.className = i < count ? 'dm-pip dm-pip--filled' : 'dm-pip'
+      pips.appendChild(pip)
+    }
+    wrap.appendChild(pips)
 
-    const sub = document.createElement('div')
-    sub.className = 'dm-needfour__sub'
-    sub.textContent = 'Ein Feld wird ab 4 Spieler:innen ausgelost.'
-    wrap.appendChild(sub)
+    const caption = document.createElement('div')
+    caption.className = 'dm-needfour__caption'
+    caption.textContent = `Noch ${remaining} ${remaining === 1 ? 'Anmeldung' : 'Anmeldungen'} bis zur Auslosung.`
+    wrap.appendChild(caption)
 
     return wrap
   }
