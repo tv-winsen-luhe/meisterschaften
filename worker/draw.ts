@@ -232,6 +232,19 @@ export const createDrawService = (deps: DrawServiceDeps) => {
     async schedule(): Promise<ScheduleMatch[]> {
       const all = await drawStore.listMatches()
 
+      // Honor the main reveal cursor (ADR-0036): a placed `main` match leaves the server only once its
+      // competition's draw is fully revealed (`cursor >= total`) — the schedule feed must not leak
+      // pairings ahead of the reveal show, the same suspense invariant publicDraws() enforces by slicing
+      // to the cursor (ADR-0003). A rewound bracket drops below `total` and its matches vanish again. The
+      // consolation bracket has no reveal show (ADR-0004), so it carries no gate. Fail closed: a `main`
+      // match whose competition has no reveal record (unreachable for a real draw) stays hidden.
+      const revealedMain = new Set(
+        (await drawStore.listReveals())
+          .filter(r => r.bracket === 'main' && r.cursor >= r.steps.length)
+          .map(r => r.competition)
+      )
+      const revealed = (m: Match) => m.bracket !== 'main' || revealedMain.has(m.competition)
+
       // Group by competition+bracket, and precompute each bracket's numbering + a round-position index
       // *once* (not per placed match) — numbering and feeder resolution depend only on the bracket, so
       // rebuilding them inside the per-match map would re-sort/re-number the whole bracket every time.
@@ -248,7 +261,9 @@ export const createDrawService = (deps: DrawServiceDeps) => {
       }
 
       // Join names only for the players actually shown — the placed matches' filled slots.
-      const placed = all.filter(m => m.court !== null && m.day !== null && m.slot !== null && m.outcome !== 'bye')
+      const placed = all.filter(
+        m => m.court !== null && m.day !== null && m.slot !== null && m.outcome !== 'bye' && revealed(m)
+      )
       const ids = new Set<number>()
       for (const m of placed) {
         if (m.slot1RegId !== null) ids.add(m.slot1RegId)
