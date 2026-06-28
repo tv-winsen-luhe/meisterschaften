@@ -276,7 +276,7 @@ export const AdminApp = () => {
             </Button>
           </p>
         )}
-        <Toaster position="bottom-center" />
+        <Toaster position="top-right" />
       </main>
     )
   }
@@ -297,7 +297,7 @@ export const AdminApp = () => {
             void load()
           }}
         />
-        <Toaster position="bottom-center" />
+        <Toaster position="top-right" />
       </>
     )
   }
@@ -368,7 +368,7 @@ export const AdminApp = () => {
           />
         )}
       </SidebarInset>
-      <Toaster position="bottom-center" />
+      <Toaster position="top-right" />
     </SidebarProvider>
   )
 }
