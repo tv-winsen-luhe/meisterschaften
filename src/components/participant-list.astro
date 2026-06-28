@@ -332,7 +332,7 @@ const layoutFor = (slug: string) => (slug === 'mens' || slug === 'womens' ? 'boa
 
 <script>
   import { hc } from 'hono/client'
-  import { displaySeedCount } from '../../shared'
+  import { displaySeedCount, MIN_DRAW_ENTRIES } from '../../shared'
   import type { AppType } from '../../worker/app'
   import type { Participant, ParticipantsResponse, Phase } from '../../shared'
 
@@ -436,9 +436,10 @@ const layoutFor = (slug: string) => (slug === 'mens' || slug === 'womens' ? 'boa
       const empty = group.querySelector<HTMLElement>('[data-empty]')!
       const capacity = Number(group.dataset.capacity)
       // Provisional seeds follow the confirmed field, not the capacity (ADR-0034) — the shared rule the
-      // draw preview uses too, so the two surfaces never disagree. Only the seeding board seeds; an empty
-      // field returns early (below) before this is read, so no entries.length guard is needed here.
-      const seeds = layout === 'board' ? displaySeedCount(entries.length) : 0
+      // draw preview uses too, so the two surfaces never disagree. Below the draw floor there is no real
+      // field yet, so no seed markers (the draw preview shows a „needs ≥4" notice in the same case). Only
+      // the seeding board seeds.
+      const seeds = layout === 'board' && entries.length >= MIN_DRAW_ENTRIES ? displaySeedCount(entries.length) : 0
       const freeLabel = group.querySelector<HTMLElement>('[data-free-label]')
       const meter = group.querySelector<HTMLElement>('[data-meter]')
       const segs = group.querySelectorAll<HTMLElement>('.pl-meter__seg')

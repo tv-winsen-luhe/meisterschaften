@@ -136,8 +136,9 @@ concept here drifts or a new one appears, update this file rather than inventing
   „Plätze frei" maximum on the participant list, `tournament.ts`): the bracket size follows the
   **confirmed field**, never the cap — so 7 confirmed in a 16-capacity field is an **8**-draw. The public
   draw preview sizes its bracket from the confirmed count clamped to the supported sizes (4/8/16), not
-  from capacity — a render affordance that, for a still-forming field, can show a bracket the draw cannot
-  yet cast (its floor is 4, the gate's is ≥4 confirmed). _(See ADR-0034.)_
+  from capacity. Below the draw floor (fewer than 4 confirmed) it shows no bracket at all but a **„ab 4"
+  notice** („N / 4 — noch X bis zur Auslosung"), and the participant board drops its seed markers — so no
+  public surface implies a castable field where the gate would refuse one. _(See ADR-0034.)_
 
 ## Tournament structure
 
