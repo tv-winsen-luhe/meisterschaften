@@ -1,6 +1,12 @@
 import { useMemo } from 'react'
 import { motion } from 'motion/react'
-import { bracketStructure, type PublicRevealStep } from '../../shared'
+import {
+  bracketStructure,
+  type ByeWinner,
+  type PlayerDisplay,
+  type PublicRevealStep,
+  revealedBracket
+} from '../../shared'
 import { cn } from '@/admin/lib/utils'
 import { roundLabel } from '@/admin/lib/bracket'
 
@@ -9,18 +15,11 @@ import { roundLabel } from '@/admin/lib/bracket'
 // deeper is an undecided feeder. Shape comes from the shared bracketStructure (ADR-0025), so the show
 // can't drift from the public bracket; the focus line carries the highlight and the `motion` reveal.
 
-export type PlayerDisplay = NonNullable<PublicRevealStep['player']>
-
 export const playerName = (player: PlayerDisplay): string => `${player.firstName} ${player.lastName}`.trim()
 
 // An easeOutExpo-ish curve: a lot snaps in fast then settles — reads as a reveal, not a slide. Shared by
 // the bracket's per-line reveal and the announce band so both move on the same timing.
 export const EASE = [0.16, 1, 0.3, 1] as const
-
-interface ByeWinner {
-  player: PlayerDisplay
-  seed: number | null
-}
 
 interface DrawBracketProps {
   size: number
@@ -31,26 +30,10 @@ interface DrawBracketProps {
 }
 
 export const DrawBracket = ({ size, steps, currentPosition, reduce }: DrawBracketProps) => {
-  // The revealed first-round lines, indexed by position; gaps are lines not yet drawn.
-  const lines = useMemo(() => {
-    const arr: (PublicRevealStep | undefined)[] = new Array(size)
-    for (const s of steps) arr[s.position] = s
-    return arr
-  }, [steps, size])
-
-  // Per round-1 match, the player who advanced through a (fully revealed) bye — the one round a bye carries
-  // a player into round 2 (§31). A contested or not-yet-revealed match stays „?".
-  const byeWinners = useMemo(() => {
-    const winners: (ByeWinner | null)[] = []
-    for (let m = 0; m < size / 2; m++) {
-      const a = lines[2 * m]
-      const b = lines[2 * m + 1]
-      const oneBye = a && b && (a.kind === 'bye') !== (b.kind === 'bye')
-      const advanced = oneBye ? (a.kind === 'bye' ? b : a) : null
-      winners[m] = advanced?.player ? { player: advanced.player, seed: advanced.seed } : null
-    }
-    return winners
-  }, [lines, size])
+  // The revealed bracket: round-1 lines by position and the round-2 bye-winners (§31). One shared
+  // interpretation the public live bracket renders too (CONTEXT: Revealed bracket); the cells below add
+  // only the focus highlight and the `motion` reveal.
+  const { lines, byeWinners } = useMemo(() => revealedBracket(size, steps), [size, steps])
 
   const totalRounds = bracketStructure(size).rounds
 

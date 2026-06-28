@@ -159,6 +159,16 @@ concept here drifts or a new one appears, update this file rather than inventing
   bye) onto one position and carries a `kind` — `seed-fixed` | `seed-lot` | `bye` | `draw`. The
   same sequence, fully applied, _is_ the bracket (the source of the `matches` slots); the show is pure
   playback over it. _(See ADR-0003, ADR-0025.)_
+- **Revealed bracket** — the reveal sequence applied **up to the cursor**: which round-1 lines are
+  filled, and which round-2 slots already carry a **bye-winner** (the one round a round-1 bye carries a
+  player forward, §31). It is the single interpretation both the draw reveal show and the public live
+  bracket render — `revealedBracket(size, steps) → { lines, byeWinners }` in `shared/reveal.ts`. Pairs
+  with `bracketStructure` (the **empty** topology): structure is the shape, the revealed bracket is the
+  shape filled to the cursor. The renderers stay framework-specific below this seam (the React show's
+  per-line `motion` reveal and focus highlight, the Astro feed's poll-and-rebuild) — they compute no
+  bracket logic. Reuse by the consolation bracket (which has **no** reveal show — ADR-0004) is
+  conditional on how that bracket reaches a client: free if surfaced as reveal steps, not otherwise.
+  _(See ADR-0025; issue #71.)_
 - **Draw reveal show** (de: Auslosungs-Show; operator UI label: „Auslosung") — the **operator-paced**
   beamer projection in the **gated admin** that plays the reveal sequence back on a large screen during
   the live draw event. It is **not** a public self-serve URL: the operator drives it (projecting onto
