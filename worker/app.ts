@@ -175,14 +175,14 @@ export const createApp = (makeDeps: (env: Env) => Deps = createDepsFromEnv) =>
     // outside Access like /api/participants; orthogonal to PUBLIC_LIST_ENABLED (the live draw is its own
     // surface). Empty until a field is drawn.
     .get('/api/draw', async c => {
-      const draws = await c.var.deps.drawService.publicDraws()
+      const draws = await c.var.deps.projections.publicDraws()
       return c.json(publicDrawsResponseSchema.parse({ draws }), 200, { 'cache-control': 'no-store' })
     })
     // GET /api/schedule — the public schedule + live board feed (ADR-0005): every placed match across all
     // competitions, slots resolved for display. Public and outside Access like /api/draw; polled by the
     // public page (~10–20 s, ADR-0008). Empty until a match is placed on the grid.
     .get('/api/schedule', async c => {
-      const matches = await c.var.deps.drawService.schedule()
+      const matches = await c.var.deps.projections.schedule()
       return c.json(scheduleResponseSchema.parse({ matches }), 200, { 'cache-control': 'no-store' })
     })
     // POST /api/register — the registration write path. Thin handler: honeypot + rate-limit

@@ -50,7 +50,7 @@ concept here drifts or a new one appears, update this file rather than inventing
   in-memory fake in tests) and returns `{ playerId, lk } | null`. It never touches D1; persistence is
   the Store's job, composed by thin orchestration (`matchOnRegister` at signup, `resolveLkOnConfirm`
   at confirm, `syncAll` on cron/admin). It holds no freeze logic. _(See ADR-0010.)_
-- **seedingValue** — a pure helper (`seedingValue(lk)` in `shared/`) that turns a registration's LK
+- **seedingValue** — a pure helper (`seedingValue(lk)` in `shared/seeding.ts`) that turns a registration's LK
   string into the number it is seeded by: the LK parsed, with **no resolvable rating ⇒ `defaultLk`
   (25.0)** — so a missing or unratable LK seeds as the weakest, never the strongest. Not to be confused
   with **seedingLk** above: `seedingLk` _looks up_ a player's rating from nuLiga; `seedingValue` _orders_
@@ -74,7 +74,7 @@ concept here drifts or a new one appears, update this file rather than inventing
   global **`CHALLENGER_MIN_LK`** threshold, adjusted for the whole field — never a per-player override.
   At the draw the operator confirms/adjusts that threshold (default = the `shared/` constant) and the
   chosen value is **snapshotted into the draw record** (audited as part of the freeze) — there is no
-  standing DB preference. One pure predicate `challengerEligibility(entries, threshold)` in `shared/` is
+  standing DB preference. One pure predicate `challengerEligibility(entries, threshold)` in `shared/seeding.ts` is
   both the draw's hard guard (a too-strong entry blocks the field's draw) and the provisional seeding
   list's affordance — authority in the draw, affordance in the client, definition once (ADR-0011).
   _(See ADR-0024.)_
