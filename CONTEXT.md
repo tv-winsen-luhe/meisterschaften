@@ -168,7 +168,14 @@ concept here drifts or a new one appears, update this file rather than inventing
   no stepping back (the public live bracket mirrors the cursor; a back-step would un-reveal a lot there
   too). Once it has fully revealed (cursor === total) it is done, not a replayable show. The off-site
   audience follows a separate **public live bracket** (`tournament-draw.astro`) that mirrors the same
-  revealed prefix by polling (~1–2s). _(See ADR-0003, ADR-0025, ADR-0031; issue #71.)_
+  revealed prefix by polling (~1–2s). The operator client drives playback through a **forward-only state
+  machine** (the reveal controller, `src/admin/reveal-controller.ts`) sitting over the two server seams:
+  it owns the retry-on-blip read, the double-fire guard (a held presenter key may not reveal two lots),
+  and the `loading → ready → absent/error/stale` reducer. It keeps a genuinely **not-yet-drawn** field
+  (`absent`) distinct from a **transient read failure** (`error`/`stale`) — conflating them would show
+  „nicht ausgelost" for a drawn field, or freeze the cursor mid-reveal; on a failed refresh it holds the
+  last good reveal as **stale** (paused, re-read offered) rather than blanking the beamer. _(See ADR-0003,
+  ADR-0025, ADR-0031; issue #71.)_
 - **Main bracket** (de: Hauptrunde; bracket value `main`) — the main KO bracket; the title is decided
   here. The German name is the concept; the stored/wire `bracket` discriminator value is the English
   `main` (CLAUDE.md — German terms never become stored values). _(See ADR-0025.)_

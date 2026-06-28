@@ -1,8 +1,9 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useSyncExternalStore } from 'react'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import { ChevronRight, MonitorX, RotateCw } from 'lucide-react'
-import { type CompetitionSlug, type PublicDraw, type PublicRevealStep } from '../../shared'
+import { type CompetitionSlug, type PublicRevealStep } from '../../shared'
 import { type RevealRead } from './use-reveal'
+import { createReveal } from './reveal-controller'
 import { DrawBracket, EASE, playerName } from './draw-bracket'
 import { competitionLabel } from './surfaces/registration-detail'
 
@@ -16,20 +17,9 @@ import { competitionLabel } from './surfaces/registration-detail'
 // projector reads from across the hall, with a `motion` reveal on each lot and the just-drawn lot held up
 // as the focus. The bracket fills in behind it as context; the announce band is the act.
 
-// The reveal only ever moves forward (a draw, once shown, is shown — and the public bracket mirrors the
-// cursor, so stepping back would un-reveal a lot there too). `back` stays in the wire contract but the
-// show never sends it.
+// `back` stays in the wire contract but the show never sends it — the reveal is forward-only (a lot,
+// once shown, is shown, and the public bracket mirrors the cursor, so stepping back would un-reveal it).
 type Direction = 'forward' | 'back'
-
-// Read-side states: the initial read in flight, a reveal on screen, a genuinely un-drawn field, the initial
-// read failed with nothing to show, or a refresh failed while a reveal stands (kept, but out of date).
-type Status = 'loading' | 'ok' | 'absent' | 'error' | 'stale'
-
-// How many times a transient read is retried before the show gives up (and shows the error / stale state),
-// and the pause between tries — enough to ride out a one-off network blip without stalling the operator.
-const READ_RETRIES = 2
-const RETRY_DELAY_MS = 300
-const delay = (ms: number): Promise<void> => new Promise(resolve => setTimeout(resolve, ms))
 
 interface DrawShowProps {
   competition: CompetitionSlug
@@ -41,80 +31,33 @@ interface DrawShowProps {
   onExit: () => void
 }
 
+// A thin renderer over the reveal controller (reveal-controller.ts): the controller owns the retry/stale
+// read loop, the double-fire guard, and the status reducer; the component binds the competition into the
+// controller's two server seams and paints the state it exposes. Resume-on-open and the keydown wiring
+// (presenter remote → forward, Escape → exit) are the only React concerns left here.
 export const DrawShow = ({ competition, onLoad, onAdvance, onExit }: DrawShowProps) => {
   const reduce = useReducedMotion()
-  const [draw, setDraw] = useState<PublicDraw | null>(null)
-  const [status, setStatus] = useState<Status>('loading')
-  // Disables the controls while an advance is in flight. The synchronous ref is the actual double-fire
-  // guard (a held presenter key fires faster than React commits state); the state only drives the styling.
-  const [busy, setBusy] = useState(false)
-  const busyRef = useRef(false)
-  // True only while a fresh reveal is on screen (`status === 'ok'`). Gates `step` so a key press on the
-  // loading / error / not-drawn / stale screen (the keydown listener stays bound across all of them) can't
-  // advance the server cursor past a lot nothing on the beamer is showing. Set synchronously in `refresh`.
-  const advanceableRef = useRef(false)
-  // The last good reveal, read in the refresh callback without making `draw` a dependency of it (that would
-  // re-run the mount effect on every load and refetch in a loop) — it only decides error vs stale on failure.
-  const drawRef = useRef<PublicDraw | null>(null)
+  const reveal = useMemo(
+    () => createReveal({ load: () => onLoad(competition), advance: direction => onAdvance(competition, direction) }),
+    [competition, onLoad, onAdvance]
+  )
+  const { phase, draw, current, cursor, total, complete, canAdvance } = useSyncExternalStore(
+    reveal.subscribe,
+    reveal.getState
+  )
+
+  // Resume from the persisted cursor on open (and after a reload) — playback only, never starting the draw.
   useEffect(() => {
-    drawRef.current = draw
-  }, [draw])
-
-  // Read the reveal, retrying a transient error a few times before settling. A clean read wins immediately
-  // (present → ok, not listed → absent); only a real failure falls through to keep the last reveal (stale)
-  // or, with nothing yet on screen, the error state. It never advances the cursor — playback only (ADR-0003).
-  const refresh = useCallback(async () => {
-    for (let attempt = 0; attempt <= READ_RETRIES; attempt++) {
-      const result = await onLoad(competition)
-      if (result.status === 'ok') {
-        setDraw(result.draw)
-        setStatus('ok')
-        advanceableRef.current = true
-        return
-      }
-      if (result.status === 'absent') {
-        setDraw(null)
-        setStatus('absent')
-        advanceableRef.current = false
-        return
-      }
-      if (attempt < READ_RETRIES) await delay(RETRY_DELAY_MS)
-    }
-    // Every attempt failed: hold the last good reveal if there is one (stale), else surface the load error.
-    // Either way advancing is blocked until a successful re-read — no stepping past an unseen lot.
-    advanceableRef.current = false
-    setStatus(drawRef.current ? 'stale' : 'error')
-  }, [onLoad, competition])
-
-  // Resume from the persisted cursor on open (and after a reload) — the show never starts the draw, it
-  // only plays back what the precompute already wrote (ADR-0003).
-  useEffect(() => {
-    void refresh()
-  }, [refresh])
-
-  const step = useCallback(async () => {
-    // Synchronous guards: `advanceableRef` blocks a key press unless a fresh reveal is on screen; `busyRef`
-    // stops two presenter-key activations (which fire faster than React commits `busy`) from both passing a
-    // state check and advancing the server twice — either gap would skip a lot's reveal on the beamer.
-    if (busyRef.current || !advanceableRef.current) return
-    busyRef.current = true
-    setBusy(true)
-    try {
-      if (await onAdvance(competition, 'forward')) await refresh()
-    } finally {
-      busyRef.current = false
-      setBusy(false)
-    }
-  }, [onAdvance, competition, refresh])
+    void reveal.refresh()
+  }, [reveal])
 
   // Beamer ergonomics: drive the show from a presenter remote / keyboard — forward on the keys a clicker
-  // sends (Right / Space / PageDown), and Escape to leave the stage. There is no back: the reveal is
-  // forward-only.
+  // sends (Right / Space / PageDown), and Escape to leave. The controller's guard makes a held key safe.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'ArrowRight' || e.key === ' ' || e.key === 'PageDown') {
         e.preventDefault()
-        void step()
+        void reveal.step()
       } else if (e.key === 'Escape') {
         e.preventDefault()
         onExit()
@@ -122,9 +65,9 @@ export const DrawShow = ({ competition, onLoad, onAdvance, onExit }: DrawShowPro
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [step, onExit])
+  }, [reveal, onExit])
 
-  if (status === 'loading') {
+  if (phase === 'loading') {
     return (
       <Stage>
         <div className="flex flex-1 items-center justify-center text-[#525252]">Lädt …</div>
@@ -134,7 +77,7 @@ export const DrawShow = ({ competition, onLoad, onAdvance, onExit }: DrawShowPro
 
   // Nothing to play: a genuinely un-drawn field, or an initial read that never landed (retry available).
   if (!draw) {
-    const failed = status === 'error'
+    const failed = phase === 'error'
     return (
       <Stage>
         <div className="flex flex-1 flex-col items-center justify-center gap-6 text-center">
@@ -144,7 +87,7 @@ export const DrawShow = ({ competition, onLoad, onAdvance, onExit }: DrawShowPro
           <div className="flex gap-3">
             {failed && (
               <button
-                onClick={() => void refresh()}
+                onClick={() => void reveal.refresh()}
                 className="inline-flex items-center gap-2 rounded-lg bg-[#0c1e3a] px-5 py-2.5 font-semibold text-white hover:bg-[#0c1e3a]/90"
               >
                 <RotateCw className="size-4" />
@@ -163,13 +106,11 @@ export const DrawShow = ({ competition, onLoad, onAdvance, onExit }: DrawShowPro
     )
   }
 
-  const { size, cursor, total, steps } = draw
-  // The lot in focus is the last one revealed — what the announce band holds up and the bracket glows.
-  const current = steps.length > 0 ? steps[steps.length - 1] : null
-  const complete = total > 0 && cursor === total
+  const { size, steps } = draw
   // A stale reveal is the last good one on screen after a failed refresh: paused until it re-reads, so the
-  // cursor can't be advanced past a lot the operator never saw. The banner offers the manual re-read.
-  const stale = status === 'stale'
+  // cursor can't be advanced past a lot the operator never saw. The banner offers the manual re-read; the
+  // controller blocks advancing (canAdvance is false) until a clean re-read lands.
+  const stale = phase === 'stale'
 
   return (
     <Stage>
@@ -236,7 +177,7 @@ export const DrawShow = ({ competition, onLoad, onAdvance, onExit }: DrawShowPro
         <div className="mx-auto mb-1 flex items-center gap-3 rounded-lg border border-amber-500/40 bg-amber-50 px-4 py-2 text-sm font-medium text-amber-900">
           Anzeige veraltet — Verbindung unterbrochen.
           <button
-            onClick={() => void refresh()}
+            onClick={() => void reveal.refresh()}
             className="inline-flex items-center gap-1.5 rounded-md bg-amber-500 px-3 py-1 font-semibold text-white hover:bg-amber-600"
           >
             <RotateCw className="size-3.5" />
@@ -249,8 +190,8 @@ export const DrawShow = ({ competition, onLoad, onAdvance, onExit }: DrawShowPro
           revealed; the public bracket mirrors the cursor, so there is no stepping back). */}
       <div className="flex items-center justify-center border-t border-[#0c1e3a]/10 px-8 py-6">
         <button
-          onClick={() => void step()}
-          disabled={busy || stale || complete}
+          onClick={() => void reveal.step()}
+          disabled={!canAdvance}
           className="inline-flex items-center gap-2 rounded-xl bg-[#0c1e3a] px-8 py-3.5 text-base font-bold text-white transition-colors hover:bg-[#0c1e3a]/90 disabled:cursor-not-allowed disabled:opacity-30"
         >
           {complete ? 'Auslosung komplett' : 'Weiter'}
