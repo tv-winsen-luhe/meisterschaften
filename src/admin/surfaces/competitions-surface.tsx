@@ -28,15 +28,17 @@ interface CompetitionsSurfaceProps {
   onDraw: (competition: CompetitionSlug) => Promise<boolean>
   // True while a draw request is in flight, so the triggered card shows a pending button.
   drawingCompetition: CompetitionSlug | null
-  // Open the large-screen, operator-paced draw show for a drawn competition (issue #71) — the shell
-  // takes over the full screen for the beamer projection.
+  // Enter the full-screen Auslosung for a competition (issue #71): „Jetzt auslosen" starts it, and this
+  // re-enters one still running („Auslosung fortsetzen"); the shell takes over the screen for the beamer.
   onStartShow: (competition: CompetitionSlug) => void
 }
 
-// The competitions surface (ADR-0027): one card per competition with its draw lifecycle — *not
-// drawn* → *drawn* — and the „Jetzt auslosen" action, active once registration is closed
-// (`tournament`) and the field is a full, un-drawn bracket (ADR-0025). A drawn field shows its
-// bracket. Names are joined from the admin list the shell already holds; the draw carries only ids.
+// The competitions surface (ADR-0027): one card per competition with its lifecycle — *nicht ausgelost* →
+// *Auslosung läuft* (the reveal running, cursor < total) → *ausgelost* (cursor === total). „Jetzt
+// auslosen" starts the Auslosung (active once registration is closed — `tournament` — and the field is a
+// full, un-drawn bracket, ADR-0025) and jumps straight into the full-screen reveal; while it runs the
+// bracket is withheld (no spoiler) and „Auslosung fortsetzen" re-enters it; only when it finishes does the
+// bracket show — and it can no longer be re-opened. Names are joined from the admin list the shell holds.
 export const CompetitionsSurface = ({
   registrations,
   draws,
@@ -107,8 +109,8 @@ export const CompetitionsSurface = ({
                   <Badge variant="outline" className="text-muted-foreground">
                     Nicht ausgelost
                   </Badge>
-                ) : row.draw.cursor > 0 && row.draw.cursor < row.draw.total ? (
-                  <Badge className="border-amber-300 bg-amber-50 text-amber-900">Reveal läuft</Badge>
+                ) : row.draw.cursor < row.draw.total ? (
+                  <Badge className="border-amber-300 bg-amber-50 text-amber-900">Auslosung läuft</Badge>
                 ) : (
                   <Badge className="border-emerald-300 bg-emerald-50 text-emerald-900">Ausgelost</Badge>
                 )}
@@ -123,31 +125,33 @@ export const CompetitionsSurface = ({
                       {row.byes > 0 && ` · ${row.byes} FL`}
                     </>
                   )}
-                  {row.draw && ` · ${row.draw.cursor}/${row.draw.total} enthüllt`}
+                  {row.draw && row.draw.cursor < row.draw.total && ` · ${row.draw.cursor}/${row.draw.total} enthüllt`}
                 </span>
-                {row.draw ? (
-                  <Button size="sm" variant="outline" onClick={() => onStartShow(row.slug)}>
-                    <MonitorPlay className="size-4" />
-                    Großbild-Show
-                  </Button>
-                ) : (
+                {!row.draw ? (
                   <DrawAction
                     blocker={row.blocker}
                     pending={drawingCompetition === row.slug}
                     onDraw={() => onDraw(row.slug)}
                   />
-                )}
+                ) : row.draw.cursor < row.draw.total ? (
+                  // Still running: re-enter the reveal where it stood. Gone once it is complete (cursor ===
+                  // total) — the Auslosung is a one-time act, not a replayable show.
+                  <Button size="sm" variant="outline" onClick={() => onStartShow(row.slug)}>
+                    <MonitorPlay className="size-4" />
+                    Auslosung fortsetzen
+                  </Button>
+                ) : null}
               </div>
             </div>
 
-            {/* Withhold the bracket until the show has fully revealed it (cursor === total), so projecting
-                the admin before/during the show can't spoil the draw — until then, just say so. */}
+            {/* The Auslosung *is* the reveal: the bracket appears only once it has finished (cursor ===
+                total), so projecting the admin while it runs can't spoil it. While it runs, just say so. */}
             {row.draw &&
               (row.draw.cursor >= row.draw.total ? (
                 <Bracket draw={row.draw} nameById={nameById} />
               ) : (
                 <p className="text-muted-foreground text-sm">
-                  Das Tableau erscheint, sobald die Großbild-Show es enthüllt hat.
+                  Das Tableau erscheint, sobald die Auslosung abgeschlossen ist.
                 </p>
               ))}
           </section>
