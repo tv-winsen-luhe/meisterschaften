@@ -73,8 +73,12 @@ describe('createDrawService.advance', () => {
     await svc.advance('mens', 'forward')
     await svc.advance('mens', 'forward')
     const after = await drawStore.getDraw('mens', 'main')
-    // The matches + seeding are byte-for-byte identical; only the cursor (not part of CompetitionDraw) moved.
-    expect(after).toEqual(before)
+    // Advancing never re-rolls: the bracket itself (matches + seeding) is byte-for-byte identical; only the
+    // reveal cursor moved (0 → 2), which the CompetitionDraw now carries.
+    expect(after?.matches).toEqual(before?.matches)
+    expect(after?.seeding).toEqual(before?.seeding)
+    expect(before?.cursor).toBe(0)
+    expect(after?.cursor).toBe(2)
     expect((await drawStore.getReveal('mens', 'main'))?.cursor).toBe(2)
   })
 

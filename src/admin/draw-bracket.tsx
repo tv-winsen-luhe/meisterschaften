@@ -129,7 +129,8 @@ const Cell = ({ round, slotIndex, lines, byeWinners, currentPosition, reduce }: 
       <motion.div
         initial={reduce ? false : { opacity: 0, scale: 0.82, y: 6 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
-        transition={{ duration: reduce ? 0 : 0.45, ease: EASE }}
+        // Delayed so the announce band's big name lands first, then this line fills in behind it.
+        transition={{ duration: reduce ? 0 : 0.4, ease: EASE, delay: reduce ? 0 : 0.42 }}
         className={cn(
           FRAME,
           'rounded-lg transition-shadow duration-500',

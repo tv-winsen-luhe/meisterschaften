@@ -118,12 +118,18 @@ export type Match = z.infer<typeof matchSchema>
 // the API shape and the draw output can never drift.
 
 // A drawn competition as the surface shows it: the field, its draw size, the frozen seeding, and the
-// materialized bracket. (The reveal sequence + cursor are not on this shape — the draw show plays them
-// back from the cursor-sliced public reveal below, GET /api/draw, not from this admin projection.)
+// materialized bracket — plus the reveal cursor + total. The surface withholds the bracket until the show
+// has fully revealed it (cursor === total), so projecting the admin can't spoil the draw; until then it
+// shows only the reveal progress. The show itself still plays back from the cursor-sliced public reveal
+// (GET /api/draw), not these matches.
 export const competitionDrawSchema = z.object({
   competition: competitionSlug,
   bracket: z.enum(BRACKETS),
   size: z.number().int().positive(),
+  // How many reveal steps the show has revealed, and the total step count — the reveal progress the
+  // surface reads to gate the bracket (cursor === total ⇒ fully revealed) and show „x/y enthüllt".
+  cursor: z.number().int().nonnegative(),
+  total: z.number().int().nonnegative(),
   seeding: z.array(seedingEntrySchema),
   matches: z.array(matchSchema)
 })

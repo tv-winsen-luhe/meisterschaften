@@ -103,12 +103,14 @@ export const CompetitionsSurface = ({
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div className="flex items-center gap-3">
                 <span className="font-semibold">{row.label}</span>
-                {row.draw ? (
-                  <Badge className="border-emerald-300 bg-emerald-50 text-emerald-900">Ausgelost</Badge>
-                ) : (
+                {!row.draw ? (
                   <Badge variant="outline" className="text-muted-foreground">
                     Nicht ausgelost
                   </Badge>
+                ) : row.draw.cursor > 0 && row.draw.cursor < row.draw.total ? (
+                  <Badge className="border-amber-300 bg-amber-50 text-amber-900">Reveal läuft</Badge>
+                ) : (
+                  <Badge className="border-emerald-300 bg-emerald-50 text-emerald-900">Ausgelost</Badge>
                 )}
               </div>
               <div className="flex items-center gap-3">
@@ -121,6 +123,7 @@ export const CompetitionsSurface = ({
                       {row.byes > 0 && ` · ${row.byes} FL`}
                     </>
                   )}
+                  {row.draw && ` · ${row.draw.cursor}/${row.draw.total} enthüllt`}
                 </span>
                 {row.draw ? (
                   <Button size="sm" variant="outline" onClick={() => onStartShow(row.slug)}>
@@ -137,7 +140,16 @@ export const CompetitionsSurface = ({
               </div>
             </div>
 
-            {row.draw && <Bracket draw={row.draw} nameById={nameById} />}
+            {/* Withhold the bracket until the show has fully revealed it (cursor === total), so projecting
+                the admin before/during the show can't spoil the draw — until then, just say so. */}
+            {row.draw &&
+              (row.draw.cursor >= row.draw.total ? (
+                <Bracket draw={row.draw} nameById={nameById} />
+              ) : (
+                <p className="text-muted-foreground text-sm">
+                  Das Tableau erscheint, sobald die Großbild-Show es enthüllt hat.
+                </p>
+              ))}
           </section>
         ))}
       </div>

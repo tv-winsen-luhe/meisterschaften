@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
-import { ChevronLeft, ChevronRight, MonitorX, RotateCw } from 'lucide-react'
+import { ChevronRight, MonitorX, RotateCw } from 'lucide-react'
 import { type CompetitionSlug, type PublicDraw, type PublicRevealStep } from '../../shared'
 import { type RevealRead } from './use-reveal'
 import { DrawBracket, EASE, playerName } from './draw-bracket'
@@ -16,7 +16,9 @@ import { competitionLabel } from './surfaces/registration-detail'
 // projector reads from across the hall, with a `motion` reveal on each lot and the just-drawn lot held up
 // as the focus. The bracket fills in behind it as context; the announce band is the act.
 
-// The lot the operator reveals next (forward) or a correction back — the advance endpoint's two directions.
+// The reveal only ever moves forward (a draw, once shown, is shown — and the public bracket mirrors the
+// cursor, so stepping back would un-reveal a lot there too). `back` stays in the wire contract but the
+// show never sends it.
 type Direction = 'forward' | 'back'
 
 // Read-side states: the initial read in flight, a reveal on screen, a genuinely un-drawn field, the initial
@@ -90,34 +92,29 @@ export const DrawShow = ({ competition, onLoad, onAdvance, onExit }: DrawShowPro
     void refresh()
   }, [refresh])
 
-  const step = useCallback(
-    async (direction: Direction) => {
-      // Synchronous guards: `advanceableRef` blocks a key press unless a fresh reveal is on screen; `busyRef`
-      // stops two presenter-key activations (which fire faster than React commits `busy`) from both passing a
-      // state check and advancing the server twice — either gap would skip a lot's reveal on the beamer.
-      if (busyRef.current || !advanceableRef.current) return
-      busyRef.current = true
-      setBusy(true)
-      try {
-        if (await onAdvance(competition, direction)) await refresh()
-      } finally {
-        busyRef.current = false
-        setBusy(false)
-      }
-    },
-    [onAdvance, competition, refresh]
-  )
+  const step = useCallback(async () => {
+    // Synchronous guards: `advanceableRef` blocks a key press unless a fresh reveal is on screen; `busyRef`
+    // stops two presenter-key activations (which fire faster than React commits `busy`) from both passing a
+    // state check and advancing the server twice — either gap would skip a lot's reveal on the beamer.
+    if (busyRef.current || !advanceableRef.current) return
+    busyRef.current = true
+    setBusy(true)
+    try {
+      if (await onAdvance(competition, 'forward')) await refresh()
+    } finally {
+      busyRef.current = false
+      setBusy(false)
+    }
+  }, [onAdvance, competition, refresh])
 
-  // Beamer ergonomics: drive the whole show from a presenter remote / keyboard — forward on the keys a
-  // clicker sends (Right / Space / PageDown), back on Left / PageUp, and Escape to leave the stage.
+  // Beamer ergonomics: drive the show from a presenter remote / keyboard — forward on the keys a clicker
+  // sends (Right / Space / PageDown), and Escape to leave the stage. There is no back: the reveal is
+  // forward-only.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'ArrowRight' || e.key === ' ' || e.key === 'PageDown') {
         e.preventDefault()
-        void step('forward')
-      } else if (e.key === 'ArrowLeft' || e.key === 'PageUp') {
-        e.preventDefault()
-        void step('back')
+        void step()
       } else if (e.key === 'Escape') {
         e.preventDefault()
         onExit()
@@ -201,7 +198,9 @@ export const DrawShow = ({ competition, onLoad, onAdvance, onExit }: DrawShowPro
         </div>
       </div>
 
-      {/* The announce band — the act. Each cursor move swaps the held-up lot with a `motion` reveal. */}
+      {/* The announce band — the act, and it leads: the big name lands first, then the bracket line fills in
+          behind it (DrawBracket delays its reveal). The previous lot clears with a quick exit so the new
+          name comes up cleanly (no two names overlapping), well before the line fills. */}
       <div
         className="relative flex min-h-44 shrink-0 items-center justify-center px-6"
         aria-live="polite"
@@ -212,8 +211,12 @@ export const DrawShow = ({ competition, onLoad, onAdvance, onExit }: DrawShowPro
             key={cursor}
             initial={reduce ? false : { opacity: 0, y: 24, scale: 0.96 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={reduce ? { opacity: 0 } : { opacity: 0, y: -18, scale: 0.98 }}
-            transition={{ duration: reduce ? 0 : 0.45, ease: EASE }}
+            exit={
+              reduce
+                ? { opacity: 0, transition: { duration: 0 } }
+                : { opacity: 0, y: -14, scale: 0.98, transition: { duration: 0.14, ease: 'easeIn' } }
+            }
+            transition={{ duration: reduce ? 0 : 0.4, ease: EASE }}
             className="flex flex-col items-center text-center"
           >
             <Announce step={current} cursor={cursor} complete={complete} />
@@ -237,18 +240,11 @@ export const DrawShow = ({ competition, onLoad, onAdvance, onExit }: DrawShowPro
         </div>
       )}
 
-      {/* Controls: the operator paces the show; back is a correction, never a re-roll (ADR-0003). */}
-      <div className="flex items-center justify-center gap-4 px-8 py-6">
+      {/* Controls: the operator paces the show one lot at a time — forward only (a revealed lot is
+          revealed; the public bracket mirrors the cursor, so there is no stepping back). */}
+      <div className="flex items-center justify-center px-8 py-6">
         <button
-          onClick={() => void step('back')}
-          disabled={busy || stale || cursor === 0}
-          className="inline-flex items-center gap-2 rounded-xl border border-white/20 px-6 py-3.5 text-base font-semibold text-white/85 transition-colors hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-30"
-        >
-          <ChevronLeft className="size-5" />
-          Zurück
-        </button>
-        <button
-          onClick={() => void step('forward')}
+          onClick={() => void step()}
           disabled={busy || stale || complete}
           className="inline-flex items-center gap-2 rounded-xl bg-lime-400 px-8 py-3.5 text-base font-bold text-slate-950 transition-colors hover:bg-lime-300 disabled:cursor-not-allowed disabled:opacity-30"
         >
@@ -305,7 +301,7 @@ const Announce = ({ step, cursor, complete }: AnnounceProps) => {
   const seeded = step.kind === 'seed-fixed' || step.kind === 'seed-lot'
   return (
     <>
-      <Eyebrow>{seeded ? `Gesetzt · Nr. ${step.seed}` : 'Eingelost'}</Eyebrow>
+      <Eyebrow>{seeded ? `Gesetzt · Nr. ${step.seed}` : 'Gezogen'}</Eyebrow>
       <Name>{step.player ? playerName(step.player) : '—'}</Name>
       <Sub>
         {step.player?.lk ? `LK ${step.player.lk} · ` : ''}
