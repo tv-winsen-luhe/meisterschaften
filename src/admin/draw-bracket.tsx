@@ -1,0 +1,167 @@
+import { useMemo } from 'react'
+import { motion } from 'motion/react'
+import { bracketStructure, type PublicRevealStep } from '../../shared'
+import { cn } from '@/admin/lib/utils'
+import { roundLabel } from '@/admin/lib/bracket'
+
+// The bracket the draw show fills in behind the announce band (issue #71). Pure playback of the revealed
+// reveal steps: round 1 plays each drawn line, round 2 shows a bye winner already advanced, everything
+// deeper is an undecided feeder. Shape comes from the shared bracketStructure (ADR-0025), so the show
+// can't drift from the public bracket; the focus line carries the highlight and the `motion` reveal.
+
+export type PlayerDisplay = NonNullable<PublicRevealStep['player']>
+
+export const playerName = (player: PlayerDisplay): string => `${player.firstName} ${player.lastName}`.trim()
+
+// An easeOutExpo-ish curve: a lot snaps in fast then settles — reads as a reveal, not a slide. Shared by
+// the bracket's per-line reveal and the announce band so both move on the same timing.
+export const EASE = [0.16, 1, 0.3, 1] as const
+
+interface ByeWinner {
+  player: PlayerDisplay
+  seed: number | null
+}
+
+interface DrawBracketProps {
+  size: number
+  steps: PublicRevealStep[]
+  // The line in focus (the last revealed) — it carries the highlight ring; null before the first lot.
+  currentPosition: number | null
+  reduce: boolean
+}
+
+export const DrawBracket = ({ size, steps, currentPosition, reduce }: DrawBracketProps) => {
+  // The revealed first-round lines, indexed by position; gaps are lines not yet drawn.
+  const lines = useMemo(() => {
+    const arr: (PublicRevealStep | undefined)[] = new Array(size)
+    for (const s of steps) arr[s.position] = s
+    return arr
+  }, [steps, size])
+
+  // Per round-1 match, the player who advanced through a (fully revealed) bye — the one round a bye carries
+  // a player into round 2 (§31). A contested or not-yet-revealed match stays „?".
+  const byeWinners = useMemo(() => {
+    const winners: (ByeWinner | null)[] = []
+    for (let m = 0; m < size / 2; m++) {
+      const a = lines[2 * m]
+      const b = lines[2 * m + 1]
+      const oneBye = a && b && (a.kind === 'bye') !== (b.kind === 'bye')
+      const advanced = oneBye ? (a.kind === 'bye' ? b : a) : null
+      winners[m] = advanced?.player ? { player: advanced.player, seed: advanced.seed } : null
+    }
+    return winners
+  }, [lines, size])
+
+  const totalRounds = bracketStructure(size).rounds
+
+  return (
+    <div className="flex flex-1 items-center justify-center overflow-auto px-8 pb-4">
+      <div className="flex items-stretch gap-10">
+        {Array.from({ length: totalRounds }, (_, r) => {
+          const round = r + 1
+          const matchCount = size / 2 ** round
+          return (
+            <div key={round} className="flex w-56 shrink-0 flex-col">
+              <div className="mb-3 flex items-center justify-between border-b border-white/15 pb-2 text-[11px] font-bold tracking-[0.14em] text-lime-300/70 uppercase">
+                <span>{roundLabel(round, totalRounds)}</span>
+                <span className="text-white/35 tabular-nums">{matchCount}</span>
+              </div>
+              <div className="flex flex-1 flex-col justify-around gap-2">
+                {Array.from({ length: matchCount }, (_, m) => (
+                  <div key={m} className="flex flex-col gap-1.5">
+                    <Cell
+                      round={round}
+                      slotIndex={2 * m}
+                      lines={lines}
+                      byeWinners={byeWinners}
+                      currentPosition={currentPosition}
+                      reduce={reduce}
+                    />
+                    <Cell
+                      round={round}
+                      slotIndex={2 * m + 1}
+                      lines={lines}
+                      byeWinners={byeWinners}
+                      currentPosition={currentPosition}
+                      reduce={reduce}
+                    />
+                  </div>
+                ))}
+              </div>
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+interface CellProps {
+  round: number
+  slotIndex: number
+  lines: (PublicRevealStep | undefined)[]
+  byeWinners: (ByeWinner | null)[]
+  currentPosition: number | null
+  reduce: boolean
+}
+// One bracket slot. Round 1 plays the revealed line (a player, a bye, or a „?" not yet drawn); round 2
+// shows a bye winner already advanced; everything deeper is an undecided feeder („?"). The round-1 line
+// at the focus position carries the highlight and the `motion` reveal that the announce band mirrors.
+const Cell = ({ round, slotIndex, lines, byeWinners, currentPosition, reduce }: CellProps) => {
+  if (round === 1) {
+    const step = lines[slotIndex]
+    if (!step) return <Tbd />
+    const isCurrent = slotIndex === currentPosition
+    return (
+      <motion.div
+        initial={reduce ? false : { opacity: 0, scale: 0.82, y: 6 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        transition={{ duration: reduce ? 0 : 0.45, ease: EASE }}
+        className={cn(
+          'rounded-lg transition-shadow duration-500',
+          isCurrent && 'shadow-[0_0_38px_-4px_rgba(163,230,53,0.85)] ring-4 ring-lime-400'
+        )}
+      >
+        {step.kind === 'bye' ? <Bye /> : <PlayerSlot player={step.player} seed={step.seed} />}
+      </motion.div>
+    )
+  }
+
+  const winner = round === 2 ? byeWinners[slotIndex] : null
+  return winner ? <PlayerSlot player={winner.player} seed={winner.seed} /> : <Tbd />
+}
+
+const Tbd = () => (
+  <div className="flex min-h-10 items-center justify-center rounded-lg border-2 border-dashed border-white/15 text-lg font-bold text-white/25">
+    ?
+  </div>
+)
+
+const Bye = () => (
+  <div className="flex min-h-10 items-center justify-center rounded-lg border-2 border-dashed border-white/15 bg-white/5 text-xs font-semibold tracking-wide text-white/45">
+    Freilos
+  </div>
+)
+
+interface PlayerSlotProps {
+  player: PlayerDisplay | null
+  seed: number | null
+}
+const PlayerSlot = ({ player, seed }: PlayerSlotProps) => (
+  <div className="flex min-h-10 items-center gap-2.5 rounded-lg bg-white px-3 py-2 text-slate-900">
+    {seed !== null && (
+      <span
+        className="inline-flex size-5 shrink-0 items-center justify-center rounded-full bg-slate-900 text-[11px] font-bold text-white tabular-nums"
+        title={`An ${seed} gesetzt`}
+      >
+        {seed}
+      </span>
+    )}
+    <span className="flex-1 truncate text-base font-bold">{player ? playerName(player) : '—'}</span>
+    {player && (
+      <span className="shrink-0 text-xs font-semibold text-slate-500 tabular-nums">
+        {player.lk ? `LK ${player.lk}` : 'LK folgt'}
+      </span>
+    )}
+  </div>
+)

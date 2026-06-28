@@ -33,6 +33,7 @@
     "drizzle-orm": "0.45.2",
     "hono": "4.12.27",
     "lucide-react": "1.21.0",
+    "motion": "12.42.0",
     "radix-ui": "1.6.0",
     "react": "19.2.7",
     "react-dom": "19.2.7",

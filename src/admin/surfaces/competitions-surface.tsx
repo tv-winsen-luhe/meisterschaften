@@ -1,5 +1,5 @@
 import { useMemo } from 'react'
-import { Shuffle } from 'lucide-react'
+import { MonitorPlay, Shuffle } from 'lucide-react'
 import {
   type AdminRegistration,
   byeCount,
@@ -14,6 +14,7 @@ import {
   type Phase
 } from '../../../shared'
 import { cn } from '@/admin/lib/utils'
+import { roundLabel } from '@/admin/lib/bracket'
 import { Badge } from '@/admin/ui/badge'
 import { Button } from '@/admin/ui/button'
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/admin/ui/empty'
@@ -27,6 +28,9 @@ interface CompetitionsSurfaceProps {
   onDraw: (competition: CompetitionSlug) => Promise<boolean>
   // True while a draw request is in flight, so the triggered card shows a pending button.
   drawingCompetition: CompetitionSlug | null
+  // Open the large-screen, operator-paced draw show for a drawn competition (issue #71) — the shell
+  // takes over the full screen for the beamer projection.
+  onStartShow: (competition: CompetitionSlug) => void
 }
 
 // The competitions surface (ADR-0027): one card per competition with its draw lifecycle — *not
@@ -38,7 +42,8 @@ export const CompetitionsSurface = ({
   draws,
   phase,
   onDraw,
-  drawingCompetition
+  drawingCompetition,
+  onStartShow
 }: CompetitionsSurfaceProps) => {
   // Resolve a registration id to a short label once, for the bracket slots and the seeding column.
   const nameById = useMemo(() => {
@@ -117,7 +122,12 @@ export const CompetitionsSurface = ({
                     </>
                   )}
                 </span>
-                {!row.draw && (
+                {row.draw ? (
+                  <Button size="sm" variant="outline" onClick={() => onStartShow(row.slug)}>
+                    <MonitorPlay className="size-4" />
+                    Großbild-Show
+                  </Button>
+                ) : (
                   <DrawAction
                     blocker={row.blocker}
                     pending={drawingCompetition === row.slug}
@@ -154,12 +164,6 @@ const DrawAction = ({ blocker, pending, onDraw }: DrawActionProps) => (
     {pending ? 'Lost aus …' : 'Jetzt auslosen'}
   </Button>
 )
-
-// Round labels from the back: the last round is the Finale, then Halbfinale, Viertelfinale,
-// Achtelfinale. Covers our 8- and 16-draws; a deeper field falls back to "Runde N".
-const ROUND_LABELS_FROM_END = ['Finale', 'Halbfinale', 'Viertelfinale', 'Achtelfinale']
-const roundLabel = (round: number, totalRounds: number): string =>
-  ROUND_LABELS_FROM_END[totalRounds - round] ?? `Runde ${round}`
 
 interface BracketProps {
   draw: CompetitionDraw

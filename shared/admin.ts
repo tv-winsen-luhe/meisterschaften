@@ -118,8 +118,8 @@ export type Match = z.infer<typeof matchSchema>
 // the API shape and the draw output can never drift.
 
 // A drawn competition as the surface shows it: the field, its draw size, the frozen seeding, and the
-// materialized bracket. (The reveal sequence + cursor live in the draw record but aren't surfaced
-// yet — no animation this epic.)
+// materialized bracket. (The reveal sequence + cursor are not on this shape — the draw show plays them
+// back from the cursor-sliced public reveal below, GET /api/draw, not from this admin projection.)
 export const competitionDrawSchema = z.object({
   competition: competitionSlug,
   bracket: z.enum(BRACKETS),
