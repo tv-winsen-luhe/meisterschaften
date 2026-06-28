@@ -62,14 +62,17 @@ export interface CancelledNotice {
   competition: string
 }
 
-/** Telegram message about a new registration. */
-export const notifyRegistration = async (env: Env, r: RegistrationNotice): Promise<void> => {
-  const konk = COMPETITION_LABELS[r.competition] ?? r.competition
-  const text = [
+// Message formatting is pure (notice → string), separate from the transport (sendTelegram) so it
+// can be tested directly rather than through a vi.mock of the module.
+
+/** The Telegram text for a new registration. */
+export const formatRegistrationMessage = (r: RegistrationNotice): string => {
+  const competitionLabel = COMPETITION_LABELS[r.competition] ?? r.competition
+  return [
     '🎾 <b>Neue Anmeldung</b> — Winsener Meisterschaften 2026',
     '',
     `<b>Name:</b> ${escapeHtml(`${r.firstName} ${r.lastName}`)}`,
-    `<b>Konkurrenz:</b> ${escapeHtml(konk)}`,
+    `<b>Konkurrenz:</b> ${escapeHtml(competitionLabel)}`,
     `<b>Verein:</b> ${escapeHtml(r.club)}`,
     `<b>E-Mail:</b> ${escapeHtml(r.email)}`,
     ...(r.phone ? [`<b>Telefon:</b> ${escapeHtml(r.phone)}`] : []),
@@ -81,24 +84,32 @@ export const notifyRegistration = async (env: Env, r: RegistrationNotice): Promi
     '',
     `Status: neu — zum Bestätigen: ${ADMIN_URL}`
   ].join('\n')
-  await sendTelegram(env, text)
 }
 
-/** Telegram message about a cancellation (one person can cancel several competitions). */
-export const notifyCancellation = async (env: Env, rows: CancelledNotice[]): Promise<void> => {
-  if (rows.length === 0) return
-
+// Precondition: a cancellation always names ≥1 competition; the caller (notifyCancellation) guards
+// the empty case, so `first` is never undefined here.
+/** The Telegram text for a cancellation (one person can cancel several competitions). */
+export const formatCancellationMessage = (rows: CancelledNotice[]): string => {
   const first = rows[0]
-  const konks = rows.map(r => COMPETITION_LABELS[r.competition] ?? r.competition).join(', ')
-  const text = [
+  const competitionLabels = rows.map(r => COMPETITION_LABELS[r.competition] ?? r.competition).join(', ')
+  return [
     '🚫 <b>Abmeldung</b> — Winsener Meisterschaften 2026',
     '',
     `<b>Name:</b> ${escapeHtml(`${first.firstName} ${first.lastName}`)}`,
-    `<b>Konkurrenz${rows.length > 1 ? 'en' : ''}:</b> ${escapeHtml(konks)}`,
+    `<b>Konkurrenz${rows.length > 1 ? 'en' : ''}:</b> ${escapeHtml(competitionLabels)}`,
     `<b>Verein:</b> ${escapeHtml(first.club)}`,
     `<b>E-Mail:</b> ${escapeHtml(first.email)}`,
     '',
     `In der Verwaltung: ${ADMIN_URL}`
   ].join('\n')
-  await sendTelegram(env, text)
+}
+
+/** Telegram message about a new registration. */
+export const notifyRegistration = async (env: Env, r: RegistrationNotice): Promise<void> =>
+  sendTelegram(env, formatRegistrationMessage(r))
+
+/** Telegram message about a cancellation (one person can cancel several competitions). */
+export const notifyCancellation = async (env: Env, rows: CancelledNotice[]): Promise<void> => {
+  if (rows.length === 0) return
+  await sendTelegram(env, formatCancellationMessage(rows))
 }

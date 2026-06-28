@@ -1,6 +1,6 @@
 import type { Env } from './app'
 import type { RegistrationRow } from './db/schema'
-import { notifyRegistration } from './notify'
+import { notifyRegistration, type RegistrationNotice } from './notify'
 import type { SeedingLk } from './seeding-lk'
 
 // The registration side-effect orchestration lives at the transport edge, not in the domain
@@ -9,16 +9,25 @@ import type { SeedingLk } from './seeding-lk'
 // each transition emits essentially one effect, so a dispatcher would be indirection without payoff.
 // The seedingLk these receive is composed once in the composition root (worker/deps.ts, ADR-0030).
 
-// register's background side effect: look the new row up in nuLiga (filling its player_id/LK when
-// still unlinked) and send the Telegram notification with the LK in effect. A nuLiga/persistence
-// failure is swallowed so the notification still goes out with the row's stored LK — the member's
-// response never waits on this (the edge runs it via ctx.waitUntil).
-export const matchAndNotify = async (env: Env, seedingLk: SeedingLk, reg: RegistrationRow): Promise<void> => {
+// Build the notice for a new row: look it up in nuLiga (filling its player_id/LK when still unlinked)
+// and put the LK in effect on the notice. A nuLiga/persistence failure is swallowed so the
+// notification still goes out with the row's stored LK. Returns the notice as data (the LK choice is
+// the testable part); matchAndNotify is the thin glue that sends it.
+export const buildRegistrationNotice = async (
+  seedingLk: SeedingLk,
+  reg: RegistrationRow
+): Promise<RegistrationNotice> => {
   let { lk } = reg
   try {
     lk = await seedingLk.matchOnRegister(reg)
   } catch {
     // nuLiga unreachable etc. → notify with the row's stored LK rather than failing the send.
   }
-  await notifyRegistration(env, { ...reg, lk })
+  return { ...reg, lk }
+}
+
+// register's background side effect: the member's response never waits on this (the edge runs it via
+// ctx.waitUntil).
+export const matchAndNotify = async (env: Env, seedingLk: SeedingLk, reg: RegistrationRow): Promise<void> => {
+  await notifyRegistration(env, await buildRegistrationNotice(seedingLk, reg))
 }
