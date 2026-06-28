@@ -164,14 +164,21 @@ concept here drifts or a new one appears, update this file rather than inventing
   lost in round 2). Round-2+ losers are out. Guarantees every entrant at least two matches. It is a full
   DTB draw in its own right — seeded by LK, with its own byes, drawn randomly — but **not** revealed lot
   step by lot step: it is drawn after the main bracket first round and published directly, with no draw
-  reveal show. **A consolation bracket exists only when the main bracket first round lies _before_ the
+  reveal show. Its entrants are exactly the players who **lost their first match** — the round-1 losers,
+  plus bye-seeds who then lose their round-2 match (the same set, cleanly stated; round-2+ losers who had
+  already won a match are out). It is a **batch draw, not a per-slot feed**, and is **operator-triggered**
+  via a per-competition **„Nebenrunde auslosen"** action that mirrors „Jetzt auslosen" — enabled only once
+  every first match is decided (disabled with the reason shown until then), never auto-fired.
+  **A consolation bracket exists only when the main bracket first round lies _before_ the
   semifinals — i.e. draw size ≥ 8.** At draw size 4 (exactly four entrants) the first round _is_ the
   semifinal, so its two losers are the same two players the third-place match already pairs — there is no
   separate consolation bracket, the third-place match _is_ the consolation and every entrant still gets
   two matches. Below four there is neither. _(See ADR-0004.)_
 - **Third-place match** (de: Spiel um Platz 3) — a placement match between the two main-bracket
-  semifinal losers, played once a semifinal exists (from four entrants up). The main bracket has one;
-  the consolation bracket does not. It is a real match — scheduled and recorded like any other — and
+  semifinal losers, played once a semifinal exists (from four entrants up). It is **materialized at draw
+  time** (a structurally-known slot) with two **loser-feeders** from the semifinals, filled by Advancement
+  when they resolve. The main bracket has one; the consolation bracket does not. It is a real match —
+  scheduled and recorded like any other — and
   counts toward the court load (ADR-0023). At exactly four entrants it doubles as the consolation (see
   Consolation bracket): the two semifinal losers have no separate consolation bracket, so this match is
   their guaranteed second match.
@@ -193,23 +200,43 @@ reveal sequence }`. Randomness enters through an injected **`RandomSource`** por
   - **Walkover (w.o.)** — opponent didn't appear; winner advances, no score.
   - **Retirement** (de: Aufgabe) — a player retires mid-match; partial score may be recorded.
     Every advancement — byes included — is represented as a match result, so the bracket stays uniform.
+- **Advancement** — how a result propagates through the bracket. Resolving a match writes its
+  `winnerRegId` and sends the winner into the **parent** match's open slot (fixed by the child's position
+  parity) — that is how "winner M3 vs winner M4" fills in. Semifinals also route their **loser** down a
+  **loser-feeder** into the Third-place match. **Correcting** a result distinguishes two cases: editing
+  the **score** while the winner is unchanged just rewrites the score (nothing downstream depends on it);
+  editing the **winner** re-fills the parent slot, and if a downstream match already consumed the old
+  winner it **warns and cascade-clears** those dependent results recursively — the correction is never
+  blocked, but the bracket is never left holding a player who lost. _(See ADR-0026.)_
 - **Schedule** (de: Spielplan) — the assignment of matches to a court (de: Platz) and a **planned start**
   (day + approximate time) after the draw, the way nuTurnier does it. Planned times are
   explicitly approximate ("ca."), not guarantees. The operator places matches by hand on a courts×time
-  grid; the system validates rather than auto-generates — it forbids scheduling a match before its
-  feeders finish, forbids more matches per slot than the 6 courts, caps each player at **2 matches per
-  day** (so a deep run, or a main-bracket exit plus the consolation bracket, necessarily spreads across
-  both event days — the consolation bracket is not a Saturday-only affair), and warns on back-to-back
-  matches for one player. _(See ADR-0005.)_
+  grid of **fixed 90-minute slots**; the system validates rather than auto-generates, on the principle
+  **block the impossible, warn the unwise**: it _forbids_ (hard) scheduling a match before its feeders
+  finish and more matches per slot than the 6 courts — the only physically impossible states — and
+  _warns_ (soft, operator may override) on a player's load: more than **2 matches per day** (so a deep
+  run, or a main-bracket exit plus the consolation bracket, tends to spread across both event days — the
+  consolation bracket is not a Saturday-only affair) and back-to-back matches with no rest gap.
+  _(See ADR-0005, ADR-0033.)_
 - **Court** (de: Platz) — one of 6 sand courts. Capacity constraint for the schedule: at most 6 matches
   run in the same time slot.
-- **Match status** (de: Match-Status) — `geplant` → `läuft` (on a named court) → `beendet` (UI labels;
-  planned → running → done). The operator updates it; the public live view reflects it in
-  near-real-time so off-site followers can track what is on court now.
+- **Match status** (de: Match-Status; stored/wire values English `planned` → `running` → `done`, UI
+  labels „geplant" → „läuft" → „beendet" per ADR-0028). The transition to `running` captures the
+  **actual court** the match is on — which may differ from its planned court (a court frees up early), so
+  the planned court/slot stay as the published plan while the live court reflects reality. The operator
+  updates the status; the public live view reflects it in near-real-time so off-site followers can track
+  what is on court now. The status transition is itself the **live signal**: set scores may be saved
+  opportunistically per completed set, but there is **no game- or point-level live scoring** — the single
+  desk has no courtside data source. _(See ADR-0032.)_
 - **Live board** (de: Live-Board) — the public weekend view: a schedule (who plays when/where) and a
-  live board (what is on court right now), both derived from the same match records. Published planned
-  times are static ("ca."); drift is communicated through Match status, not by continuously
-  rescheduling.
+  live board (what is on court right now), both derived from the same match records. The public always
+  shows the **current truth, never the stale plan**: a match's court is the **actual** live court once it
+  is running (falling back to the planned court only before it starts), so a spectator is never sent to
+  the wrong court. Published planned **times** stay static ("ca."); their drift is communicated through
+  Match status (läuft/beendet), not by continuously rescheduling — but the **court** always reflects
+  reality. It is **one event-wide page** across all competitions (a competition filter, not per-field
+  pages), led by a „jetzt auf dem Platz" courts board; the per-competition brackets stay separate
+  surfaces that fill with the same results. _(See ADR-0008, ADR-0032.)_
 
 ## System
 
