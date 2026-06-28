@@ -3,6 +3,7 @@ import { beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { scheduleResponseSchema, type ScheduleResponse } from '../shared'
 import { app } from '../worker/app'
 import { createDrawService } from '../worker/draw'
+import { createProjections } from '../worker/projections'
 import { createInMemoryDrawStore } from '../worker/store/draw'
 import { createInMemoryRegistrationsStore } from '../worker/store/registrations.memory'
 import type { RegistrationRow } from '../worker/db/schema'
@@ -33,7 +34,7 @@ const confirmed = (id: number, overrides: Partial<RegistrationRow> = {}): Regist
 const field = (n: number) => Array.from({ length: n }, (_, i) => confirmed(i + 1))
 
 // ── Service over the in-memory stores ────────────────────────────────────────────────────────────
-describe('createDrawService.schedule', () => {
+describe('projections.schedule', () => {
   // A drawn 4-field (two semifinals + final) over the in-memory stores, plus the store so the test can
   // place matches directly. The full unseeded fill of a 4-draw is one lot step. By default the reveal is
   // played to the end (`cursor >= total`) so the schedule feed will emit the field at all (ADR-0036) —
@@ -48,20 +49,22 @@ describe('createDrawService.schedule', () => {
       let r = await service.advance('mens', 'forward')
       while (r.ok && r.cursor < r.total) r = await service.advance('mens', 'forward')
     }
-    return { service, drawStore, registrationsStore }
+    // The read seam under test: built over the same stores, independent of the draw service (#5).
+    const projections = createProjections({ drawStore, registrationsStore })
+    return { service, projections, drawStore, registrationsStore }
   }
 
   it('is empty until a match is placed', async () => {
-    const { service } = await drawn()
-    expect(await service.schedule()).toEqual([])
+    const { projections } = await drawn()
+    expect(await projections.schedule()).toEqual([])
   })
 
   it('emits a placed semifinal with both players joined by name', async () => {
-    const { service, drawStore } = await drawn()
+    const { projections, drawStore } = await drawn()
     const semi = (await drawStore.listMatches()).find(m => m.round === 1)!
     await drawStore.placeMatch(semi.id, { court: 2, day: 0, slot: 1 })
 
-    const schedule = await service.schedule()
+    const schedule = await projections.schedule()
     expect(schedule).toHaveLength(1)
     expect(schedule[0]).toMatchObject({
       court: 2,
@@ -74,11 +77,11 @@ describe('createDrawService.schedule', () => {
   })
 
   it('shows a placed final as feeders until its semifinals are decided', async () => {
-    const { service, drawStore } = await drawn()
+    const { projections, drawStore } = await drawn()
     const final = (await drawStore.listMatches()).find(m => m.round === 2)!
     await drawStore.placeMatch(final.id, { court: 1, day: 1, slot: 0 })
 
-    const [row] = await service.schedule()
+    const [row] = await projections.schedule()
     // The final (M3) is fed by the two semifinals (M1, M2) — both undecided, so both slots are feeders.
     expect(row.slot1).toEqual({ kind: 'feeder', matchNumber: 1 })
     expect(row.slot2).toEqual({ kind: 'feeder', matchNumber: 2 })
@@ -98,13 +101,9 @@ describe('createDrawService.schedule', () => {
       ...drawStore,
       listMatches: async () => (await drawStore.listMatches()).filter(m => m.id !== semi1.id)
     }
-    const service = createDrawService({
-      registrationsStore,
-      drawStore: holed,
-      randomSource: createFakeRandomSource([0])
-    })
+    const projections = createProjections({ registrationsStore, drawStore: holed })
 
-    const matchesOut = await service.schedule()
+    const matchesOut = await projections.schedule()
     expect(matchesOut.find(m => m.id === final.id)!.slot1).toEqual({ kind: 'unknown' })
     // The strict wire contract still accepts the whole feed — the 500 is gone.
     expect(() => scheduleResponseSchema.parse({ matches: matchesOut })).not.toThrow()
@@ -126,13 +125,9 @@ describe('createDrawService.schedule', () => {
         return players
       }
     }
-    const service = createDrawService({
-      registrationsStore: holed,
-      drawStore,
-      randomSource: createFakeRandomSource([0])
-    })
+    const projections = createProjections({ registrationsStore: holed, drawStore })
 
-    const [row] = await service.schedule()
+    const [row] = await projections.schedule()
     expect(row.slot1).toEqual({ kind: 'unknown' })
     expect(row.slot2).toMatchObject({ kind: 'player' }) // the surviving player still resolves
   })
@@ -141,23 +136,23 @@ describe('createDrawService.schedule', () => {
   // the on-stage reveal, the same suspense invariant publicDraws() enforces by slicing to the cursor.
   describe('honors the reveal cursor (ADR-0036)', () => {
     it('hides a placed main match while its draw is mid-reveal (cursor < total)', async () => {
-      const { service, drawStore } = await drawn({ reveal: false })
+      const { projections, drawStore } = await drawn({ reveal: false })
       const semi = (await drawStore.listMatches()).find(m => m.round === 1)!
       await drawStore.placeMatch(semi.id, { court: 2, day: 0, slot: 1 })
 
       // Placed on the grid, but the draw show has not finished — the pairing stays server-side.
-      expect(await service.schedule()).toEqual([])
+      expect(await projections.schedule()).toEqual([])
     })
 
     it('hides a placed main match after its reveal is rewound below total', async () => {
-      const { service, drawStore } = await drawn() // fully revealed
+      const { service, projections, drawStore } = await drawn() // fully revealed
       const semi = (await drawStore.listMatches()).find(m => m.round === 1)!
       await drawStore.placeMatch(semi.id, { court: 2, day: 0, slot: 1 })
-      expect(await service.schedule()).toHaveLength(1) // shown while fully revealed
+      expect(await projections.schedule()).toHaveLength(1) // shown while fully revealed
 
       // The operator rewinds one lot — the bracket drops below `total` and its placed matches vanish again.
       await service.advance('mens', 'back')
-      expect(await service.schedule()).toEqual([])
+      expect(await projections.schedule()).toEqual([])
     })
 
     it('never gates the consolation bracket — it has no reveal show (ADR-0004)', async () => {
@@ -167,14 +162,10 @@ describe('createDrawService.schedule', () => {
       const placedMain = { ...semi, court: 2, day: 0, slot: 1 }
       const conso = { ...semi, id: 999, bracket: 'consolation' as const, court: 1, day: 0, slot: 0 }
       const holed = { ...drawStore, listMatches: async () => [placedMain, conso] }
-      const service = createDrawService({
-        registrationsStore,
-        drawStore: holed,
-        randomSource: createFakeRandomSource([0])
-      })
+      const projections = createProjections({ registrationsStore, drawStore: holed })
 
       // The unrevealed main match is withheld; the consolation match — born public — is served.
-      expect((await service.schedule()).map(m => m.id)).toEqual([999])
+      expect((await projections.schedule()).map(m => m.id)).toEqual([999])
     })
   })
 })
