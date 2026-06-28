@@ -2,6 +2,7 @@ import { createCryptoRandomSource, type RandomSource } from '../shared'
 import type { Env } from './app'
 import { createRegistrationDomain, type RegistrationDomain } from './domain/registration'
 import { createDrawService } from './draw'
+import { createProjections } from './projections'
 import { createResetService } from './reset'
 import { createNuligaRosterSource, createSeedingLk, type RosterSource, type SeedingLk } from './seeding-lk'
 import { createD1AppStateStore, type AppStateStore } from './store/app-state'
@@ -27,6 +28,7 @@ export interface Deps {
   appState: AppStateStore
   registrationDomain: RegistrationDomain
   drawService: ReturnType<typeof createDrawService>
+  projections: ReturnType<typeof createProjections>
   resetService: ReturnType<typeof createResetService>
   seedingLk: SeedingLk
 }
@@ -49,6 +51,7 @@ export const createDeps = (adapters: DepsAdapters): Deps => {
     appState: appStateStore,
     registrationDomain: createRegistrationDomain(registrationsStore),
     drawService: createDrawService({ registrationsStore, drawStore, randomSource }),
+    projections: createProjections({ drawStore, registrationsStore }),
     resetService: createResetService({ drawStore, registrationsStore, appStateStore }),
     seedingLk: createSeedingLk({ rosterSource, store: registrationsStore })
   }

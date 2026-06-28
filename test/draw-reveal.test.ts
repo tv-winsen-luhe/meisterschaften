@@ -2,6 +2,7 @@ import { applyD1Migrations, env } from 'cloudflare:test'
 import { beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { app } from '../worker/app'
 import { createDrawService } from '../worker/draw'
+import { createProjections } from '../worker/projections'
 import { createD1DrawStore, createInMemoryDrawStore } from '../worker/store/draw'
 import { createInMemoryRegistrationsStore } from '../worker/store/registrations.memory'
 import type { RegistrationRow } from '../worker/db/schema'
@@ -92,36 +93,38 @@ describe('createDrawService.advance', () => {
   })
 })
 
-describe('createDrawService.publicDraws', () => {
+describe('projections.publicDraws', () => {
   it('is empty until a field is drawn', async () => {
-    const svc = createDrawService({
+    const projections = createProjections({
       registrationsStore: createInMemoryRegistrationsStore(field(8)),
-      drawStore: createInMemoryDrawStore(),
-      randomSource: createFakeRandomSource([])
+      drawStore: createInMemoryDrawStore()
     })
-    expect(await svc.publicDraws()).toEqual([])
+    expect(await projections.publicDraws()).toEqual([])
   })
 
   it('withholds the unrevealed tail — at cursor 0 a drawn field publishes no steps', async () => {
     // The suspense is server-enforced: a drawn-but-unrevealed field exposes its size + total but not a
     // single player, so a spectator polling the endpoint cannot read the outcome ahead of the show.
     const drawStore = createInMemoryDrawStore()
+    const registrationsStore = createInMemoryRegistrationsStore(field(8))
     const svc = createDrawService({
-      registrationsStore: createInMemoryRegistrationsStore(field(8)),
+      registrationsStore,
       drawStore,
       randomSource: createFakeRandomSource([0, 0, 0, 0, 0])
     })
     await svc.draw({ competition: 'mens', phase: 'tournament', now: 'now' })
 
-    const [draw] = await svc.publicDraws()
+    const projections = createProjections({ drawStore, registrationsStore })
+    const [draw] = await projections.publicDraws()
     expect(draw).toMatchObject({ competition: 'mens', size: 8, cursor: 0, total: 8 })
     expect(draw.steps).toEqual([])
   })
 
   it('exposes only the revealed prefix, with players joined by name + LK', async () => {
     const drawStore = createInMemoryDrawStore()
+    const registrationsStore = createInMemoryRegistrationsStore(field(8))
     const svc = createDrawService({
-      registrationsStore: createInMemoryRegistrationsStore(field(8)),
+      registrationsStore,
       drawStore,
       randomSource: createFakeRandomSource([0, 0, 0, 0, 0])
     })
@@ -129,7 +132,8 @@ describe('createDrawService.publicDraws', () => {
     await svc.advance('mens', 'forward')
     await svc.advance('mens', 'forward')
 
-    const [draw] = await svc.publicDraws()
+    const projections = createProjections({ drawStore, registrationsStore })
+    const [draw] = await projections.publicDraws()
     // Two lots revealed of eight: only those two steps are shipped, total still reports the full length.
     expect(draw).toMatchObject({ competition: 'mens', size: 8, cursor: 2, total: 8 })
     expect(draw.steps).toHaveLength(2)
