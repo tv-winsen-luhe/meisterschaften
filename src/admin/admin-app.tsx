@@ -3,6 +3,8 @@ import { hc } from 'hono/client'
 import { toast } from 'sonner'
 import type { AppType } from '../../worker/app'
 import { type AdminRegistration, type CompetitionDraw, type CompetitionSlug, type Phase } from '../../shared'
+import { errorMessage, isAuthRedirect } from './lib/api'
+import { useReveal } from './use-reveal'
 import { Button } from '@/admin/ui/button'
 import { Separator } from '@/admin/ui/separator'
 import { Toaster } from '@/admin/ui/sonner'
@@ -10,28 +12,12 @@ import { SidebarInset, SidebarProvider, SidebarTrigger } from '@/admin/ui/sideba
 import { AppSidebar, type Surface } from './app-sidebar'
 import { PHASE_LABELS, PhaseStepper } from './phase-stepper'
 import { CompetitionsSurface } from './surfaces/competitions-surface'
+import { DrawShow } from './draw-show'
 import { DebugSurface } from './surfaces/debug-surface'
 import { OverviewSurface } from './surfaces/overview-surface'
 import { type CompetitionFilter, RegistrationsSurface, type StatusFilter } from './surfaces/registrations-surface'
 import { SeedingSurface } from './surfaces/seeding-surface'
 import { type ConfirmPayload } from './surfaces/registration-detail'
-
-// Auth is edge-only (Cloudflare Access, ADR-0008). An expired Access session answers
-// `/api/admin/*` with a 302 to the cross-origin login; `redirect: 'manual'` (see client) turns
-// that into an opaque-redirect response (status 0) — that, or a bare 401, signals a full page
-// reload so the browser re-runs the Access flow. Typed as the global Response (not the hc
-// ClientResponse) so `status` widens from hc's literal union to number and `=== 401` type-checks.
-const isAuthRedirect = (res: Response) => res.type === 'opaqueredirect' || res.status === 401
-
-// Pull the { error } message out of any non-OK admin response.
-const errorMessage = async (res: Response): Promise<string> => {
-  try {
-    const data = (await res.json()) as { error?: string }
-    return data?.error ?? `Fehler ${res.status}`
-  } catch {
-    return `Fehler ${res.status}`
-  }
-}
 
 // The admin SPA: a `client:only` React island on the Hono typed `hc` client, built on shadcn/ui
 // primitives in the neutral default look (ADR-0016). It is a navigable shell (ADR-0019): the
@@ -52,6 +38,9 @@ export const AdminApp = () => {
   // The competition a draw is currently running for, so its card shows a pending button (and a second
   // click can't fire). Cleared when the action resolves.
   const [drawingCompetition, setDrawingCompetition] = useState<CompetitionSlug | null>(null)
+  // The competition whose large-screen draw show is running (issue #71), or null for the normal admin.
+  // When set, the shell hands the whole screen to the beamer projection instead of the sidebar layout.
+  const [showCompetition, setShowCompetition] = useState<CompetitionSlug | null>(null)
   // The registrations filter/search live here, not in the surface, so they survive the operator
   // switching to another surface and back (the surface unmounts; the shell does not).
   const [filter, setFilter] = useState<StatusFilter>('all')
@@ -71,6 +60,10 @@ export const AdminApp = () => {
       }),
     []
   )
+
+  // The draw show's two server seams (read one competition's reveal, advance its cursor), kept out of the
+  // shell (issue #71). Pure playback (ADR-0003): the read is already cursor-sliced server-side.
+  const { loadReveal, advanceReveal } = useReveal(client)
 
   const load = useCallback(async () => {
     try {
@@ -200,12 +193,17 @@ export const AdminApp = () => {
 
   // Start the draw for one competition (ADR-0025). Goes through mutate, so it shares the
   // 401-regate/error/toast behaviour and the success reload re-fetches the drawn brackets. The
-  // pending flag drives the card's button state and guards against a double-fire.
+  // pending flag drives the card's button state and guards against a double-fire. On success the
+  // large-screen show opens straight away (at cursor 0, ready for the first lot) — the live flow is
+  // „auslosen, dann enthüllen", so the operator goes from the button to the beamer in one click rather
+  // than drawing and then hunting for „Großbild-Show" (that button stays for re-opening a drawn field).
   const drawCompetition = useCallback(
     async (competition: CompetitionSlug): Promise<boolean> => {
       setDrawingCompetition(competition)
       try {
-        return await mutate(() => client.api.admin.draw.$post({ json: { competition } }), 'Konkurrenz ausgelost.')
+        const ok = await mutate(() => client.api.admin.draw.$post({ json: { competition } }), 'Konkurrenz ausgelost.')
+        if (ok) setShowCompetition(competition)
+        return ok
       } finally {
         setDrawingCompetition(null)
       }
@@ -283,6 +281,27 @@ export const AdminApp = () => {
     )
   }
 
+  // The large-screen draw show takes over the whole viewport (issue #71): a beamer projection has no
+  // place for the sidebar/stepper chrome, so it renders instead of the admin shell. Exiting re-reads the
+  // list so the competitions surface reflects the cursor the operator advanced to. The Toaster rides
+  // along so an advance error still surfaces over the show.
+  if (showCompetition) {
+    return (
+      <>
+        <DrawShow
+          competition={showCompetition}
+          onLoad={loadReveal}
+          onAdvance={advanceReveal}
+          onExit={() => {
+            setShowCompetition(null)
+            void load()
+          }}
+        />
+        <Toaster position="bottom-center" />
+      </>
+    )
+  }
+
   // The "new" queue size drives the sidebar badge (ADR-0023) — the ambient signal that replaced the
   // overview's old call-to-action block.
   const newCount = registrations.filter(r => r.status === 'new').length
@@ -328,6 +347,7 @@ export const AdminApp = () => {
             phase={phase}
             onDraw={drawCompetition}
             drawingCompetition={drawingCompetition}
+            onStartShow={setShowCompetition}
           />
         ) : surface === 'debug' && resetEnabled ? (
           <DebugSurface draws={draws} onUndraw={undraw} onReadmit={readmit} onBackToSignup={backToSignup} />

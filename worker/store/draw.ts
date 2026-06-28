@@ -132,6 +132,10 @@ const toCompetitionDraw = (draw: DrawRow, matchRows: MatchRow[]): CompetitionDra
   competition: draw.competition as CompetitionSlug,
   bracket: draw.bracket as Bracket,
   size: draw.size,
+  // The reveal progress the surface gates the bracket on (cursor === total ⇒ fully revealed). The cursor
+  // is carried straight through; the total is the reveal sequence length (one step per first-round line).
+  cursor: draw.revealCursor,
+  total: (JSON.parse(draw.revealSequence) as RevealStep[]).length,
   seeding: seedingArraySchema.parse(JSON.parse(draw.seeding)),
   matches: matchRows.map(toMatch)
 })

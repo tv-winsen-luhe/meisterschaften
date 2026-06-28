@@ -35,7 +35,10 @@ concept here drifts or a new one appears, update this file rather than inventing
   bracket exists) → running → done_, plus a transient "reveal in progress" while its draw reveal show
   cursor is advancing. This is the per-bracket "already drawn?" state; it lives in the admin
   **„Konkurrenzen" section**, where the operator triggers **„Jetzt auslosen"** (draw now) per field.
-  That action is a per-competition action, never a phase transition. _(See ADR-0027, ADR-0025.)_
+  That action is a per-competition action, never a phase transition. While a field's reveal is in
+  progress the admin **withholds its bracket** (showing „Auslosung läuft" + the _x/y enthüllt_ progress);
+  the bracket appears only once the draw reveal show has fully revealed it — so projecting the admin can
+  never spoil the draw, consistent with the unriggable-draw stance. _(See ADR-0027, ADR-0025, ADR-0002.)_
 - **Seeding freeze** (de: Setzungs-Freeze) — before the draw, LKs keep updating and the **provisional
   seeding list** (de: provisorische Setzliste; the seeding preview) reflects them live. At the draw it
   snapshots each player's current LK into its immutable draw record (ADR-0003) — that snapshot _is_ the
@@ -143,10 +146,16 @@ concept here drifts or a new one appears, update this file rather than inventing
   bye) onto one position and carries a `kind` — `seed-fixed` | `seed-lot` | `bye` | `draw`. The
   same sequence, fully applied, _is_ the bracket (the source of the `matches` slots); the show is pure
   playback over it. _(See ADR-0003, ADR-0025.)_
-- **Draw reveal show** (de: Auslosungs-Show) — the public presentation mode that plays the reveal
-  sequence back on a large screen (TV/beamer) during the live draw event. The draw is precomputed
-  atomically; the show is pure playback advancing a **reveal cursor** (an index into the reveal sequence
-  — how many steps have been shown). _(See ADR-0003.)_
+- **Draw reveal show** (de: Auslosungs-Show; operator UI label: „Auslosung") — the **operator-paced**
+  beamer projection in the **gated admin** that plays the reveal sequence back on a large screen during
+  the live draw event. It is **not** a public self-serve URL: the operator drives it (projecting onto
+  the hall screen) and it opens straight from **„Jetzt auslosen"**. The draw is precomputed atomically;
+  the show is pure playback advancing a **reveal cursor** (an index into the reveal sequence — how many
+  steps have been shown), and it moves **forward only** — a revealed lot is already public, so there is
+  no stepping back (the public live bracket mirrors the cursor; a back-step would un-reveal a lot there
+  too). Once it has fully revealed (cursor === total) it is done, not a replayable show. The off-site
+  audience follows a separate **public live bracket** (`tournament-draw.astro`) that mirrors the same
+  revealed prefix by polling (~1–2s). _(See ADR-0003, ADR-0025, ADR-0031; issue #71.)_
 - **Main bracket** (de: Hauptrunde; bracket value `main`) — the main KO bracket; the title is decided
   here. The German name is the concept; the stored/wire `bracket` discriminator value is the English
   `main` (CLAUDE.md — German terms never become stored values). _(See ADR-0025.)_
@@ -235,5 +244,5 @@ reveal sequence }`. Randomness enters through an injected **`RandomSource`** por
   component opts into a small inline `<script>` that fetches `/api/…` client-side (as
   `participant-list.astro` and `tournament-draw.astro` already do). The live bracket, schedule, and
   live board follow this same pattern — no SSR of dynamic pages, no rebuild-to-publish. Updates arrive
-  by **polling** on a timer (live board ~10–20s; draw reveal show ~1–2s while running) — no SSE,
-  WebSockets, or Durable Objects. _(See ADR-0008.)_
+  by **polling** on a timer (live board ~10–20s; the public live bracket ~1–2s while a draw reveals) — no
+  SSE, WebSockets, or Durable Objects. _(See ADR-0008.)_

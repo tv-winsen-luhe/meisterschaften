@@ -1,5 +1,5 @@
 import { useMemo } from 'react'
-import { Shuffle } from 'lucide-react'
+import { MonitorPlay, Shuffle } from 'lucide-react'
 import {
   type AdminRegistration,
   byeCount,
@@ -14,6 +14,7 @@ import {
   type Phase
 } from '../../../shared'
 import { cn } from '@/admin/lib/utils'
+import { roundLabel } from '@/admin/lib/bracket'
 import { Badge } from '@/admin/ui/badge'
 import { Button } from '@/admin/ui/button'
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/admin/ui/empty'
@@ -27,18 +28,24 @@ interface CompetitionsSurfaceProps {
   onDraw: (competition: CompetitionSlug) => Promise<boolean>
   // True while a draw request is in flight, so the triggered card shows a pending button.
   drawingCompetition: CompetitionSlug | null
+  // Enter the full-screen Auslosung for a competition (issue #71): „Jetzt auslosen" starts it, and this
+  // re-enters one still running („Auslosung fortsetzen"); the shell takes over the screen for the beamer.
+  onStartShow: (competition: CompetitionSlug) => void
 }
 
-// The competitions surface (ADR-0027): one card per competition with its draw lifecycle — *not
-// drawn* → *drawn* — and the „Jetzt auslosen" action, active once registration is closed
-// (`tournament`) and the field is a full, un-drawn bracket (ADR-0025). A drawn field shows its
-// bracket. Names are joined from the admin list the shell already holds; the draw carries only ids.
+// The competitions surface (ADR-0027): one card per competition with its lifecycle — *nicht ausgelost* →
+// *Auslosung läuft* (the reveal running, cursor < total) → *ausgelost* (cursor === total). „Jetzt
+// auslosen" starts the Auslosung (active once registration is closed — `tournament` — and the field is a
+// full, un-drawn bracket, ADR-0025) and jumps straight into the full-screen reveal; while it runs the
+// bracket is withheld (no spoiler) and „Auslosung fortsetzen" re-enters it; only when it finishes does the
+// bracket show — and it can no longer be re-opened. Names are joined from the admin list the shell holds.
 export const CompetitionsSurface = ({
   registrations,
   draws,
   phase,
   onDraw,
-  drawingCompetition
+  drawingCompetition,
+  onStartShow
 }: CompetitionsSurfaceProps) => {
   // Resolve a registration id to a short label once, for the bracket slots and the seeding column.
   const nameById = useMemo(() => {
@@ -98,12 +105,14 @@ export const CompetitionsSurface = ({
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div className="flex items-center gap-3">
                 <span className="font-semibold">{row.label}</span>
-                {row.draw ? (
-                  <Badge className="border-emerald-300 bg-emerald-50 text-emerald-900">Ausgelost</Badge>
-                ) : (
+                {!row.draw ? (
                   <Badge variant="outline" className="text-muted-foreground">
                     Nicht ausgelost
                   </Badge>
+                ) : row.draw.cursor < row.draw.total ? (
+                  <Badge className="border-amber-300 bg-amber-50 text-amber-900">Auslosung läuft</Badge>
+                ) : (
+                  <Badge className="border-emerald-300 bg-emerald-50 text-emerald-900">Ausgelost</Badge>
                 )}
               </div>
               <div className="flex items-center gap-3">
@@ -116,18 +125,35 @@ export const CompetitionsSurface = ({
                       {row.byes > 0 && ` · ${row.byes} FL`}
                     </>
                   )}
+                  {row.draw && row.draw.cursor < row.draw.total && ` · ${row.draw.cursor}/${row.draw.total} enthüllt`}
                 </span>
-                {!row.draw && (
+                {!row.draw ? (
                   <DrawAction
                     blocker={row.blocker}
                     pending={drawingCompetition === row.slug}
                     onDraw={() => onDraw(row.slug)}
                   />
-                )}
+                ) : row.draw.cursor < row.draw.total ? (
+                  // Still running: re-enter the reveal where it stood. Gone once it is complete (cursor ===
+                  // total) — the Auslosung is a one-time act, not a replayable show.
+                  <Button size="sm" variant="outline" onClick={() => onStartShow(row.slug)}>
+                    <MonitorPlay className="size-4" />
+                    Auslosung fortsetzen
+                  </Button>
+                ) : null}
               </div>
             </div>
 
-            {row.draw && <Bracket draw={row.draw} nameById={nameById} />}
+            {/* The Auslosung *is* the reveal: the bracket appears only once it has finished (cursor ===
+                total), so projecting the admin while it runs can't spoil it. While it runs, just say so. */}
+            {row.draw &&
+              (row.draw.cursor >= row.draw.total ? (
+                <Bracket draw={row.draw} nameById={nameById} />
+              ) : (
+                <p className="text-muted-foreground text-sm">
+                  Das Tableau erscheint, sobald die Auslosung abgeschlossen ist.
+                </p>
+              ))}
           </section>
         ))}
       </div>
@@ -154,12 +180,6 @@ const DrawAction = ({ blocker, pending, onDraw }: DrawActionProps) => (
     {pending ? 'Lost aus …' : 'Jetzt auslosen'}
   </Button>
 )
-
-// Round labels from the back: the last round is the Finale, then Halbfinale, Viertelfinale,
-// Achtelfinale. Covers our 8- and 16-draws; a deeper field falls back to "Runde N".
-const ROUND_LABELS_FROM_END = ['Finale', 'Halbfinale', 'Viertelfinale', 'Achtelfinale']
-const roundLabel = (round: number, totalRounds: number): string =>
-  ROUND_LABELS_FROM_END[totalRounds - round] ?? `Runde ${round}`
 
 interface BracketProps {
   draw: CompetitionDraw
