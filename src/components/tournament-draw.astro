@@ -417,7 +417,14 @@ const drawCompetitions = competitions
 
   // Render one round column (label + matches). `slotFor(line)` yields each round-1 line's element;
   // later rounds are implicit feeders, all „?". Shared shell for the preview and the reveal.
-  const renderBracket = (bracket: HTMLElement, size: number, slotFor: (line: number) => HTMLElement) => {
+  // `cellFor(roundIndex, slotIndex)` yields the element for one slot — round 0's slots are the first-round
+  // lines (0..size-1), round r's slots its 2·matchCount feeders. The shared column shell for preview and
+  // reveal; both decide per slot what to show.
+  const renderBracket = (
+    bracket: HTMLElement,
+    size: number,
+    cellFor: (roundIndex: number, slotIndex: number) => HTMLElement
+  ) => {
     const rounds = ROUNDS[size]
     if (!rounds) return
     bracket.innerHTML = ''
@@ -440,13 +447,8 @@ const drawCompetitions = competitions
       for (let m = 0; m < matchCount; m++) {
         const match = document.createElement('div')
         match.className = 'dm-match'
-        if (r === 0) {
-          match.appendChild(slotFor(2 * m))
-          match.appendChild(slotFor(2 * m + 1))
-        } else {
-          match.appendChild(tbdEl())
-          match.appendChild(tbdEl())
-        }
+        match.appendChild(cellFor(r, 2 * m))
+        match.appendChild(cellFor(r, 2 * m + 1))
         matches.appendChild(match)
       }
       col.appendChild(matches)
@@ -464,15 +466,35 @@ const drawCompetitions = competitions
       const pos = seedPos[i + 1]
       if (pos !== undefined) slots[pos] = { seed: i + 1, player }
     })
-    renderBracket(bracket, capacity, line => slotEl(slots[line]))
+    renderBracket(bracket, capacity, (r, i) => (r === 0 ? slotEl(slots[i]) : tbdEl()))
   }
 
   // The live reveal: the server sends only the steps revealed so far (sliced to the cursor), each placing
-  // a player onto its first-round line. Every received step is shown; lines with no step yet stay „?".
+  // a player onto its first-round line. A revealed round-1 bye is a resolved match (§31): the paired
+  // player advances „ohne Spiel", so once both its lines are revealed it already shows in round 2 — the
+  // one round a bye carries a player forward (ADR-0025; deeper rounds stay „?" until matches are played).
   const buildReveal = (bracket: HTMLElement, draw: PublicDraw) => {
     const lines: (PublicRevealStep | undefined)[] = new Array(draw.size)
     for (const step of draw.steps) lines[step.position] = step
-    renderBracket(bracket, draw.size, line => revealSlotEl(lines[line]))
+
+    // Per round-1 match, the player who advanced via a (fully revealed) bye, else null. A match with two
+    // players is contested, a match with an unrevealed line is unknown — both stay „?" in round 2.
+    const byeWinners: ({ player: PlayerDisplay; seed: number | null } | null)[] = []
+    for (let m = 0; m < draw.size / 2; m++) {
+      const a = lines[2 * m]
+      const b = lines[2 * m + 1]
+      // Exactly one line a bye (both revealed) ⇒ the other line's player advanced; the bye line itself
+      // carries no player (a seed-bye's player sits on its paired line, a lot-bye's neighbour is drawn).
+      const oneBye = a && b && (a.kind === 'bye') !== (b.kind === 'bye')
+      const advanced = oneBye ? (a.kind === 'bye' ? b : a) : null
+      byeWinners[m] = advanced?.player ? { player: advanced.player, seed: advanced.seed } : null
+    }
+
+    renderBracket(bracket, draw.size, (r, i) => {
+      if (r === 0) return revealSlotEl(lines[i])
+      const winner = r === 1 ? byeWinners[i] : null
+      return winner ? playerEl(winner.player, winner.seed) : tbdEl()
+    })
   }
 
   // Latest of each feed; the panels re-render from both whenever either arrives (a competition switches

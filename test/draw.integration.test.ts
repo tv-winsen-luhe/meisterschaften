@@ -260,15 +260,6 @@ const setPhase = (phase: string) =>
 const draw = (competition: string) =>
   req('/api/admin/draw', { method: 'POST', headers: JSON_HEADERS, body: JSON.stringify({ competition }) })
 
-// Reveal one lot — the re-run guard test needs the cursor off 0 to prove a started reveal freezes the
-// draw. The advance endpoint itself is exercised in draw-reveal.test.ts.
-const advance = (competition: string, direction: 'forward' | 'back') =>
-  req('/api/admin/draw/advance', {
-    method: 'POST',
-    headers: JSON_HEADERS,
-    body: JSON.stringify({ competition, direction })
-  })
-
 describe('POST /api/admin/draw + GET /api/admin/draws', () => {
   beforeAll(async () => {
     await applyD1Migrations(env.DB, env.TEST_MIGRATIONS)
@@ -304,20 +295,6 @@ describe('POST /api/admin/draw + GET /api/admin/draws', () => {
     const list = await req('/api/admin/draws', { headers: JSON_HEADERS })
     const listed = (await list.json()) as { draws: CompetitionDraw[] }
     expect(listed.draws).toEqual([expect.objectContaining({ competition: 'mens', size: 8 })])
-  })
-
-  it('replaces an unrevealed draw on re-run, but returns 409 once the reveal has started', async () => {
-    for (let i = 1; i <= 8; i++) await seedConfirmed(i)
-    await setPhase('tournament')
-    expect((await draw('mens')).status).toBe(200)
-    // Cursor still 0 (unrevealed): the re-run replaces, not a conflict (ADR-0026).
-    expect((await draw('mens')).status).toBe(200)
-    const count = await env.DB.prepare('SELECT COUNT(*) AS c FROM draws').first<{ c: number }>()
-    expect(count?.c).toBe(1)
-
-    // Reveal the first lot, then a re-run is frozen out with 409.
-    expect((await advance('mens', 'forward')).status).toBe(200)
-    expect((await draw('mens')).status).toBe(409)
   })
 
   it('draws a non-full field, persisting the byes as resolved matches', async () => {

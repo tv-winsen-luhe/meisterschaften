@@ -184,6 +184,20 @@ describe('POST /api/admin/draw/advance + GET /api/draw', () => {
     await env.DB.exec('DELETE FROM app_state')
   })
 
+  it('re-run replaces an unrevealed draw, but is frozen out (409) once the reveal has started (ADR-0026)', async () => {
+    for (let i = 1; i <= 8; i++) await seedConfirmed(i)
+    await setPhase('tournament')
+    expect((await draw('mens')).status).toBe(200)
+    // Cursor still 0 (unrevealed): the re-run replaces, not a conflict.
+    expect((await draw('mens')).status).toBe(200)
+    const count = await env.DB.prepare('SELECT COUNT(*) AS c FROM draws').first<{ c: number }>()
+    expect(count?.c).toBe(1)
+
+    // Reveal the first lot, then a re-run is frozen out with 409.
+    expect((await advance('mens', 'forward')).status).toBe(200)
+    expect((await draw('mens')).status).toBe(409)
+  })
+
   it('advances + rewinds the reveal cursor (pure playback), 404 before the draw exists', async () => {
     for (let i = 1; i <= 8; i++) await seedConfirmed(i)
     await setPhase('tournament')
