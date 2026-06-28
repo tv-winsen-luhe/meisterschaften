@@ -155,7 +155,7 @@ concept here drifts or a new one appears, update this file rather than inventing
   no stepping back (the public live bracket mirrors the cursor; a back-step would un-reveal a lot there
   too). Once it has fully revealed (cursor === total) it is done, not a replayable show. The off-site
   audience follows a separate **public live bracket** (`tournament-draw.astro`) that mirrors the same
-  revealed prefix by polling (~1–2s). _(See ADR-0003, ADR-0025; issue #71.)_
+  revealed prefix by polling (~1–2s). _(See ADR-0003, ADR-0025, ADR-0031; issue #71.)_
 - **Main bracket** (de: Hauptrunde; bracket value `main`) — the main KO bracket; the title is decided
   here. The German name is the concept; the stored/wire `bracket` discriminator value is the English
   `main` (CLAUDE.md — German terms never become stored values). _(See ADR-0025.)_
