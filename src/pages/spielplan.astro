@@ -161,8 +161,9 @@ import Layout from '@/layouts/default.astro'
   const root = document.querySelector<HTMLElement>('[data-schedule]')
   const daysEl = root?.querySelector<HTMLElement>('[data-days]')
 
-  // One slot's display text: a player's name, a „Freilos" bye line, or a „Sieger M{n}" feeder. A
-  // not-yet-decided slot (bye/feeder) is rendered muted.
+  // One slot's display text: a player's name, a „Freilos" bye line, a „Sieger M{n}" feeder, or an
+  // „offen" line — the graceful degrade when a feeder cannot be resolved (ADR-0035). Every not-yet-decided
+  // slot (bye/feeder/unknown) is rendered muted.
   interface SlotText {
     text: string
     tbd: boolean
@@ -170,7 +171,8 @@ import Layout from '@/layouts/default.astro'
   const slotText = (slot: ScheduleSlot): SlotText => {
     if (slot.kind === 'player') return { text: `${slot.firstName} ${slot.lastName}`.trim(), tbd: false }
     if (slot.kind === 'bye') return { text: 'Freilos', tbd: true }
-    return { text: `Sieger M${slot.matchNumber}`, tbd: true }
+    if (slot.kind === 'feeder') return { text: `Sieger M${slot.matchNumber}`, tbd: true }
+    return { text: 'offen', tbd: true }
   }
 
   const playerLine = (slot: ScheduleSlot): HTMLElement => {

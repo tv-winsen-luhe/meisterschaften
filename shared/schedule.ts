@@ -83,17 +83,25 @@ export const feederPosition = (
   round <= 1 ? null : { round: round - 1, position: position * 2 + (slot === 1 ? 0 : 1) }
 
 // What occupies one slot of a scheduled match, resolved for display: a known player (a drawn entrant,
-// or a bye/result winner already advanced), an empty round-1 bye line („Freilos"), or a not-yet-decided
-// feeder pointing at the match whose winner fills it („Sieger M{matchNumber}"). The single branching
-// rule both the grid and the public feed render from — the consumers only supply the regId→name join.
-export type SlotView = { kind: 'player'; regId: number } | { kind: 'bye' } | { kind: 'feeder'; matchNumber: number }
+// or a bye/result winner already advanced), an empty round-1 bye line („Freilos"), a not-yet-decided
+// feeder pointing at the match whose winner fills it („Sieger M{matchNumber}"), or an `unknown` slot
+// („offen") — the graceful degrade when a feeder cannot be resolved (ADR-0035), never a bogus feeder
+// number. The single branching rule both the grid and the public feed render from — the consumers only
+// supply the regId→name join.
+export type SlotView =
+  | { kind: 'player'; regId: number }
+  | { kind: 'bye' }
+  | { kind: 'feeder'; matchNumber: number }
+  | { kind: 'unknown' }
 
 /**
  * Resolve one slot of a match to its display view. A filled slot reference is a known player
  * (whatever the round — a round-1 entrant, or a winner already advanced into a later round). An empty
  * round-1 slot is a bye line. An empty later-round slot is an undecided feeder; `matchAt` finds the
- * feeding match so `numbers` can label it „Sieger M{n}". A feeder with no resolvable match yields
- * matchNumber 0 (an unreachable inconsistency — the bracket is materialized whole at draw time).
+ * feeding match so `numbers` can label it „Sieger M{n}". A feeder with no resolvable match degrades to
+ * `unknown` („offen", ADR-0035): the bracket is materialized whole at draw time, so this is an
+ * inconsistency (e.g. a row hard-deleted under a frozen draw), and the feed serves it rather than
+ * emitting a bogus number that would 500 the whole response.
  */
 export const viewSlot = (
   match: MatchPosition,
@@ -106,7 +114,8 @@ export const viewSlot = (
   if (match.round <= 1) return { kind: 'bye' }
   const fp = feederPosition(match.round, match.position, slot)
   const feeder = fp ? matchAt(fp.round, fp.position) : undefined
-  return { kind: 'feeder', matchNumber: feeder ? (numbers.get(feeder.id) ?? 0) : 0 }
+  const matchNumber = feeder ? numbers.get(feeder.id) : undefined
+  return matchNumber ? { kind: 'feeder', matchNumber } : { kind: 'unknown' }
 }
 
 // ── Placement validation (ADR-0033: block the impossible, warn the unwise) ────────────────────────

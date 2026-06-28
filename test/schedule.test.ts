@@ -66,6 +66,15 @@ describe('viewSlot', () => {
     // The final's second slot is fed by M2 (round 1, position 1) — still undecided.
     expect(viewSlot(matches[2], 2, numbers, matchAt)).toEqual({ kind: 'feeder', matchNumber: 2 })
   })
+
+  it('degrades an unresolvable feeder to an undecided slot, never a bogus matchNumber 0', () => {
+    // A later-round empty slot whose feeding match is missing (e.g. a row hard-deleted under a frozen
+    // draw) — the bracket should materialize whole, so this is an inconsistency, not a normal state.
+    // It must degrade to `unknown`, not the `matchNumber: 0` that 500s the public feed (ADR-0035).
+    const orphan = m(9, 2, 0, null, null)
+    const missingFeeder = () => undefined
+    expect(viewSlot(orphan, 1, new Map(), missingFeeder)).toEqual({ kind: 'unknown' })
+  })
 })
 
 interface MatchOpts {
