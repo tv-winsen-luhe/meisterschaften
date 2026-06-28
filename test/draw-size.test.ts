@@ -107,6 +107,29 @@ describe('match counts', () => {
     expect(matchCount(8)).toBe(11)
   })
 
+  it('counts consolation correctly for non-full fields (bye-holders who lose R2 enter consolation)', () => {
+    // 9 in 16: R1 losers 1 + min(byes 7, R2 matches 4) = 5 entrants → 4 matches
+    expect(consolationMatches(9)).toBe(4)
+    // 10 in 16: R1 losers 2 + min(byes 6, R2 matches 4) = 6 → 5
+    expect(consolationMatches(10)).toBe(5)
+    // 14 in 16: R1 losers 6 + min(byes 2, R2 matches 4) = 8 → 7
+    expect(consolationMatches(14)).toBe(7)
+    // 16 in 16: R1 losers 8 + min(byes 0, R2 matches 4) = 8 → 7
+    expect(consolationMatches(16)).toBe(7)
+    // 5 in 8: R1 losers 1 + min(byes 3, R2 matches 2) = 3 → 2
+    expect(consolationMatches(5)).toBe(2)
+    // 6 in 8: R1 losers 2 + min(byes 2, R2 matches 2) = 4 → 3
+    expect(consolationMatches(6)).toBe(3)
+    // 7 in 8: R1 losers 3 + min(byes 1, R2 matches 2) = 4 → 3
+    expect(consolationMatches(7)).toBe(3)
+  })
+
+  it('matchCount sums main + consolation correctly for the 9-player Damen scenario', () => {
+    // 9 Damen: main 9 (8 KO + Platz 3) + consolation 4 = 13
+    expect(mainDrawMatches(9)).toBe(9)
+    expect(matchCount(9)).toBe(13)
+  })
+
   it('is 0 below a real draw', () => {
     expect(matchCount(0)).toBe(0)
     expect(matchCount(1)).toBe(0)
