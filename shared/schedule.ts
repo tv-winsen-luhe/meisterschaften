@@ -178,6 +178,7 @@ interface PlacedMatch {
   position: number
   slot1RegId: number | null
   slot2RegId: number | null
+  outcome: string | null
   court: number | null
   day: number | null
   slot: number | null
@@ -218,6 +219,36 @@ export interface PlacementCandidate {
 const absoluteSlot = (day: number, slot: number): number => day * SCHEDULE.slotsPerDay + slot
 
 /**
+ * The earliest absolute slot a match may occupy, given its bracket's feeder structure. Equals the depth
+ * of the longest chain of **real** (non-bye) feeder matches below it: a round-1 bye is never scheduled
+ * (CONTEXT: Bye), so it contributes no depth. A match fed entirely through byes stays at 0.
+ *
+ * Reused by `validatePlacement` (structural feeder-order guard, even against unplaced feeders) and by
+ * the grid (proactive grey-out of too-early cells while a match is held).
+ */
+export const earliestPlaceableSlot = (match: PlacedMatch, matches: readonly PlacedMatch[]): number => {
+  const byPosition = new Map<string, PlacedMatch>()
+  for (const m of matches) {
+    if (m.competition === match.competition && m.bracket === match.bracket)
+      byPosition.set(`${m.round}-${m.position}`, m)
+  }
+
+  const depth = (round: number, position: number): number => {
+    if (round <= 1) return 0
+    let max = 0
+    for (const which of [1, 2] as const) {
+      const fp = feederPosition(round, position, which)!
+      const feeder = byPosition.get(`${fp.round}-${fp.position}`)
+      if (!feeder || feeder.outcome === 'bye') continue
+      max = Math.max(max, 1 + depth(fp.round, fp.position))
+    }
+    return max
+  }
+
+  return depth(match.round, match.position)
+}
+
+/**
  * Validate placing one match (the candidate `id`) into a grid cell, against every other match's
  * placement — the single definition of "is this placement sound" (ADR-0033), reused two ways
  * (the ADR-0011 `challengerEligibility` pattern): the place endpoint enforces `hard` as the
@@ -255,10 +286,14 @@ export const validatePlacement = (
         m.competition === self.competition && m.bracket === self.bracket && m.round === round && m.position === position
     )
 
-  // Hard — round dependency, both directions, so the rule holds whichever match is placed first.
-  // A feeder occupies its whole slot, so the dependent match can only start the next slot on: the
-  // candidate must be strictly after each feeder whose winner fills one of its slots, and strictly
-  // before the match its own winner feeds.
+  // Hard — structural feeder-chain depth: the candidate cannot sit below its earliest placeable slot,
+  // even when its feeders are still in the backlog. This is the structural form of the feeder-order
+  // rule — it prevents placing a later-round match so early that its feeders would have nowhere to fit.
+  const earliest = earliestPlaceableSlot(self, matches)
+  if (here < earliest) hard.push({ rule: 'feeder-order', otherMatchId: self.id })
+
+  // Hard — round dependency against *placed* feeders/successors, both directions:
+  // the candidate must be strictly after each placed feeder, and strictly before a placed successor.
   for (const which of [1, 2] as const) {
     const fp = feederPosition(self.round, self.position, which)
     const feeder = fp && at(fp.round, fp.position)
