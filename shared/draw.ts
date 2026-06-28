@@ -8,8 +8,9 @@ import { seedingValue } from './registration'
 // re-derived per surface.
 
 /**
- * The draw size for `confirmed` players: the next power of two ≥ confirmed. A draw needs at
- * least two players — below that there is no bracket, so 0 and 1 return 0.
+ * The draw size for `confirmed` players: the next power of two ≥ confirmed. This is the raw bracket
+ * math — 0 and 1 return 0 (no bracket). It is **not** the castable floor: a field needs ≥4 confirmed to
+ * actually be drawn (drawBlocker, ADR-0034), so 2 and 3 round to a size here but are gated as too-few.
  */
 export const drawSize = (confirmed: number): number => {
   if (confirmed < 2) return 0
@@ -150,10 +151,11 @@ const SUPPORTED_DRAW_SIZES = Object.keys(SEED_GROUPS).map(Number)
  * confirmed field — never from a competition's capacity (CONTEXT: Draw size, ADR-0034).
  *
  * This is a **render clamp, not a castability test** — deliberately broader than `drawBlocker`, which
- * *rejects* a field whose `drawSize` has no seed table (2, or 32 when over capacity). A still-filling
- * (2) or over-full (17+) field previews the *nearest* real bracket as a foreshadow; it is not a claim
- * the draw can be cast right now (registration is open, or the operator must trim an over-full field).
- * Don't reuse this where the question is "can this be drawn?" — that is `drawBlocker`.
+ * *rejects* a field too small (2–3 → `too-few`, ADR-0034) or too big (17+ → `unsupported-size`). A
+ * still-filling (0–3) or over-full (17+) field previews the *nearest* real bracket as a foreshadow; it
+ * is not a claim the draw can be cast now (registration may be open, the field may be below the ≥4 floor,
+ * or the operator must trim an over-full one). Don't reuse this where the question is "can this be
+ * drawn?" — that is `drawBlocker`.
  */
 export const displayDrawSize = (confirmed: number): number => {
   const min = SUPPORTED_DRAW_SIZES[0]
@@ -179,22 +181,25 @@ export type DrawBlocker = 'not-tournament' | 'too-few' | 'unsupported-size'
 // The operator-facing reason per blocker — one source for the server's 400 body and the button hint.
 export const DRAW_BLOCKER_REASON: Record<DrawBlocker, string> = {
   'not-tournament': 'Auslosung erst nach Anmeldeschluss (Phase „Turnier").',
-  'too-few': 'Mindestens zwei bestätigte Anmeldungen nötig.',
+  'too-few': 'Mindestens vier bestätigte Anmeldungen nötig.',
   'unsupported-size': 'Aktuell nur 4er-, 8er- und 16er-Felder.'
 }
 
 /**
  * The draw gate for a competition with `confirmed` confirmed entries in the given phase: the first
  * reason it cannot be drawn, or `null` when it can. Mirrors the steps the draw needs — registration
- * closed (`tournament`), at least two entries, and a draw size the seed table supports (4/8/16). Byes
- * are no longer a blocker — §31 fills a non-full field — so only the size gate remains (a field of
- * 3–4 rounds to 4, 5–8 to 8, 9–16 to 16; 2 rounds to 2 and 17+ to 32, neither of which has a seed table).
- * The "already drawn" check is not here: it needs the store, so the worker adds it; this is the pure,
- * store-free part the client can run too.
+ * closed (`tournament`), at least **four** entries, and a draw size the seed table supports (4/8/16).
+ * Four is the smallest field that forms a real knockout: a 2–3 field would draw a bye-semifinal (a
+ * player walks to the final, breaking the two-matches-each guarantee), so a field needs ≥4 to be cast —
+ * below that the club plays it off another way, not through this KO engine (ADR-0034). Byes are no
+ * longer a blocker — §31 fills a non-full field — so the remaining gates are the floor and the size
+ * table (a field of 4 is a full 4-draw, 5–8 rounds to 8, 9–16 to 16; under 4 is too-few, 17+ rounds to
+ * 32, which has no seed table). The "already drawn" check is not here: it needs the store, so the worker
+ * adds it; this is the pure, store-free part the client can run too.
  */
 export const drawBlocker = (phase: Phase, confirmed: number): DrawBlocker | null => {
   if (phase !== 'tournament') return 'not-tournament'
-  if (confirmed < 2) return 'too-few'
+  if (confirmed < 4) return 'too-few'
   if (!isSupportedDrawSize(drawSize(confirmed))) return 'unsupported-size'
   return null
 }

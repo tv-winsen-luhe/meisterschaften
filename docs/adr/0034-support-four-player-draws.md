@@ -17,12 +17,16 @@ will draw smaller) or has nothing honest to show.
 ## Decision
 
 Add a seed table for size 4 — `SEED_GROUPS[4] = Nr.1 → line 0, Nr.2 → line 3` — the same two fixed,
-single-seed groups the 8-field uses, extended one size down. Because `drawBlocker` keys off
-`isSupportedDrawSize` (which is `SEED_GROUPS[size] !== undefined`), this one table entry **auto-unblocks**
-the size-4 draw; no separate gate change. A 4-draw is two semifinals + final, two fixed seeds (no lot —
-Nr.1/2 only), byes assigned to the seeds first (§31), and **no consolation bracket** — at size 4 the
-first round _is_ the semifinal, so the third-place match already pairs its two losers (ADR-0004). The
-homepage preview floors its displayed bracket at draw size 4 accordingly.
+single-seed groups the 8-field uses, extended one size down, **and raise the draw floor to four**:
+`drawBlocker` now requires ≥4 confirmed (was ≥2). Four is the smallest field that forms a real knockout —
+a 2–3 field would round to a 4-draw with a **bye semifinal** (a player walks straight to the final,
+breaking the two-matches-each guarantee), which is not a real bracket. So a 4-draw is **always full**:
+two contested semifinals + final, two fixed seeds (no lot — Nr.1 → line 0, Nr.2 → line 3), and **no
+consolation bracket** — at size 4 the first round _is_ the semifinal, so the third-place match already
+pairs its two losers (ADR-0004). Fields of 2–3 are `too-few`, played off another way (round robin, or the
+field is not formed) — not through this KO engine. The homepage preview still floors its _displayed_
+bracket at draw size 4 — a render affordance for a still-forming field, deliberately distinct from the
+≥4 castability gate.
 
 This is a **deliberate deviation** from §30.5a, whose Hauptfeld table starts at 8. It is a faithful
 extension of the §30.5b 2-seed pattern, not an approximation of a rule that exists — DTB simply does not
@@ -32,9 +36,12 @@ mis-transcription of the official table.
 
 ## Consequences
 
-- **Size 2 stays unsupported.** Two entrants are a bare final — one match, no seeding lot — not a draw.
-  The smallest field we cast is 4; 2–3 confirmed round up to a 4-draw (with byes).
-- The blocker reason copy widens from „nur 8er- und 16er-Felder" to include 4er-Felder.
-- Test expectations flip: a field rounding to size 4 (3–4 confirmed) is now drawable, not
-  `unsupported-size` (`draw.test.ts`, `draw.integration.test.ts`). Size 32 (17+ confirmed) remains the
-  unsupported case the small-N guard rejects.
+- **The draw floor rises from 2 to 4.** 2–3 confirmed are `too-few`, not drawn — so a size-4 draw never
+  carries byes (byes first appear from size 8 up). This keeps the size-4 topology clean: two contested
+  semifinals, every entrant a real match.
+- Blocker copy: „Mindestens **vier** bestätigte Anmeldungen nötig" (was zwei), and the size copy widens
+  to „4er-, 8er- und 16er-Felder".
+- Test expectations flip: a full 4-field (4 confirmed) is now drawable; **3 confirmed is now `too-few`**
+  (was `unsupported-size`); 17+ (size 32) remains the `unsupported-size` case the small-N guard rejects.
+- A future third-place / consolation slice (ADR-0004) inherits a clean precondition: with the ≥4 floor
+  there is never a bye semifinal, so both semifinal losers always exist.

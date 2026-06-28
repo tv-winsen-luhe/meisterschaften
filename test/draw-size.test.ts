@@ -12,7 +12,8 @@ import {
 // drawSize/byeCount are the draw math (CONTEXT: "Draw size — the next power of two ≥ number of
 // confirmed players; the gap to that size is filled with byes"). They live in shared/ as the
 // single source the overview reads today and the draw will reuse (ADR-0021 keeps it small).
-// A draw needs at least two players; below that there is no bracket (drawSize 0 → no byes).
+// This is the raw size math (0 below two players); the *castable* floor is higher — a field needs ≥4
+// to be drawn (drawBlocker, ADR-0034), so 2 and 3 round to a size here but are gated as too-few.
 describe('drawSize', () => {
   it.each([
     [0, 0],

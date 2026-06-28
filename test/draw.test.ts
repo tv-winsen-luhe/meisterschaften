@@ -72,9 +72,11 @@ describe('drawBlocker', () => {
     expect(drawBlocker('post-event', 8)).toBe('not-tournament')
   })
 
-  it('blocks fewer than two entries', () => {
+  it('blocks fewer than four entries — the smallest field that forms a real knockout (ADR-0034)', () => {
     expect(drawBlocker('tournament', 0)).toBe('too-few')
     expect(drawBlocker('tournament', 1)).toBe('too-few')
+    expect(drawBlocker('tournament', 2)).toBe('too-few') // a 2–3 field would draw a bye-semifinal
+    expect(drawBlocker('tournament', 3)).toBe('too-few')
   })
 
   it('allows a non-full field — §31 fills it with byes', () => {
@@ -84,15 +86,13 @@ describe('drawBlocker', () => {
     expect(drawBlocker('tournament', 13)).toBeNull() // 16-draw, 3 byes
   })
 
-  it('blocks a field whose draw size has no seed table (rounds to 2 or 32)', () => {
-    expect(drawBlocker('tournament', 2)).toBe('unsupported-size') // size 2 — a bare final, not a draw
+  it('blocks an over-full field whose draw size has no seed table (17+ rounds to 32)', () => {
     expect(drawBlocker('tournament', 17)).toBe('unsupported-size') // size 32
     expect(drawBlocker('tournament', 32)).toBe('unsupported-size') // size 32
   })
 
-  it('allows a supported field (3–16 entrants round to a 4-, 8-, or 16-draw)', () => {
-    expect(drawBlocker('tournament', 3)).toBeNull() // 4-draw, 1 bye (ADR-0034)
-    expect(drawBlocker('tournament', 4)).toBeNull() // 4-draw, full
+  it('allows a supported field (4–16 entrants round to a 4-, 8-, or 16-draw)', () => {
+    expect(drawBlocker('tournament', 4)).toBeNull() // 4-draw, full — the smallest field
     expect(drawBlocker('tournament', 5)).toBeNull()
     expect(drawBlocker('tournament', 8)).toBeNull()
     expect(drawBlocker('tournament', 16)).toBeNull()

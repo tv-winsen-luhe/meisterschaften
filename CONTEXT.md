@@ -129,12 +129,15 @@ concept here drifts or a new one appears, update this file rather than inventing
     4 to seeds, 3 by lot). _(Exact line indices and bye order are implemented against the official DTB
     Turnierordnung 2026 — the authoritative text, not an approximation.)_
 - **Draw size** — the next power of two ≥ number of confirmed players; the gap to that size is filled
-  with byes. The smallest size we actually draw is **4** (two entrants are a bare final, not a draw — 2
-  stays unsupported); the largest is **16**. Distinct from a competition's **capacity** (the „Plätze
-  frei" maximum on the participant list, `tournament.ts`): the bracket size follows the **confirmed
-  field**, never the cap — so 7 confirmed in a 16-capacity field is an **8**-draw, and the public draw
-  preview sizes its bracket from the confirmed count clamped to the supported sizes (4/8/16), not from
-  capacity. _(See ADR-0034.)_
+  with byes. A field needs **≥4 confirmed to be drawn** at all: 4 is the smallest field that forms a real
+  knockout (a 2–3 field would round to a 4-draw with a bye semifinal, so the club plays those off another
+  way, not via this KO engine — ADR-0034). The smallest cast is therefore a **full 4-draw** (no byes; byes
+  first appear from size 8 up); the largest is **16**. Distinct from a competition's **capacity** (the
+  „Plätze frei" maximum on the participant list, `tournament.ts`): the bracket size follows the
+  **confirmed field**, never the cap — so 7 confirmed in a 16-capacity field is an **8**-draw. The public
+  draw preview sizes its bracket from the confirmed count clamped to the supported sizes (4/8/16), not
+  from capacity — a render affordance that, for a still-forming field, can show a bracket the draw cannot
+  yet cast (its floor is 4, the gate's is ≥4 confirmed). _(See ADR-0034.)_
 
 ## Tournament structure
 
