@@ -243,7 +243,9 @@ reveal sequence }`. Randomness enters through an injected **`RandomSource`** por
   explicitly approximate ("ca."), not guarantees. The operator places matches by hand on a courts×time
   grid of **fixed 90-minute slots**; the system validates rather than auto-generates, on the principle
   **block the impossible, warn the unwise**: it _forbids_ (hard) scheduling a match before its feeders
-  finish and more matches per slot than the 6 courts — the only physically impossible states — and
+  finish — enforced **structurally**, so a match cannot sit earlier than its real (non-bye) feeder chain
+  allows even before those feeders are placed — and more matches per slot than the 6 courts — the only
+  physically impossible states — and
   _warns_ (soft, operator may override) on a player's load: more than **2 matches per day** (so a deep
   run, or a main-bracket exit plus the consolation bracket, tends to spread across both event days — the
   consolation bracket is not a Saturday-only affair) and back-to-back matches with no rest gap.
@@ -301,7 +303,8 @@ reveal sequence }`. Randomness enters through an injected **`RandomSource`** por
   it is born public (this is why the token-only `/export` route was removed, not kept). The public API
   and cron stay outside Access. Local `wrangler dev` has no Access and no token: the admin is simply open
   on localhost. The whole admin is a single **React app** (`client:only`, mounted in an Astro route),
-  replacing the legacy worker-HTML page — scheduling grid (`dnd-kit`), draw reveal show (`motion`),
+  replacing the legacy worker-HTML page — scheduling grid (drag-and-drop primary, tap-to-place kept as a
+  fallback for the scrolling grid / phone / a11y — ADR-0038), draw reveal show (`motion`),
   results entry, phase control, purge all live here. React is the only client framework and is
   confined to this gated area; the public site stays zero-JS-by-default. _(See ADR-0008.)_
 - **PUBLIC_LIST_ENABLED** — kill-switch flag for the public participant list.

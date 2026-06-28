@@ -168,7 +168,7 @@ export const ScheduleSurface = ({ registrations, draws, onPlace }: ScheduleSurfa
 
   return (
     <div className="min-h-0 flex-1 overflow-y-auto p-5">
-      <div className="mx-auto flex w-full max-w-6xl flex-col gap-5">
+      <div className="flex w-full flex-col gap-5">
         <p className="text-muted-foreground text-sm">
           {selected !== null
             ? 'Match aufgenommen — tippe eine freie Zelle, um es zu platzieren.'
@@ -253,7 +253,7 @@ const DayGrid = ({ day, label, placedByCell, selected, onCellClick, onUnplace }:
     <span className="font-semibold">{label}</span>
     <div className="overflow-x-auto">
       <div
-        className="grid min-w-max gap-1"
+        className="grid gap-1"
         style={{ gridTemplateColumns: `auto repeat(${COURT_NUMBERS.length}, minmax(13rem, 1fr))` }}
       >
         {/* Header row: an empty corner, then the court labels. */}
