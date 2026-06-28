@@ -34,26 +34,27 @@ export const mainDrawMatches = (confirmed: number): number =>
   confirmed < 2 ? 0 : confirmed - 1 + (confirmed >= 4 ? 1 : 0)
 
 /**
- * Matches in the consolation bracket — the consolation knockout (CONTEXT: Consolation bracket, ADR-0004). Its
- * entrants are the main bracket's first-round losers — `confirmed − drawSize/2` (the byes skip R1) —
- * and, being a knockout, it runs `entrants − 1` matches (0 below two).
+ * Matches in the consolation bracket (CONTEXT: Consolation bracket, ADR-0004). Its entrants are the
+ * main bracket's R1 losers *plus* bye-holders who lose their first real match in R2: a bye gives a
+ * player a free pass into R2, but if they lose there it was still their first match — so they enter
+ * the consolation like any other first-match loser.
  *
- * A consolation bracket exists only when the main bracket first round lies *before* the semifinals — i.e.
- * **draw size ≥ 8** (ADR-0004). At draw size 4 the first round *is* the semifinal, so its two
- * losers are exactly the pair the third-place match already plays — there is no separate consolation bracket
- * (and below four there is neither). So size ≤ 4 ⇒ 0, not the `entrants − 1` the formula would give.
+ * Entrants = R1 losers + bye-holders who lose in R2 (worst case). The worst-case count of bye-holder
+ * R2 losers is `min(byes, R2 matches)`: every R2 match can eliminate at most one bye-holder, and there
+ * cannot be more bye-holder losers than there are byes. This is the planning maximum — the actual
+ * count depends on match outcomes, but ±1 is irrelevant for court-load projection.
  *
- * Estimate, not an exact count: the consolation bracket also takes the players who had a R1 bye and then
- * lost in R2 (so every entrant gets ≥2 matches), and how many that is depends on the R2 pairings,
- * not derivable from counts alone. It is therefore a slight under-count for fields with byes,
- * and **exact for a full power-of-two field** (no byes) — which is the capacity figure the
- * total utilization headlines.
+ * A consolation bracket exists only when draw size ≥ 8 (ADR-0004).
  */
 export const consolationMatches = (confirmed: number): number => {
   const size = drawSize(confirmed)
   if (size <= 4) return 0
-  const firstRoundLosers = confirmed - size / 2
-  return firstRoundLosers < 2 ? 0 : firstRoundLosers - 1
+  const byes = size - confirmed
+  const r1Losers = confirmed - size / 2
+  const r2Matches = size / 4
+  const byeHolderLosers = Math.min(byes, r2Matches)
+  const entrants = r1Losers + byeHolderLosers
+  return entrants < 2 ? 0 : entrants - 1
 }
 
 /** Total matches a field runs: main draw + consolation (R1-loser consolation). */
