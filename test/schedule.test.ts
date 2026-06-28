@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { feederPosition, numberMatches, slotTime, viewSlot } from '../shared/schedule'
+import { feederPosition, numberMatches, slotTime, validatePlacement, viewSlot } from '../shared/schedule'
+import type { Placement } from '../shared/schedule'
 
 // The pure schedule helpers (shared/schedule.ts): the slot-time cadence, match numbering, and the
 // feeder resolution the admin grid and the public feed both read. Deterministic, no deps — the
@@ -64,5 +65,117 @@ describe('viewSlot', () => {
   it('shows an empty later-round slot as a feeder labelled by the feeding match number', () => {
     // The final's second slot is fed by M2 (round 1, position 1) — still undecided.
     expect(viewSlot(matches[2], 2, numbers, matchAt)).toEqual({ kind: 'feeder', matchNumber: 2 })
+  })
+})
+
+interface MatchOpts {
+  p?: [number | null, number | null]
+  at?: Placement
+}
+
+describe('validatePlacement', () => {
+  // A placed/placeable match in the „mens" main bracket. `at` is its cell (omit ⇒ backlog), `p` its
+  // two player regIds.
+  const pm = (id: number, round: number, position: number, { p = [null, null], at }: MatchOpts = {}) => ({
+    id,
+    competition: 'mens',
+    bracket: 'main',
+    round,
+    position,
+    slot1RegId: p[0],
+    slot2RegId: p[1],
+    court: at?.court ?? null,
+    day: at?.day ?? null,
+    slot: at?.slot ?? null
+  })
+
+  // A 4-draw: two semifinals (M1 r1p0, M2 r1p1) feeding the final (M3 r2p0).
+  const semi1 = pm(1, 1, 0, { p: [101, 102] })
+  const semi2 = pm(2, 1, 1, { p: [103, 104] })
+  const final = pm(3, 2, 0)
+
+  it('accepts a sound placement — no hard blocks, no soft warnings', () => {
+    // Semis on day 0 slots 0/1, the final after both at slot 2.
+    const matches = [{ ...semi1, court: 1, day: 0, slot: 0 }, { ...semi2, court: 2, day: 0, slot: 0 }, final]
+    expect(validatePlacement(matches, { id: 3, placement: { court: 1, day: 0, slot: 2 } })).toEqual({
+      hard: [],
+      soft: []
+    })
+  })
+
+  describe('hard — round dependency', () => {
+    it('blocks a match sharing or preceding a feeder it depends on', () => {
+      const matches = [{ ...semi1, court: 1, day: 0, slot: 2 }, semi2, final]
+      // The final into the same slot as semifinal M1 — its winner could not have arrived.
+      const { hard } = validatePlacement(matches, { id: 3, placement: { court: 2, day: 0, slot: 2 } })
+      expect(hard).toEqual([{ rule: 'feeder-order', otherMatchId: 1 }])
+    })
+
+    it('blocks a feeder placed at or after the match it feeds (the reverse direction)', () => {
+      const matches = [semi1, semi2, { ...final, court: 1, day: 0, slot: 1 }]
+      // Semifinal M1 into a slot after the final it feeds.
+      const { hard } = validatePlacement(matches, { id: 1, placement: { court: 2, day: 0, slot: 3 } })
+      expect(hard).toEqual([{ rule: 'feeder-order', otherMatchId: 3 }])
+    })
+
+    it('does not block against a feeder still in the backlog (nothing to order against yet)', () => {
+      const matches = [semi1, semi2, final] // semis unplaced
+      const { hard } = validatePlacement(matches, { id: 3, placement: { court: 1, day: 0, slot: 0 } })
+      expect(hard).toEqual([])
+    })
+  })
+
+  describe('hard — court occupancy', () => {
+    it('blocks a match dropped on a court+day+slot another match already holds', () => {
+      const occupant = pm(10, 1, 0, { at: { court: 3, day: 0, slot: 1 } })
+      const candidate = pm(99, 1, 1)
+      const { hard } = validatePlacement([occupant, candidate], { id: 99, placement: { court: 3, day: 0, slot: 1 } })
+      expect(hard).toEqual([{ rule: 'court-taken', otherMatchId: 10 }])
+    })
+
+    it('allows a match in a busy slot on a free court — up to the 6 courts, never a 7th', () => {
+      // Five courts taken in day 0 slot 0; the candidate fills the sixth (court is schema-bounded to 1..6,
+      // so a seventh would have to reuse a court and be blocked as court-taken).
+      const fillers = Array.from({ length: 5 }, (_, i) => pm(10 + i, 1, i, { at: { court: i + 1, day: 0, slot: 0 } }))
+      const candidate = pm(99, 1, 6)
+      const { hard } = validatePlacement([...fillers, candidate], { id: 99, placement: { court: 6, day: 0, slot: 0 } })
+      expect(hard).toEqual([])
+    })
+  })
+
+  describe('soft — player load', () => {
+    it('warns (does not block) on a player with more than 2 matches in a day', () => {
+      // Player 101 already plays two day-0 matches; the candidate is their third.
+      const a = pm(20, 1, 0, { p: [101, 201], at: { court: 1, day: 0, slot: 0 } })
+      const b = pm(21, 1, 1, { p: [101, 202], at: { court: 1, day: 0, slot: 2 } })
+      const candidate = pm(22, 1, 2, { p: [101, 203] })
+      const { hard, soft } = validatePlacement([a, b, candidate], { id: 22, placement: { court: 1, day: 0, slot: 4 } })
+      expect(hard).toEqual([])
+      expect(soft).toContainEqual({ rule: 'player-load', regId: 101, count: 3 })
+    })
+
+    it('does not warn when a players two day-0 matches sit on different days', () => {
+      const a = pm(20, 1, 0, { p: [101, 201], at: { court: 1, day: 0, slot: 0 } })
+      const candidate = pm(21, 1, 1, { p: [101, 202] })
+      // The candidate lands on day 1 — only its own appearance counts for that day.
+      const { soft } = validatePlacement([a, candidate], { id: 21, placement: { court: 1, day: 1, slot: 0 } })
+      expect(soft).toEqual([])
+    })
+  })
+
+  describe('soft — back-to-back', () => {
+    it('warns on a player playing adjacent same-day slots with no rest gap', () => {
+      const earlier = pm(30, 1, 0, { p: [101, 201], at: { court: 1, day: 0, slot: 1 } })
+      const candidate = pm(31, 1, 1, { p: [101, 202] })
+      const { soft } = validatePlacement([earlier, candidate], { id: 31, placement: { court: 2, day: 0, slot: 2 } })
+      expect(soft).toContainEqual({ rule: 'back-to-back', regId: 101, otherMatchId: 30 })
+    })
+
+    it('does not warn when the player has a slot of rest between matches', () => {
+      const earlier = pm(30, 1, 0, { p: [101, 201], at: { court: 1, day: 0, slot: 0 } })
+      const candidate = pm(31, 1, 1, { p: [101, 202] })
+      const { soft } = validatePlacement([earlier, candidate], { id: 31, placement: { court: 2, day: 0, slot: 2 } })
+      expect(soft).toEqual([])
+    })
   })
 })

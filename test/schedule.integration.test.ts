@@ -183,4 +183,39 @@ describe('POST /api/admin/match/place + GET /api/schedule', () => {
     const res = await place({ id: matchId, placement: { court: 7, day: 0, slot: 0 } })
     expect(res.status).toBe(400)
   })
+
+  // The hard guard (ADR-0033, #89): a placement that breaks the round dependency is rejected server-side
+  // as the authority, and the match stays unplaced. Soft warnings (player load) are the grid's affordance
+  // and never block here. (The pure rule set is exercised in test/schedule.test.ts.)
+  it('rejects a final placed at or before its semifinal (round dependency), leaving it unplaced', async () => {
+    await drawField()
+    const semi = (await env.DB.prepare('SELECT id FROM matches WHERE round = 1 ORDER BY position LIMIT 1').first<{
+      id: number
+    }>())!.id
+    const final = (await env.DB.prepare('SELECT id FROM matches WHERE round = 2 LIMIT 1').first<{ id: number }>())!.id
+
+    await place({ id: semi, placement: { court: 1, day: 0, slot: 2 } })
+    const res = await place({ id: final, placement: { court: 2, day: 0, slot: 2 } }) // same slot as its feeder
+    expect(res.status).toBe(409)
+
+    const row = await env.DB.prepare('SELECT court FROM matches WHERE id = ?')
+      .bind(final)
+      .first<{ court: number | null }>()
+    expect(row?.court).toBeNull()
+  })
+
+  // Court occupancy is the other hard rule (ADR-0033): the server refuses a second match onto a
+  // court+day+slot another match already holds, so the public schedule never shows two on one court.
+  it('rejects a second match on an already-occupied court+day+slot', async () => {
+    await drawField()
+    const semis = await env.DB.prepare('SELECT id FROM matches WHERE round = 1 ORDER BY position').all<{ id: number }>()
+    const [a, b] = semis.results.map(r => r.id)
+
+    await place({ id: a, placement: { court: 4, day: 0, slot: 1 } })
+    const res = await place({ id: b, placement: { court: 4, day: 0, slot: 1 } }) // same cell
+    expect(res.status).toBe(409)
+
+    const row = await env.DB.prepare('SELECT court FROM matches WHERE id = ?').bind(b).first<{ court: number | null }>()
+    expect(row?.court).toBeNull()
+  })
 })
