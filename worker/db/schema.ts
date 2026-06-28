@@ -1,5 +1,5 @@
 import { sqliteTable, integer, text, index, uniqueIndex } from 'drizzle-orm/sqlite-core'
-import type { RegistrationStatus } from '../../shared'
+import type { MatchStatus, RegistrationStatus } from '../../shared'
 
 // Mirrors the `registrations` table. camelCase in TS, snake_case in D1 — the only naming
 // translation, done here in the column mapping; above this line everything is camelCase, below it
@@ -49,7 +49,8 @@ export type AppStateRow = typeof appState.$inferSelect
 // competition share one table. Feeders are implicit — a match at (round, position) is fed by
 // (round−1, 2·position) and (round−1, 2·position+1), so there are no feeder columns. An empty
 // round-1 slot would be a bye; an empty later-round slot is a not-yet-decided feeder — the round
-// disambiguates. This epic introduces the table minimally; schedule/results add columns later.
+// disambiguates. The draw writes the bracket columns; the Live phase adds the schedule placement
+// (court + day + slot) and the live `status` (#88), then result columns later (#90).
 export const matches = sqliteTable(
   'matches',
   {
@@ -61,7 +62,16 @@ export const matches = sqliteTable(
     slot1RegId: integer('slot1_reg_id'),
     slot2RegId: integer('slot2_reg_id'),
     winnerRegId: integer('winner_reg_id'),
-    outcome: text('outcome')
+    outcome: text('outcome'),
+    // Schedule placement (ADR-0005): the court (1..6) and the slot (event day 0/1 + 90-minute slot
+    // index) the operator placed this match on. All three null ⇒ unscheduled (the grid backlog); they
+    // travel together (a half-placed match is meaningless). Validation of the placement is #89's.
+    court: integer('court'),
+    day: integer('day'),
+    slot: integer('slot'),
+    // The live status (ADR-0032): the signal the public board keys off. Defaults to `planned`; the
+    // transitions (→ running, → done) land with result entry (#90).
+    status: text('status').$type<MatchStatus>().notNull().default('planned')
   },
   table => [index('idx_matches_competition').on(table.competition)]
 )

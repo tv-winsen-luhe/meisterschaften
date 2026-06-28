@@ -8,6 +8,8 @@ import {
   type Match,
   type MatchOutcome,
   type MatchSlots,
+  type MatchStatus,
+  type Placement,
   type RevealStep,
   revealStepSchema,
   type SeedingEntry,
@@ -69,6 +71,21 @@ export interface DrawStore {
   getDraw(competition: string, bracket: Bracket): Promise<CompetitionDraw | null>
 
   /**
+   * Every match row across all competitions + brackets — the public schedule feed's source (it numbers
+   * each bracket and resolves feeders over the full set, then emits only the placed matches). Flat, in
+   * insertion order; the caller groups by competition+bracket.
+   */
+  listMatches(): Promise<Match[]>
+
+  /**
+   * Place a match on the grid, move it to another cell, or clear it back to the backlog (ADR-0005): set
+   * the court + day + slot to `placement`, or null all three with `placement: null`. A pure placement
+   * write — it never touches the bracket. The single match-update seam the schedule grid writes through
+   * (no raw SQL in handlers); result/status writes extend it in #90.
+   */
+  placeMatch(id: number, placement: Placement | null): Promise<void>
+
+  /**
    * The reveal state (size + parsed reveal sequence + cursor) for one competition+bracket, or null —
    * what the advance reads to clamp the next cursor (ADR-0003). The reveal sequence is parsed at the
    * seam, so a malformed column throws here rather than feeding a wrong-looking reveal.
@@ -113,7 +130,11 @@ const toMatch = (row: MatchRow): Match => ({
   slot1RegId: row.slot1RegId,
   slot2RegId: row.slot2RegId,
   winnerRegId: row.winnerRegId,
-  outcome: row.outcome as MatchOutcome | null
+  outcome: row.outcome as MatchOutcome | null,
+  court: row.court,
+  day: row.day,
+  slot: row.slot,
+  status: row.status as MatchStatus
 })
 
 // Built once, not per row: toCompetitionDraw runs on every row of listDraws, and the array schema is
@@ -226,6 +247,21 @@ export const createD1DrawStore = (d1: D1Database): DrawStore => {
       return toCompetitionDraw(draw, await matchRowsFor(competition, bracket))
     },
 
+    async listMatches() {
+      return (await db.select().from(matches)).map(toMatch)
+    },
+
+    async placeMatch(id, placement) {
+      await db
+        .update(matches)
+        .set({
+          court: placement?.court ?? null,
+          day: placement?.day ?? null,
+          slot: placement?.slot ?? null
+        })
+        .where(eq(matches.id, id))
+    },
+
     async getReveal(competition, bracket) {
       const draw = await this.findDraw(competition, bracket)
       return draw ? toRevealState(draw) : null
@@ -316,7 +352,12 @@ export const createInMemoryDrawStore = (): DrawStore => {
           slot2RegId: m.slot2RegId,
           // A round-1 bye is already resolved at draw time (winner advances, no score, §32.4).
           winnerRegId: m.winnerRegId,
-          outcome: m.outcome
+          outcome: m.outcome,
+          // A freshly drawn match is unscheduled and `planned` — the operator places it later (#88).
+          court: null,
+          day: null,
+          slot: null,
+          status: 'planned'
         })
       }
     },
@@ -328,6 +369,19 @@ export const createInMemoryDrawStore = (): DrawStore => {
         draw,
         matchRows.filter(m => m.competition === competition && m.bracket === bracket)
       )
+    },
+
+    async listMatches() {
+      return matchRows.map(toMatch)
+    },
+
+    async placeMatch(id, placement) {
+      const row = matchRows.find(m => m.id === id)
+      if (row) {
+        row.court = placement?.court ?? null
+        row.day = placement?.day ?? null
+        row.slot = placement?.slot ?? null
+      }
     },
 
     async getReveal(competition, bracket) {

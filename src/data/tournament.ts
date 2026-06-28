@@ -1,5 +1,6 @@
 import { CHALLENGER_MIN_LK, DEFAULT_LK } from '../../shared/constants'
 import { COMPETITION_SLUGS } from '../../shared/competition'
+import { SCHEDULE } from '../../shared/schedule'
 
 export type CompetitionStatus = 'open' | 'planned'
 
@@ -44,13 +45,15 @@ export const entryFee = 5
  * Court-throughput assumption behind the admin's total-utilization gauge (ADR-0023 follow-up). The
  * venue has 6 courts; at ~90 min per match a court turns ~6 matches in a ~9 h playing day, across
  * both event days. `matchSlotsPerWeekend` (= 72) is the 100 % the gauge measures the projected
- * match load against. A planning figure, not a schedule — the schedule will own the real timetable.
+ * match load against. A planning figure — derived from the same `SCHEDULE` shape the real grid is
+ * built on (shared/schedule.ts), so the gauge and the schedule can never disagree on court count or
+ * slots-per-day.
  */
 export const courtSchedule = {
-  courts: 6,
-  matchMinutes: 90,
-  matchesPerCourtPerDay: 6,
-  days: 2
+  courts: SCHEDULE.courts,
+  matchMinutes: SCHEDULE.slotMinutes,
+  matchesPerCourtPerDay: SCHEDULE.slotsPerDay,
+  days: SCHEDULE.days
 } as const
 export const matchSlotsPerWeekend = courtSchedule.courts * courtSchedule.matchesPerCourtPerDay * courtSchedule.days
 

@@ -10,10 +10,16 @@ import {
   type CompetitionSlug,
   drawSize,
   isChallengerField,
+  type Match,
   materializeMatches,
+  numberMatches,
   type Phase,
   type PublicDraw,
-  type RandomSource
+  type RandomSource,
+  type ScheduleMatch,
+  type ScheduleSlot,
+  type SlotView,
+  viewSlot
 } from '../shared'
 import type { DrawStore } from './store/draw'
 import type { RegistrationsStore } from './store/registrations'
@@ -65,6 +71,14 @@ export interface DrawServiceDeps {
   registrationsStore: RegistrationsStore
   drawStore: DrawStore
   randomSource: RandomSource
+}
+
+// One bracket's matches plus the two indexes the schedule feed resolves slots through — its match
+// numbering (M1, M2, …) and a round-position lookup — computed once per bracket, not per placed match.
+interface BracketIndex {
+  matches: Match[]
+  numbers: Map<number, number>
+  byPosition: Map<string, Match>
 }
 
 // What the draw button (UI: „Jetzt auslosen") hands the service: which competition, the current phase
@@ -206,6 +220,71 @@ export const createDrawService = (deps: DrawServiceDeps) => {
           player: s.playerId !== null ? (players.get(s.playerId) ?? null) : null
         }))
       }))
+    },
+
+    /**
+     * The public schedule (ADR-0005): every **placed** match across all competitions, with its slots
+     * resolved for display. Numbering and feeder resolution run over each bracket's *full* match set
+     * (so „Sieger M3" is stable), then only the placed, real matches are emitted — a bye is auto-resolved
+     * and never played, so it is never scheduled. Player names are joined like publicDraws; a feeder shows
+     * its match number, a round-1 bye line shows „Freilos". The live board (#91) reads the same feed.
+     */
+    async schedule(): Promise<ScheduleMatch[]> {
+      const all = await drawStore.listMatches()
+
+      // Group by competition+bracket, and precompute each bracket's numbering + a round-position index
+      // *once* (not per placed match) — numbering and feeder resolution depend only on the bracket, so
+      // rebuilding them inside the per-match map would re-sort/re-number the whole bracket every time.
+      const groups = new Map<string, BracketIndex>()
+      for (const m of all) {
+        const key = `${m.competition}|${m.bracket}`
+        const group = groups.get(key) ?? { matches: [], numbers: new Map(), byPosition: new Map() }
+        group.matches.push(m)
+        groups.set(key, group)
+      }
+      for (const group of groups.values()) {
+        group.numbers = numberMatches(group.matches)
+        for (const m of group.matches) group.byPosition.set(`${m.round}-${m.position}`, m)
+      }
+
+      // Join names only for the players actually shown — the placed matches' filled slots.
+      const placed = all.filter(m => m.court !== null && m.day !== null && m.slot !== null && m.outcome !== 'bye')
+      const ids = new Set<number>()
+      for (const m of placed) {
+        if (m.slot1RegId !== null) ids.add(m.slot1RegId)
+        if (m.slot2RegId !== null) ids.add(m.slot2RegId)
+      }
+      const players = await registrationsStore.revealPlayers([...ids])
+
+      // Resolve one slot's SlotView (shared rule) into the wire shape, joining the player name. A player
+      // id with no row (only reachable if a registration was hard-deleted under a frozen draw) degrades
+      // to a feeder-less „—"; we surface it as a bye line rather than throwing.
+      const toSlot = (view: SlotView): ScheduleSlot => {
+        if (view.kind === 'player') {
+          const p = players.get(view.regId)
+          return p ? { kind: 'player', firstName: p.firstName, lastName: p.lastName } : { kind: 'bye' }
+        }
+        if (view.kind === 'feeder') return { kind: 'feeder', matchNumber: view.matchNumber }
+        return { kind: 'bye' }
+      }
+
+      return placed.map(m => {
+        const { numbers, byPosition } = groups.get(`${m.competition}|${m.bracket}`)!
+        const matchAt = (round: number, position: number) => byPosition.get(`${round}-${position}`)
+        return {
+          id: m.id,
+          competition: m.competition,
+          bracket: m.bracket,
+          number: numbers.get(m.id) ?? 0,
+          // Non-null by the `placed` filter; the contract narrows the nullable columns.
+          court: m.court!,
+          day: m.day!,
+          slot: m.slot!,
+          status: m.status,
+          slot1: toSlot(viewSlot(m, 1, numbers, matchAt)),
+          slot2: toSlot(viewSlot(m, 2, numbers, matchAt))
+        }
+      })
     }
   }
 }

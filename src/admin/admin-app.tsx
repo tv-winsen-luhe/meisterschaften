@@ -2,7 +2,13 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { hc } from 'hono/client'
 import { toast } from 'sonner'
 import type { AppType } from '../../worker/app'
-import { type AdminRegistration, type CompetitionDraw, type CompetitionSlug, type Phase } from '../../shared'
+import {
+  type AdminRegistration,
+  type CompetitionDraw,
+  type CompetitionSlug,
+  type Phase,
+  type Placement
+} from '../../shared'
 import { errorMessage, isAuthRedirect } from './lib/api'
 import { useReveal } from './use-reveal'
 import { Button } from '@/admin/ui/button'
@@ -12,6 +18,7 @@ import { SidebarInset, SidebarProvider, SidebarTrigger } from '@/admin/ui/sideba
 import { AppSidebar, type Surface } from './app-sidebar'
 import { PHASE_LABELS, PhaseStepper } from './phase-stepper'
 import { CompetitionsSurface } from './surfaces/competitions-surface'
+import { ScheduleSurface } from './surfaces/schedule-surface'
 import { DrawShow } from './draw-show'
 import { DebugSurface } from './surfaces/debug-surface'
 import { OverviewSurface } from './surfaces/overview-surface'
@@ -216,6 +223,16 @@ export const AdminApp = () => {
     await mutate(() => client.api.admin['refresh-lk'].$post(), 'LK aktualisiert.')
   }, [client, mutate])
 
+  // Place a match on the schedule grid, move it, or clear it back to the backlog (null). Via mutate
+  // (shared 401-regate/error/toast); the success reload re-fetches the draws (matches carry their
+  // placement), re-rendering the grid. Resolves to success so the surface clears its selection only
+  // on a persisted placement.
+  const placeMatch = useCallback(
+    (id: number, placement: Placement | null) =>
+      mutate(() => client.api.admin.match.place.$post({ json: { id, placement } }), 'Spielplan aktualisiert.'),
+    [client, mutate]
+  )
+
   // The debug-only reset levers (ADR-0029): all three go through mutate, so they share the
   // 401-regate/error/toast behaviour, and the success reload re-fetches draws + phase so the UI
   // reflects the teardown. The surface owns the confirmation dialogs; these just perform the request.
@@ -349,6 +366,8 @@ export const AdminApp = () => {
             drawingCompetition={drawingCompetition}
             onStartShow={setShowCompetition}
           />
+        ) : surface === 'schedule' ? (
+          <ScheduleSurface registrations={registrations} draws={draws} onPlace={placeMatch} />
         ) : surface === 'debug' && resetEnabled ? (
           <DebugSurface draws={draws} onUndraw={undraw} onReadmit={readmit} onBackToSignup={backToSignup} />
         ) : (

@@ -81,6 +81,14 @@ export type Bracket = (typeof BRACKETS)[number]
 export const MATCH_OUTCOMES = ['bye', 'walkover', 'retirement'] as const
 export type MatchOutcome = (typeof MATCH_OUTCOMES)[number]
 
+// A match's live status (ADR-0005, ADR-0032) — the signal the public live board keys off. Stored/wire
+// values are English (CLAUDE.md); the German UI labels are „geplant"/„läuft"/„beendet". This epic's
+// tracer (#88) only ever writes the default `planned`; the status *transitions* (→ running with a live
+// court, → done) land with result entry (#90). Owned here so the `matches.status` column and its wire
+// enum read one list.
+export const MATCH_STATUSES = ['planned', 'running', 'done'] as const
+export type MatchStatus = (typeof MATCH_STATUSES)[number]
+
 // A seed placement group (DTB §30.5b). A single-seed group is *fixed* (Nr. 1 → first line, Nr. 2 →
 // last line); a multi-seed group is drawn *by lot* onto its prescribed lines (Nr. 3/4 onto the two
 // fixed lines of a 16-draw — the lines are prescribed, the lot only decides which seed lands where).

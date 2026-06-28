@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { createInMemoryRegistrationsStore } from '../worker/store/registrations.memory'
+import { createInMemoryDrawStore } from '../worker/store/draw'
+import type { MatchSlots } from '../shared'
 import type { RegistrationRow } from '../worker/db/schema'
 
 let nextId = 1
@@ -187,5 +189,67 @@ describe('in-memory registrations store · admin ops', () => {
     expect(await store.remove(r.id)).toBe(1)
     expect(await store.findById(r.id)).toBeNull()
     expect(await store.remove(r.id)).toBe(0)
+  })
+})
+
+describe('in-memory draw store · schedule placement', () => {
+  // A tiny 4-draw's worth of matches: two semifinals (round 1) + the final (round 2). The draw record
+  // fields are irrelevant to placement, so they are minimal.
+  const semis: MatchSlots[] = [
+    { round: 1, position: 0, slot1RegId: 1, slot2RegId: 2, winnerRegId: null, outcome: null },
+    { round: 1, position: 1, slot1RegId: 3, slot2RegId: 4, winnerRegId: null, outcome: null },
+    { round: 2, position: 0, slot1RegId: null, slot2RegId: null, winnerRegId: null, outcome: null }
+  ]
+  const drawn = async () => {
+    const store = createInMemoryDrawStore()
+    await store.save({
+      competition: 'mens',
+      bracket: 'main',
+      size: 4,
+      seeding: [],
+      revealSequence: [],
+      matches: semis,
+      challengerMinLk: null,
+      createdAt: 'now'
+    })
+    return store
+  }
+
+  it('lists freshly drawn matches as unscheduled and planned', async () => {
+    const store = await drawn()
+    const all = await store.listMatches()
+    expect(all).toHaveLength(3)
+    expect(all.every(m => m.court === null && m.day === null && m.slot === null && m.status === 'planned')).toBe(true)
+  })
+
+  it('placeMatch sets the court + slot of one match, leaving the others untouched', async () => {
+    const store = await drawn()
+    const [first] = await store.listMatches()
+    await store.placeMatch(first.id, { court: 3, day: 0, slot: 1 })
+
+    const placed = (await store.listMatches()).find(m => m.id === first.id)
+    expect(placed).toMatchObject({ court: 3, day: 0, slot: 1 })
+    const others = (await store.listMatches()).filter(m => m.id !== first.id)
+    expect(others.every(m => m.court === null)).toBe(true)
+  })
+
+  it('placeMatch moves a placed match to another cell', async () => {
+    const store = await drawn()
+    const [first] = await store.listMatches()
+    await store.placeMatch(first.id, { court: 3, day: 0, slot: 1 })
+    await store.placeMatch(first.id, { court: 5, day: 1, slot: 4 })
+    expect((await store.listMatches()).find(m => m.id === first.id)).toMatchObject({ court: 5, day: 1, slot: 4 })
+  })
+
+  it('placeMatch with null clears a match back to the backlog', async () => {
+    const store = await drawn()
+    const [first] = await store.listMatches()
+    await store.placeMatch(first.id, { court: 3, day: 0, slot: 1 })
+    await store.placeMatch(first.id, null)
+    expect((await store.listMatches()).find(m => m.id === first.id)).toMatchObject({
+      court: null,
+      day: null,
+      slot: null
+    })
   })
 })
