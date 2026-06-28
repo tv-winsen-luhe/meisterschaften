@@ -54,8 +54,11 @@ export const DrawBracket = ({ size, steps, currentPosition, reduce }: DrawBracke
 
   const totalRounds = bracketStructure(size).rounds
 
+  // The whole bracket fits the available height (no scroll, ADR — a beamer can't be scrolled): every
+  // round's matches flex to fill the column, and each slot flexes within its match, so a 16-line round one
+  // shrinks the lines to fit rather than overflowing and clipping the top/bottom seeds off-screen.
   return (
-    <div className="flex flex-1 items-center justify-center overflow-auto px-8 pb-4">
+    <div className="flex flex-1 items-stretch justify-center overflow-hidden px-8 pb-4">
       <div className="flex items-stretch gap-10">
         {Array.from({ length: totalRounds }, (_, r) => {
           const round = r + 1
@@ -66,9 +69,9 @@ export const DrawBracket = ({ size, steps, currentPosition, reduce }: DrawBracke
                 <span>{roundLabel(round, totalRounds)}</span>
                 <span className="text-white/35 tabular-nums">{matchCount}</span>
               </div>
-              <div className="flex flex-1 flex-col justify-around gap-2">
+              <div className="flex min-h-0 flex-1 flex-col">
                 {Array.from({ length: matchCount }, (_, m) => (
-                  <div key={m} className="flex flex-col gap-1.5">
+                  <div key={m} className="flex min-h-0 flex-1 flex-col justify-center gap-1.5">
                     <Cell
                       round={round}
                       slotIndex={2 * m}
@@ -104,13 +107,23 @@ interface CellProps {
   currentPosition: number | null
   reduce: boolean
 }
+// Each cell flexes to fill its match (capped, so a small field's lines don't balloon) and the slot fills
+// the cell — the frame the round-1 reveal, the byes, and the feeders all share so the column never
+// overflows.
+const FRAME = 'flex min-h-0 max-h-14 flex-1'
+
 // One bracket slot. Round 1 plays the revealed line (a player, a bye, or a „?" not yet drawn); round 2
 // shows a bye winner already advanced; everything deeper is an undecided feeder („?"). The round-1 line
 // at the focus position carries the highlight and the `motion` reveal that the announce band mirrors.
 const Cell = ({ round, slotIndex, lines, byeWinners, currentPosition, reduce }: CellProps) => {
   if (round === 1) {
     const step = lines[slotIndex]
-    if (!step) return <Tbd />
+    if (!step)
+      return (
+        <div className={FRAME}>
+          <Tbd />
+        </div>
+      )
     const isCurrent = slotIndex === currentPosition
     return (
       <motion.div
@@ -118,6 +131,7 @@ const Cell = ({ round, slotIndex, lines, byeWinners, currentPosition, reduce }: 
         animate={{ opacity: 1, scale: 1, y: 0 }}
         transition={{ duration: reduce ? 0 : 0.45, ease: EASE }}
         className={cn(
+          FRAME,
           'rounded-lg transition-shadow duration-500',
           isCurrent && 'shadow-[0_0_38px_-4px_rgba(163,230,53,0.85)] ring-4 ring-lime-400'
         )}
@@ -128,17 +142,17 @@ const Cell = ({ round, slotIndex, lines, byeWinners, currentPosition, reduce }: 
   }
 
   const winner = round === 2 ? byeWinners[slotIndex] : null
-  return winner ? <PlayerSlot player={winner.player} seed={winner.seed} /> : <Tbd />
+  return <div className={FRAME}>{winner ? <PlayerSlot player={winner.player} seed={winner.seed} /> : <Tbd />}</div>
 }
 
 const Tbd = () => (
-  <div className="flex min-h-10 items-center justify-center rounded-lg border-2 border-dashed border-white/15 text-lg font-bold text-white/25">
+  <div className="flex h-full min-h-0 w-full items-center justify-center rounded-lg border-2 border-dashed border-white/15 text-lg font-bold text-white/25">
     ?
   </div>
 )
 
 const Bye = () => (
-  <div className="flex min-h-10 items-center justify-center rounded-lg border-2 border-dashed border-white/15 bg-white/5 text-xs font-semibold tracking-wide text-white/45">
+  <div className="flex h-full min-h-0 w-full items-center justify-center rounded-lg border-2 border-dashed border-white/15 bg-white/5 text-xs font-semibold tracking-wide text-white/45">
     Freilos
   </div>
 )
@@ -148,7 +162,7 @@ interface PlayerSlotProps {
   seed: number | null
 }
 const PlayerSlot = ({ player, seed }: PlayerSlotProps) => (
-  <div className="flex min-h-10 items-center gap-2.5 rounded-lg bg-white px-3 py-2 text-slate-900">
+  <div className="flex h-full min-h-0 w-full items-center gap-2.5 rounded-lg bg-white px-3 text-slate-900">
     {seed !== null && (
       <span
         className="inline-flex size-5 shrink-0 items-center justify-center rounded-full bg-slate-900 text-[11px] font-bold text-white tabular-nums"
