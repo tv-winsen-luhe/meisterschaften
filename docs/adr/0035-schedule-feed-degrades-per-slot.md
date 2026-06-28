@@ -59,3 +59,12 @@ cannot occur (ADR-0021: small N).
   underlying repair is re-running the draw, not reading a 500.
 - If a feed-wide integrity signal for the operator is ever wanted, it belongs in the admin surface, not in
   the public response's success/failure.
+
+## Amendment (2026-06-28, issue #105)
+
+The operator signal above is now realized. A grid-„offen" is _always_ an inconsistency (a healthy undecided
+slot reads „Sieger M{n}"), so the admin schedule grid styles „offen" as a **warning** (amber) with a
+„bitte Auslosung erneut durchführen" tooltip — the maintainer-facing tell ADR-0035 left to "if ever wanted."
+A server-side `console.warn` in `schedule()` was the issue's suggested "cheapest path" but is **rejected**:
+the Worker has no log consumer (`wrangler.toml` carries no `[observability]`/logpush), so a log would be cost
+without a reader. The public `spielplan.astro` stays calm „offen" as decided above.
