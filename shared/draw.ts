@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import type { Phase } from './phase'
-import { seedingValue } from './registration'
+import { seedingValue } from './seeding'
 
 // Draw math, owned once in shared/ so the overview (its first consumer) and the future
 // draw read the same rule (CONTEXT: Draw size / byes). Pure, no deps — ADR-0021 keeps
