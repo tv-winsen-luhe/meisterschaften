@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import { toast } from 'sonner'
 import { CalendarDays, X } from 'lucide-react'
 import {
+  absoluteSlot,
   type AdminRegistration,
   type CompetitionDraw,
   COURT_NUMBERS,
@@ -10,7 +11,6 @@ import {
   type Match,
   type Placement,
   resolveBracket,
-  SCHEDULE,
   type SoftViolation,
   SLOT_INDICES,
   slotLabel,
@@ -283,7 +283,7 @@ const DayGrid = ({ day, label, placedByCell, selected, selectedEarliest, onCellC
             {COURT_NUMBERS.map(court => {
               const cell = placedByCell.get(`${day}-${slot}-${court}`)
               const isSelected = cell !== undefined && cell.match.id === selected
-              const abs = day * SCHEDULE.slotsPerDay + slot
+              const abs = absoluteSlot(day, slot)
               const tooEarly = selected !== null && cell === undefined && abs < selectedEarliest
               const isDropTarget = cell === undefined && selected !== null && !tooEarly
               return (

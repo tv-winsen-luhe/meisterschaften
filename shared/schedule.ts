@@ -216,7 +216,7 @@ export interface PlacementCandidate {
 
 // Day-major slot ordinal across the whole event, so a later day's slot 0 sorts after an earlier day's
 // last slot. The one ordering both the feeder rule (strictly after) and the rest gap read from.
-const absoluteSlot = (day: number, slot: number): number => day * SCHEDULE.slotsPerDay + slot
+export const absoluteSlot = (day: number, slot: number): number => day * SCHEDULE.slotsPerDay + slot
 
 /**
  * The earliest absolute slot a match may occupy, given its bracket's feeder structure. Equals the depth
