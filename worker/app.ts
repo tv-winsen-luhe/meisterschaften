@@ -5,6 +5,7 @@ import { zValidator } from '@hono/zod-validator'
 import type { ZodType } from 'zod'
 import {
   adminListResponseSchema,
+  advanceRequestSchema,
   cancelRegistrationRequestSchema,
   cancelRequestSchema,
   confirmRequestSchema,
@@ -12,9 +13,11 @@ import {
   drawRequestSchema,
   drawsResponseSchema,
   participantsResponseSchema,
+  publicDrawsResponseSchema,
   registerRequestSchema,
   setPhaseRequestSchema,
   undrawRequestSchema,
+  type AdvanceResponse,
   type BackToSignupResponse,
   type CancelRegistrationResponse,
   type ConfirmResponse,
@@ -162,6 +165,15 @@ export const createApp = (makeDeps: (env: Env) => Deps = createDepsFromEnv) =>
       const phase = await c.var.deps.appState.getPhase()
       return c.json({ phase } satisfies PhaseResponse, 200, { 'cache-control': 'no-store' })
     })
+    // GET /api/draw — the public live bracket (ADR-0003). Every drawn competition's main bracket reveal
+    // (the reveal sequence with players joined by name + LK) plus its cursor + total, so the public
+    // reveal show can render the bracket revealed up to the cursor and poll for the next lot. Public and
+    // outside Access like /api/participants; orthogonal to PUBLIC_LIST_ENABLED (the live draw is its own
+    // surface). Empty until a field is drawn.
+    .get('/api/draw', async c => {
+      const draws = await c.var.deps.drawService.publicDraws()
+      return c.json(publicDrawsResponseSchema.parse({ draws }), 200, { 'cache-control': 'no-store' })
+    })
     // POST /api/register — the registration write path. Thin handler: honeypot + rate-limit
     // (abuse/HTTP concerns) and Zod shape validation at the edge, then the Registration
     // domain owns the transition (revive vs insert, the one-active-entry invariant). The
@@ -305,6 +317,16 @@ export const createApp = (makeDeps: (env: Env) => Deps = createDepsFromEnv) =>
         return c.json({ error: result.reason, ...(result.tooStrong ? { tooStrong: result.tooStrong } : {}) }, status)
       }
       return c.json({ ok: true, draw: result.draw } satisfies DrawResponse)
+    })
+    // POST /api/admin/draw/advance — move the reveal cursor of one competition's main bracket one step
+    // forward/back (ADR-0003). Pure playback over the stored sequence; the service clamps to [0, total]
+    // and never re-rolls. The public live bracket (GET /api/draw) reflects the new cursor on its next
+    // poll. NotDrawn → 404 (no draw to reveal yet). The operator's big-screen show control is issue #71.
+    .post('/api/admin/draw/advance', parseGuard, v(advanceRequestSchema), async c => {
+      const { competition, direction } = c.req.valid('json')
+      const result = await c.var.deps.drawService.advance(competition, direction)
+      if (!result.ok) return c.json({ error: result.reason }, 404)
+      return c.json({ ok: true, cursor: result.cursor, total: result.total } satisfies AdvanceResponse)
     })
     // ── Debug-only reset (ADR-0029) ─────────────────────────────────────────────────────────
     // Three flag-gated levers that reverse the forward transitions the model treats as final (the

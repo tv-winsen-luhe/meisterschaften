@@ -217,6 +217,19 @@ const drawCompetitions = competitions
     border-color: rgba(12, 30, 58, 0.28);
     justify-content: center;
   }
+  /* A revealed bye line: the paired seed advances „ohne Spiel" (§31), so the line itself is empty. */
+  .dm-slot--bye {
+    background: rgba(12, 30, 58, 0.03);
+    border-style: dashed;
+    border-color: rgba(12, 30, 58, 0.18);
+    justify-content: center;
+  }
+  .dm-bye {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    color: rgba(12, 30, 58, 0.5);
+  }
 
   .dm-seedno {
     flex-shrink: 0;
@@ -311,13 +324,20 @@ const drawCompetitions = competitions
   import { hc } from 'hono/client'
   import { bracketStructure } from '../../shared'
   import type { AppType } from '../../worker/app'
-  import type { Participant, ParticipantsResponse } from '../../shared'
+  import type { Participant, ParticipantsResponse, PublicDraw, PublicRevealStep } from '../../shared'
 
   type Entry = Participant
-  type ApiResponse = ParticipantsResponse
   type Slot = { seed: number; player: Entry } | null
+  // The display fields a bracket line shows — derived from the wire contract's reveal-step player, so the
+  // preview's participants and the reveal's joined players share one definition (it can't drift from the
+  // server shape). A Participant is structurally assignable to it.
+  type PlayerDisplay = NonNullable<PublicRevealStep['player']>
 
   const client = hc<AppType>(location.origin)
+
+  // The public draw reveal polls ~1.5 s during the live draw show — fast enough that a revealed lot
+  // appears within a step, light enough for a phone on event Wi-Fi (small N, ADR-0021).
+  const POLL_MS = 1500
 
   // Seed line (0-indexed first-round slot) per seed number, derived from the shared bracketStructure
   // — the single source the real draw also uses (ADR-0025), so the preview's seeding can't drift
@@ -339,55 +359,77 @@ const drawCompetitions = competitions
 
   const root = document.querySelector<HTMLElement>('[data-draw]')
 
-  const slotEl = (slot: Slot): HTMLElement => {
+  // An empty „?" line — not yet drawn (a round-1 line before its reveal, or any later-round feeder).
+  const tbdEl = (): HTMLElement => {
     const el = document.createElement('div')
-    if (!slot) {
-      el.className = 'dm-slot dm-slot--tbd'
-      const q = document.createElement('span')
-      q.className = 'dm-q'
-      q.textContent = '?'
-      q.setAttribute('aria-label', 'Wird ausgelost')
-      el.appendChild(q)
-      return el
-    }
+    el.className = 'dm-slot dm-slot--tbd'
+    const q = document.createElement('span')
+    q.className = 'dm-q'
+    q.textContent = '?'
+    q.setAttribute('aria-label', 'Wird ausgelost')
+    el.appendChild(q)
+    return el
+  }
 
+  // A placed line: a player with their name, LK, and (if seeded) the seed badge. Shared by the
+  // provisional preview (always seeded) and the live reveal (seeded or drawn).
+  const playerEl = (player: PlayerDisplay, seed: number | null): HTMLElement => {
+    const el = document.createElement('div')
     el.className = 'dm-slot dm-slot--seed'
 
-    const no = document.createElement('span')
-    no.className = 'dm-seedno'
-    no.textContent = String(slot.seed)
-    no.title = `An ${slot.seed} gesetzt`
-    el.appendChild(no)
+    if (seed !== null) {
+      const no = document.createElement('span')
+      no.className = 'dm-seedno'
+      no.textContent = String(seed)
+      no.title = `An ${seed} gesetzt`
+      el.appendChild(no)
+    }
 
     const name = document.createElement('span')
     name.className = 'dm-name'
-    name.textContent = `${slot.player.firstName} ${slot.player.lastName}`.trim()
+    name.textContent = `${player.firstName} ${player.lastName}`.trim()
     el.appendChild(name)
 
     const lk = document.createElement('span')
-    lk.className = slot.player.lk ? 'dm-lk' : 'dm-lk dm-lk--pending'
-    lk.textContent = slot.player.lk ? `LK ${slot.player.lk}` : 'LK folgt'
+    lk.className = player.lk ? 'dm-lk' : 'dm-lk dm-lk--pending'
+    lk.textContent = player.lk ? `LK ${player.lk}` : 'LK folgt'
     el.appendChild(lk)
 
     return el
   }
 
-  const buildBracket = (bracket: HTMLElement, capacity: number, players: Entry[]) => {
-    const rounds = ROUNDS[capacity]
+  const slotEl = (slot: Slot): HTMLElement => (slot ? playerEl(slot.player, slot.seed) : tbdEl())
+
+  // A revealed reveal step → its line element: a placed player, or an empty bye line („Freilos", §31).
+  const revealSlotEl = (step: PublicRevealStep | undefined): HTMLElement => {
+    if (!step) return tbdEl()
+    if (step.kind === 'bye') {
+      const el = document.createElement('div')
+      el.className = 'dm-slot dm-slot--bye'
+      const fl = document.createElement('span')
+      fl.className = 'dm-bye'
+      fl.textContent = 'Freilos'
+      el.appendChild(fl)
+      return el
+    }
+    return step.player ? playerEl(step.player, step.seed) : tbdEl()
+  }
+
+  // Render one round column (label + matches). `slotFor(line)` yields each round-1 line's element;
+  // later rounds are implicit feeders, all „?". Shared shell for the preview and the reveal.
+  // `cellFor(roundIndex, slotIndex)` yields the element for one slot — round 0's slots are the first-round
+  // lines (0..size-1), round r's slots its 2·matchCount feeders. The shared column shell for preview and
+  // reveal; both decide per slot what to show.
+  const renderBracket = (
+    bracket: HTMLElement,
+    size: number,
+    cellFor: (roundIndex: number, slotIndex: number) => HTMLElement
+  ) => {
+    const rounds = ROUNDS[size]
     if (!rounds) return
-    const seedPos = seedLines(capacity)
-    const seeds = bracketStructure(capacity).seedCount
-
-    // Place the strongest LKs (feed is already LK-sorted) at their seed positions.
-    const slots: Slot[] = Array.from({ length: capacity }, () => null)
-    players.slice(0, seeds).forEach((player, i) => {
-      const pos = seedPos[i + 1]
-      if (pos !== undefined) slots[pos] = { seed: i + 1, player }
-    })
-
     bracket.innerHTML = ''
     for (let r = 0; r < rounds.length; r++) {
-      const matchCount = capacity / 2 ** (r + 1)
+      const matchCount = size / 2 ** (r + 1)
       const col = document.createElement('div')
       col.className = 'dm-round'
 
@@ -405,13 +447,8 @@ const drawCompetitions = competitions
       for (let m = 0; m < matchCount; m++) {
         const match = document.createElement('div')
         match.className = 'dm-match'
-        if (r === 0) {
-          match.appendChild(slotEl(slots[2 * m]))
-          match.appendChild(slotEl(slots[2 * m + 1]))
-        } else {
-          match.appendChild(slotEl(null))
-          match.appendChild(slotEl(null))
-        }
+        match.appendChild(cellFor(r, 2 * m))
+        match.appendChild(cellFor(r, 2 * m + 1))
         matches.appendChild(match)
       }
       col.appendChild(matches)
@@ -419,21 +456,73 @@ const drawCompetitions = competitions
     }
   }
 
-  const render = (data: ApiResponse) => {
+  // The provisional preview (before the draw): the strongest LKs sit on their seed lines, every other
+  // line is „?". Pure affordance — the lot has not run; bracketStructure owns the seed positions.
+  const buildPreview = (bracket: HTMLElement, capacity: number, players: Entry[]) => {
+    const seedPos = seedLines(capacity)
+    const seeds = bracketStructure(capacity).seedCount
+    const slots: Slot[] = Array.from({ length: capacity }, () => null)
+    players.slice(0, seeds).forEach((player, i) => {
+      const pos = seedPos[i + 1]
+      if (pos !== undefined) slots[pos] = { seed: i + 1, player }
+    })
+    renderBracket(bracket, capacity, (r, i) => (r === 0 ? slotEl(slots[i]) : tbdEl()))
+  }
+
+  // The live reveal: the server sends only the steps revealed so far (sliced to the cursor), each placing
+  // a player onto its first-round line. A revealed round-1 bye is a resolved match (§31): the paired
+  // player advances „ohne Spiel", so once both its lines are revealed it already shows in round 2 — the
+  // one round a bye carries a player forward (ADR-0025; deeper rounds stay „?" until matches are played).
+  const buildReveal = (bracket: HTMLElement, draw: PublicDraw) => {
+    const lines: (PublicRevealStep | undefined)[] = new Array(draw.size)
+    for (const step of draw.steps) lines[step.position] = step
+
+    // Per round-1 match, the player who advanced via a (fully revealed) bye, else null. A match with two
+    // players is contested, a match with an unrevealed line is unknown — both stay „?" in round 2.
+    const byeWinners: ({ player: PlayerDisplay; seed: number | null } | null)[] = []
+    for (let m = 0; m < draw.size / 2; m++) {
+      const a = lines[2 * m]
+      const b = lines[2 * m + 1]
+      // Exactly one line a bye (both revealed) ⇒ the other line's player advanced; the bye line itself
+      // carries no player (a seed-bye's player sits on its paired line, a lot-bye's neighbour is drawn).
+      const oneBye = a && b && (a.kind === 'bye') !== (b.kind === 'bye')
+      const advanced = oneBye ? (a.kind === 'bye' ? b : a) : null
+      byeWinners[m] = advanced?.player ? { player: advanced.player, seed: advanced.seed } : null
+    }
+
+    renderBracket(bracket, draw.size, (r, i) => {
+      if (r === 0) return revealSlotEl(lines[i])
+      const winner = r === 1 ? byeWinners[i] : null
+      return winner ? playerEl(winner.player, winner.seed) : tbdEl()
+    })
+  }
+
+  // Latest of each feed; the panels re-render from both whenever either arrives (a competition switches
+  // from preview to reveal the first poll after it is drawn). `lastDrawsJson` lets the 1.5 s poll skip a
+  // full DOM rebuild when nothing changed between revealed lots — no flicker on the beamer between steps.
+  let participants: ParticipantsResponse = { enabled: false, participants: [] }
+  let draws: PublicDraw[] = []
+  let lastDrawsJson = ''
+
+  const render = () => {
     if (!root) return
     const byComp = new Map<string, Entry[]>()
-    if (data.enabled) {
-      for (const e of data.participants) {
+    if (participants.enabled) {
+      for (const e of participants.participants) {
         const arr = byComp.get(e.competition) ?? []
         arr.push(e)
         byComp.set(e.competition, arr)
       }
     }
+    const drawByComp = new Map(draws.map(d => [d.competition as string, d]))
     root.querySelectorAll<HTMLElement>('[data-panel]').forEach(panel => {
       const slug = panel.dataset.panel!
       const capacity = Number(panel.dataset.capacity)
       const bracket = panel.querySelector<HTMLElement>('[data-bracket]')
-      if (bracket) buildBracket(bracket, capacity, byComp.get(slug) ?? [])
+      if (!bracket) return
+      const drawn = drawByComp.get(slug)
+      if (drawn) buildReveal(bracket, drawn)
+      else buildPreview(bracket, capacity, byComp.get(slug) ?? [])
     })
   }
 
@@ -456,20 +545,63 @@ const drawCompetitions = competitions
     })
   }
 
-  const load = async () => {
+  // The participant feed seeds the pre-draw preview; it changes rarely, so it loads once (and on a
+  // tab-return). A failure here is the one that hides the whole surface — without it there is nothing
+  // to show before any draw.
+  const loadParticipants = async () => {
     if (!root) return
     try {
       const res = await client.api.participants.$get()
       if (!res.ok) throw new Error('bad status')
-      render(await res.json())
+      participants = await res.json()
+      root.classList.remove('is-error')
+      render()
     } catch {
       root.classList.add('is-error')
     }
   }
 
+  // The draw reveal feed drives the live bracket; it is polled. A transient poll failure keeps the last
+  // good state on screen (the show must not flash an error mid-reveal) — the error surface is owned by
+  // loadParticipants, so a flaky poll never blanks the page.
+  const loadDraws = async () => {
+    try {
+      const res = await client.api.draw.$get()
+      if (!res.ok) return
+      const body = await res.json()
+      // Skip the rebuild when the reveal is unchanged since the last poll — the common case between lots.
+      const sig = JSON.stringify(body.draws)
+      if (sig === lastDrawsJson) return
+      lastDrawsJson = sig
+      ;({ draws } = body)
+      render()
+    } catch {
+      /* keep the last good reveal on a transient poll failure */
+    }
+  }
+
+  let timer: ReturnType<typeof setInterval> | undefined
+  const startPolling = () => {
+    if (timer === undefined) timer = setInterval(loadDraws, POLL_MS)
+  }
+  const stopPolling = () => {
+    if (timer !== undefined) {
+      clearInterval(timer)
+      timer = undefined
+    }
+  }
+
   initTabs()
-  load()
+  loadParticipants()
+  loadDraws()
+  startPolling()
   document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'visible') load()
+    if (document.visibilityState === 'visible') {
+      loadParticipants()
+      loadDraws()
+      startPolling()
+    } else {
+      stopPolling()
+    }
   })
 </script>

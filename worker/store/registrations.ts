@@ -46,6 +46,14 @@ export interface ConfirmedParticipant {
   lk: string | null
 }
 
+// The display fields the public draw reveal joins onto each reveal step by registration id (the
+// matches/reveal sequence carry only ids). Name + the frozen LK — what a bracket slot shows.
+export interface RevealPlayer {
+  firstName: string
+  lastName: string
+  lk: string | null
+}
+
 // A person within a single competition — the key the registration lifecycle matches on.
 // email + lastName are compared case-insensitively (the legacy COLLATE NOCASE behaviour).
 export interface PersonInCompetition {
@@ -123,6 +131,13 @@ export interface RegistrationsStore {
    * Seeding order stays owned here, beside the comparator, not re-encoded in the draw.
    */
   confirmedForDraw(competition: string): Promise<DrawPlayer[]>
+
+  /**
+   * Display fields (name + LK) for the given registration ids, keyed by id — the public draw reveal's
+   * name join onto the reveal sequence (which carries only ids). Missing ids are simply absent from
+   * the map; an empty input returns an empty map.
+   */
+  revealPlayers(ids: number[]): Promise<Map<number, RevealPlayer>>
 
   /** A single row by id, or null. */
   findById(id: number): Promise<RegistrationRow | null>
@@ -235,6 +250,20 @@ export const createD1RegistrationsStore = (d1: D1Database): RegistrationsStore =
         .from(registrations)
         .where(and(eq(registrations.competition, competition), eq(registrations.status, 'confirmed')))
       return rows.sort(bySeedingThenTime).map(r => ({ id: r.id, lk: r.lk }))
+    },
+
+    async revealPlayers(ids) {
+      if (ids.length === 0) return new Map()
+      const rows = await db
+        .select({
+          id: registrations.id,
+          firstName: registrations.firstName,
+          lastName: registrations.lastName,
+          lk: registrations.lk
+        })
+        .from(registrations)
+        .where(inArray(registrations.id, ids))
+      return new Map(rows.map(r => [r.id, { firstName: r.firstName, lastName: r.lastName, lk: r.lk }]))
     },
 
     async findById(id) {

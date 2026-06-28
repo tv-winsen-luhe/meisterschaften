@@ -7,10 +7,12 @@ import {
   DRAW_BLOCKER_REASON,
   drawBracket,
   type DrawPlayer,
+  type CompetitionSlug,
   drawSize,
   isChallengerField,
   materializeMatches,
   type Phase,
+  type PublicDraw,
   type RandomSource
 } from '../shared'
 import type { DrawStore } from './store/draw'
@@ -46,6 +48,18 @@ export type TooStrongEntry = DrawPlayer
 export type DrawOutcome =
   | { ok: true; draw: CompetitionDraw }
   | { ok: false; error: DrawError; reason: string; tooStrong?: TooStrongEntry[] }
+
+// Advancing the reveal cursor (ADR-0003): pure playback over the stored sequence. The only failure is
+// advancing a field that was never drawn (no reveal sequence to play) — a 404 at the route.
+export type AdvanceError = 'NotDrawn'
+const NOT_DRAWN_REASON = 'Diese Konkurrenz ist noch nicht ausgelost.'
+
+export type AdvanceOutcome =
+  | { ok: true; cursor: number; total: number }
+  | { ok: false; error: AdvanceError; reason: string }
+
+// Which way the operator moves the reveal cursor: forward reveals the next lot, back corrects one.
+export type AdvanceDirection = 'forward' | 'back'
 
 export interface DrawServiceDeps {
   registrationsStore: RegistrationsStore
@@ -85,7 +99,15 @@ export const createDrawService = (deps: DrawServiceDeps) => {
       const players = await registrationsStore.confirmedForDraw(competition)
       const blocker = drawBlocker(phase, players.length)
       if (blocker) return fail(blocker)
-      if (await drawStore.findDraw(competition, 'main')) return fail('AlreadyDrawn')
+
+      // The re-run guard (ADR-0026, ADR-0003): a draw is final the moment it is revealed. While it is
+      // computed but unrevealed (cursor 0, nothing public) the operator may discard and re-draw — the
+      // only legitimate "repeat", a fresh roll. Once the first lot is revealed (cursor > 0, the show is
+      // live) the draw is frozen and the re-run is refused. The existing draw is dropped only *after*
+      // every precondition below passes (the new bracket is valid), so a refused re-draw never wipes a
+      // standing unrevealed draw.
+      const existing = await drawStore.findDraw(competition, 'main')
+      if (existing && existing.revealCursor > 0) return fail('AlreadyDrawn')
 
       // The Challenger cap binds here, on the frozen LKs (ADR-0024): snapshot the threshold, judge the
       // field with the shared predicate (Slice 6, the single authority), and on a violation write
@@ -109,7 +131,11 @@ export const createDrawService = (deps: DrawServiceDeps) => {
           revealSequence,
           matches: materializeMatches(size, slots),
           challengerMinLk: frozenChallengerMinLk,
-          createdAt: now
+          createdAt: now,
+          // Break-glass replace: the re-draw is known valid (all guards passed), so swap the standing
+          // unrevealed draw out atomically inside the save (ADR-0026) — never a separate delete that a
+          // failed save could leave behind.
+          replace: existing !== null
         })
       } catch (err) {
         // A concurrent draw can pass the findDraw check above and then lose the race to the unique
@@ -125,6 +151,61 @@ export const createDrawService = (deps: DrawServiceDeps) => {
       const draw = await drawStore.getDraw(competition, 'main')
       if (!draw) throw new Error(`draw vanished after save for ${competition}/main`)
       return { ok: true, draw }
+    },
+
+    /**
+     * Advance (or rewind) the main bracket's reveal cursor by one step (ADR-0003). Pure playback: it
+     * reads the stored reveal sequence, clamps the new cursor to [0, total], and persists it — it never
+     * re-rolls. The cursor is the same whether it moved or hit a bound (forward at `total`, back at 0),
+     * so the operator can step idempotently. NotDrawn when the field has no draw yet.
+     */
+    async advance(competition: string, direction: AdvanceDirection): Promise<AdvanceOutcome> {
+      const reveal = await drawStore.getReveal(competition, 'main')
+      if (!reveal) return { ok: false, error: 'NotDrawn', reason: NOT_DRAWN_REASON }
+
+      const total = reveal.steps.length
+      const next = reveal.cursor + (direction === 'forward' ? 1 : -1)
+      const cursor = Math.max(0, Math.min(total, next))
+      if (cursor !== reveal.cursor) await drawStore.setCursor(competition, 'main', cursor)
+      return { ok: true, cursor, total }
+    },
+
+    /**
+     * The public live bracket (ADR-0003): every drawn competition's main bracket reveal, **sliced to the
+     * cursor** — only the steps already revealed are sent, with each one's player joined in by name + LK
+     * (the reveal sequence carries only ids). The unrevealed tail never leaves the server, so a spectator
+     * polling the endpoint cannot read the outcome ahead of the show — the suspense is server-enforced,
+     * not a client-side display gate. Only the main bracket has a reveal show; the consolation bracket
+     * publishes directly (ADR-0004).
+     */
+    async publicDraws(): Promise<PublicDraw[]> {
+      const reveals = (await drawStore.listReveals()).filter(r => r.bracket === 'main')
+
+      // Join names only for the revealed prefix — never read player rows for steps still to come.
+      const ids = new Set<number>()
+      for (const r of reveals) {
+        for (const s of r.steps.slice(0, r.cursor)) if (s.playerId !== null) ids.add(s.playerId)
+      }
+      const players = await registrationsStore.revealPlayers([...ids])
+
+      return reveals.map(r => ({
+        // The store speaks `string`; the wire contract narrows to CompetitionSlug (the route's Zod parse
+        // is the authority that rejects anything else), exactly as the match/draw projections do.
+        competition: r.competition as CompetitionSlug,
+        size: r.size,
+        cursor: r.cursor,
+        total: r.steps.length,
+        // Only the revealed prefix — `cursor` ≤ total (clamped by advance), so the slice is safe.
+        steps: r.steps.slice(0, r.cursor).map(s => ({
+          kind: s.kind,
+          position: s.position,
+          seed: s.seed,
+          // A lot-bye line has no player; every placed step joins its registration row. A missing id
+          // (only reachable if a slot's registration was hard-deleted out from under a frozen draw)
+          // degrades to null rather than throwing — the reveal still renders, that line just blank.
+          player: s.playerId !== null ? (players.get(s.playerId) ?? null) : null
+        }))
+      }))
     }
   }
 }

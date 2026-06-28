@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import { CLUBS, clubSchema } from './club'
 import { competitionSlug } from './competition'
-import { BRACKETS, MATCH_OUTCOMES, seedingEntrySchema } from './draw'
+import { BRACKETS, MATCH_OUTCOMES, REVEAL_KINDS, seedingEntrySchema } from './draw'
 import { REGISTRATION_STATUSES } from './registration'
 
 // The admin (operator) contract — the single source of truth for the /api/admin/* JSON
@@ -146,3 +146,67 @@ export type DrawRequest = z.infer<typeof drawRequestSchema>
 
 export const drawResponseSchema = z.object({ ok: z.literal(true), draw: competitionDrawSchema })
 export type DrawResponse = z.infer<typeof drawResponseSchema>
+
+// ── Lot-by-lot reveal (ADR-0003, issue #70) ────────────────────────────────────────────────────
+// The draw is precomputed atomically, then revealed lot step by lot step (ADR-0003): the reveal cursor
+// (how many steps have been shown) advances over the stored reveal sequence — pure playback, never a
+// re-roll. The advance is an operator action (the show control is issue #71); the public live bracket
+// polls the reveal below.
+
+// POST /api/admin/draw/advance — move the reveal cursor one step forward/back over the main bracket's
+// reveal sequence (the only bracket with a reveal show — the consolation bracket publishes directly,
+// ADR-0004). Clamped at the route to [0, total]; never re-draws (ADR-0003). `direction` is the lot the
+// operator reveals next (forward) or a correction back.
+export const advanceRequestSchema = z.object({
+  competition: z.enum(competitionSlug.options, { error: 'Ungültige Konkurrenz.' }),
+  direction: z.enum(['forward', 'back'], { error: 'Ungültige Richtung.' })
+})
+export type AdvanceRequest = z.infer<typeof advanceRequestSchema>
+
+// The cursor after the move and the total step count — so the show control knows the bounds (start at
+// 0, fully revealed at total).
+export const advanceResponseSchema = z.object({
+  ok: z.literal(true),
+  cursor: z.number().int().nonnegative(),
+  total: z.number().int().nonnegative()
+})
+export type AdvanceResponse = z.infer<typeof advanceResponseSchema>
+
+// ── Public live bracket (GET /api/draw) ─────────────────────────────────────────────────────────
+// The public draw reveal show polls this (~1–2 s) and renders the bracket *revealed up to the cursor*.
+// It is the reveal sequence with each step's player joined in by name + LK (the matches carry only ids),
+// plus the cursor and total — enough to render the main bracket's first-round reveal. The bracket *shape*
+// (rounds, seed lines) is derived from `size` via the shared bracketStructure (ADR-0025) — there is no
+// second topology here. Public like /api/participants and /api/phase; empty until a field is drawn.
+
+// One reveal step as the public show consumes it: the line it places and what lands there. A `bye` step
+// (kind 'bye') marks an empty line — `player` is null and the line shows „Freilos". A seeded step
+// (seed-fixed/seed-lot) carries its seed number; an unseeded `draw` step has none. The player display
+// is null only for a lot-bye line (the §32.4c remaining bye, no player yet); every placed step carries
+// its player joined from the registration row the slot references.
+export const revealStepPlayerSchema = z.object({
+  firstName: z.string(),
+  lastName: z.string(),
+  lk: z.string().nullable()
+})
+export const publicRevealStepSchema = z.object({
+  kind: z.enum(REVEAL_KINDS),
+  position: z.number().int().nonnegative(),
+  seed: z.number().int().positive().nullable(),
+  player: revealStepPlayerSchema.nullable()
+})
+export type PublicRevealStep = z.infer<typeof publicRevealStepSchema>
+
+// One competition's reveal state: its draw size (the bracket shape), the cursor (how many steps are
+// shown), the total step count, and the reveal steps. The reveal show is the main bracket only.
+export const publicDrawSchema = z.object({
+  competition: competitionSlug,
+  size: z.number().int().positive(),
+  cursor: z.number().int().nonnegative(),
+  total: z.number().int().nonnegative(),
+  steps: z.array(publicRevealStepSchema)
+})
+export type PublicDraw = z.infer<typeof publicDrawSchema>
+
+export const publicDrawsResponseSchema = z.object({ draws: z.array(publicDrawSchema) })
+export type PublicDrawsResponse = z.infer<typeof publicDrawsResponseSchema>

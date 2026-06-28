@@ -24,6 +24,9 @@ moment the draw is computed, so it can be shown afterward that nothing changed d
 - The official bracket exists in full from the first lot; a crashed/reloaded TV resumes from a stored
   reveal position with no risk to the result.
 - The audience experiences identical suspense — the reveal is still sequential and unknown to them.
+  Because the full bracket exists server-side from the first lot, the public reveal endpoint serves
+  only the revealed prefix (steps up to the cursor) — the suspense is enforced at the API, not merely
+  in the client render, so a spectator polling the endpoint cannot read the outcome ahead of the show.
 - The data model stores: the seeding, the ordered lot sequence (for playback), the final bracket, and
   a reveal cursor (how many lots have been shown).
 - A break-glass "re-run draw" is only valid before the first reveal/publish; once revealed, the draw
