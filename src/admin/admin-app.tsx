@@ -193,12 +193,17 @@ export const AdminApp = () => {
 
   // Start the draw for one competition (ADR-0025). Goes through mutate, so it shares the
   // 401-regate/error/toast behaviour and the success reload re-fetches the drawn brackets. The
-  // pending flag drives the card's button state and guards against a double-fire.
+  // pending flag drives the card's button state and guards against a double-fire. On success the
+  // large-screen show opens straight away (at cursor 0, ready for the first lot) — the live flow is
+  // „auslosen, dann enthüllen", so the operator goes from the button to the beamer in one click rather
+  // than drawing and then hunting for „Großbild-Show" (that button stays for re-opening a drawn field).
   const drawCompetition = useCallback(
     async (competition: CompetitionSlug): Promise<boolean> => {
       setDrawingCompetition(competition)
       try {
-        return await mutate(() => client.api.admin.draw.$post({ json: { competition } }), 'Konkurrenz ausgelost.')
+        const ok = await mutate(() => client.api.admin.draw.$post({ json: { competition } }), 'Konkurrenz ausgelost.')
+        if (ok) setShowCompetition(competition)
+        return ok
       } finally {
         setDrawingCompetition(null)
       }
