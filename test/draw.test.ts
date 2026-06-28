@@ -40,14 +40,26 @@ describe('bracketStructure', () => {
     ])
   })
 
+  it('places 2 fixed seeds on the first and last line of a 4-draw (sub-DTB extension, ADR-0034)', () => {
+    const s = bracketStructure(4)
+    expect(s.seedCount).toBe(2)
+    expect(s.rounds).toBe(2)
+    expect(s.seedGroups).toEqual([
+      { seeds: [1], lines: [0] },
+      { seeds: [2], lines: [3] }
+    ])
+  })
+
   it('throws for an unsupported draw size (small-N guard, ADR-0021)', () => {
+    expect(() => bracketStructure(2)).toThrow()
     expect(() => bracketStructure(32)).toThrow()
   })
 
   it('reports which sizes have a seed table', () => {
+    expect(isSupportedDrawSize(4)).toBe(true)
     expect(isSupportedDrawSize(8)).toBe(true)
     expect(isSupportedDrawSize(16)).toBe(true)
-    expect(isSupportedDrawSize(4)).toBe(false)
+    expect(isSupportedDrawSize(2)).toBe(false)
     expect(isSupportedDrawSize(32)).toBe(false)
   })
 })
@@ -60,9 +72,11 @@ describe('drawBlocker', () => {
     expect(drawBlocker('post-event', 8)).toBe('not-tournament')
   })
 
-  it('blocks fewer than two entries', () => {
+  it('blocks fewer than four entries — the smallest field that forms a real knockout (ADR-0034)', () => {
     expect(drawBlocker('tournament', 0)).toBe('too-few')
     expect(drawBlocker('tournament', 1)).toBe('too-few')
+    expect(drawBlocker('tournament', 2)).toBe('too-few') // a 2–3 field would draw a bye-semifinal
+    expect(drawBlocker('tournament', 3)).toBe('too-few')
   })
 
   it('allows a non-full field — §31 fills it with byes', () => {
@@ -72,15 +86,13 @@ describe('drawBlocker', () => {
     expect(drawBlocker('tournament', 13)).toBeNull() // 16-draw, 3 byes
   })
 
-  it('blocks a field whose draw size has no seed table (rounds to 2, 4, or 32)', () => {
-    expect(drawBlocker('tournament', 2)).toBe('unsupported-size') // size 2
-    expect(drawBlocker('tournament', 3)).toBe('unsupported-size') // size 4
-    expect(drawBlocker('tournament', 4)).toBe('unsupported-size') // size 4
+  it('blocks an over-full field whose draw size has no seed table (17+ rounds to 32)', () => {
     expect(drawBlocker('tournament', 17)).toBe('unsupported-size') // size 32
     expect(drawBlocker('tournament', 32)).toBe('unsupported-size') // size 32
   })
 
-  it('allows a supported field (5–16 entrants round to an 8- or 16-draw)', () => {
+  it('allows a supported field (4–16 entrants round to a 4-, 8-, or 16-draw)', () => {
+    expect(drawBlocker('tournament', 4)).toBeNull() // 4-draw, full — the smallest field
     expect(drawBlocker('tournament', 5)).toBeNull()
     expect(drawBlocker('tournament', 8)).toBeNull()
     expect(drawBlocker('tournament', 16)).toBeNull()

@@ -1,10 +1,19 @@
 import { describe, expect, it } from 'vitest'
-import { byeCount, consolationMatches, drawSize, mainDrawMatches, matchCount } from '../shared'
+import {
+  byeCount,
+  consolationMatches,
+  displayDrawSize,
+  displaySeedCount,
+  drawSize,
+  mainDrawMatches,
+  matchCount
+} from '../shared'
 
 // drawSize/byeCount are the draw math (CONTEXT: "Draw size — the next power of two ≥ number of
 // confirmed players; the gap to that size is filled with byes"). They live in shared/ as the
 // single source the overview reads today and the draw will reuse (ADR-0021 keeps it small).
-// A draw needs at least two players; below that there is no bracket (drawSize 0 → no byes).
+// This is the raw size math (0 below two players); the *castable* floor is higher — a field needs ≥4
+// to be drawn (drawBlocker, ADR-0034), so 2 and 3 round to a size here but are gated as too-few.
 describe('drawSize', () => {
   it.each([
     [0, 0],
@@ -21,6 +30,46 @@ describe('drawSize', () => {
     [32, 32]
   ])('drawSize(%i) = %i', (n, size) => {
     expect(drawSize(n)).toBe(size)
+  })
+})
+
+// displayDrawSize: the size the public pre-draw preview renders — drawSize clamped to the supported
+// sizes (4/8/16), so 0–3 confirmed floor to a 4-bracket and 17+ caps at 16 (CONTEXT: Draw size, ADR-0034).
+describe('displayDrawSize', () => {
+  it('floors a still-filling field to the smallest real bracket (4)', () => {
+    expect(displayDrawSize(0)).toBe(4)
+    expect(displayDrawSize(2)).toBe(4)
+    expect(displayDrawSize(3)).toBe(4)
+    expect(displayDrawSize(4)).toBe(4)
+  })
+
+  it('follows the confirmed field across the supported sizes', () => {
+    expect(displayDrawSize(5)).toBe(8) // 7 confirmed → an 8-draw, not the 16 a capacity would imply
+    expect(displayDrawSize(7)).toBe(8)
+    expect(displayDrawSize(8)).toBe(8)
+    expect(displayDrawSize(9)).toBe(16)
+    expect(displayDrawSize(16)).toBe(16)
+  })
+
+  it('caps an over-full field at the largest supported size (16)', () => {
+    expect(displayDrawSize(17)).toBe(16)
+    expect(displayDrawSize(40)).toBe(16)
+  })
+})
+
+// displaySeedCount: the provisional seed count both pre-draw public surfaces show — the §30.5a count for
+// the displayed size (4/8 → 2, 16 → 4), one rule so the preview and participant list never disagree.
+describe('displaySeedCount', () => {
+  it.each([
+    [0, 2], // floors to a 4-bracket → 2 seeds
+    [3, 2], // 4-draw
+    [5, 2], // 8-draw
+    [8, 2],
+    [9, 4], // 16-draw
+    [16, 4],
+    [40, 4] // caps at 16
+  ])('displaySeedCount(%i) = %i', (confirmed, seeds) => {
+    expect(displaySeedCount(confirmed)).toBe(seeds)
   })
 })
 

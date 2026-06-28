@@ -8,8 +8,9 @@ import { seedingValue } from './registration'
 // re-derived per surface.
 
 /**
- * The draw size for `confirmed` players: the next power of two ≥ confirmed. A draw needs at
- * least two players — below that there is no bracket, so 0 and 1 return 0.
+ * The draw size for `confirmed` players: the next power of two ≥ confirmed. This is the raw bracket
+ * math — 0 and 1 return 0 (no bracket). It is **not** the castable floor: a field needs ≥4 confirmed to
+ * actually be drawn (drawBlocker, ADR-0034), so 2 and 3 round to a size here but are gated as too-few.
  */
 export const drawSize = (confirmed: number): number => {
   if (confirmed < 2) return 0
@@ -91,7 +92,7 @@ export interface SeedGroup {
 
 export interface BracketStructure {
   size: number
-  // Number of seeds for this size (DTB §30.5a): 8 → 2, 16 → 4. Our fields are 8 or 16.
+  // Number of seeds for this size (DTB §30.5a, plus 4 → 2 by ADR-0034): 8 → 2, 16 → 4. Fields draw at 4, 8, or 16.
   seedCount: number
   // Seed placement in seed order: [Nr.1 fixed], [Nr.2 fixed], then the lot groups (Nr.3/4 …).
   seedGroups: SeedGroup[]
@@ -100,9 +101,15 @@ export interface BracketStructure {
 }
 
 // Seed lines per draw size, 0-indexed (DTB §30.5b). Nr. 1 → first line, Nr. 2 → last line; the
-// 16-draw places Nr. 3/4 by lot onto lines 5 and 12 (0-indexed 4 and 11). Only the sizes our
-// fields use (8, 16) are defined — bracketStructure throws for anything else.
+// 16-draw places Nr. 3/4 by lot onto lines 5 and 12 (0-indexed 4 and 11). Sizes 4, 8, 16 are defined —
+// bracketStructure throws for anything else. Size 4 (Nr.1 → line 0, Nr.2 → line 3, both fixed, no lot)
+// is our sub-DTB extension: §30.5a's table starts at 8, so a 4-field reuses the 8-field's 2-seed
+// pattern (ADR-0034) — letting tiny fields (e.g. a 4-player Damen draw) be cast at all.
 const SEED_GROUPS: Record<number, SeedGroup[]> = {
+  4: [
+    { seeds: [1], lines: [0] },
+    { seeds: [2], lines: [3] }
+  ],
   8: [
     { seeds: [1], lines: [0] },
     { seeds: [2], lines: [7] }
@@ -116,7 +123,7 @@ const SEED_GROUPS: Record<number, SeedGroup[]> = {
 
 /**
  * The bracket topology for a draw `size` (a power of two ≥ 2). Throws for sizes whose seed table is
- * not defined here (i.e. anything but 8 or 16 today) — a deliberate small-N guard (ADR-0021), so a
+ * not defined here (i.e. anything but 4, 8, or 16 today) — a deliberate small-N guard (ADR-0021), so a
  * new size is an explicit table entry, never a silently mis-seeded bracket.
  */
 export const bracketStructure = (size: number): BracketStructure => {
@@ -130,8 +137,41 @@ export const bracketStructure = (size: number): BracketStructure => {
   }
 }
 
-/** Whether a draw of this size has a defined seed table (i.e. drawBracket won't throw). 8 and 16. */
+/** Whether a draw of this size has a defined seed table (i.e. drawBracket won't throw). 4, 8, and 16. */
 export const isSupportedDrawSize = (size: number): boolean => SEED_GROUPS[size] !== undefined
+
+// The draw sizes that have a seed table, ascending — the sizes the draw can cast and the preview can
+// render. Derived from SEED_GROUPS (numeric keys iterate ascending), so a new table entry extends both.
+const SUPPORTED_DRAW_SIZES = Object.keys(SEED_GROUPS).map(Number)
+
+/**
+ * The draw size the public pre-draw preview renders for a field of `confirmed` players: `drawSize`
+ * clamped to the supported range (today 4..16). Below the smallest supported size (0–3 confirmed, the
+ * field is still filling) it floors to the smallest real bracket; above the largest it caps there. So
+ * the preview always shows a renderable bracket that foreshadows the actual draw, sized from the
+ * confirmed field — never from a competition's capacity (CONTEXT: Draw size, ADR-0034).
+ *
+ * This is a **render clamp, not a castability test** — deliberately broader than `drawBlocker`, which
+ * *rejects* a field too small (2–3 → `too-few`, ADR-0034) or too big (17+ → `unsupported-size`). A
+ * still-filling (0–3) or over-full (17+) field previews the *nearest* real bracket as a foreshadow; it
+ * is not a claim the draw can be cast now (registration may be open, the field may be below the ≥4 floor,
+ * or the operator must trim an over-full one). Don't reuse this where the question is "can this be
+ * drawn?" — that is `drawBlocker`.
+ */
+export const displayDrawSize = (confirmed: number): number => {
+  const min = SUPPORTED_DRAW_SIZES[0]
+  const max = SUPPORTED_DRAW_SIZES[SUPPORTED_DRAW_SIZES.length - 1]
+  return Math.min(Math.max(drawSize(confirmed), min), max)
+}
+
+/**
+ * The provisional seed count the pre-draw surfaces show for a field of `confirmed` players: the number
+ * of seeds the real draw would use at this size (`displayDrawSize` → §30.5a count: 4/8 → 2, 16 → 4).
+ * One rule for the public preview and the participant list so their seed markers never disagree for the
+ * same field (CONTEXT: Seeding). Note the admin seeding board uses a *stricter* count (0 for a size with
+ * no seed table) — it must flag a non-castable field, where the public preview clamps to show one.
+ */
+export const displaySeedCount = (confirmed: number): number => bracketStructure(displayDrawSize(confirmed)).seedCount
 
 // ── Draw gate (CONTEXT: competition lifecycle, ADR-0011/0025/0027) ─────────────────────────────
 // Why a competition cannot be drawn yet. The single predicate both the worker enforces (authority)
@@ -142,22 +182,25 @@ export type DrawBlocker = 'not-tournament' | 'too-few' | 'unsupported-size'
 // The operator-facing reason per blocker — one source for the server's 400 body and the button hint.
 export const DRAW_BLOCKER_REASON: Record<DrawBlocker, string> = {
   'not-tournament': 'Auslosung erst nach Anmeldeschluss (Phase „Turnier").',
-  'too-few': 'Mindestens zwei bestätigte Anmeldungen nötig.',
-  'unsupported-size': 'Aktuell nur 8er- und 16er-Felder.'
+  'too-few': 'Mindestens vier bestätigte Anmeldungen nötig.',
+  'unsupported-size': 'Aktuell nur 4er-, 8er- und 16er-Felder.'
 }
 
 /**
  * The draw gate for a competition with `confirmed` confirmed entries in the given phase: the first
  * reason it cannot be drawn, or `null` when it can. Mirrors the steps the draw needs — registration
- * closed (`tournament`), at least two entries, and a draw size the seed table supports (8/16). Byes
- * are no longer a blocker — §31 fills a non-full field — so only the size gate remains (a field of
- * 5–8 rounds to 8, 9–16 to 16; 2/3/4 round to 2/4 and 17+ to 32, none of which have a seed table).
- * The "already drawn" check is not here: it needs the store, so the worker adds it; this is the pure,
- * store-free part the client can run too.
+ * closed (`tournament`), at least **four** entries, and a draw size the seed table supports (4/8/16).
+ * Four is the smallest field that forms a real knockout: a 2–3 field would draw a bye-semifinal (a
+ * player walks to the final, breaking the two-matches-each guarantee), so a field needs ≥4 to be cast —
+ * below that the club plays it off another way, not through this KO engine (ADR-0034). Byes are no
+ * longer a blocker — §31 fills a non-full field — so the remaining gates are the floor and the size
+ * table (a field of 4 is a full 4-draw, 5–8 rounds to 8, 9–16 to 16; under 4 is too-few, 17+ rounds to
+ * 32, which has no seed table). The "already drawn" check is not here: it needs the store, so the worker
+ * adds it; this is the pure, store-free part the client can run too.
  */
 export const drawBlocker = (phase: Phase, confirmed: number): DrawBlocker | null => {
   if (phase !== 'tournament') return 'not-tournament'
-  if (confirmed < 2) return 'too-few'
+  if (confirmed < 4) return 'too-few'
   if (!isSupportedDrawSize(drawSize(confirmed))) return 'unsupported-size'
   return null
 }
@@ -361,7 +404,7 @@ export const drawBracket = ({ players, size, random }: DrawInput): DrawResult =>
     const remaining = byes - seedByes
     let freeMatches = 0
     for (let m = 0; m < size / 2; m++) if (isFree(m)) freeMatches++
-    // One bye per free match, max. drawSize keeps byes below size/2 for 8/16, so this always holds;
+    // One bye per free match, max. drawSize keeps byes below size/2 for 4/8/16, so this always holds;
     // assert it so a new size or seed table that broke the invariant fails here, not by silently
     // overwriting a placed player inside distributeByes.
     if (remaining > freeMatches) {

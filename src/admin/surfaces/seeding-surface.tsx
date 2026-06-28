@@ -48,8 +48,8 @@ export const SeedingSurface = ({ registrations }: SeedingSurfaceProps) => {
         .filter(r => r.competition === slug && r.status === 'confirmed')
         .sort((a, b) => seedingValue(a.lk) - seedingValue(b.lk))
       // The number of seeds for this provisional field (DTB §30.5a), read from the one topology
-      // source the draw itself uses. Only the supported sizes (8/16) have a seed table; a smaller or
-      // unsupported field shows no seed markers (0) rather than guessing — bracketStructure would throw.
+      // source the draw itself uses. Only the supported sizes (4/8/16) have a seed table; an unsupported
+      // field (size 2 or 32) shows no seed markers (0) rather than guessing — bracketStructure would throw.
       const size = drawSize(confirmed.length)
       const seedCount = isSupportedDrawSize(size) ? bracketStructure(size).seedCount : 0
       // The Challenger field is judged against the current cap; other fields have none, so the set of

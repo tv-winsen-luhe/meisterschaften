@@ -125,13 +125,21 @@ describe('createDrawService.draw', () => {
     expect(byes[0]?.winnerRegId).not.toBeNull()
   })
 
-  it('refuses a full field whose size has no seed table yet (e.g. 4 — only 8/16 are supported)', async () => {
-    const result = await service(field(4), []).draw({ competition: 'mens', phase: 'tournament', now: 'now' })
+  it('draws a 4-player field — the smallest field that forms a knockout (ADR-0034)', async () => {
+    const result = await service(field(4), [0]).draw({ competition: 'mens', phase: 'tournament', now: 'now' })
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+    expect(result.draw.size).toBe(4)
+    expect(result.draw.matches).toHaveLength(3) // two semifinals + final, no byes (a full 4-draw)
+  })
+
+  it('refuses an over-full field whose size has no seed table (17+ rounds to 32)', async () => {
+    const result = await service(field(17), []).draw({ competition: 'mens', phase: 'tournament', now: 'now' })
     expect(result).toMatchObject({ ok: false, error: 'unsupported-size' })
   })
 
-  it('refuses fewer than two confirmed entries', async () => {
-    const result = await service(field(1), []).draw({ competition: 'mens', phase: 'tournament', now: 'now' })
+  it('refuses fewer than four confirmed entries (2–3 are too few to seed a knockout)', async () => {
+    const result = await service(field(3), []).draw({ competition: 'mens', phase: 'tournament', now: 'now' })
     expect(result).toMatchObject({ ok: false, error: 'too-few' })
   })
 })
@@ -329,8 +337,9 @@ describe('POST /api/admin/draw + GET /api/admin/draws', () => {
     expect(byes?.c).toBe(3)
   })
 
-  it('still rejects a field whose draw size has no seed table (e.g. 4) with 400', async () => {
-    for (let i = 1; i <= 4; i++) await seedConfirmed(i)
+  it('still rejects a field whose draw size has no seed table (17+ rounds to 32) with 400', async () => {
+    // 4 is now supported (ADR-0034); an over-full field (17 → size 32) still has no seed table.
+    for (let i = 1; i <= 17; i++) await seedConfirmed(i)
     await setPhase('tournament')
     const res = await draw('mens')
     expect(res.status).toBe(400)

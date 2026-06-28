@@ -118,7 +118,10 @@ export const CompetitionsSurface = ({
               <div className="flex items-center gap-3">
                 <span className="text-muted-foreground text-sm tabular-nums">
                   {row.confirmed} bestätigt
-                  {row.size > 0 && (
+                  {/* The would-be-draw chip only when the size isn't itself the reason the draw is blocked
+                      (too-few / unsupported-size) — otherwise it would advertise a „4er-Feld" next to a
+                      disabled „too few" button (ADR-0034). A forming field in signup still shows it. */}
+                  {row.size > 0 && row.blocker !== 'too-few' && row.blocker !== 'unsupported-size' && (
                     <>
                       {' · '}
                       {row.size}er-Feld
