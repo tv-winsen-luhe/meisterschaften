@@ -187,7 +187,7 @@ export const DrawShow = ({ competition, onLoad, onAdvance, onExit }: DrawShowPro
         <div className="flex items-center gap-6">
           <div className="text-right">
             <div className="text-[11px] font-semibold tracking-[0.18em] text-[#0c1e3a]/45 uppercase">
-              {complete ? 'Komplett' : 'Los'}
+              {complete ? 'Komplett' : 'Schritt'}
             </div>
             <div className="text-2xl font-bold text-[#0c1e3a] tabular-nums">
               {cursor} <span className="text-[#0c1e3a]/35">/ {total}</span>
@@ -253,7 +253,7 @@ export const DrawShow = ({ competition, onLoad, onAdvance, onExit }: DrawShowPro
           disabled={busy || stale || complete}
           className="inline-flex items-center gap-2 rounded-xl bg-[#0c1e3a] px-8 py-3.5 text-base font-bold text-white transition-colors hover:bg-[#0c1e3a]/90 disabled:cursor-not-allowed disabled:opacity-30"
         >
-          {complete ? 'Auslosung komplett' : 'Nächstes Los'}
+          {complete ? 'Auslosung komplett' : 'Weiter'}
           {!complete && <ChevronRight className="size-5" />}
         </button>
       </div>
@@ -286,7 +286,7 @@ interface AnnounceProps {
 // line with the LK and where it landed. Before the first lot it invites the operator to begin.
 const Announce = ({ step, cursor, complete }: AnnounceProps) => {
   if (cursor === 0 || !step) {
-    return <p className="text-2xl font-semibold text-[#525252]">Bereit — „Nächstes Los“ enthüllt das erste Los.</p>
+    return <p className="text-2xl font-semibold text-[#525252]">Bereit — „Weiter“ enthüllt den ersten Schritt.</p>
   }
 
   const position = step.position + 1 // 1-based for the audience
