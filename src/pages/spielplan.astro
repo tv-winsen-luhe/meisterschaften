@@ -135,7 +135,7 @@ import Layout from '@/layouts/default.astro'
 
 <script>
   import { hc } from 'hono/client'
-  import { slotTime } from '../../shared'
+  import { slotLabel, slotTime } from '../../shared'
   import { competitions, tournament } from '../data/tournament'
   import type { AppType } from '../../worker/app'
   import type { ScheduleMatch, ScheduleResponse, ScheduleSlot } from '../../shared'
@@ -170,9 +170,9 @@ import Layout from '@/layouts/default.astro'
   }
   const slotText = (slot: ScheduleSlot): SlotText => {
     if (slot.kind === 'player') return { text: `${slot.firstName} ${slot.lastName}`.trim(), tbd: false }
-    if (slot.kind === 'bye') return { text: 'Freilos', tbd: true }
-    if (slot.kind === 'feeder') return { text: `Sieger M${slot.matchNumber}`, tbd: true }
-    return { text: 'offen', tbd: true }
+    // Every undecided slot (bye/feeder/unknown) shares the German copy with the admin grid (#109) and
+    // renders muted.
+    return { text: slotLabel(slot), tbd: true }
   }
 
   const playerLine = (slot: ScheduleSlot): HTMLElement => {

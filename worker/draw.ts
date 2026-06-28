@@ -12,14 +12,14 @@ import {
   isChallengerField,
   type Match,
   materializeMatches,
-  numberMatches,
   type Phase,
   type PublicDraw,
   type RandomSource,
+  type ResolvedMatch,
+  resolveBracket,
   type ScheduleMatch,
   type ScheduleSlot,
-  type SlotView,
-  viewSlot
+  type SlotView
 } from '../shared'
 import type { DrawStore } from './store/draw'
 import type { RegistrationsStore } from './store/registrations'
@@ -71,14 +71,6 @@ export interface DrawServiceDeps {
   registrationsStore: RegistrationsStore
   drawStore: DrawStore
   randomSource: RandomSource
-}
-
-// One bracket's matches plus the two indexes the schedule feed resolves slots through — its match
-// numbering (M1, M2, …) and a round-position lookup — computed once per bracket, not per placed match.
-interface BracketIndex {
-  matches: Match[]
-  numbers: Map<number, number>
-  byPosition: Map<string, Match>
 }
 
 // What the draw button (UI: „Jetzt auslosen") hands the service: which competition, the current phase
@@ -245,19 +237,20 @@ export const createDrawService = (deps: DrawServiceDeps) => {
       )
       const revealed = (m: Match) => m.bracket !== 'main' || revealedMain.has(m.competition)
 
-      // Group by competition+bracket, and precompute each bracket's numbering + a round-position index
-      // *once* (not per placed match) — numbering and feeder resolution depend only on the bracket, so
-      // rebuilding them inside the per-match map would re-sort/re-number the whole bracket every time.
-      const groups = new Map<string, BracketIndex>()
+      // Group by competition+bracket, then resolve each bracket's numbering + slot views *once* (not
+      // per placed match) through the shared per-bracket resolver — the same pipeline the admin grid
+      // reads (#109). Numbering and feeder resolution depend only on the bracket, so the result is keyed
+      // by match id for the per-placed-match emit below.
+      const groups = new Map<string, Match[]>()
       for (const m of all) {
         const key = `${m.competition}|${m.bracket}`
-        const group = groups.get(key) ?? { matches: [], numbers: new Map(), byPosition: new Map() }
-        group.matches.push(m)
+        const group = groups.get(key) ?? []
+        group.push(m)
         groups.set(key, group)
       }
+      const resolved = new Map<number, ResolvedMatch<Match>>()
       for (const group of groups.values()) {
-        group.numbers = numberMatches(group.matches)
-        for (const m of group.matches) group.byPosition.set(`${m.round}-${m.position}`, m)
+        for (const r of resolveBracket(group)) resolved.set(r.match.id, r)
       }
 
       // Join names only for the players actually shown — the placed matches' filled slots.
@@ -287,20 +280,19 @@ export const createDrawService = (deps: DrawServiceDeps) => {
       }
 
       return placed.map(m => {
-        const { numbers, byPosition } = groups.get(`${m.competition}|${m.bracket}`)!
-        const matchAt = (round: number, position: number) => byPosition.get(`${round}-${position}`)
+        const r = resolved.get(m.id)!
         return {
           id: m.id,
           competition: m.competition,
           bracket: m.bracket,
-          number: numbers.get(m.id) ?? 0,
+          number: r.number,
           // Non-null by the `placed` filter; the contract narrows the nullable columns.
           court: m.court!,
           day: m.day!,
           slot: m.slot!,
           status: m.status,
-          slot1: toSlot(viewSlot(m, 1, numbers, matchAt)),
-          slot2: toSlot(viewSlot(m, 2, numbers, matchAt))
+          slot1: toSlot(r.slot1),
+          slot2: toSlot(r.slot2)
         }
       })
     }

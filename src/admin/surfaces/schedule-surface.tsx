@@ -7,14 +7,14 @@ import {
   COURT_NUMBERS,
   DAY_INDICES,
   type Match,
-  numberMatches,
   type Placement,
+  resolveBracket,
   type SoftViolation,
   SLOT_INDICES,
+  slotLabel,
   type SlotView,
   slotTime,
-  validatePlacement,
-  viewSlot
+  validatePlacement
 } from '../../../shared'
 import { tournament } from '@/data/tournament'
 import { cn } from '@/admin/lib/utils'
@@ -72,17 +72,12 @@ export const ScheduleSurface = ({ registrations, draws, onPlace }: ScheduleSurfa
   // again while the bracket is rewound, ADR-0036 — but the operator must still be able to manage it).
   // Feeders are resolved per bracket so „Sieger M3" reads stable.
   const gridMatches = useMemo<GridMatch[]>(() => {
-    // The flag is derivable from the kind — `unknown` is the only unresolved („offen") slot — so compute
-    // the label once and tag it, rather than repeating `unresolved: false` on every other branch.
+    // The slot label: a player's name (the grid's own regId→name join, with a `#id` fallback), or the
+    // shared German copy for every undecided slot. The unresolved flag is derivable from the kind —
+    // `unknown` is the only unresolved („offen") slot — so it tags the same label, rather than repeating
+    // `unresolved: false` on every other branch.
     const slotText = (view: SlotView): SlotLabel => {
-      const text =
-        view.kind === 'player'
-          ? (nameById.get(view.regId) ?? `#${view.regId}`)
-          : view.kind === 'bye'
-            ? 'Freilos'
-            : view.kind === 'feeder'
-              ? `Sieger M${view.matchNumber}`
-              : 'offen'
+      const text = view.kind === 'player' ? (nameById.get(view.regId) ?? `#${view.regId}`) : slotLabel(view)
       return { text, unresolved: view.kind === 'unknown' }
     }
 
@@ -90,21 +85,17 @@ export const ScheduleSurface = ({ registrations, draws, onPlace }: ScheduleSurfa
     for (const draw of draws) {
       if (draw.bracket !== 'main') continue
       const revealed = draw.cursor >= draw.total
-      const numbers = numberMatches(draw.matches)
-      // Index the bracket by round-position once, so each feeder resolves in O(1) rather than a linear
-      // scan per slot (O(M) over the bracket for every one of its M matches).
-      const byPosition = new Map<string, Match>()
-      for (const m of draw.matches) byPosition.set(`${m.round}-${m.position}`, m)
-      const matchAt = (round: number, position: number) => byPosition.get(`${round}-${position}`)
-      for (const match of draw.matches) {
+      // Number + resolve the whole bracket through the shared resolver — the same pipeline the public
+      // feed reads (#109) — then drop byes and, while unrevealed, any still-unplaced match.
+      for (const { match, number, slot1, slot2 } of resolveBracket(draw.matches)) {
         if (match.outcome === 'bye') continue
         if (!revealed && match.court === null) continue
         out.push({
           match,
-          number: numbers.get(match.id) ?? 0,
+          number,
           competitionLabel: competitionLabel(draw.competition),
-          slot1: slotText(viewSlot(match, 1, numbers, matchAt)),
-          slot2: slotText(viewSlot(match, 2, numbers, matchAt))
+          slot1: slotText(slot1),
+          slot2: slotText(slot2)
         })
       }
     }

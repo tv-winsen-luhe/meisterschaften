@@ -118,6 +118,53 @@ export const viewSlot = (
   return matchNumber ? { kind: 'feeder', matchNumber } : { kind: 'unknown' }
 }
 
+// The discriminant of SlotView's resolved-player member, named so `slotLabel` can Exclude it: the repo's
+// `no-restricted-syntax` lint rule bans an inline object type in a generic argument (no
+// `Exclude<SlotView, { kind: 'player' }>`) and mandates an explicit interface reference instead.
+interface PlayerSlotKind {
+  kind: 'player'
+}
+
+/**
+ * The German label for a non-player slot — „Freilos" / „Sieger M{n}" / „offen" — the single copy both
+ * the admin grid and the public schedule feed render (#109). Keyed off `SlotView['kind']`; the `player`
+ * line is excluded because each surface joins the name its own way (the grid resolves a regId, the feed
+ * carries the joined name), so a copy change here lands on both surfaces at once. Structural, so the
+ * wire `ScheduleSlot`'s non-player members satisfy it too.
+ */
+export const slotLabel = (slot: Exclude<SlotView, PlayerSlotKind>): string =>
+  slot.kind === 'bye' ? 'Freilos' : slot.kind === 'feeder' ? `Sieger M${slot.matchNumber}` : 'offen'
+
+// One bracket match resolved for display: its stable number and the two SlotViews. Generic over the
+// caller's match row (the wire `Match`, the store row) so each keeps its own placement/status fields.
+export interface ResolvedMatch<M extends MatchPosition> {
+  match: M
+  number: number
+  slot1: SlotView
+  slot2: SlotView
+}
+
+/**
+ * Resolve a whole bracket's matches to their display views in one pass — the single per-bracket
+ * pipeline both the admin grid (`gridMatches`) and the public schedule feed (`schedule()`) read (#109),
+ * so match numbers, feeders („Sieger M{n}"), byes, and the „offen" degrade resolve identically on both.
+ * Pass one bracket's *full* match set (numbering and feeders are stable only over the whole bracket);
+ * read back, per match, its 1-based number and two resolved SlotViews. The consumers add only their own
+ * regId→name join and the placement/reveal filtering on top.
+ */
+export const resolveBracket = <M extends MatchPosition>(matches: M[]): ResolvedMatch<M>[] => {
+  const numbers = numberMatches(matches)
+  const byPosition = new Map<string, M>()
+  for (const m of matches) byPosition.set(`${m.round}-${m.position}`, m)
+  const matchAt = (round: number, position: number) => byPosition.get(`${round}-${position}`)
+  return matches.map(m => ({
+    match: m,
+    number: numbers.get(m.id) ?? 0,
+    slot1: viewSlot(m, 1, numbers, matchAt),
+    slot2: viewSlot(m, 2, numbers, matchAt)
+  }))
+}
+
 // ── Placement validation (ADR-0033: block the impossible, warn the unwise) ────────────────────────
 
 // The minimal match shape `validatePlacement` reads: a bracket position (so feeders resolve within the
