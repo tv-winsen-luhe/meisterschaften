@@ -69,9 +69,11 @@ export const DrawBracket = ({ size, steps, currentPosition, reduce }: DrawBracke
                 <span>{roundLabel(round, totalRounds)}</span>
                 <span className="text-white/35 tabular-nums">{matchCount}</span>
               </div>
-              <div className="flex min-h-0 flex-1 flex-col">
+              {/* Space *between* matches (gap-3) wider than the gap *within* a match (gap-1) groups each
+                  pair and keeps the lines off each other — they fill the column, they don't glue to it. */}
+              <div className="flex min-h-0 flex-1 flex-col gap-3">
                 {Array.from({ length: matchCount }, (_, m) => (
-                  <div key={m} className="flex min-h-0 flex-1 flex-col justify-center gap-1.5">
+                  <div key={m} className="flex min-h-0 flex-1 flex-col justify-center gap-1">
                     <Cell
                       round={round}
                       slotIndex={2 * m}
