@@ -360,16 +360,14 @@ const drawCompetitions = competitions
 
 <script>
   import { hc } from 'hono/client'
-  import { bracketStructure, displayDrawSize, MIN_DRAW_ENTRIES } from '../../shared'
+  import { bracketStructure, displayDrawSize, MIN_DRAW_ENTRIES, revealedBracket } from '../../shared'
   import type { AppType } from '../../worker/app'
-  import type { Participant, ParticipantsResponse, PublicDraw, PublicRevealStep } from '../../shared'
+  import type { Participant, ParticipantsResponse, PlayerDisplay, PublicDraw, PublicRevealStep } from '../../shared'
 
   type Entry = Participant
   type Slot = { seed: number; player: Entry } | null
-  // The display fields a bracket line shows — derived from the wire contract's reveal-step player, so the
-  // preview's participants and the reveal's joined players share one definition (it can't drift from the
-  // server shape). A Participant is structurally assignable to it.
-  type PlayerDisplay = NonNullable<PublicRevealStep['player']>
+  // PlayerDisplay (shared) is the display fields a bracket line shows — the wire contract's reveal-step
+  // player. A Participant is structurally assignable to it, so the preview and the reveal share one shape.
 
   const client = hc<AppType>(location.origin)
 
@@ -548,21 +546,10 @@ const drawCompetitions = competitions
   // player advances „ohne Spiel", so once both its lines are revealed it already shows in round 2 — the
   // one round a bye carries a player forward (ADR-0025; deeper rounds stay „?" until matches are played).
   const buildReveal = (bracket: HTMLElement, draw: PublicDraw) => {
-    const lines: (PublicRevealStep | undefined)[] = new Array(draw.size)
-    for (const step of draw.steps) lines[step.position] = step
-
-    // Per round-1 match, the player who advanced via a (fully revealed) bye, else null. A match with two
-    // players is contested, a match with an unrevealed line is unknown — both stay „?" in round 2.
-    const byeWinners: ({ player: PlayerDisplay; seed: number | null } | null)[] = []
-    for (let m = 0; m < draw.size / 2; m++) {
-      const a = lines[2 * m]
-      const b = lines[2 * m + 1]
-      // Exactly one line a bye (both revealed) ⇒ the other line's player advanced; the bye line itself
-      // carries no player (a seed-bye's player sits on its paired line, a lot-bye's neighbour is drawn).
-      const oneBye = a && b && (a.kind === 'bye') !== (b.kind === 'bye')
-      const advanced = oneBye ? (a.kind === 'bye' ? b : a) : null
-      byeWinners[m] = advanced?.player ? { player: advanced.player, seed: advanced.seed } : null
-    }
+    // The revealed bracket: round-1 lines by position and the round-2 bye-winners (§31). The same shared
+    // interpretation the operator draw show renders (CONTEXT: Revealed bracket) — no bracket logic here,
+    // only the DOM binding below.
+    const { lines, byeWinners } = revealedBracket(draw.size, draw.steps)
 
     renderBracket(bracket, draw.size, (r, i) => {
       if (r === 0) return revealSlotEl(lines[i])
