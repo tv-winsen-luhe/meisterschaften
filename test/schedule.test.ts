@@ -1,5 +1,13 @@
 import { describe, expect, it } from 'vitest'
-import { feederPosition, numberMatches, slotTime, validatePlacement, viewSlot } from '../shared/schedule'
+import {
+  feederPosition,
+  numberMatches,
+  resolveBracket,
+  slotLabel,
+  slotTime,
+  validatePlacement,
+  viewSlot
+} from '../shared/schedule'
 import type { Placement } from '../shared/schedule'
 
 // The pure schedule helpers (shared/schedule.ts): the slot-time cadence, match numbering, and the
@@ -74,6 +82,41 @@ describe('viewSlot', () => {
     const orphan = m(9, 2, 0, null, null)
     const missingFeeder = () => undefined
     expect(viewSlot(orphan, 1, new Map(), missingFeeder)).toEqual({ kind: 'unknown' })
+  })
+})
+
+describe('slotLabel', () => {
+  it('spells the German label for each non-player slot, the single copy both surfaces render', () => {
+    expect(slotLabel({ kind: 'bye' })).toBe('Freilos')
+    expect(slotLabel({ kind: 'feeder', matchNumber: 3 })).toBe('Sieger M3')
+    expect(slotLabel({ kind: 'unknown' })).toBe('offen')
+  })
+})
+
+describe('resolveBracket', () => {
+  it('numbers and resolves a whole bracket in one pass, regardless of input order', () => {
+    // A scrambled 4-draw: two semifinals (M1, M2) feeding the final (M3); M2 already advanced a bye
+    // winner (103) into the final's first slot.
+    const resolved = resolveBracket([m(3, 2, 0, 103, null), m(1, 1, 0, 101, 102), m(2, 1, 1, 103, null)])
+    const byId = new Map(resolved.map(r => [r.match.id, r]))
+    expect(byId.get(1)).toMatchObject({
+      number: 1,
+      slot1: { kind: 'player', regId: 101 },
+      slot2: { kind: 'player', regId: 102 }
+    })
+    // M2's empty round-1 slot is a bye line.
+    expect(byId.get(2)).toMatchObject({ number: 2, slot2: { kind: 'bye' } })
+    // The final: slot1 is the advanced player, slot2 still waits on the M2 feeder.
+    expect(byId.get(3)).toMatchObject({
+      number: 3,
+      slot1: { kind: 'player', regId: 103 },
+      slot2: { kind: 'feeder', matchNumber: 2 }
+    })
+  })
+
+  it('returns one row per input match, preserving input order', () => {
+    const out = resolveBracket([m(3, 2, 0), m(1, 1, 0, 101, 102), m(2, 1, 1, 103, 104)])
+    expect(out.map(r => r.match.id)).toEqual([3, 1, 2])
   })
 })
 
