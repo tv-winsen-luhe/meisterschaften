@@ -1,8 +1,9 @@
 import { z } from 'zod'
 import { CLUBS, clubSchema } from './club'
 import { competitionSlug } from './competition'
-import { BRACKETS, MATCH_OUTCOMES, REVEAL_KINDS, seedingEntrySchema } from './draw'
+import { BRACKETS, MATCH_OUTCOMES, MATCH_STATUSES, REVEAL_KINDS, seedingEntrySchema } from './draw'
 import { REGISTRATION_STATUSES } from './registration'
+import { SCHEDULE } from './schedule'
 
 // The admin (operator) contract — the single source of truth for the /api/admin/* JSON
 // shapes, shared by the worker (server validation) and the React admin (typed `hc`).
@@ -99,7 +100,9 @@ export type RefreshLkResponse = z.infer<typeof refreshLkResponseSchema>
 // One match row as the bracket exposes it. Slots are registration ids (the names are joined client
 // -side from the admin list); a round-1 slot is a player (or null for a bye), a later-round slot is a
 // not-yet-decided feeder (null). `winnerRegId`/`outcome` are set for a round-1 bye (winner advanced,
-// outcome 'bye', §31) and otherwise stay null until results land.
+// outcome 'bye', §31) and otherwise stay null until results land. `court`/`day`/`slot` are the schedule
+// placement (ADR-0005) — all null until the operator places the match on the grid (#88), where they
+// travel together; `status` is the live signal (ADR-0032), `planned` until result entry moves it (#90).
 export const matchSchema = z.object({
   id: z.number().int().positive(),
   competition: competitionSlug,
@@ -109,7 +112,21 @@ export const matchSchema = z.object({
   slot1RegId: z.number().int().positive().nullable(),
   slot2RegId: z.number().int().positive().nullable(),
   winnerRegId: z.number().int().positive().nullable(),
-  outcome: z.enum(MATCH_OUTCOMES).nullable()
+  outcome: z.enum(MATCH_OUTCOMES).nullable(),
+  court: z.number().int().min(1).max(SCHEDULE.courts).nullable(),
+  day: z
+    .number()
+    .int()
+    .min(0)
+    .max(SCHEDULE.days - 1)
+    .nullable(),
+  slot: z
+    .number()
+    .int()
+    .min(0)
+    .max(SCHEDULE.slotsPerDay - 1)
+    .nullable(),
+  status: z.enum(MATCH_STATUSES)
 })
 export type Match = z.infer<typeof matchSchema>
 
@@ -216,3 +233,75 @@ export type PublicDraw = z.infer<typeof publicDrawSchema>
 
 export const publicDrawsResponseSchema = z.object({ draws: z.array(publicDrawSchema) })
 export type PublicDrawsResponse = z.infer<typeof publicDrawsResponseSchema>
+
+// ── Schedule (ADR-0005, issue #88) ──────────────────────────────────────────────────────────────
+// The grid placement contract and the public schedule feed. The admin grid reads matches (with their
+// placement) from the draws response above (matchSchema now carries court/day/slot/status); this
+// section adds the *place/move* write and the public *read*. Validation of a placement (feeder order,
+// court cap, rest gaps — ADR-0033) is #89's `validatePlacement`; this tracer places without it.
+
+// A grid placement: a court (1..6) and a slot (event day 0/1 + 90-minute slot index). The three
+// travel as one unit (a half-placement is meaningless), so nesting them makes the all-or-nothing
+// structural — `placement: null` is the backlog, a full object is a cell. Mirrors the shared
+// `Placement` interface (shared/schedule.ts) the store's `placeMatch` already speaks.
+export const placementSchema = z.object({
+  court: z.number('Ungültiger Platz.').int().min(1).max(SCHEDULE.courts),
+  day: z
+    .number('Ungültiger Tag.')
+    .int()
+    .min(0)
+    .max(SCHEDULE.days - 1),
+  slot: z
+    .number('Ungültige Zeit.')
+    .int()
+    .min(0)
+    .max(SCHEDULE.slotsPerDay - 1)
+})
+
+// POST /api/admin/match/place — place a match into a court-slot cell, move it to another, or clear it
+// back to the backlog (placement null). The nested object is rejected unless court+day+slot all agree.
+export const placeMatchRequestSchema = z.object({ id, placement: placementSchema.nullable() })
+export type PlaceMatchRequest = z.infer<typeof placeMatchRequestSchema>
+export const placeMatchResponseSchema = z.object({ ok: z.literal(true) })
+export type PlaceMatchResponse = z.infer<typeof placeMatchResponseSchema>
+
+// What occupies one slot of a scheduled match on the public schedule: a known player (joined by name),
+// an empty round-1 bye line („Freilos"), or a not-yet-decided feeder labelled by the match it waits on
+// („Sieger M{matchNumber}"). The server resolves the shared SlotView (shared/schedule.ts) and joins the
+// player name, so the public page renders without the registration list.
+export const scheduleSlotSchema = z.discriminatedUnion('kind', [
+  z.object({ kind: z.literal('player'), firstName: z.string(), lastName: z.string() }),
+  z.object({ kind: z.literal('bye') }),
+  z.object({ kind: z.literal('feeder'), matchNumber: z.number().int().positive() })
+])
+export type ScheduleSlot = z.infer<typeof scheduleSlotSchema>
+
+// One placed match as the public schedule shows it: its court + slot (the page derives the „ca." time
+// from the slot), its live status, its display number (M{number}), and its two resolved slots. Only
+// placed, real matches appear (a bye is auto-resolved, never played, so it is never scheduled).
+export const scheduleMatchSchema = z.object({
+  id: z.number().int().positive(),
+  competition: competitionSlug,
+  bracket: z.enum(BRACKETS),
+  number: z.number().int().positive(),
+  court: z.number().int().min(1).max(SCHEDULE.courts),
+  day: z
+    .number()
+    .int()
+    .min(0)
+    .max(SCHEDULE.days - 1),
+  slot: z
+    .number()
+    .int()
+    .min(0)
+    .max(SCHEDULE.slotsPerDay - 1),
+  status: z.enum(MATCH_STATUSES),
+  slot1: scheduleSlotSchema,
+  slot2: scheduleSlotSchema
+})
+export type ScheduleMatch = z.infer<typeof scheduleMatchSchema>
+
+// GET /api/schedule — the public schedule feed: every placed match across all competitions, the page
+// groups by day and orders by slot/court. Public like /api/draw; empty until a match is placed.
+export const scheduleResponseSchema = z.object({ matches: z.array(scheduleMatchSchema) })
+export type ScheduleResponse = z.infer<typeof scheduleResponseSchema>

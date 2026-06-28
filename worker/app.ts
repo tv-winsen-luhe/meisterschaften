@@ -13,8 +13,10 @@ import {
   drawRequestSchema,
   drawsResponseSchema,
   participantsResponseSchema,
+  placeMatchRequestSchema,
   publicDrawsResponseSchema,
   registerRequestSchema,
+  scheduleResponseSchema,
   setPhaseRequestSchema,
   undrawRequestSchema,
   type AdvanceResponse,
@@ -25,6 +27,7 @@ import {
   type DrawResponse,
   type ParticipantsResponse,
   type PhaseResponse,
+  type PlaceMatchResponse,
   type ReadmitResponse,
   type RefreshLkResponse,
   type ResetCapabilityResponse,
@@ -173,6 +176,13 @@ export const createApp = (makeDeps: (env: Env) => Deps = createDepsFromEnv) =>
     .get('/api/draw', async c => {
       const draws = await c.var.deps.drawService.publicDraws()
       return c.json(publicDrawsResponseSchema.parse({ draws }), 200, { 'cache-control': 'no-store' })
+    })
+    // GET /api/schedule — the public schedule + live board feed (ADR-0005): every placed match across all
+    // competitions, slots resolved for display. Public and outside Access like /api/draw; polled by the
+    // public page (~10–20 s, ADR-0008). Empty until a match is placed on the grid.
+    .get('/api/schedule', async c => {
+      const matches = await c.var.deps.drawService.schedule()
+      return c.json(scheduleResponseSchema.parse({ matches }), 200, { 'cache-control': 'no-store' })
     })
     // POST /api/register — the registration write path. Thin handler: honeypot + rate-limit
     // (abuse/HTTP concerns) and Zod shape validation at the edge, then the Registration
@@ -327,6 +337,15 @@ export const createApp = (makeDeps: (env: Env) => Deps = createDepsFromEnv) =>
       const result = await c.var.deps.drawService.advance(competition, direction)
       if (!result.ok) return c.json({ error: result.reason }, 404)
       return c.json({ ok: true, cursor: result.cursor, total: result.total } satisfies AdvanceResponse)
+    })
+    // POST /api/admin/match/place — place a match on the schedule grid, move it, or clear it back to the
+    // backlog (ADR-0005). The schema enforces the all-or-nothing placement shape; a placement that is
+    // unsound (feeder ordering, court cap, rest gaps — ADR-0033) is still accepted here — that hard guard
+    // is #89's `validatePlacement`. A pure placement write, so no precondition can fail beyond the shape.
+    .post('/api/admin/match/place', parseGuard, v(placeMatchRequestSchema), async c => {
+      const { id, placement } = c.req.valid('json')
+      await c.var.deps.draws.placeMatch(id, placement)
+      return c.json({ ok: true } satisfies PlaceMatchResponse)
     })
     // ── Debug-only reset (ADR-0029) ─────────────────────────────────────────────────────────
     // Three flag-gated levers that reverse the forward transitions the model treats as final (the

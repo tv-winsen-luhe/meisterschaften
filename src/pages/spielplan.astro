@@ -1,0 +1,280 @@
+---
+import Layout from '@/layouts/default.astro'
+
+// The public schedule (ADR-0005, issue #88): the placed matches across all competitions, grouped by
+// day with their court and an explicitly approximate („ca.") time. A tracer surface — the full live
+// board (the „jetzt auf dem Platz" courts strip, the competition filter, the actual-court switch) is
+// issue #91. Built with the public site's inline-`<script>` + polling pattern (ADR-0008).
+---
+
+<Layout title="Spielplan — Winsener Meisterschaften 2026" chrome="legal">
+  <div class="mx-auto max-w-[800px] px-5 pt-12 pb-20 text-navy md:px-10 md:pt-16 md:pb-[120px]">
+    <h1 class="mt-0 mb-3 text-[clamp(36px,6vw,56px)] font-black tracking-[-0.04em] uppercase">Spielplan</h1>
+    <p class="mb-10 text-sm leading-[1.6] opacity-70">
+      Alle angesetzten Spiele mit Platz und ungefährer Zeit. Zeiten sind ein Plan — „ca." und ohne Gewähr; der
+      tatsächliche Stand steht im Match-Status.
+    </p>
+
+    <div data-schedule>
+      <p class="sched-empty">Noch keine Spiele geplant. Sobald die Auslosung läuft, erscheinen hier die Ansetzungen.</p>
+      <div data-days></div>
+      <p class="sched-error">Der Spielplan lässt sich gerade nicht laden. Bitte später erneut versuchen.</p>
+    </div>
+  </div>
+</Layout>
+
+<style is:global>
+  .sched-error,
+  [data-schedule].is-error [data-days],
+  [data-schedule].is-error .sched-empty {
+    display: none;
+  }
+  [data-schedule].is-error .sched-error {
+    display: block;
+    font-size: 14px;
+    color: rgba(12, 30, 58, 0.7);
+  }
+  .sched-error {
+    display: none;
+  }
+  /* The empty state hides the moment any match arrives (the day list is populated). */
+  [data-schedule].has-matches .sched-empty {
+    display: none;
+  }
+  .sched-empty {
+    font-size: 15px;
+    line-height: 1.6;
+    color: rgba(12, 30, 58, 0.7);
+  }
+
+  .sched-day {
+    margin-top: 40px;
+  }
+  .sched-day:first-child {
+    margin-top: 0;
+  }
+  .sched-day__head {
+    margin: 0 0 14px;
+    font-size: 12px;
+    font-weight: 800;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--color-navy);
+    border-bottom: 2px solid var(--color-navy);
+    padding-bottom: 6px;
+  }
+  .sched-match {
+    display: grid;
+    grid-template-columns: 64px 1fr auto;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 4px;
+    border-bottom: 1px solid rgba(12, 30, 58, 0.12);
+  }
+  .sched-match__time {
+    font-size: 13px;
+    font-weight: 800;
+    font-variant-numeric: tabular-nums;
+    color: var(--color-blue);
+  }
+  .sched-match__players {
+    min-width: 0;
+  }
+  .sched-match__player {
+    font-size: 14px;
+    font-weight: 700;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .sched-match__player--tbd {
+    font-weight: 600;
+    color: rgba(12, 30, 58, 0.5);
+  }
+  .sched-match__meta {
+    margin-top: 2px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: rgba(12, 30, 58, 0.45);
+  }
+  .sched-match__right {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 4px;
+  }
+  .sched-match__court {
+    font-size: 12px;
+    font-weight: 800;
+    color: var(--color-navy);
+    white-space: nowrap;
+  }
+  .sched-status {
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    padding: 2px 7px;
+    border-radius: 999px;
+  }
+  .sched-status--planned {
+    color: rgba(12, 30, 58, 0.6);
+    background: rgba(12, 30, 58, 0.07);
+  }
+  .sched-status--running {
+    color: #1f7a3d;
+    background: rgba(31, 122, 61, 0.12);
+  }
+  .sched-status--done {
+    color: rgba(12, 30, 58, 0.55);
+    background: rgba(12, 30, 58, 0.05);
+  }
+</style>
+
+<script>
+  import { hc } from 'hono/client'
+  import { slotTime } from '../../shared'
+  import { competitions, tournament } from '../data/tournament'
+  import type { AppType } from '../../worker/app'
+  import type { ScheduleMatch, ScheduleResponse, ScheduleSlot } from '../../shared'
+
+  const client = hc<AppType>(location.origin)
+
+  // The public schedule polls ~15 s (ADR-0008): a placed/started match appears within the interval,
+  // light enough for a phone on event Wi-Fi.
+  const POLL_MS = 15000
+
+  // Day labels from the event's date copy (src/data/tournament.ts), indexed by the wire `day` (0/1).
+  const DAYS = [tournament.saturday, tournament.sunday]
+
+  // Competition slug → German label (the wire carries the English slug; the page shows the club's name).
+  const COMPETITION_LABELS = new Map(competitions.map(c => [c.slug, c.label]))
+
+  const STATUS_LABEL: Record<ScheduleMatch['status'], string> = {
+    planned: 'geplant',
+    running: 'läuft',
+    done: 'beendet'
+  }
+
+  const root = document.querySelector<HTMLElement>('[data-schedule]')
+  const daysEl = root?.querySelector<HTMLElement>('[data-days]')
+
+  // One slot's display text: a player's name, a „Freilos" bye line, or a „Sieger M{n}" feeder. A
+  // not-yet-decided slot (bye/feeder) is rendered muted.
+  interface SlotText {
+    text: string
+    tbd: boolean
+  }
+  const slotText = (slot: ScheduleSlot): SlotText => {
+    if (slot.kind === 'player') return { text: `${slot.firstName} ${slot.lastName}`.trim(), tbd: false }
+    if (slot.kind === 'bye') return { text: 'Freilos', tbd: true }
+    return { text: `Sieger M${slot.matchNumber}`, tbd: true }
+  }
+
+  const playerLine = (slot: ScheduleSlot): HTMLElement => {
+    const { text, tbd } = slotText(slot)
+    const el = document.createElement('div')
+    el.className = tbd ? 'sched-match__player sched-match__player--tbd' : 'sched-match__player'
+    el.textContent = text
+    return el
+  }
+
+  const matchRow = (m: ScheduleMatch): HTMLElement => {
+    const row = document.createElement('div')
+    row.className = 'sched-match'
+
+    const time = document.createElement('div')
+    time.className = 'sched-match__time'
+    time.textContent = `ca. ${slotTime(m.slot)}`
+    row.appendChild(time)
+
+    const players = document.createElement('div')
+    players.className = 'sched-match__players'
+    players.appendChild(playerLine(m.slot1))
+    players.appendChild(playerLine(m.slot2))
+    const meta = document.createElement('div')
+    meta.className = 'sched-match__meta'
+    meta.textContent = `M${m.number} · ${COMPETITION_LABELS.get(m.competition) ?? m.competition}`
+    players.appendChild(meta)
+    row.appendChild(players)
+
+    const right = document.createElement('div')
+    right.className = 'sched-match__right'
+    const court = document.createElement('div')
+    court.className = 'sched-match__court'
+    court.textContent = `Platz ${m.court}`
+    right.appendChild(court)
+    const status = document.createElement('span')
+    status.className = `sched-status sched-status--${m.status}`
+    status.textContent = STATUS_LABEL[m.status]
+    right.appendChild(status)
+    row.appendChild(right)
+
+    return row
+  }
+
+  const render = (matches: ScheduleMatch[]) => {
+    if (!root || !daysEl) return
+    daysEl.innerHTML = ''
+    root.classList.toggle('has-matches', matches.length > 0)
+
+    // Group by the day values actually present (ascending), so a match is never silently dropped because
+    // the day axis was sized too small. Each day's matches are ordered by slot then court.
+    const days = [...new Set(matches.map(m => m.day))].sort((a, b) => a - b)
+    for (const day of days) {
+      const dayMatches = matches.filter(m => m.day === day).sort((a, b) => a.slot - b.slot || a.court - b.court)
+
+      const section = document.createElement('section')
+      section.className = 'sched-day'
+      const head = document.createElement('h2')
+      head.className = 'sched-day__head'
+      const dayLabel = DAYS[day]
+      head.textContent = dayLabel ? `${dayLabel.weekday} · ${dayLabel.short}` : `Tag ${day + 1}`
+      section.appendChild(head)
+      for (const m of dayMatches) section.appendChild(matchRow(m))
+      daysEl.appendChild(section)
+    }
+  }
+
+  let lastJson = ''
+  const load = async () => {
+    if (!root) return
+    try {
+      const res = await client.api.schedule.$get()
+      if (!res.ok) throw new Error('bad status')
+      const body: ScheduleResponse = await res.json()
+      root.classList.remove('is-error')
+      // Skip the rebuild when nothing changed since the last poll.
+      const sig = JSON.stringify(body.matches)
+      if (sig === lastJson) return
+      lastJson = sig
+      render(body.matches)
+    } catch {
+      root.classList.add('is-error')
+    }
+  }
+
+  let timer: ReturnType<typeof setInterval> | undefined
+  const start = () => {
+    if (timer === undefined) timer = setInterval(load, POLL_MS)
+  }
+  const stop = () => {
+    if (timer !== undefined) {
+      clearInterval(timer)
+      timer = undefined
+    }
+  }
+
+  load()
+  start()
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') {
+      load()
+      start()
+    } else {
+      stop()
+    }
+  })
+</script>
