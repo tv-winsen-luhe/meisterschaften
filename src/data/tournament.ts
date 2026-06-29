@@ -43,16 +43,17 @@ export const entryFee = 5
 
 /**
  * Court-throughput assumption behind the admin's total-utilization gauge (ADR-0023 follow-up). The
- * venue has 6 courts; at ~90 min per match a court turns ~6 matches in a ~9 h playing day, across
- * both event days. `matchSlotsPerWeekend` (= 72) is the 100 % the gauge measures the projected
- * match load against. A planning figure — derived from the same `SCHEDULE` shape the real grid is
- * built on (shared/schedule.ts), so the gauge and the schedule can never disagree on court count or
- * slots-per-day.
+ * venue has 6 courts; at the fixed 90 min per match a court turns ~6 matches in a ~9 h playing day,
+ * across both event days. `matchSlotsPerWeekend` (= 72) is the 100 % the gauge measures the projected
+ * match load against. A planning figure: court count and match length come from the same `SCHEDULE`
+ * shape the real grid is built on (shared/schedule.ts), so the gauge can never disagree with the grid
+ * on those; `matchesPerCourtPerDay` is the throughput estimate (a court turns ~6 matches a day), no
+ * longer the grid's slot count now that a slot is a 30-minute start step rather than a whole match.
  */
 export const courtSchedule = {
   courts: SCHEDULE.courts,
-  matchMinutes: SCHEDULE.slotMinutes,
-  matchesPerCourtPerDay: SCHEDULE.slotsPerDay,
+  matchMinutes: SCHEDULE.matchMinutes,
+  matchesPerCourtPerDay: 6,
   days: SCHEDULE.days
 } as const
 export const matchSlotsPerWeekend = courtSchedule.courts * courtSchedule.matchesPerCourtPerDay * courtSchedule.days
@@ -160,7 +161,7 @@ export const tournament = {
   long: '22.-23.08.2026',
   /** "Sa/So, 22.-23.08.2026" */
   longWithWeekdays: 'Sa/So, 22.-23.08.2026',
-  /** "09:00" — Saturday start time */
+  /** "09:00" — the event's earliest start (both days; matches the schedule's first „ca." slot time). */
   startTime: '09:00',
   saturday: { weekday: 'Samstag', short: '22.08.' },
   sunday: { weekday: 'Sonntag', short: '23.08.' }

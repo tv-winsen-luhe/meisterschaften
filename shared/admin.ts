@@ -240,10 +240,10 @@ export type PublicDrawsResponse = z.infer<typeof publicDrawsResponseSchema>
 // section adds the *place/move* write and the public *read*. Validation of a placement (feeder order,
 // court cap, rest gaps — ADR-0033) is #89's `validatePlacement`; this tracer places without it.
 
-// A grid placement: a court (1..6) and a slot (event day 0/1 + 90-minute slot index). The three
-// travel as one unit (a half-placement is meaningless), so nesting them makes the all-or-nothing
-// structural — `placement: null` is the backlog, a full object is a cell. Mirrors the shared
-// `Placement` interface (shared/schedule.ts) the store's `placeMatch` already speaks.
+// A grid placement: a court (1..6) and a slot (event day 0/1 + 30-minute start-slot index; a 90-minute
+// match spans three, ADR-0040). The three travel as one unit (a half-placement is meaningless), so
+// nesting them makes the all-or-nothing structural — `placement: null` is the backlog, a full object is
+// a cell. Mirrors the shared `Placement` interface (shared/schedule.ts) the store's `placeMatch` speaks.
 export const placementSchema = z.object({
   court: z.number('Ungültiger Platz.').int().min(1).max(SCHEDULE.courts),
   day: z

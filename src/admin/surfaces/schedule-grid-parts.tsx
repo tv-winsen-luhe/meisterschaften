@@ -1,6 +1,7 @@
+import { type CSSProperties } from 'react'
 import { X } from 'lucide-react'
 import { useDraggable, useDroppable } from '@dnd-kit/core'
-import { absoluteSlot, COURT_NUMBERS, type Placement, SLOT_INDICES, slotTime } from '../../../shared'
+import { absoluteSlot, COURT_NUMBERS, type Placement, SLOT_INDICES, SLOT_SPAN, slotTime } from '../../../shared'
 import { cn } from '@/admin/lib/utils'
 import { type GridMatch, MatchCard } from './schedule-match-card'
 
@@ -87,7 +88,11 @@ interface DayGridProps {
   onCellClick: (day: number, slot: number, court: number) => void
   onUnplace: (id: number) => void
 }
-// One day's courts × time grid: a row per slot (its „ca." time), a column per court.
+// One day's courts × time grid: a row per 30-minute slot (its „ca." time), a column per court. A placed
+// 90-minute match spans SLOT_SPAN rows (ADR-0040), so cells are placed explicitly on the grid lines and
+// the two interior rows of an occupied span are skipped entirely (not drop targets). The grid scrolls
+// inside a bounded box with the court headers pinned (`sticky top-0`), so they stay visible on the now-
+// taller grid (#137); horizontal scroll within the same box keeps all six courts reachable on a phone.
 export const DayGrid = ({
   day,
   label,
@@ -97,105 +102,123 @@ export const DayGrid = ({
   inHandEarliest,
   onCellClick,
   onUnplace
-}: DayGridProps) => (
-  <section className="bg-card flex flex-col gap-3 rounded-xl border p-4">
-    <span className="font-semibold">{label}</span>
-    <div className="overflow-x-auto">
-      <div
-        className="grid gap-1"
-        style={{ gridTemplateColumns: `auto repeat(${COURT_NUMBERS.length}, minmax(13rem, 1fr))` }}
-      >
-        {/* Header row: an empty corner, then the court labels. */}
-        <div />
-        {COURT_NUMBERS.map(court => (
-          <div key={court} className="text-muted-foreground px-2 pb-1 text-center text-xs font-semibold">
-            Platz {court}
-          </div>
-        ))}
+}: DayGridProps) => {
+  // The interior rows covered by a placed match's 90-minute footprint, keyed `slot-court` for this day —
+  // a match starting at slot s on a court owns slots s+1 … s+SLOT_SPAN−1, which its 3-row card draws over
+  // and which must therefore not render their own drop target. The match currently *in hand* is excluded:
+  // while it is being moved its card collapses to one row (below), freeing its own interior cells so it
+  // can be nudged a step or two on the same court instead of having to be removed first.
+  const covered = new Set<string>()
+  for (const g of placedByCell.values()) {
+    const { id, day: d, slot, court } = g.match
+    if (id === inHand || d !== day || slot === null || court === null) continue
+    for (let s = 1; s < SLOT_SPAN; s++) covered.add(`${slot + s}-${court}`)
+  }
 
-        {SLOT_INDICES.map(slot => (
-          <div key={slot} className="contents">
-            <div className="text-muted-foreground flex items-center justify-end pr-2 text-xs font-semibold tabular-nums">
-              ca. {slotTime(slot)}
+  // Column 1 holds the „ca." times; court c (1-based) sits in grid column c+1. Row 1 is the header; slot s
+  // sits in grid row s+2. A spanning card and the rows beyond the last slot use `gridAutoRows` for height.
+  const colHeader = (column: number) => ({ gridColumn: column, gridRow: 1 }) satisfies CSSProperties
+
+  return (
+    <section className="bg-card flex flex-col gap-3 rounded-xl border p-4">
+      <span className="font-semibold">{label}</span>
+      <div className="max-h-[70vh] overflow-auto">
+        <div
+          className="grid gap-1"
+          style={{
+            gridTemplateColumns: `auto repeat(${COURT_NUMBERS.length}, minmax(13rem, 1fr))`,
+            gridTemplateRows: `auto repeat(${SLOT_INDICES.length}, minmax(4rem, auto))`,
+            gridAutoRows: 'minmax(4rem, auto)'
+          }}
+        >
+          {/* Header row, pinned while the grid scrolls vertically: an empty corner, then the court labels. */}
+          <div className="bg-card sticky top-0 z-20" style={colHeader(1)} />
+          {COURT_NUMBERS.map((court, ci) => (
+            <div
+              key={`h-${court}`}
+              className="bg-card text-muted-foreground sticky top-0 z-20 px-2 pb-1 text-center text-xs font-semibold"
+              style={colHeader(ci + 2)}
+            >
+              Platz {court}
             </div>
-            {COURT_NUMBERS.map(court => {
+          ))}
+
+          {/* The „ca." time labels, one per slot row. */}
+          {SLOT_INDICES.map(slot => (
+            <div
+              key={`t-${slot}`}
+              className="text-muted-foreground flex items-center justify-end pr-2 text-xs font-semibold tabular-nums"
+              style={{ gridColumn: 1, gridRow: slot + 2 }}
+            >
+              ca. {slotTime(day, slot)}
+            </div>
+          ))}
+
+          {/* The court cells: a placed match's 3-row card, a free drop target, or nothing (interior span). */}
+          {SLOT_INDICES.flatMap(slot =>
+            COURT_NUMBERS.map((court, ci) => {
               const cell = placedByCell.get(`${day}-${slot}-${court}`)
+              if (cell) {
+                // The card fills its 90-minute footprint (SLOT_SPAN rows) — except the one in hand, which
+                // collapses to a single row so its freed interior cells become drop targets for a nudge.
+                const span = cell.match.id === inHand ? 1 : SLOT_SPAN
+                return (
+                  <PlacedCell
+                    key={`${day}-${slot}-${court}`}
+                    cell={cell}
+                    selected={selected === cell.match.id}
+                    style={{ gridColumn: ci + 2, gridRow: `${slot + 2} / span ${span}` }}
+                    onClick={() => onCellClick(day, slot, court)}
+                    onUnplace={onUnplace}
+                  />
+                )
+              }
+              // An interior row of a match above is drawn over by that match's card — never its own target.
+              if (covered.has(`${slot}-${court}`)) return null
               // A free cell is too early when its absolute slot sits before the in-hand match's earliest
               // legal slot (the structural feeder guard, #119) — disabled for both tap and drag.
-              const tooEarly = inHand !== null && cell === undefined && absoluteSlot(day, slot) < inHandEarliest
+              const tooEarly = inHand !== null && absoluteSlot(day, slot) < inHandEarliest
               return (
-                <GridCell
-                  key={court}
+                <EmptyCell
+                  key={`${day}-${slot}-${court}`}
                   day={day}
                   slot={slot}
                   court={court}
-                  cell={cell}
-                  selected={selected}
                   inHand={inHand}
                   tooEarly={tooEarly}
-                  onCellClick={onCellClick}
-                  onUnplace={onUnplace}
+                  style={{ gridColumn: ci + 2, gridRow: slot + 2 }}
+                  onClick={() => onCellClick(day, slot, court)}
                 />
               )
-            })}
-          </div>
-        ))}
+            })
+          )}
+        </div>
       </div>
-    </div>
-  </section>
-)
-
-interface GridCellProps {
-  day: number
-  slot: number
-  court: number
-  cell: GridMatch | undefined
-  selected: number | null
-  inHand: number | null
-  tooEarly: boolean
-  onCellClick: (day: number, slot: number, court: number) => void
-  onUnplace: (id: number) => void
-}
-// One grid cell. An occupied cell renders a draggable match (drag it to another cell to move it; tap it
-// to pick it up). A free cell is a drop target (tap to drop the in-hand match, or release a drag over it),
-// greyed and inert when the structural guard marks it too early.
-const GridCell = ({ day, slot, court, cell, selected, inHand, tooEarly, onCellClick, onUnplace }: GridCellProps) =>
-  cell ? (
-    <PlacedCell
-      cell={cell}
-      selected={selected === cell.match.id}
-      onClick={() => onCellClick(day, slot, court)}
-      onUnplace={onUnplace}
-    />
-  ) : (
-    <EmptyCell
-      day={day}
-      slot={slot}
-      court={court}
-      inHand={inHand}
-      tooEarly={tooEarly}
-      onClick={() => onCellClick(day, slot, court)}
-    />
+    </section>
   )
+}
 
 interface PlacedCellProps {
   cell: GridMatch
   selected: boolean
+  style: CSSProperties
   onClick: () => void
   onUnplace: (id: number) => void
 }
-// An occupied cell: the placed match, draggable to another cell and tappable to pick up. The „aus dem
-// Plan nehmen" affordance clears it back to the backlog.
-const PlacedCell = ({ cell, selected, onClick, onUnplace }: PlacedCellProps) => {
+// An occupied cell: the placed match, draggable to another cell and tappable to pick up. Spans its full
+// 90-minute footprint (SLOT_SPAN rows) via the `style` grid placement the day grid hands down. The „aus
+// dem Plan nehmen" affordance clears it back to the backlog.
+const PlacedCell = ({ cell, selected, style, onClick, onUnplace }: PlacedCellProps) => {
   const { setNodeRef, isDragging, dragProps } = useDraggableCard(cell.match.id)
   return (
     <button
       ref={setNodeRef}
       type="button"
       onClick={onClick}
+      style={style}
       {...dragProps}
       className={cn(
-        'bg-background relative min-h-16 rounded-md border p-1.5 text-left transition-colors',
+        'bg-background relative rounded-md border p-1.5 text-left transition-colors',
         selected && 'border-foreground ring-foreground/20 ring-2',
         isDragging && 'opacity-40'
       )}
@@ -243,12 +266,13 @@ interface EmptyCellProps {
   court: number
   inHand: number | null
   tooEarly: boolean
+  style: CSSProperties
   onClick: () => void
 }
 // A free cell: a drop target while a match is in hand, and a tap target to drop it. Disabled (and skipped
 // as a drop target) when nothing is in hand or the structural guard marks it too early. The droppable
 // carries the target `Placement`, so drag-end reads it straight off and reaches the same path a tap does.
-const EmptyCell = ({ day, slot, court, inHand, tooEarly, onClick }: EmptyCellProps) => {
+const EmptyCell = ({ day, slot, court, inHand, tooEarly, style, onClick }: EmptyCellProps) => {
   const { setNodeRef, isOver } = useDroppable({
     id: `${day}-${slot}-${court}`,
     data: { court, day, slot } satisfies Placement,
@@ -261,8 +285,9 @@ const EmptyCell = ({ day, slot, court, inHand, tooEarly, onClick }: EmptyCellPro
       type="button"
       onClick={onClick}
       disabled={inHand === null || tooEarly}
+      style={style}
       className={cn(
-        'relative min-h-16 rounded-md border border-dashed p-1.5 text-left transition-colors',
+        'relative rounded-md border border-dashed p-1.5 text-left transition-colors',
         tooEarly && 'cursor-not-allowed opacity-40',
         isDropTarget && 'border-foreground/40 bg-foreground/5 hover:bg-foreground/10',
         isOver && 'border-foreground bg-foreground/10',
