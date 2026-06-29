@@ -273,13 +273,21 @@ reveal sequence }`. Randomness enters through an injected **`RandomSource`** por
   replaced the old per-cell check, ADR-0040). With 6 courts, "at most 6 matches running at once" follows
   as its consequence, never a separate count. _(See ADR-0033, ADR-0040.)_
 - **Schedule publication** (de: Veröffentlichung) — the schedule is **private until published**: a global
-  `published` flag (off by default) gates the public schedule, so the operator builds the whole plan unseen
-  and reveals it in one act („Veröffentlichen"). Scope is **global** (one flag for the event, matching the
-  one event-wide Live board), not per-competition. After publishing, edits stay **live** — no re-publish
-  step; planned times are "ca." and the live court reflects reality (ADR-0032), so drift is communicated
-  through **match status**, not re-gating. **Reset** („Spielplan zurücksetzen") clears all `planned`
-  placements back to the backlog (draw, brackets, results untouched; `running`/`done` matches keep their
-  court) and flips `published` back to false, so the public page is never blanked mid-rebuild. _(See ADR-0041.)_
+  `schedule_published` flag (off by default) gates the **planned** public schedule, so the operator builds
+  the whole plan unseen and reveals it in one act („Veröffentlichen"). Scope is **global** (one flag for the
+  event), not per-competition — the draws happen together at the Auslosungs-Show. The gate covers only the
+  **forward plan**; the Live board (the „jetzt auf dem Platz" courts board and a running/done match's actual
+  court + status) is **current truth and is never gated** (ADR-0032). It is a legitimate **manual** flag,
+  not a derivable state (ADR-0027): "the plan is ready" is an operator judgment with no clean derived trigger
+  ("backlog empty" is wrong — matches may be left unplaced on purpose), and a forgotten publish shows a loud
+  „noch nicht veröffentlicht", not a silently-wrong surface. After publishing, edits stay **live** — no
+  re-publish step; drift is communicated through **Match status**, not re-gating, and filling the backlog or
+  nudging a placement are ordinary live edits that leave the flag untouched. **Reset** („Spielplan
+  zurücksetzen") is a **pre-event build tool** and the **only** lever that unpublishes: it clears all
+  `planned` placements back to the backlog (draw, brackets, results untouched; `running`/`done` matches keep
+  their court) and flips `schedule_published` back to false, so the public page is never blanked into a
+  half-empty grid mid-rebuild; its confirm escalates if a match is already running/done. _(See ADR-0041;
+  ADR-0006, ADR-0027.)_
 - **Match status** (de: Match-Status; stored/wire values English `planned` → `running` → `done`, UI
   labels „geplant" → „läuft" → „beendet" per ADR-0028). The transition to `running` captures the
   **actual court** the match is on — which may differ from its planned court (a court frees up early), so
