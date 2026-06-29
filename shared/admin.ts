@@ -281,10 +281,11 @@ export const scheduleSlotSchema = z.discriminatedUnion('kind', [
 export type ScheduleSlot = z.infer<typeof scheduleSlotSchema>
 
 // One placed match as the public schedule shows it: its court + slot (the page derives the „ca." time
-// from the slot), its live status, its display number (M{number}), its round + the bracket's total round
-// count (so both surfaces derive the round label „Achtelfinale"… via the shared `roundLabel`, #142), and
-// its two resolved slots. Only placed, real matches appear (a bye is auto-resolved, never played, so it
-// is never scheduled). `round`/`totalRounds` are numeric (English/data, ADR-0028) — the German label is
+// from the slot), its live status, its display number (M{number}), its round + position (the bracket
+// topology the public draw joins on to annotate each matchup, #159) + the bracket's total round count (so
+// both surfaces derive the round label „Achtelfinale"… via the shared `roundLabel`, #142), and its two
+// resolved slots. Only placed, real matches appear (a bye is auto-resolved, never played, so it is never
+// scheduled). `round`/`position`/`totalRounds` are numeric (English/data, ADR-0028) — the German label is
 // computed at the edge, never carried on the wire.
 export const scheduleMatchSchema = z.object({
   id: z.number().int().positive(),
@@ -292,6 +293,9 @@ export const scheduleMatchSchema = z.object({
   bracket: z.enum(BRACKETS),
   number: z.number().int().positive(),
   round: z.number().int().positive(),
+  // The 0-based bracket position within the round — the topology address the public draw looks each node
+  // up by (#159). Numbered round-major like `number`, but carried explicitly so the join keys on topology.
+  position: z.number().int().min(0),
   totalRounds: z.number().int().positive(),
   court: z.number().int().min(1).max(SCHEDULE.courts),
   day: z

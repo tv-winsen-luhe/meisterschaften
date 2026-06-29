@@ -183,6 +183,8 @@ export const createProjections = (deps: ProjectionsDeps) => {
           bracket: m.bracket,
           number: r.number,
           round: m.round,
+          // The bracket position (#159) — the public draw joins each matchup to its court/time on it.
+          position: m.position,
           totalRounds: totalRoundsByGroup.get(`${m.competition}|${m.bracket}`) ?? m.round,
           // Non-null by the `placed` filter; the contract narrows the nullable columns.
           court: m.court!,
