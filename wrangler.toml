@@ -47,9 +47,11 @@ database_name = "winsener-meisterschaften"
 database_id = "93cf5f66-b7d2-4adb-802c-31c63cb3f23c"
 migrations_dir = "worker/migrations"
 
-# Wöchentlicher LK-Sync aus nuLiga: Montag 05:00 UTC.
+# Wöchentlicher LK-Sync aus nuLiga: Montag 10:00 UTC (12:00 CEST). Bewusst nicht
+# früher: nuLiga veröffentlicht die wöchentliche LK-Neuberechnung erst im Laufe des
+# Montagvormittags — ein 05:00-UTC-Lauf fand nur die Vorwochen-Werte (0 Änderungen).
 [triggers]
-crons = ["0 5 * * 1"]
+crons = ["0 10 * * 1"]
 
 [observability]
 enabled = true
