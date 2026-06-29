@@ -60,17 +60,22 @@ const config = defineConfig([
     }
   },
   {
-    // The admin is the only React code (a client:only island, ADR-0008) and is set to grow. The
-    // Hooks rules guard it: rules-of-hooks is a hard error (a conditional hook is a real bug);
-    // exhaustive-deps is advisory (warn), because a few effects intentionally diverge from the
-    // mechanical dependency set. Scoped to src/admin so the Astro/worker code is unaffected.
+    // The admin is the only React code (a client:only island, ADR-0008) and is set to grow. Both
+    // Hooks rules guard it as hard errors: rules-of-hooks (a conditional hook is a real bug) and
+    // exhaustive-deps (a missing dependency is usually a stale-closure bug). The admin satisfies
+    // exhaustive-deps cleanly today, so enforcing it now — while the surface is small — keeps it
+    // that way as the code grows, instead of letting a new violation merge unseen (CI does not fail
+    // on warnings). A genuinely intentional divergence stays possible, but must be an explicit
+    // `// eslint-disable-next-line react-hooks/exhaustive-deps -- <reason>` at the call site, so the
+    // exception is reviewed rather than invisible. Scoped to src/admin so the Astro/worker code is
+    // unaffected.
     files: ['src/admin/**/*.{ts,tsx}'],
     plugins: {
       'react-hooks': reactHooks
     },
     rules: {
       'react-hooks/rules-of-hooks': 'error',
-      'react-hooks/exhaustive-deps': 'warn'
+      'react-hooks/exhaustive-deps': 'error'
     }
   }
 ])
