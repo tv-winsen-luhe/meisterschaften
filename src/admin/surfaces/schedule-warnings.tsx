@@ -1,4 +1,4 @@
-import { type HardViolation, type SoftViolation } from '../../../shared'
+import { type HardViolation, SCHEDULE, type SoftViolation } from '../../../shared'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -15,13 +15,14 @@ import {
 const hardReason = (v: HardViolation): string => {
   if (v.rule === 'court-taken') return 'Dieser Platz ist zu dieser Zeit bereits belegt.'
   if (v.rule === 'court-window') return 'Dieser Platz hat um diese Zeit kein Flutlicht — das Match würde zu spät enden.'
+  if (v.rule === 'player-overlap') return 'Ein Spieler stünde zur selben Zeit in einem anderen Match.'
   return 'Die Runden-Reihenfolge stimmt nicht — dieses Match hängt von einem anderen ab.'
 }
 
 const softReason = (v: SoftViolation): string =>
   v.rule === 'player-load'
     ? `Ein Spieler hätte ${v.count} Matches an diesem Tag (mehr als 2).`
-    : 'Ein Spieler spielt zwei Matches direkt nacheinander, ohne Pause.'
+    : `Ein Spieler hätte weniger als ${SCHEDULE.minRestMinutes} Minuten Pause zwischen zwei Matches.`
 
 // Distinct reasons, in input order — two feeders can each block a drop with the same sentence.
 const reasons = <V,>(violations: V[], toReason: (v: V) => string): string[] => [...new Set(violations.map(toReason))]
