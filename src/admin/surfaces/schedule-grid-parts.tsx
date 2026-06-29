@@ -37,17 +37,20 @@ interface BacklogProps {
   selected: number | null
   onSelect: (id: number) => void
 }
-// The unplaced matches, waiting to be scheduled. Empty once everything is on the grid.
-export const Backlog = ({ matches, selected, onSelect }: BacklogProps) => (
-  <section className="bg-card flex flex-col gap-3 rounded-xl border p-4">
-    <div className="flex items-center justify-between">
-      <span className="font-semibold">Nicht geplant</span>
-      <span className="text-muted-foreground text-sm tabular-nums">{matches.length}</span>
-    </div>
-    {matches.length === 0 ? (
-      <p className="text-muted-foreground text-sm">Alle Matches sind verteilt.</p>
-    ) : (
-      <div className="flex flex-wrap gap-2">
+// The unplaced matches, waiting to be scheduled (#157). Pinned to the top of the scrolling surface
+// (`sticky top-0`) so its cards stay in reach — and draggable onto a far cell — however far down the long
+// courts × time grid the operator scrolls; the detached DragOverlay means sticky positioning never breaks
+// the drag. Its card list caps its own height and scrolls internally, so a large backlog can't eat the
+// viewport. Collapses to nothing once every match is placed — there is then nothing left to drag.
+export const Backlog = ({ matches, selected, onSelect }: BacklogProps) => {
+  if (matches.length === 0) return null
+  return (
+    <section className="bg-card sticky top-0 z-30 flex flex-col gap-3 rounded-xl border p-4">
+      <div className="flex items-center justify-between">
+        <span className="font-semibold">Nicht geplant</span>
+        <span className="text-muted-foreground text-sm tabular-nums">{matches.length}</span>
+      </div>
+      <div className="flex max-h-[40vh] flex-wrap gap-2 overflow-y-auto">
         {matches.map(g => (
           <BacklogCard
             key={g.match.id}
@@ -57,9 +60,9 @@ export const Backlog = ({ matches, selected, onSelect }: BacklogProps) => (
           />
         ))}
       </div>
-    )}
-  </section>
-)
+    </section>
+  )
+}
 
 interface BacklogCardProps {
   match: GridMatch
@@ -242,7 +245,7 @@ const PlacedCell = ({ cell, selected, style, onClick, onUnplace }: PlacedCellPro
         isDragging && 'opacity-40'
       )}
     >
-      <MatchCard match={cell} />
+      <MatchCard match={cell} reserveAction />
       <RemoveControl onRemove={() => onUnplace(cell.match.id)} />
     </button>
   )
