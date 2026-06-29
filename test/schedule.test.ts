@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  earliestPlaceableSlot,
   feederPosition,
   numberMatches,
   resolveBracket,
@@ -120,15 +121,99 @@ describe('resolveBracket', () => {
   })
 })
 
+// A bracket match with an optional outcome, for `earliestPlaceableSlot` tests.
+const bm = (id: number, round: number, position: number, outcome: string | null = null) => ({
+  id,
+  competition: 'mens',
+  bracket: 'main',
+  round,
+  position,
+  slot1RegId: round === 1 ? id * 10 : null,
+  slot2RegId: round === 1 ? id * 10 + 1 : null,
+  outcome,
+  court: null,
+  day: null,
+  slot: null
+})
+
+describe('earliestPlaceableSlot', () => {
+  it('returns 0 for a round-1 match (no feeders)', () => {
+    const matches = [bm(1, 1, 0), bm(2, 1, 1), bm(3, 2, 0)]
+    expect(earliestPlaceableSlot(matches[0], matches)).toBe(0)
+  })
+
+  it('returns 1 for a final in a 4-draw (one round of real feeders)', () => {
+    const matches = [bm(1, 1, 0), bm(2, 1, 1), bm(3, 2, 0)]
+    expect(earliestPlaceableSlot(matches[2], matches)).toBe(1)
+  })
+
+  it('returns 0 for a later-round match fed only through round-1 byes', () => {
+    const matches = [bm(1, 1, 0, 'bye'), bm(2, 1, 1, 'bye'), bm(3, 2, 0)]
+    expect(earliestPlaceableSlot(matches[2], matches)).toBe(0)
+  })
+
+  it('handles a mixed chain — bounded by the real branch', () => {
+    // Semi 1 is a bye, semi 2 is real — depth is 1 (only the real branch counts).
+    const matches = [bm(1, 1, 0, 'bye'), bm(2, 1, 1), bm(3, 2, 0)]
+    expect(earliestPlaceableSlot(matches[2], matches)).toBe(1)
+  })
+
+  it('returns 2 for a final in an 8-draw (QF → SF → Final)', () => {
+    // 8-draw: 4 QF (round 1), 2 SF (round 2), 1 Final (round 3)
+    const qf = [bm(1, 1, 0), bm(2, 1, 1), bm(3, 1, 2), bm(4, 1, 3)]
+    const sf = [bm(5, 2, 0), bm(6, 2, 1)]
+    const final = bm(7, 3, 0)
+    const matches = [...qf, ...sf, final]
+    expect(earliestPlaceableSlot(final, matches)).toBe(2)
+  })
+
+  it('returns 3 for a final in a 16-draw (R1 → QF → SF → Final)', () => {
+    // 16-draw: 8 R1 (round 1), 4 QF (round 2), 2 SF (round 3), 1 Final (round 4)
+    const r1 = Array.from({ length: 8 }, (_, i) => bm(i + 1, 1, i))
+    const qf = Array.from({ length: 4 }, (_, i) => bm(9 + i, 2, i))
+    const sf = [bm(13, 3, 0), bm(14, 3, 1)]
+    const final = bm(15, 4, 0)
+    const matches = [...r1, ...qf, ...sf, final]
+    expect(earliestPlaceableSlot(final, matches)).toBe(3)
+    expect(earliestPlaceableSlot(sf[0], matches)).toBe(2)
+    expect(earliestPlaceableSlot(qf[0], matches)).toBe(1)
+  })
+
+  it('reduces depth where byes shorten one branch of a 16-draw', () => {
+    // 16-draw but with all R1 matches in the top half as byes:
+    // SF position 0 feeds from QF 0 and QF 1; QF 0 feeds from R1 0 (bye) + R1 1 (bye),
+    // QF 1 feeds from R1 2 (bye) + R1 3 (bye). The real matches only exist in the bottom half.
+    const r1Top = Array.from({ length: 4 }, (_, i) => bm(i + 1, 1, i, 'bye'))
+    const r1Bottom = Array.from({ length: 4 }, (_, i) => bm(5 + i, 1, 4 + i))
+    const qfTop = [bm(9, 2, 0), bm(10, 2, 1)]
+    const qfBottom = [bm(11, 2, 2), bm(12, 2, 3)]
+    const sf = [bm(13, 3, 0), bm(14, 3, 1)]
+    const final = bm(15, 4, 0)
+    const matches = [...r1Top, ...r1Bottom, ...qfTop, ...qfBottom, ...sf, final]
+    // SF 0: both QF feeders have only bye feeders → depth 1 (just QF itself, no real R1 behind it)
+    expect(earliestPlaceableSlot(sf[0], matches)).toBe(1)
+    // SF 1: QF feeders each have real R1 feeders → depth 2
+    expect(earliestPlaceableSlot(sf[1], matches)).toBe(2)
+    // Final: max(SF0 chain=2, SF1 chain=3) = 3
+    expect(earliestPlaceableSlot(final, matches)).toBe(3)
+  })
+})
+
 interface MatchOpts {
   p?: [number | null, number | null]
   at?: Placement
+  outcome?: string | null
 }
 
 describe('validatePlacement', () => {
   // A placed/placeable match in the „mens" main bracket. `at` is its cell (omit ⇒ backlog), `p` its
   // two player regIds.
-  const pm = (id: number, round: number, position: number, { p = [null, null], at }: MatchOpts = {}) => ({
+  const pm = (
+    id: number,
+    round: number,
+    position: number,
+    { p = [null, null], at, outcome = null }: MatchOpts = {}
+  ) => ({
     id,
     competition: 'mens',
     bracket: 'main',
@@ -136,6 +221,7 @@ describe('validatePlacement', () => {
     position,
     slot1RegId: p[0],
     slot2RegId: p[1],
+    outcome,
     court: at?.court ?? null,
     day: at?.day ?? null,
     slot: at?.slot ?? null
@@ -170,10 +256,10 @@ describe('validatePlacement', () => {
       expect(hard).toEqual([{ rule: 'feeder-order', otherMatchId: 3 }])
     })
 
-    it('does not block against a feeder still in the backlog (nothing to order against yet)', () => {
-      const matches = [semi1, semi2, final] // semis unplaced
+    it('blocks a later-round match at a slot below its structural feeder-chain depth, even with unplaced feeders', () => {
+      const matches = [semi1, semi2, final] // semis unplaced but real — depth is 1
       const { hard } = validatePlacement(matches, { id: 3, placement: { court: 1, day: 0, slot: 0 } })
-      expect(hard).toEqual([])
+      expect(hard).toContainEqual({ rule: 'feeder-order', otherMatchId: 3 })
     })
   })
 
