@@ -282,15 +282,16 @@ describe('validatePlacement', () => {
     })
 
     it('does not leak a feeder’s interval across the day boundary (late-Saturday → Sunday-morning is sound)', () => {
-      // A semifinal in one of Saturday's last start-slots feeds a final in Sunday's first — the feeder's
-      // 90 minutes are long over by the next morning, so neither direction may block.
+      // A semifinal in Saturday's last start-slot feeds a final in Sunday's first — the feeder's 90
+      // minutes are long over by the next morning, so neither direction may block. The grid's last slot
+      // is only reachable on a floodlit court (5 & 6, ADR-0040), so the late placement sits on one.
       const lastSlot = SCHEDULE.slotsPerDay - 1
-      const feederLate = [{ ...semi1, court: 1, day: 0, slot: lastSlot }, semi2, final]
+      const feederLate = [{ ...semi1, court: 5, day: 0, slot: lastSlot }, semi2, final]
       expect(validatePlacement(feederLate, { id: 3, placement: { court: 1, day: 1, slot: 0 } }).hard).toEqual([])
       // …and the mirror: placing the feeder while its successor already sits Sunday morning.
       const successorEarly = [semi1, semi2, { ...final, court: 1, day: 1, slot: 0 }]
       expect(
-        validatePlacement(successorEarly, { id: 1, placement: { court: 1, day: 0, slot: lastSlot } }).hard
+        validatePlacement(successorEarly, { id: 1, placement: { court: 5, day: 0, slot: lastSlot } }).hard
       ).toEqual([])
     })
   })

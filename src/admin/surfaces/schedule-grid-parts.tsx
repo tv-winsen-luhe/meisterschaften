@@ -1,7 +1,16 @@
 import { type CSSProperties } from 'react'
-import { X } from 'lucide-react'
+import { Lightbulb, X } from 'lucide-react'
 import { useDraggable, useDroppable } from '@dnd-kit/core'
-import { absoluteSlot, COURT_NUMBERS, type Placement, SLOT_INDICES, SLOT_SPAN, slotTime } from '../../../shared'
+import {
+  absoluteSlot,
+  COURT_NUMBERS,
+  isFloodlit,
+  type Placement,
+  SLOT_INDICES,
+  SLOT_SPAN,
+  slotTime,
+  withinEveningWindow
+} from '../../../shared'
 import { cn } from '@/admin/lib/utils'
 import { type GridMatch, MatchCard } from './schedule-match-card'
 
@@ -139,7 +148,12 @@ export const DayGrid = ({
               className="bg-card text-muted-foreground sticky top-0 z-20 px-2 pb-1 text-center text-xs font-semibold"
               style={colHeader(ci + 2)}
             >
-              Platz {court}
+              <span className="inline-flex items-center gap-1">
+                Platz {court}
+                {/* The floodlit pair (5 & 6) is marked so the operator sees which courts carry the late
+                    overflow — they reach the 22:00 curfew while the dark four stop in daylight (ADR-0040). */}
+                {isFloodlit(court) && <Lightbulb className="size-3 text-amber-500" aria-label="Flutlicht" />}
+              </span>
             </div>
           ))}
 
@@ -175,6 +189,10 @@ export const DayGrid = ({
               }
               // An interior row of a match above is drawn over by that match's card — never its own target.
               if (covered.has(`${slot}-${court}`)) return null
+              // A free cell is past the court's evening window when a 90-minute match starting here would
+              // run past its bound — daylight on the dark courts 1–4, the 22:00 curfew on the floodlit pair
+              // (ADR-0040). Static per court, so the dark courts visibly stop earlier even at rest.
+              const pastWindow = !withinEveningWindow(court, day, slot)
               // A free cell is too early when its absolute slot sits before the in-hand match's earliest
               // legal slot (the structural feeder guard, #119) — disabled for both tap and drag.
               const tooEarly = inHand !== null && absoluteSlot(day, slot) < inHandEarliest
@@ -186,6 +204,7 @@ export const DayGrid = ({
                   court={court}
                   inHand={inHand}
                   tooEarly={tooEarly}
+                  pastWindow={pastWindow}
                   style={{ gridColumn: ci + 2, gridRow: slot + 2 }}
                   onClick={() => onCellClick(day, slot, court)}
                 />
@@ -266,32 +285,39 @@ interface EmptyCellProps {
   court: number
   inHand: number | null
   tooEarly: boolean
+  pastWindow: boolean
   style: CSSProperties
   onClick: () => void
 }
-// A free cell: a drop target while a match is in hand, and a tap target to drop it. Disabled (and skipped
-// as a drop target) when nothing is in hand or the structural guard marks it too early. The droppable
-// carries the target `Placement`, so drag-end reads it straight off and reaches the same path a tap does.
-const EmptyCell = ({ day, slot, court, inHand, tooEarly, style, onClick }: EmptyCellProps) => {
+// A free cell: a drop target while a match is in hand, and a tap target to drop it. A cell past the
+// court's evening window (ADR-0040) or below the in-hand match's earliest slot (the feeder guard, #119)
+// is never a legal target — not a droppable, not tappable. The two differ in when they show: the window
+// block is static per court (rendered muted even at rest, so the dark courts visibly stop earlier),
+// while too-early depends on the match in hand. The droppable carries the target `Placement`, so
+// drag-end reads it straight off and reaches the same path a tap does.
+const EmptyCell = ({ day, slot, court, inHand, tooEarly, pastWindow, style, onClick }: EmptyCellProps) => {
+  const blocked = pastWindow || tooEarly
   const { setNodeRef, isOver } = useDroppable({
     id: `${day}-${slot}-${court}`,
     data: { court, day, slot } satisfies Placement,
-    disabled: tooEarly
+    disabled: blocked
   })
-  const isDropTarget = inHand !== null && !tooEarly
+  const isDropTarget = inHand !== null && !blocked
   return (
     <button
       ref={setNodeRef}
       type="button"
       onClick={onClick}
-      disabled={inHand === null || tooEarly}
+      disabled={inHand === null || blocked}
       style={style}
+      aria-label={pastWindow ? `Platz ${court} ist um ca. ${slotTime(day, slot)} nicht mehr bespielbar` : undefined}
       className={cn(
         'relative rounded-md border border-dashed p-1.5 text-left transition-colors',
-        tooEarly && 'cursor-not-allowed opacity-40',
+        pastWindow && 'bg-muted/40 cursor-not-allowed border-transparent',
+        tooEarly && !pastWindow && 'cursor-not-allowed opacity-40',
         isDropTarget && 'border-foreground/40 bg-foreground/5 hover:bg-foreground/10',
         isOver && 'border-foreground bg-foreground/10',
-        inHand === null && 'cursor-default'
+        inHand === null && !pastWindow && 'cursor-default'
       )}
     />
   )
