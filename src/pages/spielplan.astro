@@ -189,7 +189,8 @@ import Layout from '@/layouts/default.astro'
 
     const time = document.createElement('div')
     time.className = 'sched-match__time'
-    time.textContent = `ca. ${slotTime(m.slot)}`
+    // The „ca." time is day-aware — Saturday and Sunday start at different clock times (ADR-0040).
+    time.textContent = `ca. ${slotTime(m.day, m.slot)}`
     row.appendChild(time)
 
     const players = document.createElement('div')

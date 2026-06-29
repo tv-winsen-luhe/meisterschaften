@@ -4,6 +4,8 @@ import {
   feederPosition,
   numberMatches,
   resolveBracket,
+  SCHEDULE,
+  SLOT_SPAN,
   slotLabel,
   slotTime,
   validatePlacement,
@@ -26,11 +28,17 @@ const m = (id: number, round: number, position: number, slot1: number | null = n
 })
 
 describe('slotTime', () => {
-  it('counts up from the 09:00 first slot at the fixed 90-minute cadence', () => {
-    expect(slotTime(0)).toBe('09:00')
-    expect(slotTime(1)).toBe('10:30')
-    expect(slotTime(2)).toBe('12:00')
-    expect(slotTime(5)).toBe('16:30')
+  it('counts up from each day’s first start (both 9:00) at the 30-minute cadence (ADR-0040)', () => {
+    // Both days open at 9:00; a slot is a 30-minute step.
+    expect(slotTime(0, 0)).toBe('09:00')
+    expect(slotTime(0, 1)).toBe('09:30')
+    expect(slotTime(0, 2)).toBe('10:00')
+    expect(slotTime(1, 0)).toBe('09:00')
+    expect(slotTime(1, 2)).toBe('10:00')
+  })
+
+  it('falls back to the first day’s start for an out-of-range day rather than NaN', () => {
+    expect(slotTime(99, 0)).toBe('09:00')
   })
 })
 
@@ -142,9 +150,9 @@ describe('earliestPlaceableSlot', () => {
     expect(earliestPlaceableSlot(matches[0], matches)).toBe(0)
   })
 
-  it('returns 1 for a final in a 4-draw (one round of real feeders)', () => {
+  it('returns SLOT_SPAN for a final in a 4-draw (one 90-minute feeder interval)', () => {
     const matches = [bm(1, 1, 0), bm(2, 1, 1), bm(3, 2, 0)]
-    expect(earliestPlaceableSlot(matches[2], matches)).toBe(1)
+    expect(earliestPlaceableSlot(matches[2], matches)).toBe(SLOT_SPAN)
   })
 
   it('returns 0 for a later-round match fed only through round-1 byes', () => {
@@ -153,30 +161,30 @@ describe('earliestPlaceableSlot', () => {
   })
 
   it('handles a mixed chain — bounded by the real branch', () => {
-    // Semi 1 is a bye, semi 2 is real — depth is 1 (only the real branch counts).
+    // Semi 1 is a bye, semi 2 is real — depth is one 90-minute interval (only the real branch counts).
     const matches = [bm(1, 1, 0, 'bye'), bm(2, 1, 1), bm(3, 2, 0)]
-    expect(earliestPlaceableSlot(matches[2], matches)).toBe(1)
+    expect(earliestPlaceableSlot(matches[2], matches)).toBe(SLOT_SPAN)
   })
 
-  it('returns 2 for a final in an 8-draw (QF → SF → Final)', () => {
-    // 8-draw: 4 QF (round 1), 2 SF (round 2), 1 Final (round 3)
+  it('returns 2·SLOT_SPAN for a final in an 8-draw (QF → SF → Final)', () => {
+    // 8-draw: 4 QF (round 1), 2 SF (round 2), 1 Final (round 3) — two 90-minute feeder intervals deep.
     const qf = [bm(1, 1, 0), bm(2, 1, 1), bm(3, 1, 2), bm(4, 1, 3)]
     const sf = [bm(5, 2, 0), bm(6, 2, 1)]
     const final = bm(7, 3, 0)
     const matches = [...qf, ...sf, final]
-    expect(earliestPlaceableSlot(final, matches)).toBe(2)
+    expect(earliestPlaceableSlot(final, matches)).toBe(2 * SLOT_SPAN)
   })
 
-  it('returns 3 for a final in a 16-draw (R1 → QF → SF → Final)', () => {
+  it('returns 3·SLOT_SPAN for a final in a 16-draw (R1 → QF → SF → Final)', () => {
     // 16-draw: 8 R1 (round 1), 4 QF (round 2), 2 SF (round 3), 1 Final (round 4)
     const r1 = Array.from({ length: 8 }, (_, i) => bm(i + 1, 1, i))
     const qf = Array.from({ length: 4 }, (_, i) => bm(9 + i, 2, i))
     const sf = [bm(13, 3, 0), bm(14, 3, 1)]
     const final = bm(15, 4, 0)
     const matches = [...r1, ...qf, ...sf, final]
-    expect(earliestPlaceableSlot(final, matches)).toBe(3)
-    expect(earliestPlaceableSlot(sf[0], matches)).toBe(2)
-    expect(earliestPlaceableSlot(qf[0], matches)).toBe(1)
+    expect(earliestPlaceableSlot(final, matches)).toBe(3 * SLOT_SPAN)
+    expect(earliestPlaceableSlot(sf[0], matches)).toBe(2 * SLOT_SPAN)
+    expect(earliestPlaceableSlot(qf[0], matches)).toBe(SLOT_SPAN)
   })
 
   it('reduces depth where byes shorten one branch of a 16-draw', () => {
@@ -190,12 +198,12 @@ describe('earliestPlaceableSlot', () => {
     const sf = [bm(13, 3, 0), bm(14, 3, 1)]
     const final = bm(15, 4, 0)
     const matches = [...r1Top, ...r1Bottom, ...qfTop, ...qfBottom, ...sf, final]
-    // SF 0: both QF feeders have only bye feeders → depth 1 (just QF itself, no real R1 behind it)
-    expect(earliestPlaceableSlot(sf[0], matches)).toBe(1)
-    // SF 1: QF feeders each have real R1 feeders → depth 2
-    expect(earliestPlaceableSlot(sf[1], matches)).toBe(2)
-    // Final: max(SF0 chain=2, SF1 chain=3) = 3
-    expect(earliestPlaceableSlot(final, matches)).toBe(3)
+    // SF 0: both QF feeders have only bye feeders → one 90-minute interval (just QF, no real R1 behind it)
+    expect(earliestPlaceableSlot(sf[0], matches)).toBe(SLOT_SPAN)
+    // SF 1: QF feeders each have real R1 feeders → two intervals
+    expect(earliestPlaceableSlot(sf[1], matches)).toBe(2 * SLOT_SPAN)
+    // Final: max(SF0 chain = 2, SF1 chain = 3) intervals = 3·SLOT_SPAN
+    expect(earliestPlaceableSlot(final, matches)).toBe(3 * SLOT_SPAN)
   })
 })
 
@@ -233,20 +241,31 @@ describe('validatePlacement', () => {
   const final = pm(3, 2, 0)
 
   it('accepts a sound placement — no hard blocks, no soft warnings', () => {
-    // Semis on day 0 slots 0/1, the final after both at slot 2.
+    // Semis on day 0 slot 0 (two courts), the final SLOT_SPAN steps later — after both have finished.
     const matches = [{ ...semi1, court: 1, day: 0, slot: 0 }, { ...semi2, court: 2, day: 0, slot: 0 }, final]
-    expect(validatePlacement(matches, { id: 3, placement: { court: 1, day: 0, slot: 2 } })).toEqual({
+    expect(validatePlacement(matches, { id: 3, placement: { court: 1, day: 0, slot: SLOT_SPAN } })).toEqual({
       hard: [],
       soft: []
     })
   })
 
-  describe('hard — round dependency', () => {
-    it('blocks a match sharing or preceding a feeder it depends on', () => {
-      const matches = [{ ...semi1, court: 1, day: 0, slot: 2 }, semi2, final]
-      // The final into the same slot as semifinal M1 — its winner could not have arrived.
-      const { hard } = validatePlacement(matches, { id: 3, placement: { court: 2, day: 0, slot: 2 } })
+  describe('hard — round dependency (interval-aware, ADR-0040)', () => {
+    it('blocks a match starting before a feeder it depends on has finished', () => {
+      // Semifinal M1 starts at slot 3; the final starting at the same slot — within M1's 90 minutes —
+      // could not have its winner yet.
+      const matches = [{ ...semi1, court: 1, day: 0, slot: 3 }, semi2, final]
+      const { hard } = validatePlacement(matches, { id: 3, placement: { court: 2, day: 0, slot: 3 } })
       expect(hard).toEqual([{ rule: 'feeder-order', otherMatchId: 1 }])
+    })
+
+    it('still blocks the final until the feeder’s full 90 minutes are over (< SLOT_SPAN after)', () => {
+      // M1 at slot 3; the final one step later still overlaps M1's [3, 3+SLOT_SPAN) interval.
+      const matches = [{ ...semi1, court: 1, day: 0, slot: 3 }, semi2, final]
+      const tooSoon = validatePlacement(matches, { id: 3, placement: { court: 2, day: 0, slot: 3 + SLOT_SPAN - 1 } })
+      expect(tooSoon.hard).toEqual([{ rule: 'feeder-order', otherMatchId: 1 }])
+      // Exactly SLOT_SPAN steps later, M1 has finished — the final is sound.
+      const justRight = validatePlacement(matches, { id: 3, placement: { court: 2, day: 0, slot: 3 + SLOT_SPAN } })
+      expect(justRight.hard).toEqual([])
     })
 
     it('blocks a feeder placed at or after the match it feeds (the reverse direction)', () => {
@@ -257,23 +276,48 @@ describe('validatePlacement', () => {
     })
 
     it('blocks a later-round match at a slot below its structural feeder-chain depth, even with unplaced feeders', () => {
-      const matches = [semi1, semi2, final] // semis unplaced but real — depth is 1
+      const matches = [semi1, semi2, final] // semis unplaced but real — depth is SLOT_SPAN
       const { hard } = validatePlacement(matches, { id: 3, placement: { court: 1, day: 0, slot: 0 } })
       expect(hard).toContainEqual({ rule: 'feeder-order', otherMatchId: 3 })
     })
+
+    it('does not leak a feeder’s interval across the day boundary (late-Saturday → Sunday-morning is sound)', () => {
+      // A semifinal in Saturday's last start-slot feeds a final in Sunday's first — the feeder's 90
+      // minutes are long over by the next morning, so neither direction may block. The grid's last slot
+      // is only reachable on a floodlit court (5 & 6, ADR-0040), so the late placement sits on one.
+      const lastSlot = SCHEDULE.slotsPerDay - 1
+      const feederLate = [{ ...semi1, court: 5, day: 0, slot: lastSlot }, semi2, final]
+      expect(validatePlacement(feederLate, { id: 3, placement: { court: 1, day: 1, slot: 0 } }).hard).toEqual([])
+      // …and the mirror: placing the feeder while its successor already sits Sunday morning.
+      const successorEarly = [semi1, semi2, { ...final, court: 1, day: 1, slot: 0 }]
+      expect(
+        validatePlacement(successorEarly, { id: 1, placement: { court: 5, day: 0, slot: lastSlot } }).hard
+      ).toEqual([])
+    })
   })
 
-  describe('hard — court occupancy', () => {
-    it('blocks a match dropped on a court+day+slot another match already holds', () => {
-      const occupant = pm(10, 1, 0, { at: { court: 3, day: 0, slot: 1 } })
+  describe('hard — court occupancy (interval overlap, ADR-0040)', () => {
+    it('blocks a match whose 90-minute interval overlaps another on the same court', () => {
+      // Occupant starts at slot 2; the candidate two steps later still overlaps [2, 2+SLOT_SPAN).
+      const occupant = pm(10, 1, 0, { at: { court: 3, day: 0, slot: 2 } })
       const candidate = pm(99, 1, 1)
-      const { hard } = validatePlacement([occupant, candidate], { id: 99, placement: { court: 3, day: 0, slot: 1 } })
+      const { hard } = validatePlacement([occupant, candidate], { id: 99, placement: { court: 3, day: 0, slot: 4 } })
       expect(hard).toEqual([{ rule: 'court-taken', otherMatchId: 10 }])
     })
 
-    it('allows a match in a busy slot on a free court — up to the 6 courts, never a 7th', () => {
+    it('allows a back-to-back match on the same court once the first’s interval is over (≥ SLOT_SPAN apart)', () => {
+      const occupant = pm(10, 1, 0, { at: { court: 3, day: 0, slot: 2 } })
+      const candidate = pm(99, 1, 1)
+      const { hard } = validatePlacement([occupant, candidate], {
+        id: 99,
+        placement: { court: 3, day: 0, slot: 2 + SLOT_SPAN }
+      })
+      expect(hard).toEqual([])
+    })
+
+    it('allows a same-time match on a free court — up to the 6 courts, never a 7th', () => {
       // Five courts taken in day 0 slot 0; the candidate fills the sixth (court is schema-bounded to 1..6,
-      // so a seventh would have to reuse a court and be blocked as court-taken).
+      // so a seventh would have to reuse a court and overlap as court-taken).
       const fillers = Array.from({ length: 5 }, (_, i) => pm(10 + i, 1, i, { at: { court: i + 1, day: 0, slot: 0 } }))
       const candidate = pm(99, 1, 6)
       const { hard } = validatePlacement([...fillers, candidate], { id: 99, placement: { court: 6, day: 0, slot: 0 } })
@@ -283,11 +327,12 @@ describe('validatePlacement', () => {
 
   describe('soft — player load', () => {
     it('warns (does not block) on a player with more than 2 matches in a day', () => {
-      // Player 101 already plays two day-0 matches; the candidate is their third.
+      // Player 101 already plays two day-0 matches; the candidate is their third. Spread across courts
+      // (and ≥ SLOT_SPAN apart) so only the soft player-load rule bites, not court occupancy.
       const a = pm(20, 1, 0, { p: [101, 201], at: { court: 1, day: 0, slot: 0 } })
-      const b = pm(21, 1, 1, { p: [101, 202], at: { court: 1, day: 0, slot: 2 } })
+      const b = pm(21, 1, 1, { p: [101, 202], at: { court: 2, day: 0, slot: 3 } })
       const candidate = pm(22, 1, 2, { p: [101, 203] })
-      const { hard, soft } = validatePlacement([a, b, candidate], { id: 22, placement: { court: 1, day: 0, slot: 4 } })
+      const { hard, soft } = validatePlacement([a, b, candidate], { id: 22, placement: { court: 3, day: 0, slot: 6 } })
       expect(hard).toEqual([])
       expect(soft).toContainEqual({ rule: 'player-load', regId: 101, count: 3 })
     })

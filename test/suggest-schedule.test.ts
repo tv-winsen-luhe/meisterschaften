@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { suggestSchedule, validatePlacement } from '../shared/schedule'
+import { absoluteSlot, suggestSchedule, validatePlacement } from '../shared/schedule'
 import type { Placement, SchedulableMatch } from '../shared/schedule'
 
 // The auto-suggest planner (suggestSchedule): a greedy, deterministic fill of unplaced matches into
@@ -73,8 +73,8 @@ describe('suggestSchedule', () => {
     const byId = new Map(suggestions.map(s => [s.id, s]))
     const r1Slot = byId.get(1)!.placement
     const finalSlot = byId.get(3)!.placement
-    const r1Abs = r1Slot.day * 6 + r1Slot.slot
-    const finalAbs = finalSlot.day * 6 + finalSlot.slot
+    const r1Abs = absoluteSlot(r1Slot.day, r1Slot.slot)
+    const finalAbs = absoluteSlot(finalSlot.day, finalSlot.slot)
     expect(finalAbs).toBeGreaterThan(r1Abs)
   })
 

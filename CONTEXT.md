@@ -239,17 +239,24 @@ reveal sequence }`. Randomness enters through an injected **`RandomSource`** por
   winner it **warns and cascade-clears** those dependent results recursively — the correction is never
   blocked, but the bracket is never left holding a player who lost. _(See ADR-0026.)_
 - **Schedule** (de: Spielplan) — the assignment of matches to a court (de: Platz) and a **planned start**
-  (day + approximate time) after the draw, the way nuTurnier does it. Planned times are
-  explicitly approximate ("ca."), not guarantees. The operator places matches by hand on a courts×time
-  grid of **fixed 90-minute slots**; the system validates rather than auto-generates, on the principle
-  **block the impossible, warn the unwise**: it _forbids_ (hard) scheduling a match before its feeders
-  finish — enforced **structurally**, so a match cannot sit earlier than its real (non-bye) feeder chain
-  allows even before those feeders are placed — and more matches per slot than the 6 courts — the only
-  physically impossible states — and
-  _warns_ (soft, operator may override) on a player's load: more than **2 matches per day** (so a deep
-  run, or a main-bracket exit plus the consolation bracket, tends to spread across both event days — the
-  consolation bracket is not a Saturday-only affair) and back-to-back matches with no rest gap.
-  _(See ADR-0005, ADR-0033.)_
+  (day + approximate time) after the draw, the way nuTurnier does it. Planned times are explicitly
+  approximate ("ca."), not guarantees. The operator places matches by hand on a courts×time grid; the
+  system validates rather than auto-generates, on the principle **block the impossible, warn the unwise**.
+  The match length is a **fixed 90 minutes**, but the **start** is set on a **30-minute** cadence, so a
+  placement reserves its court for the interval `[start, start+90)` — **court occupancy is interval
+  overlap, not a shared cell** (ADR-0040). Each event day carries its own first start (both currently
+  **9:00**) and each court its own evening window (see Court). _Block (hard):_ a match before its real
+  (non-bye) feeder chain — enforced **structurally**, so it cannot sit earlier than that chain allows even
+  before the feeders are placed; a same-court interval overlap; **a player in two time-overlapping matches**
+  (physically impossible — one body, two courts); and a start past a court's evening window. _Warn (soft,
+  overridable):_ a **rest gap under 60 minutes** between a player's matches, **more than 2 matches per day**
+  (so a deep run, or a main-bracket exit plus the consolation bracket, tends to spread across both event
+  days), and a **semifinal/final off Sunday** (Finaltag). The schedule is **private until published**, and
+  **reset** wipes the placements to rebuild (see Schedule publication). _(See ADR-0005, ADR-0033, ADR-0040,
+  ADR-0041.)_
+- **Finaltag** (Sunday as finals day) — the auto-suggest reserves **semifinals → finals → third-place**
+  for Sunday and packs Saturday through the **quarterfinals** (plus the consolation bracket). A soft
+  preference, never a hard rule: a final _may_ be placed on Saturday, against a soft warning. _(See ADR-0040.)_
 - **Schedule slot** — one contestant line of a scheduled match, resolved for display as one of: a **player**
   (a name), a **Freilos** (a round-1 bye), a **Sieger M{n}** feeder (the still-undecided winner of an
   earlier match, ADR-0025), or — when a feeder cannot be resolved — **offen** (undecided). „offen" is a
@@ -257,9 +264,22 @@ reveal sequence }`. Randomness enters through an injected **`RandomSource`** por
   (which in a later round would read as a free pass). On the **admin grid** a healthy undecided slot is
   always „Sieger M{n}", so an „offen" there is _always_ an inconsistency — it is styled as a warning (the
   operator's tell; the repair is re-running the draw), not the calm line spectators see. _(See ADR-0035.)_
-- **Court** (de: Platz) — one of 6 sand courts. Capacity constraint for the schedule: at most **one match
-  per court per time slot** (the validator enforces this per-cell occupancy server-side, ADR-0033); with 6
-  courts, "at most 6 matches in a slot" follows as its consequence, never a separate count.
+- **Court** (de: Platz) — one of 6 sand courts; **courts 5 & 6 are floodlit** and may run to the **22:00
+  Ruhestörung curfew** (last start 20:30), while courts 1–4 must **finish by ~20:00** in daylight. Each
+  court's **evening window** is a hard upper bound on a match's start, so the grid is lopsided — the
+  floodlit pair has more rows and is the overflow valve for a packed Saturday. Capacity constraint for the
+  schedule: a court holds **one match at a time** — two same-court matches whose fixed 90-minute intervals
+  overlap (starts < 90 min apart) conflict (the validator enforces this server-side; **interval overlap**
+  replaced the old per-cell check, ADR-0040). With 6 courts, "at most 6 matches running at once" follows
+  as its consequence, never a separate count. _(See ADR-0033, ADR-0040.)_
+- **Schedule publication** (de: Veröffentlichung) — the schedule is **private until published**: a global
+  `published` flag (off by default) gates the public schedule, so the operator builds the whole plan unseen
+  and reveals it in one act („Veröffentlichen"). Scope is **global** (one flag for the event, matching the
+  one event-wide Live board), not per-competition. After publishing, edits stay **live** — no re-publish
+  step; planned times are "ca." and the live court reflects reality (ADR-0032), so drift is communicated
+  through **match status**, not re-gating. **Reset** („Spielplan zurücksetzen") clears all `planned`
+  placements back to the backlog (draw, brackets, results untouched; `running`/`done` matches keep their
+  court) and flips `published` back to false, so the public page is never blanked mid-rebuild. _(See ADR-0041.)_
 - **Match status** (de: Match-Status; stored/wire values English `planned` → `running` → `done`, UI
   labels „geplant" → „läuft" → „beendet" per ADR-0028). The transition to `running` captures the
   **actual court** the match is on — which may differ from its planned court (a court frees up early), so

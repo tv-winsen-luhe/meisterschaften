@@ -12,10 +12,11 @@ import {
 
 // The operator-facing copy for a placement validation outcome (ADR-0033), kept next to the dialog that
 // shows it. The structured violations come from the shared validator; only the German lives here.
-const hardReason = (v: HardViolation): string =>
-  v.rule === 'court-taken'
-    ? 'Dieser Platz ist zu dieser Zeit bereits belegt.'
-    : 'Die Runden-Reihenfolge stimmt nicht — dieses Match hängt von einem anderen ab.'
+const hardReason = (v: HardViolation): string => {
+  if (v.rule === 'court-taken') return 'Dieser Platz ist zu dieser Zeit bereits belegt.'
+  if (v.rule === 'court-window') return 'Dieser Platz hat um diese Zeit kein Flutlicht — das Match würde zu spät enden.'
+  return 'Die Runden-Reihenfolge stimmt nicht — dieses Match hängt von einem anderen ab.'
+}
 
 const softReason = (v: SoftViolation): string =>
   v.rule === 'player-load'
