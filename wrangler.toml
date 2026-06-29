@@ -1,6 +1,7 @@
 name = "winsener-meisterschaften"
 main = "worker/index.ts"
-compatibility_date = "2025-06-01"
+compatibility_date = "2026-06-29"
+compatibility_flags = ["nodejs_compat"]
 
 # Keine zweite, ungeschützte URL auf denselben Worker: Cloudflare Access hängt am
 # Custom-Domain-Hostnamen. Sowohl die *.workers.dev-URL als auch die Per-Version-Preview-URLs
@@ -49,6 +50,10 @@ migrations_dir = "worker/migrations"
 # Wöchentlicher LK-Sync aus nuLiga: Montag 05:00 UTC.
 [triggers]
 crons = ["0 5 * * 1"]
+
+[observability]
+enabled = true
+head_sampling_rate = 1
 
 # Operator-Flächen (/admin, /api/admin/*) sind in Produktion ausschließlich durch Cloudflare
 # Zero Trust Access am Edge geschützt (E-Mail-OTP, Team-Portal tv-winsen.cloudflareaccess.com).
