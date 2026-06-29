@@ -69,10 +69,20 @@
   },
   "simple-git-hooks": {
     "pre-commit": "pnpm exec lint-staged",
-    "commit-msg": "pnpm exec commitlint --edit $1"
+    "commit-msg": "pnpm exec commitlint --edit $1",
+    "post-merge": "sh scripts/install-if-deps-changed.sh",
+    "post-checkout": "sh scripts/install-if-deps-changed.sh",
+    "post-rewrite": "sh scripts/install-if-deps-changed.sh"
   },
   "lint-staged": {
-    "*.{astro,ts,tsx,js,jsx,mjs,cjs,css,md,json,yaml,yml}": "prettier --write",
-    "*.astro": "eslint --fix --max-warnings=0"
+    "*.{ts,tsx}": [
+      "eslint --fix",
+      "prettier --write"
+    ],
+    "*.astro": [
+      "eslint --fix --max-warnings=0",
+      "prettier --write"
+    ],
+    "*.{js,jsx,mjs,cjs,css,md,json,yaml,yml}": "prettier --write"
   }
 }
