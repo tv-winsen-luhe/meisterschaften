@@ -18,6 +18,7 @@ import {
   DAY_INDICES,
   earliestPlaceableSlot,
   isFullyRevealed,
+  isUnplaced,
   type Match,
   type Placement,
   resolveBracket,
@@ -138,7 +139,7 @@ export const ScheduleSurface = ({
       // feed reads (#109) — then drop byes and, while unrevealed, any still-unplaced match.
       for (const { match, number, slot1, slot2 } of resolveBracket(draw.matches)) {
         if (match.outcome === 'bye') continue
-        if (!revealed && match.court === null) continue
+        if (!revealed && isUnplaced(match)) continue
         out.push({
           match,
           number,
@@ -164,7 +165,7 @@ export const ScheduleSurface = ({
     return earliestPlaceableSlot(m, allMatches)
   }, [inHand, allMatches])
 
-  const backlog = gridMatches.filter(g => g.match.court === null)
+  const backlog = gridMatches.filter(g => isUnplaced(g.match))
   // Whether any match has already started or finished — escalates the reset confirm (ADR-0041): reset
   // leaves running/done matches on their court, but warns that the public plan goes dark until republished.
   const hasLiveMatches = gridMatches.some(g => g.match.status === 'running' || g.match.status === 'done')
@@ -294,7 +295,7 @@ export const ScheduleSurface = ({
 
             <ScheduleControls
               published={published}
-              hasBacklog={backlog.length > 0}
+              backlogCount={backlog.length}
               suggesting={suggesting}
               hasLiveMatches={hasLiveMatches}
               onSuggest={suggest}

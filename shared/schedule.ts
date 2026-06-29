@@ -64,6 +64,20 @@ export interface Placement {
   slot: number
 }
 
+// The minimal shape the backlog predicate reads — a match carries a court only once placed on the grid.
+interface MaybePlaced {
+  court: number | null
+}
+
+/**
+ * Whether a match is still in the backlog: drawn and revealed, but not yet on a court (UI: „Nicht
+ * geplant"). A null court is the whole test — byes and un-revealed bracket matches are already filtered
+ * out upstream before this sees them (ADR-0036). The single definition of „unplaced" the admin backlog
+ * tray filters by and the publish confirm counts (#156, ADR-0041), so the count the warning names can
+ * never drift from the tray the operator sees.
+ */
+export const isUnplaced = (match: MaybePlaced): boolean => match.court === null
+
 // Minutes-from-midnight of a (day, slot) start — the single arithmetic both `slotTime` (the „ca." label)
 // and the evening-window check read, so a clock time and its window bound never drift apart. Day-aware
 // via `dayStartMinutes` (ADR-0040); an out-of-range day falls back to the first day's start, never NaN.
