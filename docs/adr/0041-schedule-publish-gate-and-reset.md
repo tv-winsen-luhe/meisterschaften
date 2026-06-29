@@ -34,6 +34,17 @@ judgment call, like closing registration — so it is manual. ADR-0027's "operat
 stuck in the wrong mode" risk is weak here: forgetting to publish leaves a loud, self-evident
 "noch nicht veröffentlicht" on the operator's own schedule page, not a silently-wrong public surface.
 
+**Publishing with a non-empty backlog warns, but does not block.** The "stage round 1, place round 2 later"
+case above is, in practice, rare: the operator plans the whole main bracket up front, later rounds placed
+immediately as feeder slots („Sieger M{n}"). So a non-empty backlog at the moment of „Veröffentlichen" is
+almost always a **forgotten placement**, not a deliberate one — and the publish action therefore **confirms**
+when matches are still unplaced („N Matches sind noch nicht geplant — trotzdem veröffentlichen?"), catching
+the omission the operator would otherwise only notice once the public page was already live. It stays a
+**warn, not a hard block** (ADR-0033, "block the impossible, warn the unwise"): we trust the single operator,
+and a hard gate could trap a genuinely-unplaceable match (e.g. one that no longer fits the court budget) into
+a schedule that can never be published. The consolation bracket is not a counterexample — it is drawn live
+after round 1 and placed as ordinary post-publish live edits, so it is never in the backlog at first publish.
+
 Until the operator hits **„Veröffentlichen"**, the public schedule shows a "noch nicht veröffentlicht"
 state; the whole build happens in private. Scope is **global** (one flag for the event — ADR-0008's
 event-wide page), not per-competition: at a club event the draws happen together at the Auslosungs-Show, so
