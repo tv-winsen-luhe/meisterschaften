@@ -69,6 +69,24 @@ describe('in-memory registrations store · listConfirmed', () => {
     const drawLks = (await store.confirmedForDraw('mens-challenger')).map(p => p.lk)
     expect(drawLks).toEqual(['15.0', '22.0', null]) // strongest LK first (null = weakest)
   })
+
+  it('strips the LK of a Challenger field on the public wire, but the draw input keeps it (CONTEXT: Challenger, ADR-0024)', async () => {
+    // The protected field's strength must not leave the server for a public surface — the public list
+    // projection nulls the LK for an isChallengerField competition, while a championship field keeps it.
+    // The draw still needs the LK to seed the bracket and bind the cap, so confirmedForDraw (the gated
+    // draw input, not this public projection) is unaffected.
+    const store = createInMemoryRegistrationsStore([
+      reg({ competition: 'mens', lk: '11.5', firstName: 'Champ' }),
+      reg({ competition: 'mens-challenger', lk: '22.0', firstName: 'Chall' })
+    ])
+
+    const list = await store.listConfirmed()
+    expect(list.find(p => p.firstName === 'Champ')?.lk).toBe('11.5') // championship field keeps its LK
+    expect(list.find(p => p.firstName === 'Chall')?.lk).toBeNull() // Challenger LK never reaches the public wire
+
+    // The draw input still reads the real LK — the omission is public-surface only.
+    expect((await store.confirmedForDraw('mens-challenger')).map(p => p.lk)).toEqual(['22.0'])
+  })
 })
 
 describe('in-memory registrations store · write + lookup ops', () => {

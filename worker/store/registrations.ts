@@ -1,7 +1,14 @@
 import type { D1Database } from '@cloudflare/workers-types'
 import { drizzle } from 'drizzle-orm/d1'
 import { and, asc, count, eq, gt, inArray, sql } from 'drizzle-orm'
-import { ACTIVE_STATUSES, compareForCut, type DrawPlayer, seedingValue, type RegistrationStatus } from '../../shared'
+import {
+  ACTIVE_STATUSES,
+  compareForCut,
+  type DrawPlayer,
+  isChallengerField,
+  seedingValue,
+  type RegistrationStatus
+} from '../../shared'
 import { registrations, type NewRegistrationRow, type RegistrationRow } from '../db/schema'
 
 // The fields the seeding list order reads — a structural subset both a RegistrationRow and the D1
@@ -33,13 +40,16 @@ export const byListOrder = (a: SeedingOrdered, b: SeedingOrdered): number =>
 
 // Narrow any confirmed row (a full RegistrationRow or the D1 projection) to the public list shape,
 // in one place so both adapters' listConfirmed project identically — the comparator and the
-// projection are now both shared, so the two adapters can't drift on either.
+// projection are now both shared, so the two adapters can't drift on either. A protected Challenger
+// field's strength is not advertised publicly (CONTEXT: Challenger, ADR-0024), so its LK is dropped to
+// null here — at the projection seam, not the view — and never reaches the public wire. The gated draw
+// input reads the real LK through confirmedForDraw, which is unaffected.
 export const toConfirmedParticipant = (r: ConfirmedParticipant): ConfirmedParticipant => ({
   firstName: r.firstName,
   lastName: r.lastName,
   club: r.club,
   competition: r.competition,
-  lk: r.lk
+  lk: isChallengerField(r.competition) ? null : r.lk
 })
 
 // updated_at is a persistence fact ("when was this row last written"), stamped here on every
