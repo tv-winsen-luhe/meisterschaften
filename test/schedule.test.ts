@@ -241,9 +241,10 @@ describe('validatePlacement', () => {
   const final = pm(3, 2, 0)
 
   it('accepts a sound placement — no hard blocks, no soft warnings', () => {
-    // Semis on day 0 slot 0 (two courts), the final SLOT_SPAN steps later — after both have finished.
-    const matches = [{ ...semi1, court: 1, day: 0, slot: 0 }, { ...semi2, court: 2, day: 0, slot: 0 }, final]
-    expect(validatePlacement(matches, { id: 3, placement: { court: 1, day: 0, slot: SLOT_SPAN } })).toEqual({
+    // Semis and final on Sunday (day 1, the finals day), the final SLOT_SPAN steps after both semis have
+    // finished — so it is sound with no finals-day nudge (a 4-draw's round 1 is already the semifinal).
+    const matches = [{ ...semi1, court: 1, day: 1, slot: 0 }, { ...semi2, court: 2, day: 1, slot: 0 }, final]
+    expect(validatePlacement(matches, { id: 3, placement: { court: 1, day: 1, slot: SLOT_SPAN } })).toEqual({
       hard: [],
       soft: []
     })
@@ -381,11 +382,11 @@ describe('validatePlacement', () => {
     })
 
     it('does not warn once the player has at least 60 minutes’ rest', () => {
-      // Earlier at slot 0 ends 10:30; the candidate at slot 5 (11:30) leaves a full 60 minutes — at the
-      // bound, so no warning.
-      const earlier = pm(30, 1, 0, { p: [101, 201], at: { court: 1, day: 0, slot: 0 } })
+      // On Sunday (day 1), so no finals-day nudge clouds the rest check: earlier at slot 0 ends 10:30; the
+      // candidate at slot 5 (11:30) leaves a full 60 minutes — at the bound, so no warning.
+      const earlier = pm(30, 1, 0, { p: [101, 201], at: { court: 1, day: 1, slot: 0 } })
       const candidate = pm(31, 1, 1, { p: [101, 202] })
-      const { soft } = validatePlacement([earlier, candidate], { id: 31, placement: { court: 2, day: 0, slot: 5 } })
+      const { soft } = validatePlacement([earlier, candidate], { id: 31, placement: { court: 2, day: 1, slot: 5 } })
       expect(soft).toEqual([])
     })
   })

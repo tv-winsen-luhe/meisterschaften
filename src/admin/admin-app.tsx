@@ -11,6 +11,7 @@ import {
 } from '../../shared'
 import { errorMessage, isAuthRedirect } from './lib/api'
 import { useReveal } from './use-reveal'
+import { useSchedule } from './use-schedule'
 import { Button } from '@/admin/ui/button'
 import { Separator } from '@/admin/ui/separator'
 import { Toaster } from '@/admin/ui/sonner'
@@ -85,31 +86,15 @@ export const AdminApp = () => {
       setRegistrations(data.registrations)
       setEverLoaded(true)
       setReady(true)
-      // The drawn brackets are a best-effort read alongside the list: a failure must not take down the
-      // admin, so it updates the competitions surface only on success (keeps the last known draws).
-      try {
-        const drawsRes = await client.api.admin.draws.$get()
-        if (drawsRes.ok) setDraws((await drawsRes.json()).draws)
-      } catch {
-        // ignore — draws keep their last known value
-      }
-      // The phase is a public, best-effort read: a failure must not take down the admin list,
-      // so it is fetched separately and updates the stepper only on success (a failed read
-      // keeps the last known phase rather than blanking it).
-      try {
-        const phaseRes = await client.api.phase.$get()
-        if (phaseRes.ok) setPhase((await phaseRes.json()).phase)
-      } catch {
-        // ignore — phase keeps its last known value
-      }
-      // Whether the debug-only reset levers exist here (RESET_ENABLED, ADR-0029) — best-effort, like
-      // the reads above: a failure leaves the Debug surface hidden (the safe default).
-      try {
-        const resetRes = await client.api.admin.reset.$get()
-        if (resetRes.ok) setResetEnabled((await resetRes.json()).enabled)
-      } catch {
-        // ignore — reset capability keeps its last known value
-      }
+      // The drawn brackets (competitions surface), the phase (stepper), and the debug-reset capability
+      // (RESET_ENABLED, ADR-0029) are best-effort reads independent of the list — fetch them together and
+      // let any one fail without taking down the admin: a rejected read keeps that slice's last known
+      // value (allSettled never rejects), so a blip never blanks the stepper or hides a drawn field.
+      await Promise.allSettled([
+        client.api.admin.draws.$get().then(async r => r.ok && setDraws((await r.json()).draws)),
+        client.api.phase.$get().then(async r => r.ok && setPhase((await r.json()).phase)),
+        client.api.admin.reset.$get().then(async r => r.ok && setResetEnabled((await r.json()).enabled))
+      ])
     } catch {
       toast.error('Konnte nicht laden.')
       setReady(true)
@@ -120,11 +105,13 @@ export const AdminApp = () => {
     load()
   }, [load])
 
-  // Wrap a mutation: run it, force a full reload on an Access redirect (re-runs the login),
-  // toast its error, else toast success + reload the list. Resolves to whether the action
-  // succeeded, so callers can advance/close UI only on success (and not on a rejected save).
+  // Wrap a mutation: run it, force a full reload on an Access redirect (re-runs the login), toast its
+  // error, else reload the list — toasting success only when given a message. Resolves to whether the
+  // action succeeded, so callers can advance/close UI only on success (and not on a rejected save). A
+  // `null` success is the deliberate silence for routine, self-evident edits (place/move/remove a match,
+  // #139) where the grid already shows the result; errors still always toast.
   const mutate = useCallback(
-    async (run: () => Promise<Response>, success: string): Promise<boolean> => {
+    async (run: () => Promise<Response>, success: string | null): Promise<boolean> => {
       try {
         const res = await run()
         if (isAuthRedirect(res)) {
@@ -135,7 +122,7 @@ export const AdminApp = () => {
           toast.error(await errorMessage(res))
           return false
         }
-        toast.success(success)
+        if (success) toast.success(success)
         await load()
         return true
       } catch {
@@ -145,6 +132,10 @@ export const AdminApp = () => {
     },
     [load]
   )
+
+  // The schedule publication seams (ADR-0041), kept out of the shell like useReveal: the published flag and
+  // the publish/reset actions, each routed through `mutate` for the shared 401-regate/toast behaviour.
+  const { published, publishSchedule, resetSchedule } = useSchedule(client, mutate)
 
   // Set the operator-controlled phase (ADR-0006): the public site reflects it and the weekly
   // cron is gated to 'signup'. Goes through mutate, so it shares the 401-regate/error/toast
@@ -224,12 +215,13 @@ export const AdminApp = () => {
   }, [client, mutate])
 
   // Place a match on the schedule grid, move it, or clear it back to the backlog (null). Via mutate
-  // (shared 401-regate/error/toast); the success reload re-fetches the draws (matches carry their
-  // placement), re-rendering the grid. Resolves to success so the surface clears its selection only
-  // on a persisted placement.
+  // (shared 401-regate/error/reload); the success reload re-fetches the draws (matches carry their
+  // placement), re-rendering the grid. Resolves to success so the surface clears its selection only on a
+  // persisted placement. Success is **silent** (`null`) — the grid already shows the move, so a toast per
+  // nudge is pure noise (#139); a blocked or failed placement still toasts (the surface / mutate's error).
   const placeMatch = useCallback(
     (id: number, placement: Placement | null) =>
-      mutate(() => client.api.admin.match.place.$post({ json: { id, placement } }), 'Spielplan aktualisiert.'),
+      mutate(() => client.api.admin.match.place.$post({ json: { id, placement } }), null),
     [client, mutate]
   )
 
@@ -367,7 +359,14 @@ export const AdminApp = () => {
             onStartShow={setShowCompetition}
           />
         ) : surface === 'schedule' ? (
-          <ScheduleSurface registrations={registrations} draws={draws} onPlace={placeMatch} />
+          <ScheduleSurface
+            registrations={registrations}
+            draws={draws}
+            published={published}
+            onPlace={placeMatch}
+            onPublish={publishSchedule}
+            onReset={resetSchedule}
+          />
         ) : surface === 'debug' && resetEnabled ? (
           <DebugSurface draws={draws} onUndraw={undraw} onReadmit={readmit} onBackToSignup={backToSignup} />
         ) : (

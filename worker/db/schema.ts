@@ -39,7 +39,12 @@ export type NewRegistrationRow = typeof registrations.$inferInsert
 // decoupled from the Zod contract.
 export const appState = sqliteTable('app_state', {
   id: integer('id').primaryKey(),
-  phase: text('phase').notNull().default('signup')
+  phase: text('phase').notNull().default('signup'),
+  // Whether the planned schedule is public (ADR-0041). A global, operator-set flag — off by default — that
+  // gates the *planned* public schedule (a not-yet-started match's court/day/slot); the live board's actual
+  // court + status are never gated by it. Stored as SQLite 0/1 (`mode: 'boolean'`); it lives beside `phase`
+  // because it is the same kind of single-row global state (ADR-0006), not a derivable middle (ADR-0027).
+  schedulePublished: integer('schedule_published', { mode: 'boolean' }).notNull().default(false)
 })
 
 export type AppStateRow = typeof appState.$inferSelect

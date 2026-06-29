@@ -32,6 +32,9 @@ import {
   type ReadmitResponse,
   type RefreshLkResponse,
   type ResetCapabilityResponse,
+  type SchedulePublishResponse,
+  type ScheduleResetResponse,
+  type ScheduleStateResponse,
   type SetPhaseResponse,
   type UndrawResponse
 } from '../shared'
@@ -184,8 +187,8 @@ export const createApp = (makeDeps: (env: Env) => Deps = createDepsFromEnv) =>
     // competitions, slots resolved for display. Public and outside Access like /api/draw; polled by the
     // public page (~10–20 s, ADR-0008). Empty until a match is placed on the grid.
     .get('/api/schedule', async c => {
-      const matches = await c.var.deps.projections.schedule()
-      return c.json(scheduleResponseSchema.parse({ matches }), 200, { 'cache-control': 'no-store' })
+      const feed = await c.var.deps.projections.schedule()
+      return c.json(scheduleResponseSchema.parse(feed), 200, { 'cache-control': 'no-store' })
     })
     // POST /api/register — the registration write path. Thin handler: honeypot + rate-limit
     // (abuse/HTTP concerns) and Zod shape validation at the edge, then the Registration
@@ -365,6 +368,32 @@ export const createApp = (makeDeps: (env: Env) => Deps = createDepsFromEnv) =>
       }
       await c.var.deps.draws.placeMatch(id, placement)
       return c.json({ ok: true } satisfies PlaceMatchResponse)
+    })
+    // GET /api/admin/schedule — the operator's lightweight publish-state read (ADR-0041): just the flag,
+    // so the admin reflects it on mount without resolving the whole public schedule feed. Behind Access
+    // like every admin read.
+    .get('/api/admin/schedule', async c =>
+      c.json({ published: await c.var.deps.appState.getSchedulePublished() } satisfies ScheduleStateResponse, 200, {
+        'cache-control': 'no-store'
+      })
+    )
+    // POST /api/admin/schedule/publish — reveal the whole planned schedule at once (ADR-0041). The global
+    // flag flips on; edits after publishing stay live (no re-publish step). No body — the flag is global.
+    .post('/api/admin/schedule/publish', async c => {
+      await c.var.deps.appState.setSchedulePublished(true)
+      return c.json({ ok: true, published: true } satisfies SchedulePublishResponse)
+    })
+    // POST /api/admin/schedule/reset — clear every `planned` placement back to the backlog and auto-unpublish
+    // (ADR-0041): the only lever that unpublishes. Two writes across two tables, not one transaction — but
+    // ordered to fail **safe**: unpublish first, then clear. If the second write fails, the public page is
+    // already hidden („noch nicht veröffentlicht") over an intact plan — never published over an emptied
+    // one (which would flash the schedule vanishing). Both are idempotent, so re-pressing completes a
+    // partial reset; the draw/brackets/results stay intact, and a running/done match keeps its court. No
+    // body; the admin confirm-guards it (escalating the warning when a match is already running/done).
+    .post('/api/admin/schedule/reset', async c => {
+      await c.var.deps.appState.setSchedulePublished(false)
+      await c.var.deps.draws.resetSchedule()
+      return c.json({ ok: true, published: false } satisfies ScheduleResetResponse)
     })
     // ── Debug-only reset (ADR-0029) ─────────────────────────────────────────────────────────
     // Three flag-gated levers that reverse the forward transitions the model treats as final (the

@@ -5,10 +5,10 @@ import {
   type ByeWinner,
   type PlayerDisplay,
   type PublicRevealStep,
-  revealedBracket
+  revealedBracket,
+  roundLabel
 } from '../../shared'
 import { cn } from '@/admin/lib/utils'
-import { roundLabel } from '@/admin/lib/bracket'
 
 // The bracket the draw show fills in behind the announce band (issue #71). Pure playback of the revealed
 // reveal steps: round 1 plays each drawn line, round 2 shows a bye winner already advanced, everything
@@ -49,7 +49,7 @@ export const DrawBracket = ({ size, steps, currentPosition, reduce }: DrawBracke
           return (
             <div key={round} className="flex w-56 shrink-0 flex-col">
               <div className="mb-3 flex items-center justify-between border-b border-[#0c1e3a]/15 pb-2 text-[11px] font-bold tracking-[0.14em] text-[#0c1e3a] uppercase">
-                <span>{roundLabel(round, totalRounds)}</span>
+                <span>{roundLabel({ bracket: 'main', round, totalRounds })}</span>
                 <span className="text-[#0c1e3a]/35 tabular-nums">{matchCount}</span>
               </div>
               {/* Space *between* matches (gap-3) wider than the gap *within* a match (gap-1) groups each

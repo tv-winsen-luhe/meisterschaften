@@ -1,4 +1,5 @@
 import {
+  bracketDepth,
   type CompetitionSlug,
   isFullyRevealed,
   type Match,
@@ -9,6 +10,7 @@ import {
   type ScheduleSlot,
   type SlotView
 } from '../shared'
+import type { AppStateStore } from './store/app-state'
 import type { DrawStore } from './store/draw'
 import type { RegistrationsStore } from './store/registrations'
 
@@ -26,10 +28,19 @@ import type { RegistrationsStore } from './store/registrations'
 export interface ProjectionsDeps {
   drawStore: DrawStore
   registrationsStore: RegistrationsStore
+  appStateStore: AppStateStore
+}
+
+// The public schedule feed (ADR-0041): the publish flag plus the matches the spectator may see. When the
+// flag is off the page shows „noch nicht veröffentlicht" and `matches` carries no planned reveal (only
+// live truth — a running/done match — survives the gate, which today is empty until #90/#91).
+export interface ScheduleFeed {
+  published: boolean
+  matches: ScheduleMatch[]
 }
 
 export const createProjections = (deps: ProjectionsDeps) => {
-  const { drawStore, registrationsStore } = deps
+  const { drawStore, registrationsStore, appStateStore } = deps
 
   // Every competition's main-bracket reveal state. The one fetch+filter both projections share — the live
   // bracket needs them all (it slices each to its cursor), the schedule feed keeps only the fully-revealed
@@ -78,16 +89,25 @@ export const createProjections = (deps: ProjectionsDeps) => {
     },
 
     /**
-     * The public schedule (ADR-0005): every **placed** match across all competitions, with its slots
-     * resolved for display. Numbering and feeder resolution run over each bracket's *full* match set
-     * (so „Sieger M3" is stable), then only the placed, real matches are emitted — a bye is auto-resolved
-     * and never played, so it is never scheduled. Player names are joined like publicDraws; a feeder shows
-     * its match number, a round-1 bye line shows „Freilos". The live board (#91) reads the same feed.
+     * The public schedule (ADR-0005, ADR-0041): the publish flag plus every **placed** match the
+     * spectator may see, with its slots resolved for display. Numbering and feeder resolution run over each
+     * bracket's *full* match set (so „Sieger M3" is stable), then only the placed, real matches are emitted
+     * — a bye is auto-resolved and never played, so it is never scheduled. Player names are joined like
+     * publicDraws; a feeder shows its match number, a round-1 bye line shows „Freilos".
+     *
+     * The publish gate is a **plan** gate, not a blanket feed kill (ADR-0041): when unpublished, a
+     * still-`planned` match's forward-looking placement is withheld (no leak), but a `running`/`done`
+     * match's actual court + status are current truth and are served regardless — load-bearing for the
+     * live board (#91), which must never be blanked out from under a running match.
      */
-    async schedule(): Promise<ScheduleMatch[]> {
-      // Two independent reads on a user-facing path: the placed matches and the reveal states hit different
-      // tables with no dependency between them, so fetch them together rather than sequentially.
-      const [all, reveals] = await Promise.all([drawStore.listMatches(), mainReveals()])
+    async schedule(): Promise<ScheduleFeed> {
+      // Three independent reads on a user-facing path: placed matches, reveal states, and the publish flag
+      // hit different tables with no dependency between them, so fetch them together rather than serially.
+      const [all, reveals, published] = await Promise.all([
+        drawStore.listMatches(),
+        mainReveals(),
+        appStateStore.getSchedulePublished()
+      ])
 
       // Honor the main reveal cursor (ADR-0036): a placed `main` match leaves the server only once its
       // competition's draw is fully revealed — the schedule feed must not leak pairings ahead of the reveal
@@ -112,13 +132,26 @@ export const createProjections = (deps: ProjectionsDeps) => {
         groups.set(key, group)
       }
       const resolved = new Map<number, ResolvedMatch<Match>>()
-      for (const group of groups.values()) {
+      // Each bracket's depth (its highest round) — the `totalRounds` the shared `roundLabel` reads from
+      // the end (so the final is always `totalRounds`). Derived per group from the full match set, then
+      // keyed by competition+bracket for the per-placed-match emit.
+      const totalRoundsByGroup = new Map<string, number>()
+      for (const [key, group] of groups) {
         for (const r of resolveBracket(group)) resolved.set(r.match.id, r)
+        totalRoundsByGroup.set(key, bracketDepth(group))
       }
 
-      // Join names only for the players actually shown — the placed matches' filled slots.
+      // Join names only for the players actually shown — the placed matches' filled slots. A still-
+      // `planned` match needs the publish flag; a `running`/`done` match is live truth and passes the gate
+      // regardless (the plan gate, ADR-0041), so a started match is never blanked when the flag is off.
       const placed = all.filter(
-        m => m.court !== null && m.day !== null && m.slot !== null && m.outcome !== 'bye' && revealed(m)
+        m =>
+          m.court !== null &&
+          m.day !== null &&
+          m.slot !== null &&
+          m.outcome !== 'bye' &&
+          revealed(m) &&
+          (published || m.status !== 'planned')
       )
       const ids = new Set<number>()
       for (const m of placed) {
@@ -142,13 +175,15 @@ export const createProjections = (deps: ProjectionsDeps) => {
         return { kind: 'bye' }
       }
 
-      return placed.map(m => {
+      const matches = placed.map(m => {
         const r = resolved.get(m.id)!
         return {
           id: m.id,
           competition: m.competition,
           bracket: m.bracket,
           number: r.number,
+          round: m.round,
+          totalRounds: totalRoundsByGroup.get(`${m.competition}|${m.bracket}`) ?? m.round,
           // Non-null by the `placed` filter; the contract narrows the nullable columns.
           court: m.court!,
           day: m.day!,
@@ -158,6 +193,8 @@ export const createProjections = (deps: ProjectionsDeps) => {
           slot2: toSlot(r.slot2)
         }
       })
+
+      return { published, matches }
     }
   }
 }

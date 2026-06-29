@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { toast } from 'sonner'
-import { CalendarDays, Sparkles } from 'lucide-react'
+import { CalendarDays } from 'lucide-react'
 import {
   DndContext,
   DragOverlay,
@@ -13,6 +13,7 @@ import {
 } from '@dnd-kit/core'
 import {
   type AdminRegistration,
+  bracketDepth,
   type CompetitionDraw,
   DAY_INDICES,
   earliestPlaceableSlot,
@@ -20,6 +21,7 @@ import {
   type Match,
   type Placement,
   resolveBracket,
+  roundLabel,
   type SchedulableMatch,
   type SoftViolation,
   slotLabel,
@@ -28,9 +30,9 @@ import {
   validatePlacement
 } from '../../../shared'
 import { tournament } from '@/data/tournament'
-import { Button } from '@/admin/ui/button'
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/admin/ui/empty'
 import { competitionLabel } from './registration-detail'
+import { ScheduleControls } from './schedule-controls'
 import { Backlog, DayGrid, DragChip } from './schedule-grid-parts'
 import { type GridMatch, type SlotLabel } from './schedule-match-card'
 import { hardBlockMessage, SoftWarningDialog } from './schedule-warnings'
@@ -51,9 +53,16 @@ const DAYS = [tournament.saturday, tournament.sunday]
 interface ScheduleSurfaceProps {
   registrations: AdminRegistration[]
   draws: CompetitionDraw[]
+  // Whether the planned schedule is currently published (ADR-0041) — drives the publish control's state.
+  published: boolean
   // Place a match into a cell, move it, or clear it back to the backlog (null). Resolves to whether the
-  // write succeeded (the shell toasts + reloads); the surface reflects the new state on the reload.
+  // write succeeded; the shell reloads (and error-toasts on failure) but stays **silent on success** —
+  // the grid already shows the move (#139). The surface reflects the new state on the reload.
   onPlace: (id: number, placement: Placement | null) => Promise<boolean>
+  // Reveal the whole planned schedule, or wipe placements back to the backlog (both auto-handled by the
+  // shell: 401-regate, one confirmation toast, reload). Reset also un-publishes (ADR-0041).
+  onPublish: () => Promise<boolean>
+  onReset: () => Promise<boolean>
 }
 
 // A drop the operator must confirm: a sound-but-unwise placement (soft warnings only). Held until the
@@ -64,7 +73,14 @@ interface PendingDrop {
   soft: SoftViolation[]
 }
 
-export const ScheduleSurface = ({ registrations, draws, onPlace }: ScheduleSurfaceProps) => {
+export const ScheduleSurface = ({
+  registrations,
+  draws,
+  published,
+  onPlace,
+  onPublish,
+  onReset
+}: ScheduleSurfaceProps) => {
   // The match the operator has picked up by *tap*, waiting for a cell (or a second tap to drop it).
   // Cleared on a successful place.
   const [selected, setSelected] = useState<number | null>(null)
@@ -115,6 +131,9 @@ export const ScheduleSurface = ({ registrations, draws, onPlace }: ScheduleSurfa
     for (const draw of draws) {
       if (draw.bracket !== 'main') continue
       const revealed = isFullyRevealed(draw)
+      // The bracket's depth (its highest round) — the shared `roundLabel` reads round names from the end,
+      // so this turns each match's round into „Achtelfinale" … „Finale" (#142).
+      const totalRounds = bracketDepth(draw.matches)
       // Number + resolve the whole bracket through the shared resolver — the same pipeline the public
       // feed reads (#109) — then drop byes and, while unrevealed, any still-unplaced match.
       for (const { match, number, slot1, slot2 } of resolveBracket(draw.matches)) {
@@ -123,6 +142,7 @@ export const ScheduleSurface = ({ registrations, draws, onPlace }: ScheduleSurfa
         out.push({
           match,
           number,
+          roundLabel: roundLabel({ bracket: draw.bracket, round: match.round, totalRounds }),
           competition: draw.competition,
           competitionLabel: competitionLabel(draw.competition),
           slot1: slotText(slot1),
@@ -145,6 +165,9 @@ export const ScheduleSurface = ({ registrations, draws, onPlace }: ScheduleSurfa
   }, [inHand, allMatches])
 
   const backlog = gridMatches.filter(g => g.match.court === null)
+  // Whether any match has already started or finished — escalates the reset confirm (ADR-0041): reset
+  // leaves running/done matches on their court, but warns that the public plan goes dark until republished.
+  const hasLiveMatches = gridMatches.some(g => g.match.status === 'running' || g.match.status === 'done')
   const placedByCell = useMemo(() => {
     const map = new Map<string, GridMatch>()
     for (const g of gridMatches) {
@@ -262,19 +285,22 @@ export const ScheduleSurface = ({ registrations, draws, onPlace }: ScheduleSurfa
     <DndContext sensors={sensors} onDragStart={onDragStart} onDragEnd={onDragEnd} onDragCancel={onDragCancel}>
       <div className="min-h-0 flex-1 overflow-y-auto p-5">
         <div className="flex w-full flex-col gap-5">
-          <div className="flex items-center justify-between gap-3">
+          <div className="flex items-start justify-between gap-3">
             <p className="text-muted-foreground text-sm">
               {inHand !== null
                 ? 'Match aufgenommen — auf eine freie Zelle ziehen oder eine antippen, um es zu platzieren.'
                 : 'Match auf eine freie Zelle ziehen — oder antippen und dann eine Zelle wählen.'}
             </p>
 
-            {backlog.length > 0 && (
-              <Button size="sm" disabled={suggesting} onClick={suggest}>
-                <Sparkles className="size-4" />
-                Vorschlag
-              </Button>
-            )}
+            <ScheduleControls
+              published={published}
+              hasBacklog={backlog.length > 0}
+              suggesting={suggesting}
+              hasLiveMatches={hasLiveMatches}
+              onSuggest={suggest}
+              onPublish={onPublish}
+              onReset={onReset}
+            />
           </div>
 
           <Backlog

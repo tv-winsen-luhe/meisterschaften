@@ -51,7 +51,7 @@ export const createDeps = (adapters: DepsAdapters): Deps => {
     appState: appStateStore,
     registrationDomain: createRegistrationDomain(registrationsStore),
     drawService: createDrawService({ registrationsStore, drawStore, randomSource }),
-    projections: createProjections({ drawStore, registrationsStore }),
+    projections: createProjections({ drawStore, registrationsStore, appStateStore }),
     resetService: createResetService({ drawStore, registrationsStore, appStateStore }),
     seedingLk: createSeedingLk({ rosterSource, store: registrationsStore })
   }
