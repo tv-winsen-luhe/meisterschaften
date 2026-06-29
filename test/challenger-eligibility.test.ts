@@ -1,5 +1,21 @@
 import { describe, expect, it } from 'vitest'
-import { CHALLENGER_MIN_LK, challengerEligibility, isTooStrongForChallenger } from '../shared'
+import { CHALLENGER_MIN_LK, challengerEligibility, isChallengerField, isTooStrongForChallenger } from '../shared'
+
+// isChallengerField is the single gate for "is this a protected Challenger field?" (ADR-0011: owned
+// once). It matches the `-challenger` slug family, so both the live `mens-challenger` and the planned
+// `womens-challenger` (Damen Freizeit) are covered with no list edit — fail-closed for a protected
+// field. The public surfaces read it to omit the LK and seed numbers (CONTEXT: Challenger); the admin
+// reads it to bind the cap at the draw (ADR-0024). Championship fields (mens/womens) are not protected.
+describe('isChallengerField', () => {
+  it.each([
+    ['mens-challenger', true],
+    ['womens-challenger', true],
+    ['mens', false],
+    ['womens', false]
+  ])('%s → %s', (competition, expected) => {
+    expect(isChallengerField(competition)).toBe(expected)
+  })
+})
 
 // challengerEligibility is the field-level Challenger judgment, owned once in shared/ (ADR-0011): it
 // is both the draw guard's authority (a too-strong entry blocks the field's draw on the frozen LKs,

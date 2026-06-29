@@ -40,7 +40,7 @@ describe('in-memory registrations store · listConfirmed', () => {
     ])
   })
 
-  it('orders by competition, then seeding LK (null = 25.0), then created_at', async () => {
+  it('orders by competition, then a championship field by seeding LK (null = 25.0), then created_at', async () => {
     const store = createInMemoryRegistrationsStore([
       reg({ competition: 'womens', lk: '9.0', firstName: 'W' }),
       reg({ competition: 'mens', lk: null, firstName: 'MensNoLk' }),
@@ -51,6 +51,23 @@ describe('in-memory registrations store · listConfirmed', () => {
     const order = (await store.listConfirmed()).map(p => `${p.competition}:${p.firstName}`)
 
     expect(order).toEqual(['mens:MensStrong', 'mens:MensNoLk', 'mens-challenger:Chall', 'womens:W'])
+  })
+
+  it('lists a Challenger field by registration date, but still seeds it strongest-first for the draw (ADR-0043)', async () => {
+    // The protected field is admitted first-come-first-served, so its public list follows createdAt; the
+    // draw still seeds it by LK (drawBracket's strongest-first precondition). Registration order and LK
+    // order disagree here, so the list and the draw must diverge.
+    const store = createInMemoryRegistrationsStore([
+      reg({ competition: 'mens-challenger', lk: '15.0', firstName: 'Strong', createdAt: '2026-06-03T10:00:00.000Z' }),
+      reg({ competition: 'mens-challenger', lk: null, firstName: 'Weak', createdAt: '2026-06-01T10:00:00.000Z' }),
+      reg({ competition: 'mens-challenger', lk: '22.0', firstName: 'Mid', createdAt: '2026-06-02T10:00:00.000Z' })
+    ])
+
+    const listOrder = (await store.listConfirmed()).map(p => p.firstName)
+    expect(listOrder).toEqual(['Weak', 'Mid', 'Strong']) // registration date, earliest first
+
+    const drawLks = (await store.confirmedForDraw('mens-challenger')).map(p => p.lk)
+    expect(drawLks).toEqual(['15.0', '22.0', null]) // strongest LK first (null = weakest)
   })
 })
 
