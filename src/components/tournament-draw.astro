@@ -203,6 +203,23 @@ const drawCompetitions = competitions
     position: relative;
   }
 
+  /* The court + „ca." time caption above a placed matchup (#159): „Platz 3 · Sa ca. 14:00". Small, muted, and
+     tabular so the times align down a column; only present once the schedule is published and the match is
+     placed, so the bracket reads cleanly without it. Spacing reads it as the pairing's header: more air
+     above (`margin-top`, separating it from the matchup above) than below, so it binds to its own pair — the
+     two slots stay one tight unit (the `.dm-match` gap). The margin is symmetric across a column's matches, so
+     they keep equal height and the elbow connectors stay aligned. */
+  .dm-when {
+    margin-top: 14px;
+    margin-bottom: 3px;
+    padding-left: 6px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    font-variant-numeric: tabular-nums;
+    color: rgba(12, 30, 58, 0.5);
+  }
+
   /* Elbow connectors: each non-final match draws a horizontal stub at each slot-pair
      centre plus half a vertical to the pair mid-point; the next round's match taps in
      from the left. All percentage-based, so it scales to any round height. */
@@ -364,9 +381,26 @@ const drawCompetitions = competitions
 
 <script>
   import { hc } from 'hono/client'
-  import { bracketStructure, displayDrawSize, isChallengerField, MIN_DRAW_ENTRIES, revealedBracket } from '../../shared'
+  import {
+    bracketStructure,
+    displayDrawSize,
+    indexScheduleByNode,
+    isChallengerField,
+    MIN_DRAW_ENTRIES,
+    revealedBracket,
+    scheduleNodeKey
+  } from '../../shared'
+  import { tournament } from '../data/tournament'
   import type { AppType } from '../../worker/app'
-  import type { Participant, ParticipantsResponse, PlayerDisplay, PublicDraw, PublicRevealStep } from '../../shared'
+  import type {
+    NodeSchedule,
+    Participant,
+    ParticipantsResponse,
+    PlayerDisplay,
+    PublicDraw,
+    PublicRevealStep,
+    ScheduleResponse
+  } from '../../shared'
 
   type Entry = Participant
   type Slot = { seed: number; player: Entry } | null
@@ -385,6 +419,11 @@ const drawCompetitions = competitions
   // own; the schedule cards' round names are the shared `roundLabel`, shared/schedule.ts).
   const ROUND_LABELS = ['Achtelfinale', 'Viertelfinale', 'Halbfinale', 'Finale']
   const roundLabels = (size: number): string[] => ROUND_LABELS.slice(ROUND_LABELS.length - Math.log2(size))
+
+  // Compact day labels for the matchup court/time line („Sa"/„So"), from the event's date copy — the
+  // weekday's first two letters (Samstag → Sa, Sonntag → So), indexed by the wire `day` (0/1). The full
+  // „Samstag · 22.08." stays on /spielplan; the bracket line is tight, so a two-letter day reads cleanest.
+  const DAY_ABBR = [tournament.saturday, tournament.sunday].map(d => d.weekday.slice(0, 2))
 
   const root = document.querySelector<HTMLElement>('[data-draw]')
 
@@ -449,15 +488,30 @@ const drawCompetitions = competitions
     return step.player ? playerEl(step.player, step.seed, challenger) : tbdEl()
   }
 
+  // The matchup's court + approximate time line („Platz 3 · Sa ca. 14:00", #159) — a compact caption above
+  // the two slots, shown only when the schedule index carries this node. The feed already gates it (placed +
+  // published + revealed), so an unscheduled or withheld match never reaches here. The time carries „ca." —
+  // it is explicitly a plan, not a promise (ADR-0032), matching /spielplan; the day is abbreviated for the
+  // tight column.
+  const scheduleNoteEl = (entry: NodeSchedule): HTMLElement => {
+    const el = document.createElement('div')
+    el.className = 'dm-when'
+    const day = DAY_ABBR[entry.day] ?? `Tag ${entry.day + 1}`
+    el.textContent = `Platz ${entry.court} · ${day} ca. ${entry.time}`
+    return el
+  }
+
   // Render one round column (label + matches). `slotFor(line)` yields each round-1 line's element;
   // later rounds are implicit feeders, all „?". Shared shell for the preview and the reveal.
   // `cellFor(roundIndex, slotIndex)` yields the element for one slot — round 0's slots are the first-round
   // lines (0..size-1), round r's slots its 2·matchCount feeders. The shared column shell for preview and
-  // reveal; both decide per slot what to show.
+  // reveal; both decide per slot what to show. `noteFor(roundIndex, matchIndex)` is the optional per-matchup
+  // caption (the reveal's court/time line, #159); preview passes none and the line is simply absent.
   const renderBracket = (
     bracket: HTMLElement,
     size: number,
-    cellFor: (roundIndex: number, slotIndex: number) => HTMLElement
+    cellFor: (roundIndex: number, slotIndex: number) => HTMLElement,
+    noteFor?: (roundIndex: number, matchIndex: number) => HTMLElement | null
   ) => {
     const rounds = roundLabels(size)
     if (!rounds.length) return
@@ -481,6 +535,10 @@ const drawCompetitions = competitions
       for (let m = 0; m < matchCount; m++) {
         const match = document.createElement('div')
         match.className = 'dm-match'
+        // The court/time caption sits ABOVE the pairing (#159), labelling the matchup from the top before
+        // its two slots; preview passes no noteFor, so the line is simply absent there.
+        const note = noteFor?.(r, m)
+        if (note) match.appendChild(note)
         match.appendChild(cellFor(r, 2 * m))
         match.appendChild(cellFor(r, 2 * m + 1))
         matches.appendChild(match)
@@ -555,17 +613,33 @@ const drawCompetitions = competitions
   // a player onto its first-round line. A revealed round-1 bye is a resolved match (§31): the paired
   // player advances „ohne Spiel", so once both its lines are revealed it already shows in round 2 — the
   // one round a bye carries a player forward (ADR-0025; deeper rounds stay „?" until matches are played).
-  const buildReveal = (bracket: HTMLElement, draw: PublicDraw, challenger: boolean) => {
+  const buildReveal = (
+    bracket: HTMLElement,
+    draw: PublicDraw,
+    challenger: boolean,
+    scheduleIndex: Map<string, NodeSchedule>
+  ) => {
     // The revealed bracket: round-1 lines by position and the round-2 bye-winners (§31). The same shared
     // interpretation the operator draw show renders (CONTEXT: Revealed bracket) — no bracket logic here,
     // only the DOM binding below.
     const { lines, byeWinners } = revealedBracket(draw.size, draw.steps)
 
-    renderBracket(bracket, draw.size, (r, i) => {
-      if (r === 0) return revealSlotEl(lines[i], challenger)
-      const winner = r === 1 ? byeWinners[i] : null
-      return winner ? playerEl(winner.player, winner.seed, challenger) : tbdEl()
-    })
+    renderBracket(
+      bracket,
+      draw.size,
+      (r, i) => {
+        if (r === 0) return revealSlotEl(lines[i], challenger)
+        const winner = r === 1 ? byeWinners[i] : null
+        return winner ? playerEl(winner.player, winner.seed, challenger) : tbdEl()
+      },
+      // The court/time annotation (#159): the public draw shows the **main** bracket only (the consolation
+      // has no reveal show), and a node at column r, match m is the schedule's round r+1, position m. Joins
+      // on topology via `scheduleNodeKey`; a node the feed doesn't carry simply has no line.
+      (r, m) => {
+        const entry = scheduleIndex.get(scheduleNodeKey(draw.competition, 'main', r + 1, m))
+        return entry ? scheduleNoteEl(entry) : null
+      }
+    )
   }
 
   // Latest of each feed; the panels re-render from both whenever either arrives (a competition switches
@@ -574,6 +648,8 @@ const drawCompetitions = competitions
   let participants: ParticipantsResponse = { enabled: false, participants: [] }
   let draws: PublicDraw[] = []
   let lastDrawsJson = ''
+  let schedule: ScheduleResponse = { published: false, matches: [] }
+  let lastScheduleJson = ''
 
   const render = () => {
     if (!root) return
@@ -585,6 +661,9 @@ const drawCompetitions = competitions
         byComp.set(e.competition, arr)
       }
     }
+    // One topology index over the whole feed (#159), shared by every revealed bracket — the publish/reveal
+    // gates already filtered the matches, so a node simply isn't here when it shouldn't show its time.
+    const scheduleIndex = indexScheduleByNode(schedule.matches)
     const drawByComp = new Map(draws.map(d => [d.competition as string, d]))
     root.querySelectorAll<HTMLElement>('[data-panel]').forEach(panel => {
       const slug = panel.dataset.panel!
@@ -592,7 +671,7 @@ const drawCompetitions = competitions
       if (!bracket) return
       const challenger = isChallengerField(slug)
       const drawn = drawByComp.get(slug)
-      if (drawn) buildReveal(bracket, drawn, challenger)
+      if (drawn) buildReveal(bracket, drawn, challenger, scheduleIndex)
       else buildPreview(bracket, byComp.get(slug) ?? [], challenger)
     })
   }
@@ -659,9 +738,33 @@ const drawCompetitions = competitions
     }
   }
 
+  // The schedule feed annotates each placed matchup with its court + „ca." time (#159). Polled alongside
+  // the reveal; like it, a transient failure keeps the last good state (a flaky poll never blanks the
+  // bracket — loadParticipants owns the error surface). The publish + reveal-cursor gates live server-side,
+  // so a still-private or not-yet-revealed schedule returns no usable node and the bracket shows no time.
+  const loadSchedule = async () => {
+    try {
+      const res = await client.api.schedule.$get()
+      if (!res.ok) return
+      const body = await res.json()
+      const sig = JSON.stringify(body)
+      if (sig === lastScheduleJson) return
+      lastScheduleJson = sig
+      schedule = body
+      render()
+    } catch {
+      /* keep the last good schedule on a transient poll failure */
+    }
+  }
+
+  const poll = () => {
+    loadDraws()
+    loadSchedule()
+  }
+
   let timer: ReturnType<typeof setInterval> | undefined
   const startPolling = () => {
-    if (timer === undefined) timer = setInterval(loadDraws, POLL_MS)
+    if (timer === undefined) timer = setInterval(poll, POLL_MS)
   }
   const stopPolling = () => {
     if (timer !== undefined) {
@@ -672,12 +775,12 @@ const drawCompetitions = competitions
 
   initTabs()
   loadParticipants()
-  loadDraws()
+  poll()
   startPolling()
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible') {
       loadParticipants()
-      loadDraws()
+      poll()
       startPolling()
     } else {
       stopPolling()

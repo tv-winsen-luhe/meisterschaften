@@ -268,6 +268,59 @@ interface RoundedMatch {
 export const bracketDepth = (matches: readonly RoundedMatch[]): number =>
   matches.reduce((max, m) => Math.max(max, m.round), 0)
 
+// ── Public draw ↔ schedule join (#159) ────────────────────────────────────────────────────────────
+
+// The minimal placed-match shape the public-draw annotation reads: a bracket node addressed by its
+// topology (competition+bracket+round+position) plus the grid cell it sits on. Structural, so the wire
+// `ScheduleMatch` satisfies it without schedule.ts importing the admin contract (which imports this file).
+interface ScheduledNode {
+  competition: string
+  bracket: string
+  round: number
+  position: number
+  court: number
+  day: number
+  slot: number
+}
+
+// Court + approximate start time for one bracket node — the annotation the public draw renders under a
+// matchup („Platz 3 · Sa ca. 14:00"). `court` and `day` are the grid cell; `time` is the bare „HH:MM"
+// slotTime (the „ca." plan-not-promise qualifier, ADR-0032, is page copy). The day *label* also stays at
+// the edge (the page maps day → „Sa"/„So"); this carries only the index.
+export interface NodeSchedule {
+  court: number
+  day: number
+  time: string
+}
+
+/**
+ * The topology address of a bracket node — `(competition, bracket, round, position)` joined — the key both
+ * a schedule match and a public draw node resolve to. The join keys on **topology, not match-number**: the
+ * public draw feed is position-addressed (its node at column r, match m is round r+1, position m), so the
+ * schedule's own round/position is what they meet on, never a match number threaded between the surfaces.
+ */
+export const scheduleNodeKey = (competition: string, bracket: string, round: number, position: number): string =>
+  `${competition}|${bracket}|${round}|${position}`
+
+/**
+ * Index placed schedule matches by bracket topology (`scheduleNodeKey`) so the public draw can annotate
+ * each matchup with its court + approximate time without opening the separate /spielplan page (#159). The
+ * draw is position-addressed and a later round resolves through the schedule's own round/position the same
+ * way, so round-1 and deeper matches index identically. Pass the matches the schedule feed serves — the
+ * publish gate and reveal cursor already filter it, so an unplaced or withheld match is simply absent from
+ * the input and yields no entry, and the bracket reads cleanly without it.
+ */
+export const indexScheduleByNode = (matches: readonly ScheduledNode[]): Map<string, NodeSchedule> => {
+  const index = new Map<string, NodeSchedule>()
+  for (const m of matches)
+    index.set(scheduleNodeKey(m.competition, m.bracket, m.round, m.position), {
+      court: m.court,
+      day: m.day,
+      time: slotTime(m.day, m.slot)
+    })
+  return index
+}
+
 // ── Placement validation (ADR-0033: block the impossible, warn the unwise) ────────────────────────
 
 // The minimal match shape `validatePlacement` reads: a bracket position (so feeders resolve within the
