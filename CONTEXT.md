@@ -139,6 +139,23 @@ concept here drifts or a new one appears, update this file rather than inventing
   from capacity. Below the draw floor (fewer than 4 confirmed) it shows no bracket at all but a **„ab 4"
   notice** („N / 4 — noch X bis zur Auslosung"), and the participant board drops its seed markers — so no
   public surface implies a castable field where the gate would refuse one. _(See ADR-0034.)_
+- **Capacity** (de: Maximalgröße; code: `capacity`) — the operator-set **soft limit** on a competition's
+  field size, a constant in `tournament.ts`, never above the structural draw ceiling of **16** (the seed
+  table supports only 4/8/16). It is a planning and affordance number — it drives „Plätze frei" and the
+  **field cut** below — and **never** a registration block: signup never auto-closes, and the bracket
+  follows the confirmed field (Draw size, ADR-0034). Kept in code, not admin-editable: a soft number
+  changed a handful of times over one event does not justify a config surface (ADR-0021/0023). _(See ADR-0043.)_
+- **Field cut** (de: Schnitt / Schnittlinie) — when a competition's confirmed field exceeds its capacity,
+  the surplus become reserves; **the criterion depends on the field type** (`isChallengerField`). A
+  **championship field** (Herren, Damen) takes the **top-N by LK** — the cut binds on the **frozen** LK at
+  the draw, so during signup it is only a provisional preview that drifts as LKs sync, and a late, stronger
+  entry slots in by LK. A **Challenger / recreational field** takes the **first N by registration order**
+  (`createdAt`) — strength must not decide a protected field, so it is plain first-come-first-served; the
+  ordering key never drifts, so a spot is **secure once taken** (no bumping). Either way the drawn field is
+  still **seeded by LK** in the bracket — the cut decides _who is in_, the seeding decides _where_. _(See ADR-0043.)_
+- **Reserve** (de: Nachrücker) — a `confirmed` entry **below the field cut**: still confirmed, simply not
+  drawn into the bracket, and first to step in if a drawn player drops before the draw locks. Not a separate
+  status — the lifecycle stays `new → confirmed → cancelled` (ADR-0018). _(See ADR-0043.)_
 
 ## Tournament structure
 
@@ -272,6 +289,12 @@ reveal sequence }`. Randomness enters through an injected **`RandomSource`** por
   overlap (starts < 90 min apart) conflict (the validator enforces this server-side; **interval overlap**
   replaced the old per-cell check, ADR-0040). With 6 courts, "at most 6 matches running at once" follows
   as its consequence, never a separate count. _(See ADR-0033, ADR-0040.)_
+- **Court budget** (de: Platz-Budget) — the shared ceiling of match-slots the event weekend can run:
+  **72** = 6 courts × ~6 matches/court/day × 2 event days, at the 90-min default (`courtSchedule`,
+  `tournament.ts`). One pool **all competitions draw from** — the per-field capacities are not
+  independent; their summed match load (main + third-place + consolation), plus the Damen-Freizeit
+  reservation, must fit this one budget. The overview cockpit measures projected load against it so the
+  operator plans and avoids overbooking. _(See ADR-0023, ADR-0043.)_
 - **Schedule publication** (de: Veröffentlichung) — the schedule is **private until published**: a global
   `schedule_published` flag (off by default) gates the **planned** public schedule, so the operator builds
   the whole plan unseen and reveals it in one act („Veröffentlichen"). Scope is **global** (one flag for the
