@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { type PlayerDisplay, type PublicRevealStep, revealedBracket } from '../shared'
+import { isFullyRevealed, type PlayerDisplay, type PublicRevealStep, revealedBracket } from '../shared'
 
 // The revealed bracket (CONTEXT: Revealed bracket): the single interpretation both the operator draw show
 // and the public live bracket render. Pure in (size, steps), so it pins the §31 bye-advancement rule that
@@ -79,5 +79,25 @@ describe('revealedBracket — bye-winners (§31)', () => {
     // returns null defensively rather than inventing a winner.
     const { byeWinners } = revealedBracket(8, [bye(0), bye(1)])
     expect(byeWinners[0]).toBeNull()
+  })
+})
+
+describe('isFullyRevealed', () => {
+  it('is true once the cursor reaches the total', () => {
+    expect(isFullyRevealed({ cursor: 8, total: 8 })).toBe(true)
+  })
+
+  it('is false while the cursor is short of the total (mid-reveal, including not-yet-started)', () => {
+    expect(isFullyRevealed({ cursor: 3, total: 8 })).toBe(false)
+    expect(isFullyRevealed({ cursor: 0, total: 8 })).toBe(false)
+  })
+
+  it('reads >= so a cursor past the total (unreachable under the advance clamp) still counts as revealed', () => {
+    expect(isFullyRevealed({ cursor: 9, total: 8 })).toBe(true)
+  })
+
+  it('treats an empty sequence as trivially revealed — the not-yet-loaded guard is the caller’s job', () => {
+    // The predicate is pure cursor math; the reveal controller layers its own `total > 0` loading guard.
+    expect(isFullyRevealed({ cursor: 0, total: 0 })).toBe(true)
   })
 })

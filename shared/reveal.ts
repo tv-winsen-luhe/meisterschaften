@@ -27,6 +27,25 @@ export interface RevealedBracket {
   byeWinners: (ByeWinner | null)[]
 }
 
+// How far a reveal has played back: the cursor (steps shown) out of the total step count. The minimal
+// shape isFullyRevealed reads. The wire draw shapes (PublicDraw, CompetitionDraw) carry `cursor` + `total`
+// and satisfy it directly; the server's RevealState carries `steps`, not `total`, so the schedule gate
+// hands in `{ cursor, total: steps.length }`. Kept module-local (an inline param type would trip the
+// no-inline-object-types rule) so it adds nothing to the shared barrel's surface.
+interface RevealProgress {
+  cursor: number
+  total: number
+}
+
+// Has the reveal cursor reached the end of the sequence? The single source for „fully revealed", instead
+// of each surface re-deriving it: the public schedule feed gates on it (ADR-0036), the admin draw surfaces
+// gate their bracket and reveal-progress affordances on it, and the reveal controller's `complete` composes
+// it. `>=` not `===` is deliberate and defensive — the advance endpoint clamps the cursor to [0, total]
+// (ADR-0003) so it can never overshoot, but `>=` still reads „revealed" rather than silently never
+// completing if a future change ever let it. The zero-step / not-yet-loaded case (`total === 0`, trivially
+// true here) is the caller's concern — the reveal controller guards it as a distinct loading state.
+export const isFullyRevealed = ({ cursor, total }: RevealProgress): boolean => cursor >= total
+
 export const revealedBracket = (size: number, steps: PublicRevealStep[]): RevealedBracket => {
   // The revealed first-round lines, indexed by position; gaps are lines not yet drawn.
   const lines: (PublicRevealStep | undefined)[] = new Array(size)

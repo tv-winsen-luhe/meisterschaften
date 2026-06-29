@@ -16,6 +16,7 @@ import {
   type CompetitionDraw,
   DAY_INDICES,
   earliestPlaceableSlot,
+  isFullyRevealed,
   type Match,
   type Placement,
   resolveBracket,
@@ -113,7 +114,7 @@ export const ScheduleSurface = ({ registrations, draws, onPlace }: ScheduleSurfa
     const out: GridMatch[] = []
     for (const draw of draws) {
       if (draw.bracket !== 'main') continue
-      const revealed = draw.cursor >= draw.total
+      const revealed = isFullyRevealed(draw)
       // Number + resolve the whole bracket through the shared resolver — the same pipeline the public
       // feed reads (#109) — then drop byes and, while unrevealed, any still-unplaced match.
       for (const { match, number, slot1, slot2 } of resolveBracket(draw.matches)) {

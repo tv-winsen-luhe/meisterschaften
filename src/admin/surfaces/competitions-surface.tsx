@@ -10,6 +10,7 @@ import {
   type DrawBlocker,
   DRAW_BLOCKER_REASON,
   drawSize,
+  isFullyRevealed,
   type Match,
   type Phase
 } from '../../../shared'
@@ -34,7 +35,7 @@ interface CompetitionsSurfaceProps {
 }
 
 // The competitions surface (ADR-0027): one card per competition with its lifecycle — *nicht ausgelost* →
-// *Auslosung läuft* (the reveal running, cursor < total) → *ausgelost* (cursor === total). „Jetzt
+// *Auslosung läuft* (still revealing) → *ausgelost* (fully revealed — isFullyRevealed). „Jetzt
 // auslosen" starts the Auslosung (active once registration is closed — `tournament` — and the field is a
 // full, un-drawn bracket, ADR-0025) and jumps straight into the full-screen reveal; while it runs the
 // bracket is withheld (no spoiler) and „Auslosung fortsetzen" re-enters it; only when it finishes does the
@@ -109,7 +110,7 @@ export const CompetitionsSurface = ({
                   <Badge variant="outline" className="text-muted-foreground">
                     Nicht ausgelost
                   </Badge>
-                ) : row.draw.cursor < row.draw.total ? (
+                ) : !isFullyRevealed(row.draw) ? (
                   <Badge className="border-amber-300 bg-amber-50 text-amber-900">Auslosung läuft</Badge>
                 ) : (
                   <Badge className="border-emerald-300 bg-emerald-50 text-emerald-900">Ausgelost</Badge>
@@ -128,7 +129,7 @@ export const CompetitionsSurface = ({
                       {row.byes > 0 && ` · ${row.byes} FL`}
                     </>
                   )}
-                  {row.draw && row.draw.cursor < row.draw.total && ` · ${row.draw.cursor}/${row.draw.total} enthüllt`}
+                  {row.draw && !isFullyRevealed(row.draw) && ` · ${row.draw.cursor}/${row.draw.total} enthüllt`}
                 </span>
                 {!row.draw ? (
                   <DrawAction
@@ -136,9 +137,9 @@ export const CompetitionsSurface = ({
                     pending={drawingCompetition === row.slug}
                     onDraw={() => onDraw(row.slug)}
                   />
-                ) : row.draw.cursor < row.draw.total ? (
-                  // Still running: re-enter the reveal where it stood. Gone once it is complete (cursor ===
-                  // total) — the Auslosung is a one-time act, not a replayable show.
+                ) : !isFullyRevealed(row.draw) ? (
+                  // Still running: re-enter the reveal where it stood. Gone once it is fully revealed —
+                  // the draw is a one-time act, not a replayable show.
                   <Button size="sm" variant="outline" onClick={() => onStartShow(row.slug)}>
                     <MonitorPlay className="size-4" />
                     Auslosung fortsetzen
@@ -147,10 +148,10 @@ export const CompetitionsSurface = ({
               </div>
             </div>
 
-            {/* The Auslosung *is* the reveal: the bracket appears only once it has finished (cursor ===
-                total), so projecting the admin while it runs can't spoil it. While it runs, just say so. */}
+            {/* The draw *is* the reveal: the bracket appears only once it is fully revealed, so projecting
+                the admin while it runs can't spoil it. While it runs, just say so. */}
             {row.draw &&
-              (row.draw.cursor >= row.draw.total ? (
+              (isFullyRevealed(row.draw) ? (
                 <Bracket draw={row.draw} nameById={nameById} />
               ) : (
                 <p className="text-muted-foreground text-sm">

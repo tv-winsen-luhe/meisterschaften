@@ -1,5 +1,6 @@
 import {
   type CompetitionSlug,
+  isFullyRevealed,
   type Match,
   type PublicDraw,
   type ResolvedMatch,
@@ -30,6 +31,13 @@ export interface ProjectionsDeps {
 export const createProjections = (deps: ProjectionsDeps) => {
   const { drawStore, registrationsStore } = deps
 
+  // Every competition's main-bracket reveal state. The one fetch+filter both projections share — the live
+  // bracket needs them all (it slices each to its cursor), the schedule feed keeps only the fully-revealed
+  // ones (ADR-0036). The fully-revealed gate (isFullyRevealed) is *not* shared — it is schedule-only — so
+  // it stays at the call site, not in here. The consolation bracket has no reveal show (ADR-0004), so it
+  // never appears.
+  const mainReveals = async () => (await drawStore.listReveals()).filter(r => r.bracket === 'main')
+
   return {
     /**
      * The public live bracket (ADR-0003): every drawn competition's main bracket reveal, **sliced to the
@@ -40,7 +48,7 @@ export const createProjections = (deps: ProjectionsDeps) => {
      * publishes directly (ADR-0004).
      */
     async publicDraws(): Promise<PublicDraw[]> {
-      const reveals = (await drawStore.listReveals()).filter(r => r.bracket === 'main')
+      const reveals = await mainReveals()
 
       // Join names only for the revealed prefix — never read player rows for steps still to come.
       const ids = new Set<number>()
@@ -77,18 +85,18 @@ export const createProjections = (deps: ProjectionsDeps) => {
      * its match number, a round-1 bye line shows „Freilos". The live board (#91) reads the same feed.
      */
     async schedule(): Promise<ScheduleMatch[]> {
-      const all = await drawStore.listMatches()
+      // Two independent reads on a user-facing path: the placed matches and the reveal states hit different
+      // tables with no dependency between them, so fetch them together rather than sequentially.
+      const [all, reveals] = await Promise.all([drawStore.listMatches(), mainReveals()])
 
       // Honor the main reveal cursor (ADR-0036): a placed `main` match leaves the server only once its
-      // competition's draw is fully revealed (`cursor >= total`) — the schedule feed must not leak
-      // pairings ahead of the reveal show, the same suspense invariant publicDraws() enforces by slicing
-      // to the cursor (ADR-0003). A rewound bracket drops below `total` and its matches vanish again. The
-      // consolation bracket has no reveal show (ADR-0004), so it carries no gate. Fail closed: a `main`
-      // match whose competition has no reveal record (unreachable for a real draw) stays hidden.
+      // competition's draw is fully revealed — the schedule feed must not leak pairings ahead of the reveal
+      // show, the same suspense invariant publicDraws() enforces by slicing to the cursor (ADR-0003). A
+      // rewound bracket drops below `total` and its matches vanish again. The consolation bracket has no
+      // reveal show (ADR-0004), so it carries no gate. Fail closed: a `main` match whose competition has no
+      // reveal record (unreachable for a real draw) stays hidden.
       const revealedMain = new Set(
-        (await drawStore.listReveals())
-          .filter(r => r.bracket === 'main' && r.cursor >= r.steps.length)
-          .map(r => r.competition)
+        reveals.filter(r => isFullyRevealed({ cursor: r.cursor, total: r.steps.length })).map(r => r.competition)
       )
       const revealed = (m: Match) => m.bracket !== 'main' || revealedMain.has(m.competition)
 
