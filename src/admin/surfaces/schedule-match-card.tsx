@@ -47,13 +47,17 @@ const SlotLine = ({ label, muted }: SlotLineProps) =>
 
 interface MatchCardProps {
   match: GridMatch
+  // Reserve the card's top-right corner for the placed cell's un-place „X" (#157). A placed cell draws the
+  // X there, so its match number must keep clear of that corner; a backlog chip has no X and passes this
+  // false, keeping the round label's full width.
+  reserveAction?: boolean
 }
 // The redesigned match card shared by the backlog chip and a placed cell (#142): the round name as the
 // headline with M{number} alongside, the competition in its accent colour + a matching left border, then
 // the two contestants pushed to the foot so the card fills its 90-minute (3-row) footprint. The grid
 // position already encodes the time + court, so neither is repeated here. A running/finished match reads
 // lighter — it is live truth on the board, not something still to be placed (ADR-0032).
-export const MatchCard = ({ match }: MatchCardProps) => {
+export const MatchCard = ({ match, reserveAction }: MatchCardProps) => {
   const settled = match.match.status === 'running' || match.match.status === 'done'
   return (
     <div
@@ -63,9 +67,12 @@ export const MatchCard = ({ match }: MatchCardProps) => {
         settled && 'opacity-60'
       )}
     >
-      <div className="flex items-baseline justify-between gap-2">
+      {/* Round name as the headline with M{n} pinned right after it („Halbfinale · M3", #157) — grouped at
+          the start so the card's top-right corner stays free for the placed cell's un-place „X". The round
+          label truncates; the match number never does, so it stays readable however long the label runs. */}
+      <div className={cn('flex items-baseline gap-1', reserveAction && 'pr-7')}>
         <span className="truncate text-sm font-semibold">{match.roundLabel}</span>
-        <span className="text-muted-foreground shrink-0 text-[11px] font-semibold tabular-nums">M{match.number}</span>
+        <span className="text-muted-foreground shrink-0 text-[11px] font-semibold tabular-nums">· M{match.number}</span>
       </div>
       <div
         className={cn(
