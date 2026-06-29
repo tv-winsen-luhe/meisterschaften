@@ -15,6 +15,10 @@ export interface AppStateStore {
   getPhase(): Promise<Phase>
   /** Set the current phase (upserts the single app-state row). */
   setPhase(phase: Phase): Promise<void>
+  /** Whether the planned schedule is published (ADR-0041); false when never set / on a read failure. */
+  getSchedulePublished(): Promise<boolean>
+  /** Set the publish flag (upserts the single app-state row, leaving `phase` untouched). */
+  setSchedulePublished(published: boolean): Promise<void>
 }
 
 export const createD1AppStateStore = (d1: D1Database): AppStateStore => {
@@ -42,20 +46,51 @@ export const createD1AppStateStore = (d1: D1Database): AppStateStore => {
         .insert(appState)
         .values({ id: APP_STATE_ID, phase })
         .onConflictDoUpdate({ target: appState.id, set: { phase } })
+    },
+
+    async getSchedulePublished() {
+      // Fail-closed like getPhase: a read failure (or a missing row) degrades to unpublished, so the
+      // public schedule defaults to the safe „noch nicht veröffentlicht" framing rather than leaking a
+      // half-built plan on a transient D1 error.
+      try {
+        const rows = await db.select().from(appState).where(eq(appState.id, APP_STATE_ID)).limit(1)
+        return rows[0]?.schedulePublished ?? false
+      } catch {
+        return false
+      }
+    },
+
+    async setSchedulePublished(published) {
+      // Upserts the single row, setting only `schedule_published` — `phase` keeps its column default on a
+      // first insert and is left untouched on update, so the two global flags never clobber each other.
+      await db
+        .insert(appState)
+        .values({ id: APP_STATE_ID, schedulePublished: published })
+        .onConflictDoUpdate({ target: appState.id, set: { schedulePublished: published } })
     }
   }
 }
 
-// The in-memory adapter holds just the phase; tests seed an initial phase and drive the
-// endpoints/cron through their interfaces.
-export const createInMemoryAppStateStore = (initial: Phase = DEFAULT_PHASE): AppStateStore => {
+// The in-memory adapter holds the phase + publish flag; tests seed both and drive the endpoints/cron
+// through their interfaces.
+export const createInMemoryAppStateStore = (
+  initial: Phase = DEFAULT_PHASE,
+  initialPublished = false
+): AppStateStore => {
   let phase = initial
+  let schedulePublished = initialPublished
   return {
     async getPhase() {
       return phase
     },
     async setPhase(next) {
       phase = next
+    },
+    async getSchedulePublished() {
+      return schedulePublished
+    },
+    async setSchedulePublished(next) {
+      schedulePublished = next
     }
   }
 }

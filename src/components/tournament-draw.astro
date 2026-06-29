@@ -377,7 +377,8 @@ const drawCompetitions = competitions
 
   // Round labels, outermost → final. A bracket reads the tail for its size (16 → all four, 8 → last
   // three, 4 → last two), so one ordered list covers every size and a new size needs no parallel entry
-  // — the round *count* is topology (log2(size)), the labels are display copy (mirrors admin/lib/bracket.ts).
+  // — the round *count* is topology (log2(size)), the labels are display copy (the live-draw bracket's
+  // own; the schedule cards' round names are the shared `roundLabel`, shared/schedule.ts).
   const ROUND_LABELS = ['Achtelfinale', 'Viertelfinale', 'Halbfinale', 'Finale']
   const roundLabels = (size: number): string[] => ROUND_LABELS.slice(ROUND_LABELS.length - Math.log2(size))
 

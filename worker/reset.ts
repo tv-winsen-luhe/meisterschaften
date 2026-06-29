@@ -68,15 +68,20 @@ export const createResetService = (deps: ResetServiceDeps) => {
 
     /**
      * Back to signup: cascade an undraw of every competition (so no draw outlives the tournament
-     * phase), then set the phase to `signup`. Registration status is deliberately left untouched —
-     * confirmed entries are legitimate during signup; readmit is the separate lever.
+     * phase), un-publish the schedule, then set the phase to `signup`. Registration status is
+     * deliberately left untouched — confirmed entries are legitimate during signup; readmit is the
+     * separate lever.
      */
     async backToSignup(): Promise<BackToSignupOutcome> {
-      // Two writes across two tables, not one transaction: if setPhase fails after deleteAll, the
-      // draws are gone but the phase is still `tournament`. Accepted for a debug tool — both writes
-      // are idempotent, so re-pressing the lever (deleteAll → 0, setPhase → signup) completes it, and
-      // deleting the draws is this button's intent anyway. Not worth a cross-store transaction here.
+      // Three idempotent writes across two tables, not one transaction: if a later write fails, the
+      // earlier ones stand and re-pressing the lever (deleteAll → 0, setSchedulePublished → false,
+      // setPhase → signup) completes it. Un-publishing here is load-bearing (ADR-0041): the draws are
+      // wiped, so leaving `schedule_published` true would let the *next* draw's placements leak onto the
+      // public page the instant they are placed, bypassing the publish gate the operator believes still
+      // guards them. Reset is the only *operator* unpublish lever, but this debug teardown must clear it
+      // too, since it destroys the very plan the flag was published over.
       const undrawn = await drawStore.deleteAll()
+      await appStateStore.setSchedulePublished(false)
       await appStateStore.setPhase('signup')
       return { ok: true, phase: 'signup', undrawn }
     }

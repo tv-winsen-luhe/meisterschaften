@@ -1,7 +1,7 @@
 import { TriangleAlert } from 'lucide-react'
 import type { CompetitionSlug, Match } from '../../../shared'
 import { cn } from '@/admin/lib/utils'
-import { competitionAccent } from './competition-accent'
+import { competitionAccent, competitionTextAccent } from './competition-accent'
 
 // One contestant line resolved for the grid: its label, and whether the slot is *unresolved*. An
 // unresolved line (SlotView `unknown` → „offen") is, on the admin grid, *always* an inconsistency — a
@@ -12,11 +12,13 @@ export interface SlotLabel {
   unresolved: boolean
 }
 
-// A match prepared for the grid: its display number, competition, and the two resolved slot labels.
-// The `competition` slug carries the accent (competitionAccent); `competitionLabel` is the copy.
+// A match prepared for the grid: its display number, round label, competition, and the two resolved slot
+// labels. The `competition` slug carries the accent (competitionAccent); `competitionLabel` is the copy;
+// `roundLabel` is the shared German round name („Achtelfinale" … „Finale", „Nebenrunde · …").
 export interface GridMatch {
   match: Match
   number: number
+  roundLabel: string
   competition: CompetitionSlug
   competitionLabel: string
   slot1: SlotLabel
@@ -46,16 +48,37 @@ const SlotLine = ({ label, muted }: SlotLineProps) =>
 interface MatchCardProps {
   match: GridMatch
 }
-// The compact match label shared by the backlog chip and a placed cell: M{number} · competition, then
-// the two contestants (a player, a „Freilos" bye, a „Sieger M{n}" feeder, or an „offen" warning).
-export const MatchCard = ({ match }: MatchCardProps) => (
-  <div className={cn('flex flex-col gap-0.5 border-l-4 pl-2', competitionAccent(match.competition))}>
-    <div className="text-muted-foreground flex items-center gap-1.5 text-[11px] font-semibold tracking-wide uppercase">
-      <span className="tabular-nums">M{match.number}</span>
-      <span aria-hidden>·</span>
-      <span className="truncate normal-case">{match.competitionLabel}</span>
+// The redesigned match card shared by the backlog chip and a placed cell (#142): the round name as the
+// headline with M{number} alongside, the competition in its accent colour + a matching left border, then
+// the two contestants pushed to the foot so the card fills its 90-minute (3-row) footprint. The grid
+// position already encodes the time + court, so neither is repeated here. A running/finished match reads
+// lighter — it is live truth on the board, not something still to be placed (ADR-0032).
+export const MatchCard = ({ match }: MatchCardProps) => {
+  const settled = match.match.status === 'running' || match.match.status === 'done'
+  return (
+    <div
+      className={cn(
+        'flex h-full flex-col gap-1 border-l-4 pl-2',
+        competitionAccent(match.competition),
+        settled && 'opacity-60'
+      )}
+    >
+      <div className="flex items-baseline justify-between gap-2">
+        <span className="truncate text-sm font-semibold">{match.roundLabel}</span>
+        <span className="text-muted-foreground shrink-0 text-[11px] font-semibold tabular-nums">M{match.number}</span>
+      </div>
+      <div
+        className={cn(
+          'truncate text-[11px] font-semibold tracking-wide uppercase',
+          competitionTextAccent(match.competition)
+        )}
+      >
+        {match.competitionLabel}
+      </div>
+      <div className="mt-auto flex flex-col gap-0.5 pt-0.5">
+        <SlotLine label={match.slot1} />
+        <SlotLine label={match.slot2} muted />
+      </div>
     </div>
-    <SlotLine label={match.slot1} />
-    <SlotLine label={match.slot2} muted />
-  </div>
-)
+  )
+}

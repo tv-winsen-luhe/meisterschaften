@@ -5,12 +5,15 @@ import { Toaster as Sonner, type ToasterProps } from 'sonner'
 
 // shadcn/ui Sonner Toaster — owned source (ADR-0016), adapted to arrow-function style. The admin is
 // light-only (ADR-0016), so the theme is pinned to "light" instead of reading next-themes (which
-// this Astro island does not use). The CSS variables map the toast surface onto the neutral shadcn
-// palette so toasts match the rest of the admin.
+// this Astro island does not use). The CSS variables map the default (neutral) toast surface onto the
+// shadcn palette. `richColors` colour-codes the typed toasts by severity (#139) — error red, warning
+// amber, success green, info blue — so the operator reads severity at a glance instead of one flat
+// surface; a plain `toast()` (no type) stays neutral.
 const Toaster = ({ ...props }: ToasterProps) => {
   return (
     <Sonner
       theme="light"
+      richColors
       className="toaster group"
       style={
         {

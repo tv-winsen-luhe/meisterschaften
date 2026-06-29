@@ -19,10 +19,12 @@ const hardReason = (v: HardViolation): string => {
   return 'Die Runden-Reihenfolge stimmt nicht — dieses Match hängt von einem anderen ab.'
 }
 
-const softReason = (v: SoftViolation): string =>
-  v.rule === 'player-load'
-    ? `Ein Spieler hätte ${v.count} Matches an diesem Tag (mehr als 2).`
-    : `Ein Spieler hätte weniger als ${SCHEDULE.minRestMinutes} Minuten Pause zwischen zwei Matches.`
+const softReason = (v: SoftViolation): string => {
+  if (v.rule === 'player-load') return `Ein Spieler hätte ${v.count} Matches an diesem Tag (mehr als 2).`
+  if (v.rule === 'short-rest')
+    return `Ein Spieler hätte weniger als ${SCHEDULE.minRestMinutes} Minuten Pause zwischen zwei Matches.`
+  return 'Halbfinale und Finale gehören auf den Finaltag (Sonntag).'
+}
 
 // Distinct reasons, in input order — two feeders can each block a drop with the same sentence.
 const reasons = <V,>(violations: V[], toReason: (v: V) => string): string[] => [...new Set(violations.map(toReason))]

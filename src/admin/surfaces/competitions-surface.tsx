@@ -13,10 +13,10 @@ import {
   isDrawStageLocked,
   isFullyRevealed,
   type Match,
-  type Phase
+  type Phase,
+  roundLabel
 } from '../../../shared'
 import { cn } from '@/admin/lib/utils'
-import { roundLabel } from '@/admin/lib/bracket'
 import { Badge } from '@/admin/ui/badge'
 import { Button } from '@/admin/ui/button'
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/admin/ui/empty'
@@ -239,7 +239,7 @@ const Bracket = ({ draw, nameById }: BracketProps) => {
           return (
             <div key={round} className="flex w-44 shrink-0 flex-col">
               <div className="text-muted-foreground mb-2 border-b pb-1 text-xs font-semibold tracking-[0.08em] uppercase">
-                {roundLabel(round, totalRounds)}
+                {roundLabel({ bracket: 'main', round, totalRounds })}
               </div>
               <div className="flex flex-1 flex-col justify-around gap-2">
                 {roundMatches.map(m => (

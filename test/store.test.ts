@@ -252,4 +252,22 @@ describe('in-memory draw store · schedule placement', () => {
       slot: null
     })
   })
+
+  it('resetSchedule clears every planned placement back to the backlog, leaving the bracket intact', async () => {
+    const store = await drawn()
+    const all = await store.listMatches()
+    // Place all three matches (freshly drawn matches are `planned`).
+    await store.placeMatch(all[0].id, { court: 1, day: 0, slot: 0 })
+    await store.placeMatch(all[1].id, { court: 2, day: 0, slot: 0 })
+    await store.placeMatch(all[2].id, { court: 1, day: 1, slot: 5 })
+
+    await store.resetSchedule()
+
+    const after = await store.listMatches()
+    // Every placement is cleared…
+    expect(after.every(m => m.court === null && m.day === null && m.slot === null)).toBe(true)
+    // …but the bracket itself (the same three match rows, with their slots) is untouched.
+    expect(after).toHaveLength(3)
+    expect(after.map(m => m.id).sort((a, b) => a - b)).toEqual(all.map(m => m.id).sort((a, b) => a - b))
+  })
 })

@@ -16,6 +16,10 @@ import Layout from '@/layouts/default.astro'
     </p>
 
     <div data-schedule>
+      <p class="sched-unpublished">
+        Der Spielplan ist noch nicht veröffentlicht. Sobald die Auslosung abgeschlossen ist, erscheinen hier alle
+        Ansetzungen mit Platz und ungefährer Zeit.
+      </p>
       <p class="sched-empty">Noch keine Spiele geplant. Sobald die Auslosung läuft, erscheinen hier die Ansetzungen.</p>
       <div data-days></div>
       <p class="sched-error">Der Spielplan lässt sich gerade nicht laden. Bitte später erneut versuchen.</p>
@@ -37,11 +41,25 @@ import Layout from '@/layouts/default.astro'
   .sched-error {
     display: none;
   }
-  /* The empty state hides the moment any match arrives (the day list is populated). */
-  [data-schedule].has-matches .sched-empty {
+  /* The empty state hides the moment any match arrives (the day list is populated), and while the schedule
+     is still unpublished — there the „noch nicht veröffentlicht" notice takes its place. */
+  [data-schedule].has-matches .sched-empty,
+  [data-schedule].not-published .sched-empty,
+  [data-schedule].is-error .sched-unpublished {
     display: none;
   }
   .sched-empty {
+    font-size: 15px;
+    line-height: 1.6;
+    color: rgba(12, 30, 58, 0.7);
+  }
+  /* The publish gate (ADR-0041): until the operator publishes, the planned schedule stays private and the
+     page shows this notice instead of the day list. */
+  .sched-unpublished {
+    display: none;
+  }
+  [data-schedule].not-published .sched-unpublished {
+    display: block;
     font-size: 15px;
     line-height: 1.6;
     color: rgba(12, 30, 58, 0.7);
@@ -135,7 +153,7 @@ import Layout from '@/layouts/default.astro'
 
 <script>
   import { hc } from 'hono/client'
-  import { slotLabel, slotTime } from '../../shared'
+  import { roundLabel, slotLabel, slotTime } from '../../shared'
   import { competitions, tournament } from '../data/tournament'
   import type { AppType } from '../../worker/app'
   import type { ScheduleMatch, ScheduleResponse, ScheduleSlot } from '../../shared'
@@ -199,7 +217,10 @@ import Layout from '@/layouts/default.astro'
     players.appendChild(playerLine(m.slot2))
     const meta = document.createElement('div')
     meta.className = 'sched-match__meta'
-    meta.textContent = `M${m.number} · ${COMPETITION_LABELS.get(m.competition) ?? m.competition}`
+    // The round („Achtelfinale" … „Finale", „Nebenrunde · …") via the shared label, so the spectator sees
+    // the stage of each match — derived at the edge from the round/totalRounds the feed carries (#142).
+    const round = roundLabel({ bracket: m.bracket, round: m.round, totalRounds: m.totalRounds })
+    meta.textContent = `${round} · M${m.number} · ${COMPETITION_LABELS.get(m.competition) ?? m.competition}`
     players.appendChild(meta)
     row.appendChild(players)
 
@@ -218,9 +239,13 @@ import Layout from '@/layouts/default.astro'
     return row
   }
 
-  const render = (matches: ScheduleMatch[]) => {
+  const render = (published: boolean, matches: ScheduleMatch[]) => {
     if (!root || !daysEl) return
     daysEl.innerHTML = ''
+    // Unpublished with nothing live to show → the „noch nicht veröffentlicht" notice. A running/done match
+    // is live truth and is served + rendered even while unpublished (the plan gate, ADR-0041), so the
+    // notice yields to it the moment any match arrives.
+    root.classList.toggle('not-published', !published && matches.length === 0)
     root.classList.toggle('has-matches', matches.length > 0)
 
     // Group by the day values actually present (ascending), so a match is never silently dropped because
@@ -249,11 +274,12 @@ import Layout from '@/layouts/default.astro'
       if (!res.ok) throw new Error('bad status')
       const body: ScheduleResponse = await res.json()
       root.classList.remove('is-error')
-      // Skip the rebuild when nothing changed since the last poll.
-      const sig = JSON.stringify(body.matches)
+      // Skip the rebuild when nothing changed since the last poll — the publish flag is part of the
+      // signature so a publish/reset toggles the page on the next poll.
+      const sig = JSON.stringify({ published: body.published, matches: body.matches })
       if (sig === lastJson) return
       lastJson = sig
-      render(body.matches)
+      render(body.published, body.matches)
     } catch {
       root.classList.add('is-error')
     }

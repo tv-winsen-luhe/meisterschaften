@@ -86,6 +86,15 @@ export interface DrawStore {
   placeMatch(id: number, placement: Placement | null): Promise<void>
 
   /**
+   * Reset the schedule to the backlog (ADR-0041): clear court/day/slot for every match still `planned`,
+   * leaving the draw, brackets, results, and any `running`/`done` match's placement untouched — we never
+   * erase where a match was actually played. The placement-only half of „Spielplan zurücksetzen" (the
+   * caller also flips `schedule_published` off); it never touches the bracket. Returns nothing — the rebuild
+   * loop (reset → Vorschlag → veröffentlichen) reads the cleared backlog on its next load.
+   */
+  resetSchedule(): Promise<void>
+
+  /**
    * The reveal state (size + parsed reveal sequence + cursor) for one competition+bracket, or null —
    * what the advance reads to clamp the next cursor (ADR-0003). The reveal sequence is parsed at the
    * seam, so a malformed column throws here rather than feeding a wrong-looking reveal.
@@ -262,6 +271,12 @@ export const createD1DrawStore = (d1: D1Database): DrawStore => {
         .where(eq(matches.id, id))
     },
 
+    async resetSchedule() {
+      // Only `planned` matches go back to the backlog; a `running`/`done` match keeps its court (its
+      // placement is where it was actually played, ADR-0041).
+      await db.update(matches).set({ court: null, day: null, slot: null }).where(eq(matches.status, 'planned'))
+    },
+
     async getReveal(competition, bracket) {
       const draw = await this.findDraw(competition, bracket)
       return draw ? toRevealState(draw) : null
@@ -381,6 +396,17 @@ export const createInMemoryDrawStore = (): DrawStore => {
         row.court = placement?.court ?? null
         row.day = placement?.day ?? null
         row.slot = placement?.slot ?? null
+      }
+    },
+
+    async resetSchedule() {
+      // Clear only the still-`planned` placements back to the backlog; running/done keep their court.
+      for (const row of matchRows) {
+        if (row.status === 'planned') {
+          row.court = null
+          row.day = null
+          row.slot = null
+        }
       }
     },
 

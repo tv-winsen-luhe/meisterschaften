@@ -222,6 +222,52 @@ export const resolveBracket = <M extends MatchPosition>(matches: M[]): ResolvedM
   }))
 }
 
+// The German round name for a bracket match — the single copy both the admin grid card and the public
+// schedule card render (#142), so „Achtelfinale" reads identically on both surfaces. Read from the *end*
+// of the bracket (Finale, Halbfinale, …) so a 4-, 8-, or 16-draw shares one list: `totalRounds` is the
+// bracket's own depth (its highest round, derived from its match set), so the final is always
+// `totalRounds` and a deeper-than-Achtelfinale round falls back to „Runde N".
+const ROUND_NAMES_FROM_FINAL = ['Finale', 'Halbfinale', 'Viertelfinale', 'Achtelfinale'] as const
+
+// One match's place in its bracket, for `roundLabel`. `bracket` is the discriminator string (main /
+// consolation), kept as `string` like the other helpers here so no module has to import the Bracket type.
+export interface RoundLabelInput {
+  bracket: string
+  round: number
+  totalRounds: number
+  // The third-place placement match (de: „Spiel um Platz 3") — a fixed playoff, not a round, so it reads
+  // its own label rather than a round name (CONTEXT: Third-place match). Defaults false.
+  thirdPlace?: boolean
+}
+
+/**
+ * The German round label for a bracket match — Achtelfinale … Finale for the **main** bracket (by the
+ * bracket's own depth), a „Nebenrunde · …" form for the **consolation** bracket (so a consolation final
+ * never reads as the real one, ADR-0004), and „Spiel um Platz 3" for the third-place match. The single
+ * definition both the admin grid card and the public schedule card render (#142), replacing the
+ * admin-only `roundLabel`.
+ */
+export const roundLabel = ({ bracket, round, totalRounds, thirdPlace = false }: RoundLabelInput): string => {
+  if (thirdPlace) return 'Spiel um Platz 3'
+  const name = ROUND_NAMES_FROM_FINAL[totalRounds - round] ?? `Runde ${round}`
+  return bracket === 'consolation' ? `Nebenrunde · ${name}` : name
+}
+
+// The minimal shape `bracketDepth` reads — any match carrying its round.
+interface RoundedMatch {
+  round: number
+}
+
+/**
+ * The bracket's depth — its highest round — over a single bracket's match set. The `totalRounds` both the
+ * admin grid card and the public schedule card hand `roundLabel` so the round names read from the end
+ * (#142), and the last round the finals-day rule reserves for Sunday (ADR-0040). One definition, so the
+ * depth can never diverge across the two surfaces, the validator, and the auto-suggest. Pass one
+ * competition+bracket's matches (an empty set ⇒ 0).
+ */
+export const bracketDepth = (matches: readonly RoundedMatch[]): number =>
+  matches.reduce((max, m) => Math.max(max, m.round), 0)
+
 // ── Placement validation (ADR-0033: block the impossible, warn the unwise) ────────────────────────
 
 // The minimal match shape `validatePlacement` reads: a bracket position (so feeders resolve within the
@@ -263,14 +309,19 @@ export type HardViolation =
   | { rule: 'court-window' }
   | { rule: 'player-overlap'; regId: number; otherMatchId: number }
 
-// A **soft** violation — a player-comfort concern the operator may override (ADR-0033).
+// A **soft** violation — a player-comfort or scheduling-shape concern the operator may override (ADR-0033).
 //  - `player-load`: the player would hold more than 2 matches on the candidate's day. `count` is the total.
 //  - `short-rest`: the player's rest between two same-day matches (`nextStart − previousEnd`) would be under
 //    `minRestMinutes` (ADR-0040). It only covers non-overlapping matches — an actual overlap is the hard
 //    `player-overlap` block, not a rest nudge. `otherMatchId` is the player's other match.
+//  - `finals-day`: a main-bracket semifinal or final placed off Sunday (the last event day). Sunday is
+//    finals day (ADR-0040), so an earlier placement is nudged — never blocked; a final *may* be played on
+//    Saturday. `round` is the candidate's round (the surface phrases the reminder from it). The rule value
+//    is English (CLAUDE.md — wire/data values); the German term survives only in the user-facing copy.
 export type SoftViolation =
   | { rule: 'player-load'; regId: number; count: number }
   | { rule: 'short-rest'; regId: number; otherMatchId: number }
+  | { rule: 'finals-day'; round: number }
 
 export interface PlacementValidation {
   hard: HardViolation[]
@@ -351,20 +402,68 @@ export const earliestPlaceableSlot = (match: PlacedMatch, matches: readonly Plac
 // passes one array to both validation and auto-suggest.
 export type { PlacedMatch as SchedulableMatch }
 
+// One newly-suggested placement (a named interface — the lint rule forbids the inline `{…}[]` return).
+export interface Suggestion {
+  id: number
+  placement: Placement
+}
+
+// Whether a match is a main-bracket semifinal or final — the rounds reserved for the finals day (Sunday)
+// (ADR-0040): `round ≥ depth − 1`, main bracket only (the consolation bracket and earlier rounds carry no
+// preference). The `bracket === 'main'` guard comes first, so a consolation match skips the depth scan
+// entirely. The single predicate `targetDay` (auto-suggest) and `validatePlacement` (the soft nudge)
+// share, so the plan the suggest builds and the warnings it raises can never disagree.
+const isFinalsDayMatch = (match: PlacedMatch, matches: readonly PlacedMatch[]): boolean =>
+  match.bracket === 'main' &&
+  match.round >=
+    bracketDepth(matches.filter(m => m.competition === match.competition && m.bracket === match.bracket)) - 1
+
+// The day a match targets first (ADR-0040): Sunday — the last event day, the finals day — for a main
+// bracket's semifinals and final; Saturday for everything earlier and the whole consolation bracket. The
+// fill tries this day first; only if it has no legal cell does it spill to the other day, so the
+// finals-day shape holds without ever hard-blocking a day.
+const targetDay = (match: PlacedMatch, matches: readonly PlacedMatch[]): number =>
+  isFinalsDayMatch(match, matches) ? SCHEDULE.days - 1 : 0
+
+// The first cell that takes a match, scanning the given days in order then slot-ascending, court-
+// ascending. A warning-free cell (zero soft violations) wins outright; otherwise the first merely-legal
+// cell is the fallback. Returns null when no day in `dayOrder` has a legal cell. Because the finals day
+// is scanned first, even the fallback lands on the target day unless it is wholly full.
+const firstValidPlacement = (
+  working: readonly PlacedMatch[],
+  id: number,
+  dayOrder: readonly number[]
+): Placement | null => {
+  let fallback: Placement | null = null
+  for (const day of dayOrder) {
+    for (let slot = 0; slot < SCHEDULE.slotsPerDay; slot++) {
+      for (let court = 1; court <= SCHEDULE.courts; court++) {
+        const placement: Placement = { court, day, slot }
+        const { hard, soft } = validatePlacement(working, { id, placement })
+        if (hard.length > 0) continue
+        if (soft.length === 0) return placement
+        fallback ??= placement
+      }
+    }
+  }
+  return fallback
+}
+
 /**
- * Auto-suggest a draft schedule: fill unplaced matches into grid cells, respecting all hard
- * constraints (via `validatePlacement`) and preferring cells without soft warnings. Already-placed
- * matches are treated as fixed — never moved. Deterministic (no clock, no randomness): same input
- * → same plan. Returns only the newly suggested placements (the caller applies them as a draft).
+ * Auto-suggest a finals-day-shaped draft schedule: fill unplaced matches into grid cells, respecting all
+ * hard constraints (via `validatePlacement`) and preferring cells without soft warnings. Already-placed
+ * matches are treated as fixed — never moved. Deterministic (no clock, no randomness): same input → same
+ * plan. Returns only the newly suggested placements (the caller applies them as a draft).
  *
- * Algorithm: greedily assign each unplaced match (round asc, position asc — so round 1 packs from
- * the top) into the first valid cell (day-major, slot within day, court ascending). A cell is
- * "valid" if `validatePlacement` returns zero hard violations. Among valid cells, the one with
- * zero soft warnings wins; if all have warnings, the first valid cell wins. This is a simple
- * greedy fill — not a global optimizer — per the issue spec.
+ * Algorithm: each unplaced match (round asc, position asc) targets a day — Saturday through the
+ * quarterfinals plus the consolation bracket, Sunday for the semifinals/final (`targetDay`) — and is
+ * placed in the first valid cell of that day (then the other day as a spill), preferring a warning-free
+ * cell. The finals-day *soft* rule and this day ordering reinforce each other: a final scanned on Saturday
+ * is never warning-free (the finals-day nudge), so it settles on Sunday on its own. A simple greedy fill,
+ * not a global optimizer — per the issue spec (ADR-0040, ADR-0033).
  */
-export const suggestSchedule = (matches: readonly PlacedMatch[]): { id: number; placement: Placement }[] => {
-  const result: { id: number; placement: Placement }[] = []
+export const suggestSchedule = (matches: readonly PlacedMatch[]): Suggestion[] => {
+  const result: Suggestion[] = []
 
   // Mutable working copy: as we suggest placements, we apply them so subsequent candidates see them.
   const working: PlacedMatch[] = matches.map(m => ({ ...m }))
@@ -375,38 +474,17 @@ export const suggestSchedule = (matches: readonly PlacedMatch[]): { id: number; 
     .sort((a, b) => a.round - b.round || a.position - b.position)
 
   for (const match of unplaced) {
-    let bestPlacement: Placement | null = null
-    let bestHasSoft = true
+    // The target day first, then the rest as a spill — so the finals-day shape holds but a full day never
+    // strands a match in the backlog.
+    const first = targetDay(match, working)
+    const dayOrder = [first, ...DAY_INDICES.filter(d => d !== first)]
+    const placement = firstValidPlacement(working, match.id, dayOrder)
+    if (!placement) continue
 
-    // Try every cell in day-major order (day 0 before day 1, slot 0 before slot 1, court 1 before court 2).
-    for (let day = 0; day < SCHEDULE.days; day++) {
-      for (let slot = 0; slot < SCHEDULE.slotsPerDay; slot++) {
-        for (let court = 1; court <= SCHEDULE.courts; court++) {
-          const placement: Placement = { court, day, slot }
-          const { hard, soft } = validatePlacement(working, { id: match.id, placement })
-          if (hard.length > 0) continue
-          if (soft.length === 0) {
-            // Perfect cell — use it immediately (first soft-free cell in day-major order).
-            bestPlacement = placement
-            bestHasSoft = false
-            break
-          }
-          if (bestPlacement === null) {
-            // First valid cell (has warnings) — record as fallback.
-            bestPlacement = placement
-          }
-        }
-        if (bestPlacement && !bestHasSoft) break
-      }
-      if (bestPlacement && !bestHasSoft) break
-    }
-
-    if (bestPlacement) {
-      // Apply placement to the working set so subsequent matches see this as occupied.
-      const idx = working.findIndex(m => m.id === match.id)
-      working[idx] = { ...working[idx], court: bestPlacement.court, day: bestPlacement.day, slot: bestPlacement.slot }
-      result.push({ id: match.id, placement: bestPlacement })
-    }
+    // Apply to the working set so subsequent matches see this cell as occupied.
+    const idx = working.findIndex(m => m.id === match.id)
+    working[idx] = { ...working[idx], court: placement.court, day: placement.day, slot: placement.slot }
+    result.push({ id: match.id, placement })
   }
 
   return result
@@ -470,6 +548,12 @@ export const validatePlacement = (
   // bound is physically unplayable, so it blocks — the same "block the impossible" posture as court
   // occupancy and feeder order, not a soft nudge.
   if (!withinEveningWindow(court, day, slot)) hard.push({ rule: 'court-window' })
+
+  // Soft — finals day (ADR-0040): the main bracket's semifinals and final belong on Sunday (the last event
+  // day). Placed earlier they are nudged, never blocked — a final *may* be played on Saturday, it is just
+  // not the plan. The same `isFinalsDayMatch` predicate the auto-suggest's `targetDay` reads, so the plan
+  // and the warnings agree.
+  if (isFinalsDayMatch(self, matches) && day !== SCHEDULE.days - 1) soft.push({ rule: 'finals-day', round: self.round })
 
   // Hard + soft — per named player (an undecided feeder/bye slot is null and carries no clash/load yet).
   // The interval model makes "one person on two courts at once" expressible for the first time, so it is a

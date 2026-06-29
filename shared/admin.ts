@@ -281,13 +281,18 @@ export const scheduleSlotSchema = z.discriminatedUnion('kind', [
 export type ScheduleSlot = z.infer<typeof scheduleSlotSchema>
 
 // One placed match as the public schedule shows it: its court + slot (the page derives the „ca." time
-// from the slot), its live status, its display number (M{number}), and its two resolved slots. Only
-// placed, real matches appear (a bye is auto-resolved, never played, so it is never scheduled).
+// from the slot), its live status, its display number (M{number}), its round + the bracket's total round
+// count (so both surfaces derive the round label „Achtelfinale"… via the shared `roundLabel`, #142), and
+// its two resolved slots. Only placed, real matches appear (a bye is auto-resolved, never played, so it
+// is never scheduled). `round`/`totalRounds` are numeric (English/data, ADR-0028) — the German label is
+// computed at the edge, never carried on the wire.
 export const scheduleMatchSchema = z.object({
   id: z.number().int().positive(),
   competition: competitionSlug,
   bracket: z.enum(BRACKETS),
   number: z.number().int().positive(),
+  round: z.number().int().positive(),
+  totalRounds: z.number().int().positive(),
   court: z.number().int().min(1).max(SCHEDULE.courts),
   day: z
     .number()
@@ -305,7 +310,27 @@ export const scheduleMatchSchema = z.object({
 })
 export type ScheduleMatch = z.infer<typeof scheduleMatchSchema>
 
-// GET /api/schedule — the public schedule feed: every placed match across all competitions, the page
-// groups by day and orders by slot/court. Public like /api/draw; empty until a match is placed.
-export const scheduleResponseSchema = z.object({ matches: z.array(scheduleMatchSchema) })
+// GET /api/schedule — the public schedule feed (ADR-0041): the global publish flag plus the placed
+// matches the spectator may see. The page groups by day and orders by slot/court. Public like /api/draw.
+// `published` false ⇒ the planned schedule is withheld and the page shows „noch nicht veröffentlicht";
+// a running/done match's live truth is served regardless (the plan gate, never a feed kill).
+export const scheduleResponseSchema = z.object({ published: z.boolean(), matches: z.array(scheduleMatchSchema) })
 export type ScheduleResponse = z.infer<typeof scheduleResponseSchema>
+
+// GET /api/admin/schedule — the operator's lightweight publish-state read (ADR-0041): just the global
+// flag, so the admin's publish control reflects it on mount without resolving the whole public schedule
+// feed. Operator endpoint (behind Access); distinct from the public, gated GET /api/schedule.
+export const scheduleStateResponseSchema = z.object({ published: z.boolean() })
+export type ScheduleStateResponse = z.infer<typeof scheduleStateResponseSchema>
+
+// POST /api/admin/schedule/publish — reveal the whole planned schedule at once (ADR-0041). No body; the
+// flag is global. Returns the resulting state — always published (there is no manual unpublish; only
+// „Zurücksetzen" flips it back).
+export const schedulePublishResponseSchema = z.object({ ok: z.literal(true), published: z.literal(true) })
+export type SchedulePublishResponse = z.infer<typeof schedulePublishResponseSchema>
+
+// POST /api/admin/schedule/reset — clear every `planned` placement back to the backlog and auto-unpublish
+// (ADR-0041). No body; confirm-guarded in the admin (the confirm escalates when a match is already
+// running/done — those keep their court). The draw, brackets, and results stay intact.
+export const scheduleResetResponseSchema = z.object({ ok: z.literal(true), published: z.literal(false) })
+export type ScheduleResetResponse = z.infer<typeof scheduleResetResponseSchema>

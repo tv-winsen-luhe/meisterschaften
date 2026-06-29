@@ -149,16 +149,20 @@ describe('createResetService', () => {
     expect(result).toEqual({ ok: true, readmitted: 2 })
   })
 
-  it('back-to-signup cascades an undraw of all competitions then sets the phase', async () => {
+  it('back-to-signup cascades an undraw, un-publishes the schedule, then sets the phase', async () => {
     const { svc, drawStore, appStateStore } = service([confirmed({ status: 'confirmed' })])
     await drawStore.save(drawInput('mens'))
     await drawStore.save(drawInput('womens'))
+    // A schedule was published over the now-doomed draw; the teardown must clear the flag so the next
+    // draw's placements do not leak past the publish gate (ADR-0041).
+    await appStateStore.setSchedulePublished(true)
 
     const result = await svc.backToSignup()
 
     expect(result).toEqual({ ok: true, phase: 'signup', undrawn: 2 })
     expect(await drawStore.listDraws()).toEqual([])
     expect(await appStateStore.getPhase()).toBe('signup')
+    expect(await appStateStore.getSchedulePublished()).toBe(false)
   })
 
   it('back-to-signup does not touch registration status (confirmed entries stay confirmed)', async () => {

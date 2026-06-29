@@ -1,9 +1,10 @@
 import { applyD1Migrations, env } from 'cloudflare:test'
 import { beforeAll, beforeEach, describe, expect, it } from 'vitest'
-import { SCHEDULE, scheduleResponseSchema, type ScheduleResponse } from '../shared'
+import { SCHEDULE, scheduleResponseSchema } from '../shared'
 import { app } from '../worker/app'
 import { createDrawService } from '../worker/draw'
 import { createProjections } from '../worker/projections'
+import { createInMemoryAppStateStore } from '../worker/store/app-state'
 import { createInMemoryDrawStore } from '../worker/store/draw'
 import { createInMemoryRegistrationsStore } from '../worker/store/registrations.memory'
 import type { RegistrationRow } from '../worker/db/schema'
@@ -37,12 +38,14 @@ const field = (n: number) => Array.from({ length: n }, (_, i) => confirmed(i + 1
 describe('projections.schedule', () => {
   // A drawn 4-field (two semifinals + final) over the in-memory stores, plus the store so the test can
   // place matches directly. The full unseeded fill of a 4-draw is one lot step. By default the reveal is
-  // played to the end (`cursor >= total`) so the schedule feed will emit the field at all (ADR-0036) —
-  // these tests are about the placed/revealed schedule, not the suspense gate; pass `{ reveal: false }`
-  // to hold the draw mid-reveal.
-  const drawn = async ({ reveal = true } = {}) => {
+  // played to the end (`cursor >= total`) so the schedule feed will emit the field at all (ADR-0036) and
+  // the schedule is `published` so planned placements pass the publish gate (ADR-0041) — these tests are
+  // about the placed/revealed schedule, not the suspense or publish gates; pass `{ reveal: false }` to
+  // hold the draw mid-reveal, or `{ published: false }` to exercise the publish gate.
+  const drawn = async ({ reveal = true, published = true } = {}) => {
     const drawStore = createInMemoryDrawStore()
     const registrationsStore = createInMemoryRegistrationsStore(field(4))
+    const appStateStore = createInMemoryAppStateStore('tournament', published)
     const service = createDrawService({ registrationsStore, drawStore, randomSource: createFakeRandomSource([0]) })
     await service.draw({ competition: 'mens', phase: 'tournament', now: 'now' })
     if (reveal) {
@@ -50,13 +53,13 @@ describe('projections.schedule', () => {
       while (r.ok && r.cursor < r.total) r = await service.advance('mens', 'forward')
     }
     // The read seam under test: built over the same stores, independent of the draw service (#5).
-    const projections = createProjections({ drawStore, registrationsStore })
-    return { service, projections, drawStore, registrationsStore }
+    const projections = createProjections({ drawStore, registrationsStore, appStateStore })
+    return { service, projections, drawStore, registrationsStore, appStateStore }
   }
 
   it('is empty until a match is placed', async () => {
     const { projections } = await drawn()
-    expect(await projections.schedule()).toEqual([])
+    expect((await projections.schedule()).matches).toEqual([])
   })
 
   it('emits a placed semifinal with both players joined by name', async () => {
@@ -64,9 +67,9 @@ describe('projections.schedule', () => {
     const semi = (await drawStore.listMatches()).find(m => m.round === 1)!
     await drawStore.placeMatch(semi.id, { court: 2, day: 0, slot: 1 })
 
-    const schedule = await projections.schedule()
-    expect(schedule).toHaveLength(1)
-    expect(schedule[0]).toMatchObject({
+    const { matches } = await projections.schedule()
+    expect(matches).toHaveLength(1)
+    expect(matches[0]).toMatchObject({
       court: 2,
       day: 0,
       slot: 1,
@@ -81,14 +84,14 @@ describe('projections.schedule', () => {
     const final = (await drawStore.listMatches()).find(m => m.round === 2)!
     await drawStore.placeMatch(final.id, { court: 1, day: 1, slot: 0 })
 
-    const [row] = await projections.schedule()
+    const [row] = (await projections.schedule()).matches
     // The final (M3) is fed by the two semifinals (M1, M2) — both undecided, so both slots are feeders.
     expect(row.slot1).toEqual({ kind: 'feeder', matchNumber: 1 })
     expect(row.slot2).toEqual({ kind: 'feeder', matchNumber: 2 })
   })
 
   it('serves an unresolvable feeder as „offen", and the whole feed still parses (ADR-0035)', async () => {
-    const { drawStore, registrationsStore } = await drawn()
+    const { drawStore, registrationsStore, appStateStore } = await drawn()
     const drawn1 = await drawStore.listMatches()
     const final = drawn1.find(m => m.round === 2)!
     const semi1 = drawn1.find(m => m.round === 1 && m.position === 0)! // feeds the final's slot 1
@@ -101,16 +104,16 @@ describe('projections.schedule', () => {
       ...drawStore,
       listMatches: async () => (await drawStore.listMatches()).filter(m => m.id !== semi1.id)
     }
-    const projections = createProjections({ registrationsStore, drawStore: holed })
+    const projections = createProjections({ registrationsStore, drawStore: holed, appStateStore })
 
-    const matchesOut = await projections.schedule()
-    expect(matchesOut.find(m => m.id === final.id)!.slot1).toEqual({ kind: 'unknown' })
+    const feed = await projections.schedule()
+    expect(feed.matches.find(m => m.id === final.id)!.slot1).toEqual({ kind: 'unknown' })
     // The strict wire contract still accepts the whole feed — the 500 is gone.
-    expect(() => scheduleResponseSchema.parse({ matches: matchesOut })).not.toThrow()
+    expect(() => scheduleResponseSchema.parse(feed)).not.toThrow()
   })
 
   it('serves a hard-deleted player as „offen", not the misleading „Freilos" line (ADR-0035)', async () => {
-    const { drawStore, registrationsStore } = await drawn()
+    const { drawStore, registrationsStore, appStateStore } = await drawn()
     const semi = (await drawStore.listMatches()).find(m => m.round === 1)!
     await drawStore.placeMatch(semi.id, { court: 2, day: 0, slot: 1 })
 
@@ -125,9 +128,9 @@ describe('projections.schedule', () => {
         return players
       }
     }
-    const projections = createProjections({ registrationsStore: holed, drawStore })
+    const projections = createProjections({ registrationsStore: holed, drawStore, appStateStore })
 
-    const [row] = await projections.schedule()
+    const [row] = (await projections.schedule()).matches
     expect(row.slot1).toEqual({ kind: 'unknown' })
     expect(row.slot2).toMatchObject({ kind: 'player' }) // the surviving player still resolves
   })
@@ -141,31 +144,31 @@ describe('projections.schedule', () => {
       await drawStore.placeMatch(semi.id, { court: 2, day: 0, slot: 1 })
 
       // Placed on the grid, but the draw show has not finished — the pairing stays server-side.
-      expect(await projections.schedule()).toEqual([])
+      expect((await projections.schedule()).matches).toEqual([])
     })
 
     it('hides a placed main match after its reveal is rewound below total', async () => {
       const { service, projections, drawStore } = await drawn() // fully revealed
       const semi = (await drawStore.listMatches()).find(m => m.round === 1)!
       await drawStore.placeMatch(semi.id, { court: 2, day: 0, slot: 1 })
-      expect(await projections.schedule()).toHaveLength(1) // shown while fully revealed
+      expect((await projections.schedule()).matches).toHaveLength(1) // shown while fully revealed
 
       // The operator rewinds one lot — the bracket drops below `total` and its placed matches vanish again.
       await service.advance('mens', 'back')
-      expect(await projections.schedule()).toEqual([])
+      expect((await projections.schedule()).matches).toEqual([])
     })
 
     it('never gates the consolation bracket — it has no reveal show (ADR-0004)', async () => {
       // Main mid-reveal, with a placed main match (must hide) and a placed consolation match (must show).
-      const { registrationsStore, drawStore } = await drawn({ reveal: false })
+      const { registrationsStore, drawStore, appStateStore } = await drawn({ reveal: false })
       const semi = (await drawStore.listMatches()).find(m => m.round === 1)!
       const placedMain = { ...semi, court: 2, day: 0, slot: 1 }
       const conso = { ...semi, id: 999, bracket: 'consolation' as const, court: 1, day: 0, slot: 0 }
       const holed = { ...drawStore, listMatches: async () => [placedMain, conso] }
-      const projections = createProjections({ registrationsStore, drawStore: holed })
+      const projections = createProjections({ registrationsStore, drawStore: holed, appStateStore })
 
       // The unrevealed main match is withheld; the consolation match — born public — is served.
-      expect((await projections.schedule()).map(m => m.id)).toEqual([999])
+      expect((await projections.schedule()).matches.map(m => m.id)).toEqual([999])
     })
   })
 })
@@ -226,7 +229,9 @@ describe('POST /api/admin/match/place + GET /api/schedule', () => {
     await revealFully('mens')
   }
 
-  it('places a match, persists it, and serves it on the public schedule', async () => {
+  // The placement write persists to D1 (the public-feed serving + publish gate are exercised in
+  // schedule-publish.integration.test.ts).
+  it('places a match and persists its court/day/slot/status', async () => {
     await drawField()
     const matchId = (await env.DB.prepare('SELECT id FROM matches WHERE round = 1 ORDER BY position LIMIT 1').first<{
       id: number
@@ -242,10 +247,6 @@ describe('POST /api/admin/match/place + GET /api/schedule', () => {
       status: string
     }>()
     expect(row).toMatchObject({ court: 3, day: 0, slot: 2, status: 'planned' })
-
-    const feed = (await (await req('/api/schedule')).json()) as ScheduleResponse
-    expect(feed.matches).toHaveLength(1)
-    expect(feed.matches[0]).toMatchObject({ id: matchId, court: 3, day: 0, slot: 2 })
   })
 
   it('moves a placed match to another cell', async () => {
@@ -256,8 +257,9 @@ describe('POST /api/admin/match/place + GET /api/schedule', () => {
     await place({ id: matchId, placement: { court: 3, day: 0, slot: 2 } })
     await place({ id: matchId, placement: { court: 5, day: 1, slot: 4 } })
 
-    const feed = (await (await req('/api/schedule')).json()) as ScheduleResponse
-    expect(feed.matches[0]).toMatchObject({ court: 5, day: 1, slot: 4 })
+    expect(
+      await env.DB.prepare('SELECT court, day, slot FROM matches WHERE id = ?').bind(matchId).first()
+    ).toMatchObject({ court: 5, day: 1, slot: 4 })
   })
 
   it('clears a placed match back to the backlog (all null)', async () => {
@@ -269,8 +271,9 @@ describe('POST /api/admin/match/place + GET /api/schedule', () => {
     const res = await place({ id: matchId, placement: null })
     expect(res.status).toBe(200)
 
-    const feed = (await (await req('/api/schedule')).json()) as ScheduleResponse
-    expect(feed.matches).toEqual([])
+    expect(
+      await env.DB.prepare('SELECT court, day, slot FROM matches WHERE id = ?').bind(matchId).first()
+    ).toMatchObject({ court: null, day: null, slot: null })
   })
 
   it('rejects a half-placement (court without day/slot) at the contract', async () => {

@@ -3,6 +3,7 @@ import { beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { app } from '../worker/app'
 import { createDrawService } from '../worker/draw'
 import { createProjections } from '../worker/projections'
+import { createInMemoryAppStateStore } from '../worker/store/app-state'
 import { createD1DrawStore, createInMemoryDrawStore } from '../worker/store/draw'
 import { createInMemoryRegistrationsStore } from '../worker/store/registrations.memory'
 import type { RegistrationRow } from '../worker/db/schema'
@@ -97,7 +98,8 @@ describe('projections.publicDraws', () => {
   it('is empty until a field is drawn', async () => {
     const projections = createProjections({
       registrationsStore: createInMemoryRegistrationsStore(field(8)),
-      drawStore: createInMemoryDrawStore()
+      drawStore: createInMemoryDrawStore(),
+      appStateStore: createInMemoryAppStateStore()
     })
     expect(await projections.publicDraws()).toEqual([])
   })
@@ -114,7 +116,11 @@ describe('projections.publicDraws', () => {
     })
     await svc.draw({ competition: 'mens', phase: 'tournament', now: 'now' })
 
-    const projections = createProjections({ drawStore, registrationsStore })
+    const projections = createProjections({
+      drawStore,
+      registrationsStore,
+      appStateStore: createInMemoryAppStateStore()
+    })
     const [draw] = await projections.publicDraws()
     expect(draw).toMatchObject({ competition: 'mens', size: 8, cursor: 0, total: 8 })
     expect(draw.steps).toEqual([])
@@ -132,7 +138,11 @@ describe('projections.publicDraws', () => {
     await svc.advance('mens', 'forward')
     await svc.advance('mens', 'forward')
 
-    const projections = createProjections({ drawStore, registrationsStore })
+    const projections = createProjections({
+      drawStore,
+      registrationsStore,
+      appStateStore: createInMemoryAppStateStore()
+    })
     const [draw] = await projections.publicDraws()
     // Two lots revealed of eight: only those two steps are shipped, total still reports the full length.
     expect(draw).toMatchObject({ competition: 'mens', size: 8, cursor: 2, total: 8 })
