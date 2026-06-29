@@ -1,6 +1,7 @@
 import { TriangleAlert } from 'lucide-react'
-import type { Match } from '../../../shared'
+import type { CompetitionSlug, Match } from '../../../shared'
 import { cn } from '@/admin/lib/utils'
+import { competitionAccent } from './competition-accent'
 
 // One contestant line resolved for the grid: its label, and whether the slot is *unresolved*. An
 // unresolved line (SlotView `unknown` → „offen") is, on the admin grid, *always* an inconsistency — a
@@ -12,9 +13,11 @@ export interface SlotLabel {
 }
 
 // A match prepared for the grid: its display number, competition, and the two resolved slot labels.
+// The `competition` slug carries the accent (competitionAccent); `competitionLabel` is the copy.
 export interface GridMatch {
   match: Match
   number: number
+  competition: CompetitionSlug
   competitionLabel: string
   slot1: SlotLabel
   slot2: SlotLabel
@@ -46,7 +49,7 @@ interface MatchCardProps {
 // The compact match label shared by the backlog chip and a placed cell: M{number} · competition, then
 // the two contestants (a player, a „Freilos" bye, a „Sieger M{n}" feeder, or an „offen" warning).
 export const MatchCard = ({ match }: MatchCardProps) => (
-  <div className="flex flex-col gap-0.5">
+  <div className={cn('flex flex-col gap-0.5 border-l-4 pl-2', competitionAccent(match.competition))}>
     <div className="text-muted-foreground flex items-center gap-1.5 text-[11px] font-semibold tracking-wide uppercase">
       <span className="tabular-nums">M{match.number}</span>
       <span aria-hidden>·</span>
