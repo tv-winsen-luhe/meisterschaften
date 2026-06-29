@@ -1,23 +1,38 @@
 // Schedule math, owned once in shared/ so the admin grid (place/move affordance) and the public
-// schedule feed read one definition (CONTEXT: Schedule, ADR-0005). Pure, no deps — the same single-
-// source discipline as shared/draw.ts. This epic's tracer (#88) owns the grid shape, the approximate
-// slot time, match numbering, and feeder resolution; schedule *validation* (block the impossible, warn
-// the unwise — ADR-0033) layers `validatePlacement` onto this file in #89.
+// schedule feed read one definition (CONTEXT: Schedule, ADR-0005, ADR-0040). Pure, no deps — the same
+// single-source discipline as shared/draw.ts. This file owns the grid shape, the approximate slot time,
+// match numbering, feeder resolution, and `validatePlacement` (block the impossible, warn the unwise —
+// ADR-0033).
 
-// The courts×time grid the operator places matches on (ADR-0005). Fixed 90-minute slots from a 9:00
-// first slot, six slots a day across both event days — defaulted to the existing
-// src/data/tournament.ts assumption, to be confirmed with the organizer before the weekend. The
+// The courts×time grid the operator places matches on (ADR-0005, ADR-0040). A match is a fixed
+// **90 minutes**, but its **start** is set on a **30-minute** cadence, so a `slot` is a 30-minute index
+// (a match spans three steps — SLOT_SPAN — and reserves its court for the interval [start, start+90)).
+// Each event day has its own first start (both currently 9:00), so `slotTime` is day-aware. The
 // numeric shape lives here (the single source both clients size the grid from); the day *labels*
-// („Samstag 22.08.") stay in src/data/tournament.ts, the home of the event's date copy.
+// („Samstag 22.08.") stay in src/data/tournament.ts, the home of the event's date copy. Per-court evening
+// windows (the floodlit-pair overflow valve, ADR-0040) layer on in a later slice; for now the grid is a
+// uniform height tall enough for the floodlit courts' late starts.
 export const SCHEDULE = {
   courts: 6,
-  slotsPerDay: 6,
   days: 2,
-  // Minutes-from-midnight of the first slot (09:00) and the fixed slot length — the two numbers
-  // `slotTime` turns a slot index into an approximate clock time from.
-  firstSlotMinutes: 9 * 60,
-  slotMinutes: 90
+  // The fixed match length and the start cadence, in minutes. A match spans `matchMinutes / slotMinutes`
+  // slots (SLOT_SPAN).
+  matchMinutes: 90,
+  slotMinutes: 30,
+  // 30-minute start slots per day: 9:00 → 20:30 (the latest start the floodlit courts 5 & 6 allow before
+  // the 22:00 quiet-hours curfew) at a 30-minute cadence = 24 slots. A uniform grid height for both days;
+  // the per-court evening windows that make the real grid lopsided come in a later slice.
+  slotsPerDay: 24,
+  // Minutes-from-midnight of each day's first start — both days open at the earliest 9:00 per the
+  // organizer. Indexed by the event day (0 = Saturday, 1 = Sunday) and read by `slotTime`, so a per-day
+  // start stays expressible (ADR-0040) even though the two are equal today.
+  dayStartMinutes: [9 * 60, 9 * 60]
 } as const
+
+// The number of 30-minute slots a 90-minute match spans on the grid — three. A placement reserves its
+// court for `[slot, slot + SLOT_SPAN)`, so two same-court matches overlap when their starts are fewer
+// than SLOT_SPAN steps apart, and a feeder's 90 minutes are over SLOT_SPAN steps after it starts.
+export const SLOT_SPAN = SCHEDULE.matchMinutes / SCHEDULE.slotMinutes
 
 // The grid axes, materialized once so both clients iterate the same ranges: courts are 1-indexed (the
 // operator and the public speak „Platz 1"), days and slots are 0-indexed (array/grid coordinates).
@@ -35,12 +50,15 @@ export interface Placement {
 }
 
 /**
- * The approximate clock time of a slot index, "HH:MM" (24h). Times are explicitly a plan, shown „ca."
- * — the live truth is the match status, not a rewritten time (ADR-0032). Slot 0 = 09:00, slot 1 =
- * 10:30, … at the fixed 90-minute cadence. Independent of the day: each day starts at the first slot.
+ * The approximate clock time of a (day, slot) on the grid, "HH:MM" (24h). Times are explicitly a plan,
+ * shown „ca." — the live truth is the match status, not a rewritten time (ADR-0032). Day-aware via
+ * `dayStartMinutes` (ADR-0040), so each day can carry its own first start; both days currently open at
+ * 9:00, so slot 0 = 09:00, slot 1 = 09:30, … at the 30-minute cadence. An out-of-range day falls back to
+ * the first day's start rather than producing NaN.
  */
-export const slotTime = (slot: number): string => {
-  const total = SCHEDULE.firstSlotMinutes + slot * SCHEDULE.slotMinutes
+export const slotTime = (day: number, slot: number): string => {
+  const start = SCHEDULE.dayStartMinutes[day] ?? SCHEDULE.dayStartMinutes[0]
+  const total = start + slot * SCHEDULE.slotMinutes
   const h = Math.floor(total / 60)
   const m = total % 60
   return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`
@@ -185,12 +203,14 @@ interface PlacedMatch {
 }
 
 // A **hard** violation — a physically impossible state the placement endpoint blocks (ADR-0033).
-//  - `feeder-order`: the candidate would share or precede the slot of a match it depends on by round —
-//    a match it feeds, or one whose winner feeds it. `otherMatchId` is the conflicting match.
-//  - `court-taken`: the candidate's court+day+slot cell already holds another match — two matches cannot
-//    share one court at one time. `otherMatchId` is the match already there. With `court` bounded to the
-//    six courts, this also makes "more matches in a slot than courts" structurally impossible (ADR-0033 —
-//    the grid's court rows make the court cap structural).
+//  - `feeder-order`: the candidate would start before a match it depends on by round has finished — a
+//    feeder whose 90 minutes are not yet over, or a successor it must finish before. `otherMatchId` is
+//    the conflicting match.
+//  - `court-taken`: the candidate's 90-minute interval overlaps another match already on its court — two
+//    matches cannot share one court at one time. Occupancy is **interval overlap** (starts fewer than
+//    SLOT_SPAN steps apart), not a shared cell (ADR-0040). `otherMatchId` is the match already there.
+//    With `court` bounded to the six courts, this also makes "more matches running at once than courts"
+//    structurally impossible (ADR-0033 — the grid's court rows make the court cap structural).
 export type HardViolation =
   | { rule: 'feeder-order'; otherMatchId: number }
   | { rule: 'court-taken'; otherMatchId: number }
@@ -215,13 +235,30 @@ export interface PlacementCandidate {
 }
 
 // Day-major slot ordinal across the whole event, so a later day's slot 0 sorts after an earlier day's
-// last slot. The one ordering both the feeder rule (strictly after) and the rest gap read from.
+// last slot. The one ordering the structural feeder floor and the rest gap read from.
 export const absoluteSlot = (day: number, slot: number): number => day * SCHEDULE.slotsPerDay + slot
 
+// A point on the grid's day-major time axis — the minimal shape `endsBefore` compares (the candidate
+// placement and any placed match both satisfy it structurally).
+interface DaySlot {
+  day: number
+  slot: number
+}
+
+// Whether interval `a`'s 90 minutes are over by the time interval `b` starts — the day-aware feeder-order
+// relation (ADR-0040). A match never spans midnight, so any earlier day trivially clears (the overnight
+// gap dwarfs 90 minutes); the SLOT_SPAN gap only bites *within* one day. Reasoning on `absoluteSlot`
+// alone would wrongly leak a late match's interval across the day boundary (day d's slot 0 sits one step
+// after day d−1's last slot), spuriously blocking a legal next-morning successor.
+const endsBefore = (a: DaySlot, b: DaySlot): boolean =>
+  a.day < b.day || (a.day === b.day && a.slot + SLOT_SPAN <= b.slot)
+
 /**
- * The earliest absolute slot a match may occupy, given its bracket's feeder structure. Equals the depth
- * of the longest chain of **real** (non-bye) feeder matches below it: a round-1 bye is never scheduled
- * (CONTEXT: Bye), so it contributes no depth. A match fed entirely through byes stays at 0.
+ * The earliest absolute slot a match may occupy, given its bracket's feeder structure. Equals the
+ * longest chain of **real** (non-bye) feeder matches below it, each chain link costing a full
+ * 90-minute interval (SLOT_SPAN steps) since a match cannot start until its feeder's 90 minutes are
+ * over (ADR-0040). A round-1 bye is never scheduled (CONTEXT: Bye), so it contributes no depth; a match
+ * fed entirely through byes stays at 0.
  *
  * Reused by `validatePlacement` (structural feeder-order guard, even against unplaced feeders) and by
  * the grid (proactive grey-out of too-early cells while a match is held).
@@ -240,7 +277,7 @@ export const earliestPlaceableSlot = (match: PlacedMatch, matches: readonly Plac
       const fp = feederPosition(round, position, which)!
       const feeder = byPosition.get(`${fp.round}-${fp.position}`)
       if (!feeder || feeder.outcome === 'bye') continue
-      max = Math.max(max, 1 + depth(fp.round, fp.position))
+      max = Math.max(max, SLOT_SPAN + depth(fp.round, fp.position))
     }
     return max
   }
@@ -357,23 +394,25 @@ export const validatePlacement = (
   const earliest = earliestPlaceableSlot(self, matches)
   if (here < earliest) hard.push({ rule: 'feeder-order', otherMatchId: self.id })
 
-  // Hard — round dependency against *placed* feeders/successors, both directions:
-  // the candidate must be strictly after each placed feeder, and strictly before a placed successor.
+  // Hard — round dependency against *placed* feeders/successors, both directions, reasoning in 90-minute
+  // intervals (ADR-0040): each placed feeder's 90 minutes must be over before the candidate starts, and
+  // the candidate's must be over before a placed successor starts. Day-aware (see `endsBefore`) so a
+  // late-evening feeder never wrongly blocks its next-morning successor.
   for (const which of [1, 2] as const) {
     const fp = feederPosition(self.round, self.position, which)
     const feeder = fp && at(fp.round, fp.position)
-    if (feeder && here <= absoluteSlot(feeder.day, feeder.slot))
-      hard.push({ rule: 'feeder-order', otherMatchId: feeder.id })
+    if (feeder && !endsBefore(feeder, candidate.placement)) hard.push({ rule: 'feeder-order', otherMatchId: feeder.id })
   }
   const successor = at(self.round + 1, Math.floor(self.position / 2))
-  if (successor && here >= absoluteSlot(successor.day, successor.slot))
+  if (successor && !endsBefore(candidate.placement, successor))
     hard.push({ rule: 'feeder-order', otherMatchId: successor.id })
 
-  // Hard — court occupancy: at most one match per court+day+slot cell (the public schedule and the admin
-  // grid both render a cell as a single match). With `court` bounded to the six courts, this also makes
-  // "more matches in a slot than courts" impossible without ever counting (ADR-0033).
+  // Hard — court occupancy by interval overlap (ADR-0040): a 90-minute match reserves its court for
+  // [slot, slot + SLOT_SPAN), so two same-day matches on one court conflict when their starts are fewer
+  // than SLOT_SPAN steps apart. With `court` bounded to the six courts, this also makes "more matches
+  // running at once than courts" impossible without ever counting (ADR-0033).
   const { court } = candidate.placement
-  const taken = placed.find(m => m.court === court && m.day === day && m.slot === slot)
+  const taken = placed.find(m => m.court === court && m.day === day && Math.abs(m.slot - slot) < SLOT_SPAN)
   if (taken) hard.push({ rule: 'court-taken', otherMatchId: taken.id })
 
   // Soft — per named player (an undecided feeder/bye slot is null and carries no load yet).

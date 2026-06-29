@@ -325,4 +325,19 @@ describe('POST /api/admin/match/place + GET /api/schedule', () => {
     const row = await env.DB.prepare('SELECT court FROM matches WHERE id = ?').bind(b).first<{ court: number | null }>()
     expect(row?.court).toBeNull()
   })
+
+  // Occupancy is now interval overlap, not cell-equality (ADR-0040): a second match starting on the same
+  // court within the first's 90-minute interval (a different slot, still overlapping) is refused too.
+  it('rejects a same-court match overlapping another’s 90-minute interval (different slot)', async () => {
+    await drawField()
+    const semis = await env.DB.prepare('SELECT id FROM matches WHERE round = 1 ORDER BY position').all<{ id: number }>()
+    const [a, b] = semis.results.map(r => r.id)
+
+    await place({ id: a, placement: { court: 4, day: 0, slot: 0 } })
+    const res = await place({ id: b, placement: { court: 4, day: 0, slot: 1 } }) // one step later — still overlaps
+    expect(res.status).toBe(409)
+
+    const row = await env.DB.prepare('SELECT court FROM matches WHERE id = ?').bind(b).first<{ court: number | null }>()
+    expect(row?.court).toBeNull()
+  })
 })

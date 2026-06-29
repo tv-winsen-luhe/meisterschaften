@@ -63,9 +63,11 @@ export const matches = sqliteTable(
     slot2RegId: integer('slot2_reg_id'),
     winnerRegId: integer('winner_reg_id'),
     outcome: text('outcome'),
-    // Schedule placement (ADR-0005): the court (1..6) and the slot (event day 0/1 + 90-minute slot
-    // index) the operator placed this match on. All three null ⇒ unscheduled (the grid backlog); they
-    // travel together (a half-placed match is meaningless). Validation of the placement is #89's.
+    // Schedule placement (ADR-0005, ADR-0040): the court (1..6) and the slot (event day 0/1 + 30-minute
+    // start-slot index; a 90-minute match spans three) the operator placed this match on. All three null
+    // ⇒ unscheduled (the grid backlog); they travel together (a half-placed match is meaningless). The
+    // column type is unchanged — only the slot's *meaning* narrowed to a 30-minute index (no data
+    // migration: no schedule rows exist yet). Validation lives in shared/schedule's `validatePlacement`.
     court: integer('court'),
     day: integer('day'),
     slot: integer('slot'),
