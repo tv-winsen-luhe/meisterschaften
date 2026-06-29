@@ -10,6 +10,7 @@ import {
   type DrawBlocker,
   DRAW_BLOCKER_REASON,
   drawSize,
+  isDrawStageLocked,
   isFullyRevealed,
   type Match,
   type Phase
@@ -61,6 +62,28 @@ export const CompetitionsSurface = ({
     return map
   }, [draws])
 
+  // The pre-draw lock (isDrawStageLocked, see its rationale): in `signup` with nothing drawn the surface
+  // shows a calm "not yet" panel instead of cards with disabled „Jetzt auslosen" buttons. `hasDraws` is
+  // the main-bracket presence the cards below consume (drawByCompetition), so the gate and the cards can
+  // never disagree on "is there a draw". The sidebar keeps the tab enabled (it answers „where am I", not
+  // „is it time" — ADR-0019); this panel answers the latter.
+  if (isDrawStageLocked(phase, drawByCompetition.size > 0)) {
+    return (
+      <Empty className="m-5 border">
+        <EmptyHeader>
+          <EmptyMedia variant="icon">
+            <Shuffle />
+          </EmptyMedia>
+          <EmptyTitle>Auslosung startet nach Anmeldeschluss</EmptyTitle>
+          <EmptyDescription>
+            Während der Anmeldung wird noch nicht ausgelost. Sobald die Anmeldung geschlossen ist (Phase „Turnier"),
+            kann hier jede Konkurrenz ausgelost werden. Bis dahin: Anmeldungen bestätigen, Setzliste prüfen.
+          </EmptyDescription>
+        </EmptyHeader>
+      </Empty>
+    )
+  }
+
   if (registrations.length === 0) {
     return (
       <Empty className="m-5 border">
@@ -69,9 +92,10 @@ export const CompetitionsSurface = ({
             <Shuffle />
           </EmptyMedia>
           <EmptyTitle>Noch nichts auszulosen</EmptyTitle>
+          {/* Reached only past signup (the pre-draw lock above owns that message) with no registrations
+              yet — so this speaks only to the missing entries, not to a registration close already done. */}
           <EmptyDescription>
-            Sobald Anmeldungen bestätigt sind und die Anmeldung geschlossen ist, kann hier jede Konkurrenz ausgelost
-            werden.
+            Sobald Anmeldungen bestätigt sind, kann hier jede Konkurrenz ausgelost werden.
           </EmptyDescription>
         </EmptyHeader>
       </Empty>

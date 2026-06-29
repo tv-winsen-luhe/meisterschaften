@@ -218,6 +218,20 @@ export const drawBlocker = (phase: Phase, confirmed: number): DrawBlocker | null
   return null
 }
 
+/**
+ * Whether the draw surface (UI: „Auslosung") should show its calm "not yet" panel instead of the
+ * per-competition cards. The lock is for the genuine pre-draw stage only — `signup` with nothing yet
+ * drawn — so registration close (phase `tournament`) opens the cards, and an existing draw always wins
+ * (a phase flipped back after drawing keeps its brackets). `null` and `post-event` deliberately do NOT
+ * lock: `null` (the phase still loading, or a failed best-effort read) falls through to the cards' own
+ * disabled-button affordance — recoverable, never a panel stuck with no cards — and a finished event
+ * shows its archived brackets, not a "starts after registration close" panel for a deadline already
+ * past. Mirrors the schedule surface's empty (UI: „Spielplan") but keyed on the phase, not on draw
+ * existence: the draw is *created* on this surface, so a data-only mirror would lock it exactly when the
+ * operator needs it. _(See ADR-0027.)_
+ */
+export const isDrawStageLocked = (phase: Phase | null, hasDraws: boolean): boolean => phase === 'signup' && !hasDraws
+
 // ── Random source port (ADR-0002, ADR-0010 port pattern) ────────────────────────────────────────
 // The draw's only entropy. Production injects a crypto adapter; tests inject a deterministic fake.
 // `int(n)` is an **unbiased** integer in [0, n) — fairness is a product feature here (ADR-0002),
