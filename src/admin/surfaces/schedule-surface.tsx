@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { toast } from 'sonner'
-import { CalendarDays, X } from 'lucide-react'
+import { CalendarDays, Sparkles, X } from 'lucide-react'
 import {
   absoluteSlot,
   type AdminRegistration,
@@ -11,11 +11,13 @@ import {
   type Match,
   type Placement,
   resolveBracket,
+  type SchedulableMatch,
   type SoftViolation,
   SLOT_INDICES,
   slotLabel,
   type SlotView,
   slotTime,
+  suggestSchedule,
   validatePlacement
 } from '../../../shared'
 import { tournament } from '@/data/tournament'
@@ -148,6 +150,26 @@ export const ScheduleSurface = ({ registrations, draws, onPlace }: ScheduleSurfa
     void place(selected, placement)
   }
 
+  const [suggesting, setSuggesting] = useState(false)
+
+  const suggest = async () => {
+    setSuggesting(true)
+    try {
+      const suggestions = suggestSchedule(allMatches as SchedulableMatch[])
+      if (suggestions.length === 0) {
+        toast.info('Keine Matches zum Platzieren.')
+        return
+      }
+      for (const s of suggestions) {
+        await onPlace(s.id, s.placement)
+      }
+      setSelected(null)
+      toast.success(`${suggestions.length} Matches vorgeschlagen.`)
+    } finally {
+      setSuggesting(false)
+    }
+  }
+
   const onCellClick = (day: number, slot: number, court: number) => {
     const cell = placedByCell.get(`${day}-${slot}-${court}`)
     if (cell) {
@@ -179,11 +201,25 @@ export const ScheduleSurface = ({ registrations, draws, onPlace }: ScheduleSurfa
   return (
     <div className="min-h-0 flex-1 overflow-y-auto p-5">
       <div className="flex w-full flex-col gap-5">
-        <p className="text-muted-foreground text-sm">
-          {selected !== null
-            ? 'Match aufgenommen — tippe eine freie Zelle, um es zu platzieren.'
-            : 'Match wählen (unten oder im Raster), dann eine Zelle antippen.'}
-        </p>
+        <div className="flex items-center justify-between gap-3">
+          <p className="text-muted-foreground text-sm">
+            {selected !== null
+              ? 'Match aufgenommen — tippe eine freie Zelle, um es zu platzieren.'
+              : 'Match wählen (unten oder im Raster), dann eine Zelle antippen.'}
+          </p>
+
+          {backlog.length > 0 && (
+            <button
+              type="button"
+              disabled={suggesting}
+              onClick={suggest}
+              className="bg-primary text-primary-foreground hover:bg-primary/90 inline-flex shrink-0 items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors disabled:opacity-50"
+            >
+              <Sparkles className="size-4" />
+              Vorschlag
+            </button>
+          )}
+        </div>
 
         <Backlog
           matches={backlog}
