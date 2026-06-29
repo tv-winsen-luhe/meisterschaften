@@ -2,10 +2,12 @@ import { useMemo, useState } from 'react'
 import { toast } from 'sonner'
 import { CalendarDays, X } from 'lucide-react'
 import {
+  absoluteSlot,
   type AdminRegistration,
   type CompetitionDraw,
   COURT_NUMBERS,
   DAY_INDICES,
+  earliestPlaceableSlot,
   type Match,
   type Placement,
   resolveBracket,
@@ -103,6 +105,13 @@ export const ScheduleSurface = ({ registrations, draws, onPlace }: ScheduleSurfa
     return out
   }, [draws, nameById])
 
+  const selectedEarliest = useMemo(() => {
+    if (selected === null) return 0
+    const m = allMatches.find(x => x.id === selected)
+    if (!m) return 0
+    return earliestPlaceableSlot(m, allMatches)
+  }, [selected, allMatches])
+
   const backlog = gridMatches.filter(g => g.match.court === null)
   const placedByCell = useMemo(() => {
     const map = new Map<string, GridMatch>()
@@ -189,6 +198,7 @@ export const ScheduleSurface = ({ registrations, draws, onPlace }: ScheduleSurfa
             label={`${DAYS[day]?.weekday ?? `Tag ${day + 1}`} · ${DAYS[day]?.short ?? ''}`}
             placedByCell={placedByCell}
             selected={selected}
+            selectedEarliest={selectedEarliest}
             onCellClick={onCellClick}
             onUnplace={id => void place(id, null)}
           />
@@ -245,11 +255,12 @@ interface DayGridProps {
   label: string
   placedByCell: Map<string, GridMatch>
   selected: number | null
+  selectedEarliest: number
   onCellClick: (day: number, slot: number, court: number) => void
   onUnplace: (id: number) => void
 }
 // One day's courts × time grid: a row per slot (its „ca." time), a column per court.
-const DayGrid = ({ day, label, placedByCell, selected, onCellClick, onUnplace }: DayGridProps) => (
+const DayGrid = ({ day, label, placedByCell, selected, selectedEarliest, onCellClick, onUnplace }: DayGridProps) => (
   <section className="bg-card flex flex-col gap-3 rounded-xl border p-4">
     <span className="font-semibold">{label}</span>
     <div className="overflow-x-auto">
@@ -273,17 +284,20 @@ const DayGrid = ({ day, label, placedByCell, selected, onCellClick, onUnplace }:
             {COURT_NUMBERS.map(court => {
               const cell = placedByCell.get(`${day}-${slot}-${court}`)
               const isSelected = cell !== undefined && cell.match.id === selected
-              const isDropTarget = cell === undefined && selected !== null
+              const abs = absoluteSlot(day, slot)
+              const tooEarly = selected !== null && cell === undefined && abs < selectedEarliest
+              const isDropTarget = cell === undefined && selected !== null && !tooEarly
               return (
                 <button
                   key={court}
                   type="button"
                   onClick={() => onCellClick(day, slot, court)}
-                  disabled={cell === undefined && selected === null}
+                  disabled={(cell === undefined && selected === null) || tooEarly}
                   className={cn(
                     'relative min-h-16 rounded-md border p-1.5 text-left transition-colors',
                     cell ? 'bg-background' : 'border-dashed',
                     isSelected && 'border-foreground ring-foreground/20 ring-2',
+                    tooEarly && 'cursor-not-allowed opacity-40',
                     isDropTarget && 'border-foreground/40 bg-foreground/5 hover:bg-foreground/10',
                     cell === undefined && selected === null && 'cursor-default'
                   )}
