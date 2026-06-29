@@ -22,6 +22,7 @@ import {
 } from '../../../shared'
 import { tournament } from '@/data/tournament'
 import { cn } from '@/admin/lib/utils'
+import { Button } from '@/admin/ui/button'
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/admin/ui/empty'
 import { competitionLabel } from './registration-detail'
 import { type GridMatch, MatchCard, type SlotLabel } from './schedule-match-card'
@@ -155,22 +156,31 @@ export const ScheduleSurface = ({ registrations, draws, onPlace }: ScheduleSurfa
   const suggest = async () => {
     setSuggesting(true)
     try {
-      const suggestions = suggestSchedule(allMatches as SchedulableMatch[])
+      const mainMatches = allMatches.filter(m => m.bracket === 'main') as SchedulableMatch[]
+      const suggestions = suggestSchedule(mainMatches)
       if (suggestions.length === 0) {
         toast.info('Keine Matches zum Platzieren.')
         return
       }
+      let placed = 0
       for (const s of suggestions) {
-        await onPlace(s.id, s.placement)
+        const ok = await onPlace(s.id, s.placement)
+        if (!ok) break
+        placed++
       }
       setSelected(null)
-      toast.success(`${suggestions.length} Matches vorgeschlagen.`)
+      if (placed === suggestions.length) {
+        toast.success(`${placed} Matches vorgeschlagen.`)
+      } else {
+        toast.warning(`${placed} von ${suggestions.length} Matches platziert.`)
+      }
     } finally {
       setSuggesting(false)
     }
   }
 
   const onCellClick = (day: number, slot: number, court: number) => {
+    if (suggesting) return
     const cell = placedByCell.get(`${day}-${slot}-${court}`)
     if (cell) {
       // Tapping an occupied cell picks that match up to move it (a second tap on its own cell deselects).
@@ -209,22 +219,19 @@ export const ScheduleSurface = ({ registrations, draws, onPlace }: ScheduleSurfa
           </p>
 
           {backlog.length > 0 && (
-            <button
-              type="button"
-              disabled={suggesting}
-              onClick={suggest}
-              className="bg-primary text-primary-foreground hover:bg-primary/90 inline-flex shrink-0 items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors disabled:opacity-50"
-            >
+            <Button size="sm" disabled={suggesting} onClick={suggest}>
               <Sparkles className="size-4" />
               Vorschlag
-            </button>
+            </Button>
           )}
         </div>
 
         <Backlog
           matches={backlog}
           selected={selected}
-          onSelect={id => setSelected(prev => (prev === id ? null : id))}
+          onSelect={id => {
+            if (!suggesting) setSelected(prev => (prev === id ? null : id))
+          }}
         />
 
         {DAY_INDICES.map(day => (
