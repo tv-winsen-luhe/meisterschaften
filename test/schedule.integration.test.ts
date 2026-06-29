@@ -292,8 +292,8 @@ describe('POST /api/admin/match/place + GET /api/schedule', () => {
   })
 
   // The hard guard (ADR-0033, #89): a placement that breaks the round dependency is rejected server-side
-  // as the authority, and the match stays unplaced. Soft warnings (player load) are the grid's affordance
-  // and never block here. (The pure rule set is exercised in test/schedule.test.ts.)
+  // as the authority, and the match stays unplaced. Soft warnings (player load, short rest) are the grid's
+  // affordance and never block here. (The pure rule set is exercised in test/schedule.test.ts.)
   it('rejects a final placed at or before its semifinal (round dependency), leaving it unplaced', async () => {
     await drawField()
     const semi = (await env.DB.prepare('SELECT id FROM matches WHERE round = 1 ORDER BY position LIMIT 1').first<{
@@ -338,6 +338,31 @@ describe('POST /api/admin/match/place + GET /api/schedule', () => {
     expect(res.status).toBe(409)
 
     const row = await env.DB.prepare('SELECT court FROM matches WHERE id = ?').bind(b).first<{ court: number | null }>()
+    expect(row?.court).toBeNull()
+  })
+
+  // A player in two time-overlapping matches is the fourth hard rule (ADR-0040): one person cannot be on
+  // two courts at once. It bites in practice when a round-1 loser drops into the consolation bracket the
+  // same day; with consolation draws not yet wired, we manufacture the shared player directly so the
+  // server-side authority is still pinned. Two main-bracket matches are forced to share a player, then
+  // placed on different courts at overlapping times — the second is refused and stays unplaced.
+  it('rejects a shared player placed into two time-overlapping matches (different courts)', async () => {
+    await drawField()
+    const semis = await env.DB.prepare('SELECT id, slot1_reg_id FROM matches WHERE round = 1 ORDER BY position').all<{
+      id: number
+      slot1_reg_id: number
+    }>()
+    const [a, b] = semis.results
+    // Force B's first line to share A's player, so the two matches now collide on one person.
+    await env.DB.prepare('UPDATE matches SET slot1_reg_id = ? WHERE id = ?').bind(a.slot1_reg_id, b.id).run()
+
+    await place({ id: a.id, placement: { court: 1, day: 0, slot: 0 } })
+    const res = await place({ id: b.id, placement: { court: 2, day: 0, slot: 1 } }) // other court, overlapping interval
+    expect(res.status).toBe(409)
+
+    const row = await env.DB.prepare('SELECT court FROM matches WHERE id = ?')
+      .bind(b.id)
+      .first<{ court: number | null }>()
     expect(row?.court).toBeNull()
   })
 

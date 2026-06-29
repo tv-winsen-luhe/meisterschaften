@@ -36,7 +36,12 @@ export const SCHEDULE = {
   // must *finish* by its court's bound: the four dark courts clear by ~20:00 in daylight (last start
   // 18:30); the floodlit pair may run to the 22:00 quiet-hours curfew (last start 20:30).
   daylightEndMinutes: 20 * 60,
-  curfewMinutes: 22 * 60
+  curfewMinutes: 22 * 60,
+  // The minimum comfortable rest between a player's two matches (ADR-0040), in minutes — a fixed bound to
+  // confirm with the organizer nearer the event, not computed. A rest gap (`nextStart − previousEnd`)
+  // under this raises a soft, overridable warning; an actual interval overlap is the harder „one person,
+  // two courts" block, not this nudge.
+  minRestMinutes: 60
 } as const
 
 // The number of 30-minute slots a 90-minute match spans on the grid — three. A placement reserves its
@@ -248,17 +253,24 @@ interface PlacedMatch {
 //  - `court-window`: the candidate's 90 minutes would run past its court's evening window — the four dark
 //    courts must finish by ~20:00 daylight, the floodlit pair by the 22:00 curfew (ADR-0040). It is about
 //    the candidate's own cell, not a clash with another match, so it carries no `otherMatchId`.
+//  - `player-overlap`: a player in the candidate would be in two time-overlapping matches at once — one
+//    person, two courts, physically impossible (ADR-0040). Now expressible thanks to the interval model;
+//    it bites when a round-1 loser drops into the consolation bracket the same day. `regId` is the shared
+//    player, `otherMatchId` the match they already hold.
 export type HardViolation =
   | { rule: 'feeder-order'; otherMatchId: number }
   | { rule: 'court-taken'; otherMatchId: number }
   | { rule: 'court-window' }
+  | { rule: 'player-overlap'; regId: number; otherMatchId: number }
 
-// A **soft** violation — a player-load comfort concern the operator may override (ADR-0033).
+// A **soft** violation — a player-comfort concern the operator may override (ADR-0033).
 //  - `player-load`: the player would hold more than 2 matches on the candidate's day. `count` is the total.
-//  - `back-to-back`: the player would play two matches in adjacent same-day slots, with no rest gap.
+//  - `short-rest`: the player's rest between two same-day matches (`nextStart − previousEnd`) would be under
+//    `minRestMinutes` (ADR-0040). It only covers non-overlapping matches — an actual overlap is the hard
+//    `player-overlap` block, not a rest nudge. `otherMatchId` is the player's other match.
 export type SoftViolation =
   | { rule: 'player-load'; regId: number; count: number }
-  | { rule: 'back-to-back'; regId: number; otherMatchId: number }
+  | { rule: 'short-rest'; regId: number; otherMatchId: number }
 
 export interface PlacementValidation {
   hard: HardViolation[]
@@ -273,7 +285,7 @@ export interface PlacementCandidate {
 }
 
 // Day-major slot ordinal across the whole event, so a later day's slot 0 sorts after an earlier day's
-// last slot. The one ordering the structural feeder floor and the rest gap read from.
+// last slot. The structural feeder floor (`earliestPlaceableSlot` vs `here`) is ordered against it.
 export const absoluteSlot = (day: number, slot: number): number => day * SCHEDULE.slotsPerDay + slot
 
 // A point on the grid's day-major time axis — the minimal shape `endsBefore` compares (the candidate
@@ -459,14 +471,23 @@ export const validatePlacement = (
   // occupancy and feeder order, not a soft nudge.
   if (!withinEveningWindow(court, day, slot)) hard.push({ rule: 'court-window' })
 
-  // Soft — per named player (an undecided feeder/bye slot is null and carries no load yet).
+  // Hard + soft — per named player (an undecided feeder/bye slot is null and carries no clash/load yet).
+  // The interval model makes "one person on two courts at once" expressible for the first time, so it is a
+  // hard block; the comfort concerns (too little rest, too many matches) stay soft (ADR-0040).
   const players = [self.slot1RegId, self.slot2RegId].filter((r): r is number => r !== null)
   for (const regId of players) {
     const sameDay = placed.filter(m => m.day === day && (m.slot1RegId === regId || m.slot2RegId === regId))
+    // Soft — more than 2 matches for this player on the candidate's day.
     const load = sameDay.length + 1
     if (load > 2) soft.push({ rule: 'player-load', regId, count: load })
-    const adjacent = sameDay.find(m => Math.abs(m.slot - slot) === 1)
-    if (adjacent) soft.push({ rule: 'back-to-back', regId, otherMatchId: adjacent.id })
+    // Per other same-day match (the filter already pins the day, so a plain slot delta is the start-time
+    // gap in minutes): a 90-minute interval overlap is the hard "two courts at once" block; once the
+    // intervals clear, an under-`minRestMinutes` rest gap (`nextStart − previousEnd`) is a soft nudge.
+    for (const m of sameDay) {
+      const rest = Math.abs(slot - m.slot) * SCHEDULE.slotMinutes - SCHEDULE.matchMinutes
+      if (rest < 0) hard.push({ rule: 'player-overlap', regId, otherMatchId: m.id })
+      else if (rest < SCHEDULE.minRestMinutes) soft.push({ rule: 'short-rest', regId, otherMatchId: m.id })
+    }
   }
 
   return { hard, soft }

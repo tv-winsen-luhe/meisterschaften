@@ -328,11 +328,12 @@ describe('validatePlacement', () => {
   describe('soft — player load', () => {
     it('warns (does not block) on a player with more than 2 matches in a day', () => {
       // Player 101 already plays two day-0 matches; the candidate is their third. Spread across courts
-      // (and ≥ SLOT_SPAN apart) so only the soft player-load rule bites, not court occupancy.
+      // and far enough apart that neither court occupancy nor the short-rest rule bites — only the soft
+      // player-load count.
       const a = pm(20, 1, 0, { p: [101, 201], at: { court: 1, day: 0, slot: 0 } })
       const b = pm(21, 1, 1, { p: [101, 202], at: { court: 2, day: 0, slot: 3 } })
       const candidate = pm(22, 1, 2, { p: [101, 203] })
-      const { hard, soft } = validatePlacement([a, b, candidate], { id: 22, placement: { court: 3, day: 0, slot: 6 } })
+      const { hard, soft } = validatePlacement([a, b, candidate], { id: 22, placement: { court: 3, day: 0, slot: 8 } })
       expect(hard).toEqual([])
       expect(soft).toContainEqual({ rule: 'player-load', regId: 101, count: 3 })
     })
@@ -346,18 +347,45 @@ describe('validatePlacement', () => {
     })
   })
 
-  describe('soft — back-to-back', () => {
-    it('warns on a player playing adjacent same-day slots with no rest gap', () => {
-      const earlier = pm(30, 1, 0, { p: [101, 201], at: { court: 1, day: 0, slot: 1 } })
+  describe('hard — player overlap (ADR-0040)', () => {
+    it('blocks a player held in two overlapping matches across brackets (the consolation-drop case)', () => {
+      // The rule's reason to exist (shared/schedule.ts): a round-1 loser dropping into the consolation
+      // bracket the same day. The earlier consolation match holds court 1 slot 0; the main candidate two
+      // steps later (slot 2) still overlaps that [0, SLOT_SPAN) interval — one person, two courts at once.
+      const earlier = { ...pm(30, 1, 0, { p: [101, 201], at: { court: 1, day: 0, slot: 0 } }), bracket: 'consolation' }
       const candidate = pm(31, 1, 1, { p: [101, 202] })
-      const { soft } = validatePlacement([earlier, candidate], { id: 31, placement: { court: 2, day: 0, slot: 2 } })
-      expect(soft).toContainEqual({ rule: 'back-to-back', regId: 101, otherMatchId: 30 })
+      const { hard } = validatePlacement([earlier, candidate], { id: 31, placement: { court: 2, day: 0, slot: 2 } })
+      expect(hard).toEqual([{ rule: 'player-overlap', regId: 101, otherMatchId: 30 }])
     })
 
-    it('does not warn when the player has a slot of rest between matches', () => {
+    it('does not clash a player across different days (a match never spans midnight)', () => {
       const earlier = pm(30, 1, 0, { p: [101, 201], at: { court: 1, day: 0, slot: 0 } })
       const candidate = pm(31, 1, 1, { p: [101, 202] })
-      const { soft } = validatePlacement([earlier, candidate], { id: 31, placement: { court: 2, day: 0, slot: 2 } })
+      const { hard } = validatePlacement([earlier, candidate], { id: 31, placement: { court: 1, day: 1, slot: 0 } })
+      expect(hard).toEqual([])
+    })
+  })
+
+  describe('soft — short rest (ADR-0040)', () => {
+    it('warns on under-60-minute rest between a player’s two same-day matches', () => {
+      // Earlier at slot 0 (09:00–10:30); the candidate SLOT_SPAN steps later (10:30) leaves 0 minutes'
+      // rest — under the 60-minute comfort bound — but the intervals do not overlap, so it only warns.
+      const earlier = pm(30, 1, 0, { p: [101, 201], at: { court: 1, day: 0, slot: 0 } })
+      const candidate = pm(31, 1, 1, { p: [101, 202] })
+      const { hard, soft } = validatePlacement([earlier, candidate], {
+        id: 31,
+        placement: { court: 2, day: 0, slot: SLOT_SPAN }
+      })
+      expect(hard).toEqual([])
+      expect(soft).toContainEqual({ rule: 'short-rest', regId: 101, otherMatchId: 30 })
+    })
+
+    it('does not warn once the player has at least 60 minutes’ rest', () => {
+      // Earlier at slot 0 ends 10:30; the candidate at slot 5 (11:30) leaves a full 60 minutes — at the
+      // bound, so no warning.
+      const earlier = pm(30, 1, 0, { p: [101, 201], at: { court: 1, day: 0, slot: 0 } })
+      const candidate = pm(31, 1, 1, { p: [101, 202] })
+      const { soft } = validatePlacement([earlier, candidate], { id: 31, placement: { court: 2, day: 0, slot: 5 } })
       expect(soft).toEqual([])
     })
   })

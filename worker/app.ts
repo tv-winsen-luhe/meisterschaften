@@ -345,9 +345,10 @@ export const createApp = (makeDeps: (env: Env) => Deps = createDepsFromEnv) =>
     // backlog (ADR-0005). The schema enforces the all-or-nothing placement shape; `validatePlacement`
     // then enforces the **hard** rules server-side as the authority (ADR-0033, ADR-0040): a match may not
     // share or precede a round-dependent match's slot, land on a court+slot another match already holds,
-    // nor start so late it runs past the court's evening window (daylight on 1–4, the curfew on 5 & 6).
-    // Soft warnings (player load) are the grid's affordance, not a server block — the operator may
-    // override them, so they never reach here. Clearing to the backlog (null) is always sound.
+    // start so late it runs past the court's evening window (daylight on 1–4, the curfew on 5 & 6), nor
+    // put a player into two time-overlapping matches at once. Soft warnings (player load, short rest) are
+    // the grid's affordance, not a server block — the operator may override them, so they never reach here.
+    // Clearing to the backlog (null) is always sound.
     .post('/api/admin/match/place', parseGuard, v(placeMatchRequestSchema), async c => {
       const { id, placement } = c.req.valid('json')
       if (placement) {
@@ -355,7 +356,10 @@ export const createApp = (makeDeps: (env: Env) => Deps = createDepsFromEnv) =>
         const { hard } = validatePlacement(matches, { id, placement })
         if (hard.length > 0)
           return c.json(
-            { error: 'Diese Platzierung ist nicht möglich: Runden-Reihenfolge, belegter Platz oder Abendfenster.' },
+            {
+              error:
+                'Diese Platzierung ist nicht möglich: Runden-Reihenfolge, belegter Platz, Abendfenster oder ein Spieler gleichzeitig in zwei Matches.'
+            },
             409
           )
       }
