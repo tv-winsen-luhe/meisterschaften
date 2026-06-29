@@ -332,7 +332,7 @@ const layoutFor = (slug: string) => (slug === 'mens' || slug === 'womens' ? 'boa
 
 <script>
   import { hc } from 'hono/client'
-  import { displaySeedCount, MIN_DRAW_ENTRIES } from '../../shared'
+  import { displaySeedCount, isChallengerField, MIN_DRAW_ENTRIES } from '../../shared'
   import type { AppType } from '../../worker/app'
   import type { Participant, ParticipantsResponse, Phase } from '../../shared'
 
@@ -364,7 +364,7 @@ const layoutFor = (slug: string) => (slug === 'mens' || slug === 'womens' ? 'boa
     return li
   }
 
-  const row = (entry: Entry, layout: string, rank: number, isSeed: boolean): HTMLLIElement => {
+  const row = (entry: Entry, layout: string, rank: number, isSeed: boolean, challenger: boolean): HTMLLIElement => {
     const li = document.createElement('li')
     li.className = isSeed ? 'pl-row pl-row--seed' : 'pl-row'
 
@@ -391,10 +391,15 @@ const layoutFor = (slug: string) => (slug === 'mens' || slug === 'womens' ? 'boa
     name.textContent = `${entry.firstName} ${entry.lastName}`.trim()
     li.appendChild(name)
 
-    const lk = document.createElement('span')
-    lk.className = entry.lk ? 'pl-lk' : 'pl-lk pl-lk--pending'
-    lk.textContent = entry.lk ? `LK ${entry.lk}` : 'LK folgt'
-    li.appendChild(lk)
+    // The protected Challenger field does not advertise strength publicly (CONTEXT: Challenger), so the
+    // public list omits the LK entirely — neither „LK x" nor „LK folgt". The admin still shows it (it
+    // needs the LK to bind the cap at the draw, ADR-0024).
+    if (!challenger) {
+      const lk = document.createElement('span')
+      lk.className = entry.lk ? 'pl-lk' : 'pl-lk pl-lk--pending'
+      lk.textContent = entry.lk ? `LK ${entry.lk}` : 'LK folgt'
+      li.appendChild(lk)
+    }
 
     return li
   }
@@ -431,6 +436,7 @@ const layoutFor = (slug: string) => (slug === 'mens' || slug === 'womens' ? 'boa
     root.querySelectorAll<HTMLElement>('[data-group]').forEach(group => {
       const slug = group.dataset.group!
       const layout = group.dataset.layout || 'list'
+      const challenger = isChallengerField(slug)
       const entries = byComp.get(slug) ?? []
       const list = group.querySelector<HTMLElement>('[data-list]')!
       const empty = group.querySelector<HTMLElement>('[data-empty]')!
@@ -470,7 +476,7 @@ const layoutFor = (slug: string) => (slug === 'mens' || slug === 'womens' ? 'boa
         const rank = i + 1
         // Separate the seeded players from the rest, which get drawn at the draw.
         if (seeds > 0 && rank === seeds + 1) list.appendChild(divider())
-        list.appendChild(row(e, layout, rank, seeds > 0 && rank <= seeds))
+        list.appendChild(row(e, layout, rank, seeds > 0 && rank <= seeds, challenger))
       })
     })
   }

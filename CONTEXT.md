@@ -77,7 +77,9 @@ concept here drifts or a new one appears, update this file rather than inventing
   standing DB preference. One pure predicate `challengerEligibility(entries, threshold)` in `shared/seeding.ts` is
   both the draw's hard guard (a too-strong entry blocks the field's draw) and the provisional seeding
   list's affordance — authority in the draw, affordance in the client, definition once (ADR-0011).
-  _(See ADR-0024.)_
+  Because the field is **protected, its strength is not advertised publicly**: the public surfaces
+  (participant list, draw bracket) **omit the LK and the seed numbers** for it — only the admin, which
+  needs the LK to bind the cap, shows them. _(See ADR-0024.)_
 - **Registration** (de: Anmeldung; D1 table `registrations`) — one member's entry into one competition.
   Status flow: `new` → `confirmed` → `cancelled`. **`cancelled`** is the single "no longer participating,
   keep the record" state, reached either by the member's self-service withdrawal (`/api/cancel`, by person)

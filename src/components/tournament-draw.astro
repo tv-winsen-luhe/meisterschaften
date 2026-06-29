@@ -50,7 +50,7 @@ const drawCompetitions = competitions
   </div>
 
   <p class="dm-legend" data-legend>
-    <span class="dm-legend__item">
+    <span class="dm-legend__item" data-legend-seed>
       <span class="dm-legend__chip dm-legend__chip--seed">1</span> nach Leistungsklasse gesetzt
     </span>
     <span class="dm-legend__item">
@@ -324,6 +324,10 @@ const drawCompetitions = competitions
     align-items: center;
     gap: 9px;
   }
+  /* Hidden on a Challenger tab (no seed badge there) — explicit, as inline-flex would override [hidden]. */
+  .dm-legend__item[hidden] {
+    display: none;
+  }
   .dm-legend__chip {
     flex-shrink: 0;
     width: 22px;
@@ -360,7 +364,7 @@ const drawCompetitions = competitions
 
 <script>
   import { hc } from 'hono/client'
-  import { bracketStructure, displayDrawSize, MIN_DRAW_ENTRIES, revealedBracket } from '../../shared'
+  import { bracketStructure, displayDrawSize, isChallengerField, MIN_DRAW_ENTRIES, revealedBracket } from '../../shared'
   import type { AppType } from '../../worker/app'
   import type { Participant, ParticipantsResponse, PlayerDisplay, PublicDraw, PublicRevealStep } from '../../shared'
 
@@ -397,12 +401,14 @@ const drawCompetitions = competitions
   }
 
   // A placed line: a player with their name, LK, and (if seeded) the seed badge. Shared by the
-  // provisional preview (always seeded) and the live reveal (seeded or drawn).
-  const playerEl = (player: PlayerDisplay, seed: number | null): HTMLElement => {
+  // provisional preview (always seeded) and the live reveal (seeded or drawn). On a protected
+  // Challenger field (`challenger`) the public bracket does not advertise strength (CONTEXT:
+  // Challenger), so both the seed badge and the LK are omitted — only the admin draw show keeps them.
+  const playerEl = (player: PlayerDisplay, seed: number | null, challenger: boolean): HTMLElement => {
     const el = document.createElement('div')
     el.className = 'dm-slot dm-slot--seed'
 
-    if (seed !== null) {
+    if (seed !== null && !challenger) {
       const no = document.createElement('span')
       no.className = 'dm-seedno'
       no.textContent = String(seed)
@@ -415,18 +421,21 @@ const drawCompetitions = competitions
     name.textContent = `${player.firstName} ${player.lastName}`.trim()
     el.appendChild(name)
 
-    const lk = document.createElement('span')
-    lk.className = player.lk ? 'dm-lk' : 'dm-lk dm-lk--pending'
-    lk.textContent = player.lk ? `LK ${player.lk}` : 'LK folgt'
-    el.appendChild(lk)
+    if (!challenger) {
+      const lk = document.createElement('span')
+      lk.className = player.lk ? 'dm-lk' : 'dm-lk dm-lk--pending'
+      lk.textContent = player.lk ? `LK ${player.lk}` : 'LK folgt'
+      el.appendChild(lk)
+    }
 
     return el
   }
 
-  const slotEl = (slot: Slot): HTMLElement => (slot ? playerEl(slot.player, slot.seed) : tbdEl())
+  const slotEl = (slot: Slot, challenger: boolean): HTMLElement =>
+    slot ? playerEl(slot.player, slot.seed, challenger) : tbdEl()
 
   // A revealed reveal step → its line element: a placed player, or an empty bye line („Freilos", §31).
-  const revealSlotEl = (step: PublicRevealStep | undefined): HTMLElement => {
+  const revealSlotEl = (step: PublicRevealStep | undefined, challenger: boolean): HTMLElement => {
     if (!step) return tbdEl()
     if (step.kind === 'bye') {
       const el = document.createElement('div')
@@ -437,7 +446,7 @@ const drawCompetitions = competitions
       el.appendChild(fl)
       return el
     }
-    return step.player ? playerEl(step.player, step.seed) : tbdEl()
+    return step.player ? playerEl(step.player, step.seed, challenger) : tbdEl()
   }
 
   // Render one round column (label + matches). `slotFor(line)` yields each round-1 line's element;
@@ -521,7 +530,7 @@ const drawCompetitions = competitions
   // line is „?". Pure affordance — the lot has not run. The size follows the **confirmed field**, not the
   // competition capacity (ADR-0034): 7 confirmed shows an 8-bracket, not a 16, mirroring the real draw.
   // displayDrawSize clamps to the supported sizes (4/8/16), so bracketStructure never throws.
-  const buildPreview = (bracket: HTMLElement, players: Entry[]) => {
+  const buildPreview = (bracket: HTMLElement, players: Entry[], challenger: boolean) => {
     if (players.length < MIN_DRAW_ENTRIES) {
       bracket.innerHTML = ''
       bracket.appendChild(needFourEl(players.length))
@@ -539,23 +548,23 @@ const drawCompetitions = competitions
       const pos = seedPos[i + 1]
       if (pos !== undefined) slots[pos] = { seed: i + 1, player }
     })
-    renderBracket(bracket, size, (r, i) => (r === 0 ? slotEl(slots[i]) : tbdEl()))
+    renderBracket(bracket, size, (r, i) => (r === 0 ? slotEl(slots[i], challenger) : tbdEl()))
   }
 
   // The live reveal: the server sends only the steps revealed so far (sliced to the cursor), each placing
   // a player onto its first-round line. A revealed round-1 bye is a resolved match (§31): the paired
   // player advances „ohne Spiel", so once both its lines are revealed it already shows in round 2 — the
   // one round a bye carries a player forward (ADR-0025; deeper rounds stay „?" until matches are played).
-  const buildReveal = (bracket: HTMLElement, draw: PublicDraw) => {
+  const buildReveal = (bracket: HTMLElement, draw: PublicDraw, challenger: boolean) => {
     // The revealed bracket: round-1 lines by position and the round-2 bye-winners (§31). The same shared
     // interpretation the operator draw show renders (CONTEXT: Revealed bracket) — no bracket logic here,
     // only the DOM binding below.
     const { lines, byeWinners } = revealedBracket(draw.size, draw.steps)
 
     renderBracket(bracket, draw.size, (r, i) => {
-      if (r === 0) return revealSlotEl(lines[i])
+      if (r === 0) return revealSlotEl(lines[i], challenger)
       const winner = r === 1 ? byeWinners[i] : null
-      return winner ? playerEl(winner.player, winner.seed) : tbdEl()
+      return winner ? playerEl(winner.player, winner.seed, challenger) : tbdEl()
     })
   }
 
@@ -581,18 +590,24 @@ const drawCompetitions = competitions
       const slug = panel.dataset.panel!
       const bracket = panel.querySelector<HTMLElement>('[data-bracket]')
       if (!bracket) return
+      const challenger = isChallengerField(slug)
       const drawn = drawByComp.get(slug)
-      if (drawn) buildReveal(bracket, drawn)
-      else buildPreview(bracket, byComp.get(slug) ?? [])
+      if (drawn) buildReveal(bracket, drawn, challenger)
+      else buildPreview(bracket, byComp.get(slug) ?? [], challenger)
     })
   }
 
   const initTabs = () => {
     if (!root) return
     const tabs = [...root.querySelectorAll<HTMLButtonElement>('[data-tab]')]
+    // The seed legend item explains the LK-based seed badge — meaningless on a protected Challenger tab,
+    // whose bracket suppresses the badge (CONTEXT: Challenger). Hide it there so the public legend never
+    // advertises strength („nach Leistungsklasse gesetzt") for a field that shows none.
+    const seedLegend = root.querySelector<HTMLElement>('[data-legend-seed]')
     const select = (slug: string) => {
       tabs.forEach(t => t.setAttribute('aria-selected', String(t.dataset.tab === slug)))
       root.querySelectorAll<HTMLElement>('[data-panel]').forEach(p => (p.hidden = p.dataset.panel !== slug))
+      if (seedLegend) seedLegend.hidden = isChallengerField(slug)
     }
     tabs.forEach((tab, i) => {
       tab.addEventListener('click', () => select(tab.dataset.tab!))
@@ -604,6 +619,9 @@ const drawCompetitions = competitions
         select(tabs[next].dataset.tab!)
       })
     })
+    // Sync the legend to the server-rendered initial tab (first tab = championship, so the seed item shows).
+    const initial = tabs.find(t => t.getAttribute('aria-selected') === 'true') ?? tabs[0]
+    if (initial) select(initial.dataset.tab!)
   }
 
   // The participant feed seeds the pre-draw preview; it changes rarely, so it loads once (and on a
