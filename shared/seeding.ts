@@ -67,3 +67,63 @@ export const challengerEligibility = <E extends ChallengerEntry>(
   const tooStrong = entries.filter(e => isLkTooStrongForChallenger(e.lk, threshold))
   return { eligible: tooStrong.length === 0, tooStrong }
 }
+
+// ── Field cut (CONTEXT: Field cut / Reserve, ADR-0043) ───────────────────────────────────────────
+// When a field's active entries exceed its capacity the surplus become reserves; **which entries are
+// in** depends on the field type. Owned here (ADR-0011: definition once) so the planning cockpit's
+// load projection and the provisional seeding list's cut line order the field identically.
+
+// One entry the cut orders — by LK (championship) or registration order (Challenger). A structural
+// subset of a registration (lk + createdAt), generic so both consumers pass their richer rows through.
+export interface FieldCutEntry {
+  lk: string | null
+  createdAt: string
+}
+
+// The cut-order comparator for a competition (ADR-0043). A **championship** field cuts by strength:
+// `seedingValue` ascending (strongest first), with registration order (`createdAt`) as the tie-break
+// among equal LKs — the same tie-break the draw uses (drawBracket's DrawPlayer order). A **Challenger /
+// recreational** field cuts by plain registration order: strength must not decide a protected field,
+// so LK is ignored entirely. `createdAt` is a sortable string (the same `localeCompare` the queue sort
+// uses), so the comparison needs no parsing.
+export const compareForCut =
+  (competition: string) =>
+  (a: FieldCutEntry, b: FieldCutEntry): number =>
+    isChallengerField(competition)
+      ? a.createdAt.localeCompare(b.createdAt)
+      : seedingValue(a.lk) - seedingValue(b.lk) || a.createdAt.localeCompare(b.createdAt)
+
+// One ranked entry: its 1-based position in the cut order and whether it falls below the cut (a
+// reserve — still `confirmed`, simply not drawn; CONTEXT: Reserve).
+export interface RankedCutEntry<E> {
+  entry: E
+  position: number
+  reserve: boolean
+}
+
+// The result of cutting a field: the active entries in cut order with their reserve flag, the counts
+// either side of the line, and whether the cut is provisional. A **championship** cut is provisional —
+// it acts on LKs that drift until the seeding freeze (ADR-0024), so the line moves as LKs sync. A
+// **Challenger** cut is stable — its key (`createdAt`) never drifts, so a spot is secure once taken.
+export interface FieldCutResult<E> {
+  ranked: RankedCutEntry<E>[]
+  inField: number
+  reserves: number
+  provisional: boolean
+}
+
+// Cut a field's `entries` (its **active** rows — new + confirmed) at `capacity`: order them by the
+// field-type rule (compareForCut), then mark everything from index `capacity` on as a reserve. The
+// cut decides *who is in* — the bracket still seeds the drawn field by LK (ADR-0043). Pure: it copies
+// before sorting, so the caller's array is left untouched.
+export const fieldCut = <E extends FieldCutEntry>(
+  entries: readonly E[],
+  competition: string,
+  capacity: number
+): FieldCutResult<E> => {
+  const ranked = [...entries]
+    .sort(compareForCut(competition))
+    .map((entry, i) => ({ entry, position: i + 1, reserve: i >= capacity }))
+  const inField = Math.min(ranked.length, capacity)
+  return { ranked, inField, reserves: ranked.length - inField, provisional: !isChallengerField(competition) }
+}

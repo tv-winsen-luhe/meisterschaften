@@ -61,6 +61,54 @@ export const consolationMatches = (confirmed: number): number => {
 /** Total matches a field runs: main draw + consolation (R1-loser consolation). */
 export const matchCount = (confirmed: number): number => mainDrawMatches(confirmed) + consolationMatches(confirmed)
 
+// ── Court-budget projection (CONTEXT: Court budget, ADR-0023, ADR-0043) ──────────────────────────
+// The planning cockpit's court-load math: how the fields' projected match load sits against the one
+// shared weekend budget. Pure and built on matchCount above (the one draw-math source), so the gauge
+// can never disagree with the draw on how many matches a field of N runs. The capacities and the
+// reservation are content (tournament.ts); they enter as plain numbers, keeping this shared and pure.
+
+// One field's planning inputs: its active count (new + confirmed) and its soft capacity.
+export interface CourtBudgetField {
+  active: number
+  capacity: number
+}
+
+export interface CourtBudgetProjection {
+  // Match load at the current active counts, and if every field filled to its capacity.
+  load: number
+  fullLoad: number
+  // The Damen-Freizeit reservation and the weekend budget, echoed back for the gauge.
+  reserved: number
+  budget: number
+  // The two pressure totals against the budget: live (load + reserved) and full-fill (fullLoad + reserved).
+  used: number
+  projected: number
+  // Overbooked already (the live load bursts the budget) / overbooked if every field fills — the
+  // planning warning keys off the latter, the live red figure off the former.
+  over: boolean
+  projectedOver: boolean
+}
+
+/**
+ * Project the weekend court load for a set of fields against the shared budget (ADR-0043). A field
+ * draws at most `capacity` into its bracket — the cut (ADR-0043) leaves the surplus as reserves, who
+ * add no bracket matches — so a field's live load is `matchCount(min(active, capacity))`, never the
+ * raw active count. That clamp also keeps every figure within the supported draw sizes (capacity ≤ 16),
+ * so an over-subscribed field never reaches an unsupported `matchCount`. `reserved` is the planned
+ * Damen-Freizeit block (shares the same budget); `budget` is the weekend's match-slot ceiling (= 72).
+ */
+export const courtBudgetProjection = (
+  fields: readonly CourtBudgetField[],
+  reserved: number,
+  budget: number
+): CourtBudgetProjection => {
+  const load = fields.reduce((sum, f) => sum + matchCount(Math.min(f.active, f.capacity)), 0)
+  const fullLoad = fields.reduce((sum, f) => sum + matchCount(f.capacity), 0)
+  const used = load + reserved
+  const projected = fullLoad + reserved
+  return { load, fullLoad, reserved, budget, used, projected, over: used > budget, projectedOver: projected > budget }
+}
+
 // ── Bracket structure (ADR-0025) ────────────────────────────────────────────────────────────────
 // The single home for the bracket *topology* — seed lines and per-round shape — that the public
 // preview's client JS (tournament-draw.astro: SEED_POS / ROUNDS) used to re-derive. The draw, the

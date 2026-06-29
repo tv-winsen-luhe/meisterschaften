@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { Fragment, useMemo } from 'react'
 import { ListOrdered, TriangleAlert } from 'lucide-react'
 import {
   type AdminRegistration,
@@ -7,62 +7,82 @@ import {
   challengerEligibility,
   COMPETITION_SLUGS,
   drawSize,
+  fieldCut,
+  isActive,
   isChallengerField,
-  isSupportedDrawSize,
-  seedingValue
+  isSupportedDrawSize
 } from '../../../shared'
 import { cn } from '@/admin/lib/utils'
 import { Badge } from '@/admin/ui/badge'
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/admin/ui/empty'
-import { CLUB_LOGOS, competitionLabel } from './registration-detail'
+import { CLUB_LOGOS, competitionCapacity, competitionLabel } from './registration-detail'
 
 interface SeedingSurfaceProps {
   registrations: AdminRegistration[]
 }
 
-// One row of the provisional seeding: the registration, its provisional position (1-based, by LK),
-// whether it falls within the seed cutoff (DTB §30.5a) and — for the Challenger field — whether its
-// LK is too strong for the cap.
+// One row of the provisional seeding: the registration, its position in the cut order (1-based),
+// whether it is a drawn seed (DTB §30.5a), whether it falls below the field cut (a reserve), and —
+// for the Challenger field — whether its LK is too strong for the cap.
 interface SeedingRow {
   reg: AdminRegistration
   position: number
   seeded: boolean
+  reserve: boolean
   tooStrong: boolean
 }
 
-// The provisional seeding list (de: provisorische Setzliste, issue #72): per competition, the
-// confirmed players ordered by seedingValue (ascending → strongest first, the draw's seeding order)
-// with their LK, all on one screen (no pagination, ADR-0021). It reflects the LK live — the rows are
-// the admin list the shell already holds, which the weekly nuLiga cron keeps fresh during signup, so
-// every reload mirrors the current LK before the seeding freeze (ADR-0010). The top `seedCount`
-// players (DTB §30.5a: 8-field → 2, 16-field → 4) are marked as seeded, so the operator sees the
-// seeding cutoff, not just a flat ranking. For the Challenger field it marks entries too strong for
-// the cap via the shared challengerEligibility predicate (ADR-0011) — the same authority the draw
-// guard reuses (the affordance here, the hard block there; ADR-0024). It is a read-only preview: the
-// operator eyeballs seeding + Challenger eligibility before auslosen.
+// The provisional seeding list + field cut (de: provisorische Setzliste, CONTEXT: Field cut, issue
+// #72 / ADR-0043): per competition, the **active** players (new + confirmed) ranked in cut order, with
+// a cut line drawn at the field's `capacity` — above the line is in the field, below is a reserve
+// (Nachrücker). The cut criterion depends on the field type (fieldCut, ADR-0043): a championship field
+// ranks by LK (the cut is **provisional** — LK drifts until the seeding freeze, ADR-0010/0024), a
+// Challenger field by registration order (the cut is **stable** — that key never drifts). `new` rows
+// carry an LK because `matchOnRegister` matches them at signup and `syncAll` refreshes them weekly, so
+// the list is rankable without confirming anyone first. The top `seedCount` of a championship field's
+// drawn entries are marked as seeded (the cut order is the LK order there); a Challenger field is not
+// ranked by strength, so it shows no seed badges. Too-strong Challenger entries are flagged via the
+// shared challengerEligibility predicate — the same authority the draw guard reuses (affordance here,
+// hard block there; ADR-0011, ADR-0024). Read-only: the operator eyeballs the cut + eligibility before
+// auslosen; authority stays in the domain (the draw enforces the cut at the freeze, Schicht 2).
 export const SeedingSurface = ({ registrations }: SeedingSurfaceProps) => {
   const fields = useMemo(() => {
     return COMPETITION_SLUGS.map(slug => {
-      // Seeded over the confirmed entries — the set the draw seeds (a `new` row is not yet in).
-      const confirmed = registrations
-        .filter(r => r.competition === slug && r.status === 'confirmed')
-        .sort((a, b) => seedingValue(a.lk) - seedingValue(b.lk))
-      // The number of seeds for this provisional field (DTB §30.5a), read from the one topology
-      // source the draw itself uses. Only the supported sizes (4/8/16) have a seed table; an unsupported
-      // field (size 2 or 32) shows no seed markers (0) rather than guessing — bracketStructure would throw.
-      const size = drawSize(confirmed.length)
-      const seedCount = isSupportedDrawSize(size) ? bracketStructure(size).seedCount : 0
-      // The Challenger field is judged against the current cap; other fields have none, so the set of
-      // too-strong rows stays empty. challengerEligibility takes the field's entries directly.
-      const tooStrong = isChallengerField(slug) ? challengerEligibility(confirmed, CHALLENGER_MIN_LK).tooStrong : []
+      const isChallenger = isChallengerField(slug)
+      // The cut ranks the active field (new + confirmed); a `new` row already carries a derived LK.
+      const active = registrations.filter(r => r.competition === slug && isActive(r.status))
+      // A field with no capacity (a planned field, not registerable today) gets no cut — pass the full
+      // count as the cap so nothing is a reserve. The three live fields all carry a capacity.
+      const capacity = competitionCapacity(slug)
+      const cut = fieldCut(active, slug, capacity ?? active.length)
+      // Seeds preview the *drawn* field (the in-field entries): the DTB seed count for that field's
+      // draw size, and only for the supported sizes (4/8/16) — bracketStructure throws otherwise.
+      // Shown only for a championship field, where the cut order is the LK order so the top rows are
+      // the seeds; a Challenger field cuts by registration order, so its rows are not in seed order.
+      const size = drawSize(cut.inField)
+      const seedCount = !isChallenger && isSupportedDrawSize(size) ? bracketStructure(size).seedCount : 0
+      // The Challenger field is judged against the current cap (over the active set); other fields
+      // have none, so the too-strong set stays empty.
+      const tooStrong = isChallenger ? challengerEligibility(active, CHALLENGER_MIN_LK).tooStrong : []
       const tooStrongIds = new Set(tooStrong.map(r => r.id))
-      const rows: SeedingRow[] = confirmed.map((reg, i) => ({
-        reg,
-        position: i + 1,
-        seeded: i < seedCount,
-        tooStrong: tooStrongIds.has(reg.id)
+      const rows: SeedingRow[] = cut.ranked.map(({ entry, position, reserve }) => ({
+        reg: entry,
+        position,
+        seeded: !reserve && position <= seedCount,
+        reserve,
+        tooStrong: tooStrongIds.has(entry.id)
       }))
-      return { slug, label: competitionLabel(slug), rows, seedCount, tooStrongCount: tooStrong.length }
+      return {
+        slug,
+        label: competitionLabel(slug),
+        capacity,
+        provisional: cut.provisional,
+        inField: cut.inField,
+        reserves: cut.reserves,
+        seedCount,
+        tooStrongCount: tooStrong.length,
+        rows
+      }
     })
   }, [registrations])
 
@@ -76,7 +96,8 @@ export const SeedingSurface = ({ registrations }: SeedingSurfaceProps) => {
           </EmptyMedia>
           <EmptyTitle>Noch keine Setzliste</EmptyTitle>
           <EmptyDescription>
-            Sobald Anmeldungen bestätigt sind, erscheint hier pro Konkurrenz die provisorische Setzung nach LK.
+            Sobald Anmeldungen vorliegen, erscheint hier pro Konkurrenz die provisorische Reihenfolge — mit Schnittlinie
+            bei der Maximalgröße, sobald ein Feld voll ist.
           </EmptyDescription>
         </EmptyHeader>
       </Empty>
@@ -97,51 +118,93 @@ export const SeedingSurface = ({ registrations }: SeedingSurfaceProps) => {
 interface FieldCardProps {
   label: string
   rows: SeedingRow[]
+  capacity: number | undefined
+  provisional: boolean
+  inField: number
+  reserves: number
   seedCount: number
   tooStrongCount: number
 }
-// One competition's provisional seeding: a header with the confirmed count, the number of seeds, and
-// (Challenger only) an eligibility badge, then the seeded rows. An empty field shows the header alone
-// so the operator sees every competition's state at a glance, not just the populated ones.
-const FieldCard = ({ label, rows, seedCount, tooStrongCount }: FieldCardProps) => (
-  <section className="bg-card flex flex-col gap-3 rounded-xl border p-4">
-    <div className="flex flex-wrap items-center justify-between gap-3">
-      <div className="flex items-center gap-3">
-        <span className="font-semibold">{label}</span>
-        {tooStrongCount > 0 && (
-          <Badge className="border-amber-300 bg-amber-50 text-amber-900">
-            <TriangleAlert className="size-3" />
-            {tooStrongCount} zu stark
-          </Badge>
-        )}
+// One competition's provisional seeding: a header with the active count (plus the field/reserve split
+// once the cut bites and the seed count), then the ranked rows with the cut line drawn at capacity. An
+// empty field shows the header alone so the operator sees every competition's state at a glance.
+const FieldCard = ({
+  label,
+  rows,
+  capacity,
+  provisional,
+  inField,
+  reserves,
+  seedCount,
+  tooStrongCount
+}: FieldCardProps) => {
+  // Where the cut line goes — before the first reserve row. -1 when the field is at or below capacity
+  // (no reserves), so no line is drawn: the cut only shows once a field is genuinely over its limit.
+  const firstReserve = rows.findIndex(r => r.reserve)
+  return (
+    <section className="bg-card flex flex-col gap-3 rounded-xl border p-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <span className="font-semibold">{label}</span>
+          {tooStrongCount > 0 && (
+            <Badge className="border-amber-300 bg-amber-50 text-amber-900">
+              <TriangleAlert className="size-3" />
+              {tooStrongCount} zu stark
+            </Badge>
+          )}
+        </div>
+        <span className="text-muted-foreground text-sm tabular-nums">
+          {rows.length} aktiv
+          {reserves > 0 && ` · ${inField} im Feld · ${reserves} Nachrücker`}
+          {seedCount > 0 && ` · ${seedCount} gesetzt`}
+        </span>
       </div>
-      <span className="text-muted-foreground text-sm tabular-nums">
-        {rows.length} bestätigt
-        {seedCount > 0 && ` · ${seedCount} gesetzt`}
-      </span>
-    </div>
 
-    {rows.length === 0 ? (
-      <p className="text-muted-foreground text-sm">Noch keine bestätigten Anmeldungen.</p>
-    ) : (
-      <ol className="flex flex-col">
-        {rows.map(row => (
-          <SeedRow key={row.reg.id} {...row} />
-        ))}
-      </ol>
-    )}
-  </section>
+      {rows.length === 0 ? (
+        <p className="text-muted-foreground text-sm">Noch keine Anmeldungen.</p>
+      ) : (
+        <ol className="flex flex-col">
+          {rows.map((row, i) => (
+            <Fragment key={row.reg.id}>
+              {i === firstReserve && <CutLine capacity={capacity} provisional={provisional} />}
+              <SeedRow {...row} />
+            </Fragment>
+          ))}
+        </ol>
+      )}
+    </section>
+  )
+}
+
+interface CutLineProps {
+  capacity: number | undefined
+  provisional: boolean
+}
+// The field cut (CONTEXT: Field cut, ADR-0043): a labelled rule between the in-field rows above and
+// the reserves below. „vorläufig" for a championship field (the cut moves as LKs sync until the
+// freeze), „fix" for a Challenger field (registration order never drifts — a spot is secure once
+// taken). Not aria-hidden: the label conveys the cut to assistive tech, not just the dimmed rows.
+const CutLine = ({ capacity, provisional }: CutLineProps) => (
+  <li className="my-1 flex items-center gap-2 py-1">
+    <span className="h-px flex-1 bg-amber-300" />
+    <span className="text-[11px] font-semibold tracking-wide text-amber-700 uppercase">
+      Schnitt bei {capacity} · {provisional ? 'vorläufig' : 'fix'}
+    </span>
+    <span className="h-px flex-1 bg-amber-300" />
+  </li>
 )
 
-// One seeded row: the provisional position (a filled seed badge for a seeded player, a muted number
-// otherwise — mirroring the bracket's seed badge), the club logo, the player name, the LK, and — for
-// a too-strong Challenger entry — an amber „stark"-marker. The LK is shown as stored; a row with no
-// resolvable rating seeds at the weakest, which its position already reflects.
-const SeedRow = ({ reg, position, seeded, tooStrong }: SeedingRow) => (
+// One ranked row: the position in the cut order (a filled seed badge for a drawn seed — mirroring the
+// bracket's seed badge — a muted number otherwise), the club logo, the player name, the LK, and — for
+// a too-strong Challenger entry — an amber „stark"-marker. A reserve (below the cut) is dimmed: still
+// confirmed, simply not drawn. The LK is shown as stored; a row with no resolvable rating seeds at the
+// weakest, which its position already reflects.
+const SeedRow = ({ reg, position, seeded, reserve, tooStrong }: SeedingRow) => (
   <li
     className={cn(
       'flex items-center gap-3 border-b py-2 text-sm last:border-b-0',
-      tooStrong && '-mx-2 rounded bg-amber-50/60 px-2'
+      tooStrong && '-mx-2 rounded bg-amber-50/60 px-2',
+      reserve && 'opacity-55'
     )}
   >
     <span className="flex w-6 shrink-0 justify-center">

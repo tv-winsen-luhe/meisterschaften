@@ -1,10 +1,12 @@
-import { ArrowRight, LayoutDashboard } from 'lucide-react'
+import { ArrowRight, LayoutDashboard, TriangleAlert } from 'lucide-react'
 import {
   type AdminRegistration,
   byeCount,
   COMPETITION_SLUGS,
   type CompetitionSlug,
   CLUBS,
+  type CourtBudgetProjection,
+  courtBudgetProjection,
   drawSize,
   isActive,
   matchCount
@@ -83,11 +85,20 @@ export const OverviewSurface = ({
     confirmed: rows.reduce((s, r) => s + r.confirmed, 0)
   }
 
-  // Projected match load (ADR-0023 follow-up): main draw + consolation per field, summed over the
-  // active players (confirmed + new — cancelled are out). `fullMatches` is the same at full field
-  // capacity (≈ 54), shown as a reference marker against the weekend court budget.
-  const matchesNeeded = rows.reduce((s, r) => s + matchCount(r.new + r.confirmed), 0)
-  const fullMatches = rows.reduce((s, r) => s + matchCount(r.capacity ?? 0), 0)
+  // The planning cockpit's court-load projection (ADR-0023 follow-up, ADR-0043). The decision math —
+  // live vs full-fill load against the shared budget, and the two overbooking flags — lives in the
+  // shared, tested `courtBudgetProjection`, so the gauge never re-derives it. A field's load is its
+  // match count *clamped to capacity*: the cut (ADR-0043) leaves the surplus as reserves, who run no
+  // bracket matches, so an over-subscribed field reads at its cap, not at a phantom over-full count.
+  const planFields = rows.map(r => ({ active: r.new + r.confirmed, capacity: r.capacity ?? 0 }))
+  const projection = courtBudgetProjection(planFields, freizeitReservedSlots, matchSlotsPerWeekend)
+  // Per-field court-slot consumption for the planning breakdown: load now (clamped) vs at the cap —
+  // the "if it fills" figure. Same clamp as the projection, so the rows always sum to its total.
+  const fieldLoads = rows.map(r => ({
+    label: r.label,
+    load: matchCount(Math.min(r.new + r.confirmed, r.capacity ?? 0)),
+    capacityLoad: matchCount(r.capacity ?? 0)
+  }))
 
   return (
     <div className="min-h-0 flex-1 overflow-y-auto p-5">
@@ -114,12 +125,7 @@ export const OverviewSurface = ({
             <Summary label="Bestätigt" value={totals.confirmed} dot="bg-emerald-500" />
           </div>
           <div className="border-t border-dashed" />
-          <CourtLoad
-            needed={matchesNeeded}
-            full={fullMatches}
-            reserved={freizeitReservedSlots}
-            budget={matchSlotsPerWeekend}
-          />
+          <CourtLoad projection={projection} fields={fieldLoads} />
         </section>
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -197,25 +203,25 @@ const Summary = ({ label, value, dot, emphasis }: SummaryProps) => (
 )
 
 interface CourtLoadProps {
-  // Projected championship matches at the current active registrations.
-  needed: number
-  // Championship matches at full field capacity — drives the headroom marker (≈ 57).
-  full: number
-  // Court slots reserved for the planned Damen-Freizeit field (provisional, ADR-0023).
-  reserved: number
-  // The weekend court budget that reads as 100 % (= 72).
-  budget: number
+  // The court-budget projection (shared, tested): live vs full-fill load, the two pressure totals and
+  // the overbooking flags. The gauge renders it; it owns no budget math (ADR-0043).
+  projection: CourtBudgetProjection
+  // Per-field court-slot consumption: load now vs at the field's cap — the planning breakdown.
+  fields: { label: string; load: number; capacityLoad: number }[]
 }
-// The Gesamtauslastung gauge (ADR-0023 follow-up): weekend court pressure as two stacked segments —
-// the live championship load (solid) and the reserved Damen-Freizeit block (striped, provisional) —
-// against the 72-slot budget. The marker sits where a full championship plus the reservation would
-// land, so the operator sees whether the weekend still fits. Red once the total exceeds the budget.
-const CourtLoad = ({ needed, full, reserved, budget }: CourtLoadProps) => {
-  const used = needed + reserved
+// The Gesamtauslastung gauge + planning cockpit (ADR-0023 follow-up, ADR-0043): weekend court pressure
+// as two stacked segments — the live championship load (solid) and the reserved Damen-Freizeit block
+// (striped, provisional) — against the 72-slot budget. The marker sits where a full field plus the
+// reservation would land, so the operator sees whether the weekend still fits if every field fills to
+// its cap. Beneath it, the per-field slot breakdown shows where the load sits and which cap drives it —
+// the lever the operator adjusts (the soft `capacity` constants in tournament.ts). The figure turns red
+// when the live load already bursts the budget; the marker reddens and an overbooking warning appears
+// when a *full* field would (the planning signal, distinct from the live one).
+const CourtLoad = ({ projection, fields }: CourtLoadProps) => {
+  const { load, fullLoad, reserved, budget, used, projected, over, projectedOver } = projection
   const pct = Math.round((used / budget) * 100)
   const seg = (v: number) => `${Math.max(0, Math.min(100, (v / budget) * 100))}%`
-  const fullMark = Math.min(100, ((full + reserved) / budget) * 100)
-  const over = used > budget
+  const fullMark = Math.min(100, (projected / budget) * 100)
   return (
     <div className="flex flex-col gap-2">
       <div className="flex items-baseline justify-between gap-2">
@@ -231,24 +237,54 @@ const CourtLoad = ({ needed, full, reserved, budget }: CourtLoadProps) => {
       <div className="bg-muted relative h-2 w-full overflow-hidden rounded-full">
         <div
           className={cn('absolute inset-y-0 left-0', over ? 'bg-red-500' : 'bg-foreground')}
-          style={{ width: seg(needed) }}
+          style={{ width: seg(load) }}
         />
         {/* Reserved Freizeit block — striped to read as provisional, not yet booked matches. */}
         <div
           className="absolute inset-y-0"
           style={{
-            left: seg(needed),
+            left: seg(load),
             width: seg(reserved),
             backgroundImage: 'repeating-linear-gradient(45deg, var(--color-foreground) 0 2px, transparent 2px 5px)',
             opacity: 0.5
           }}
           aria-hidden
         />
-        <div className="bg-foreground/40 absolute inset-y-0 w-px" style={{ left: `${fullMark}%` }} aria-hidden />
+        {/* Full-fill marker — where a full field + the reservation would land; red once that overbooks. */}
+        <div
+          className={cn('absolute inset-y-0 w-px', projectedOver ? 'bg-red-500' : 'bg-foreground/40')}
+          style={{ left: `${fullMark}%` }}
+          aria-hidden
+        />
       </div>
       <p className="text-muted-foreground text-xs">
-        Championship {needed} (voll ≈ {full}) · Damen Freizeit ~{reserved} reserviert (Format offen, 02.07)
+        Championship {load} (voll ≈ {fullLoad}) · Damen Freizeit ~{reserved} reserviert (Format offen, 02.07)
       </p>
+
+      {/* Per-field court-slot breakdown — current load vs the field's limit, so the operator sees which
+          cap drives the budget and where the headroom is (ADR-0043). Slots, not players: the cards
+          above already carry the registration fill; this is the court-load split. */}
+      <dl className="mt-1 flex flex-col gap-1 border-t border-dashed pt-2">
+        {fields.map(f => (
+          <div key={f.label} className="flex items-baseline justify-between gap-2 text-xs">
+            <dt className="text-muted-foreground truncate">{f.label}</dt>
+            <dd className="tabular-nums">
+              <span className="text-foreground font-medium">{f.load}</span>
+              <span className="text-muted-foreground"> / {f.capacityLoad} Slots</span>
+            </dd>
+          </div>
+        ))}
+      </dl>
+
+      {projectedOver && (
+        <p className="flex items-start gap-1.5 text-xs font-medium text-red-700">
+          <TriangleAlert className="mt-px size-3.5 shrink-0" />
+          <span>
+            Bei voller Auslastung {projected} Slots — über dem Budget ({budget}). Feld-Limits in tournament.ts senken.
+          </span>
+        </p>
+      )}
+
       <p className="text-muted-foreground text-xs">
         {courtSchedule.courts} Plätze · {courtSchedule.matchMinutes} min · Sa+So
       </p>
