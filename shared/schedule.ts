@@ -260,6 +260,71 @@ export const earliestPlaceableSlot = (match: PlacedMatch, matches: readonly Plac
  * place-from-backlog and a move. Rests on the one-active-entry invariant (CONTEXT.md): a regId is one
  * person, so player load is a plain count with no cross-field clash to resolve.
  */
+// The minimal match shape `suggestSchedule` reads — the same as `PlacedMatch`, reused so the caller
+// passes one array to both validation and auto-suggest.
+export type { PlacedMatch as SchedulableMatch }
+
+/**
+ * Auto-suggest a draft schedule: fill unplaced matches into grid cells, respecting all hard
+ * constraints (via `validatePlacement`) and preferring cells without soft warnings. Already-placed
+ * matches are treated as fixed — never moved. Deterministic (no clock, no randomness): same input
+ * → same plan. Returns only the newly suggested placements (the caller applies them as a draft).
+ *
+ * Algorithm: greedily assign each unplaced match (round asc, position asc — so round 1 packs from
+ * the top) into the first valid cell (day-major, slot within day, court ascending). A cell is
+ * "valid" if `validatePlacement` returns zero hard violations. Among valid cells, the one with
+ * zero soft warnings wins; if all have warnings, the first valid cell wins. This is a simple
+ * greedy fill — not a global optimizer — per the issue spec.
+ */
+export const suggestSchedule = (matches: readonly PlacedMatch[]): { id: number; placement: Placement }[] => {
+  const result: { id: number; placement: Placement }[] = []
+
+  // Mutable working copy: as we suggest placements, we apply them so subsequent candidates see them.
+  const working: PlacedMatch[] = matches.map(m => ({ ...m }))
+
+  // Unplaced matches, sorted for deterministic greedy fill: round 1 first, then by position.
+  const unplaced = working
+    .filter(m => m.court === null && m.outcome !== 'bye')
+    .sort((a, b) => a.round - b.round || a.position - b.position)
+
+  for (const match of unplaced) {
+    let bestPlacement: Placement | null = null
+    let bestHasSoft = true
+
+    // Try every cell in day-major order (day 0 before day 1, slot 0 before slot 1, court 1 before court 2).
+    for (let day = 0; day < SCHEDULE.days; day++) {
+      for (let slot = 0; slot < SCHEDULE.slotsPerDay; slot++) {
+        for (let court = 1; court <= SCHEDULE.courts; court++) {
+          const placement: Placement = { court, day, slot }
+          const { hard, soft } = validatePlacement(working, { id: match.id, placement })
+          if (hard.length > 0) continue
+          if (soft.length === 0) {
+            // Perfect cell — use it immediately (first soft-free cell in day-major order).
+            bestPlacement = placement
+            bestHasSoft = false
+            break
+          }
+          if (bestPlacement === null) {
+            // First valid cell (has warnings) — record as fallback.
+            bestPlacement = placement
+          }
+        }
+        if (bestPlacement && !bestHasSoft) break
+      }
+      if (bestPlacement && !bestHasSoft) break
+    }
+
+    if (bestPlacement) {
+      // Apply placement to the working set so subsequent matches see this as occupied.
+      const idx = working.findIndex(m => m.id === match.id)
+      working[idx] = { ...working[idx], court: bestPlacement.court, day: bestPlacement.day, slot: bestPlacement.slot }
+      result.push({ id: match.id, placement: bestPlacement })
+    }
+  }
+
+  return result
+}
+
 export const validatePlacement = (
   matches: readonly PlacedMatch[],
   candidate: PlacementCandidate
