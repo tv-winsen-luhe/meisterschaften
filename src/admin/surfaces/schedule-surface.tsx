@@ -2,6 +2,16 @@ import { useMemo, useState } from 'react'
 import { toast } from 'sonner'
 import { CalendarDays, Sparkles } from 'lucide-react'
 import {
+  DndContext,
+  DragOverlay,
+  MouseSensor,
+  TouchSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+  type DragStartEvent
+} from '@dnd-kit/core'
+import {
   type AdminRegistration,
   type CompetitionDraw,
   DAY_INDICES,
@@ -20,14 +30,19 @@ import { tournament } from '@/data/tournament'
 import { Button } from '@/admin/ui/button'
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/admin/ui/empty'
 import { competitionLabel } from './registration-detail'
-import { Backlog, DayGrid } from './schedule-grid-parts'
+import { Backlog, DayGrid, DragChip } from './schedule-grid-parts'
 import { type GridMatch, type SlotLabel } from './schedule-match-card'
 import { hardBlockMessage, SoftWarningDialog } from './schedule-warnings'
 
 // The schedule surface (UI: „Spielplan", ADR-0005, issue #88): the operator places drawn matches onto a
-// courts × time grid, spanning both event days. A tracer bullet — placement only, no validation yet
-// (#89). Interaction is select-then-place rather than drag-and-drop: tap a match (in the backlog or on
-// the grid) to pick it up, then tap a cell to drop it; the rich drag affordance can layer on later.
+// courts × time grid, spanning both event days. Two coexisting input gestures feed one placement path
+// (ADR-0038): drag-and-drop is primary (drag a backlog card onto a cell, or drag a placed match between
+// cells), and select-then-place is a first-class fallback (tap a match to pick it up, tap a cell to drop
+// it) — load-bearing for the horizontally-scrolling grid, a phone during a rain delay, and keyboard
+// users. Both gestures funnel through the same `validatePlacement` authority (ADR-0033), so neither can
+// commit a hard-invalid placement and both surface the same soft warnings. A „Vorschlag" button auto-fills
+// the backlog through the same validator (#122). The grid lives in schedule-grid-parts.tsx; this surface
+// owns the state and the placement path.
 
 // The two event days, labelled from the home of the date copy (src/data/tournament.ts).
 const DAYS = [tournament.saturday, tournament.sunday]
@@ -49,11 +64,24 @@ interface PendingDrop {
 }
 
 export const ScheduleSurface = ({ registrations, draws, onPlace }: ScheduleSurfaceProps) => {
-  // The match the operator has picked up, waiting for a cell (or a second tap to drop it). Cleared on a
-  // successful place.
+  // The match the operator has picked up by *tap*, waiting for a cell (or a second tap to drop it).
+  // Cleared on a successful place.
   const [selected, setSelected] = useState<number | null>(null)
+  // The match currently being *dragged* (null ⇒ no drag in flight). Drives the same grid affordances as
+  // a tap pickup for the duration of the gesture, then clears when the pointer is released.
+  const [dragId, setDragId] = useState<number | null>(null)
   // A drop awaiting the operator's confirmation past its soft warnings (null ⇒ none pending).
   const [pending, setPending] = useState<PendingDrop | null>(null)
+  // The „Vorschlag" auto-fill in flight — locks out the manual gestures while it writes (#122).
+  const [suggesting, setSuggesting] = useState(false)
+
+  // Drag is the desktop gesture; tap stays the phone/keyboard path (ADR-0038). A small movement
+  // threshold on the mouse keeps a plain click a click (so tap-to-select still fires), and a short
+  // press-hold on touch lets a deliberate drag start without hijacking the grid's horizontal scroll.
+  const sensors = useSensors(
+    useSensor(MouseSensor, { activationConstraint: { distance: 8 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 8 } })
+  )
 
   // Every match across every drawn field, with its current placement — what `validatePlacement` reads
   // to judge a drop (court cap spans all fields; round dependency is per bracket). The wire `Match`
@@ -104,12 +132,16 @@ export const ScheduleSurface = ({ registrations, draws, onPlace }: ScheduleSurfa
     return out
   }, [draws, nameById])
 
-  const selectedEarliest = useMemo(() => {
-    if (selected === null) return 0
-    const m = allMatches.find(x => x.id === selected)
+  // The match "in hand" — picked up by tap or held mid-drag. Drives the grid's drop-target highlight and
+  // the too-early greying for whichever gesture is active, so drag and tap surface the same guard.
+  const inHand = selected ?? dragId
+
+  const inHandEarliest = useMemo(() => {
+    if (inHand === null) return 0
+    const m = allMatches.find(x => x.id === inHand)
     if (!m) return 0
     return earliestPlaceableSlot(m, allMatches)
-  }, [selected, allMatches])
+  }, [inHand, allMatches])
 
   const backlog = gridMatches.filter(g => g.match.court === null)
   const placedByCell = useMemo(() => {
@@ -130,25 +162,25 @@ export const ScheduleSurface = ({ registrations, draws, onPlace }: ScheduleSurfa
     }
   }
 
-  // Drop the in-hand match into a cell, gated by the shared validator (ADR-0033). A hard violation
-  // blocks the drop (the match stays in hand); soft warnings open a confirm dialog the operator can
-  // override; a clean placement goes straight through. Clearing to the backlog never runs this path.
-  const dropInto = (placement: Placement) => {
-    if (selected === null) return
-    const { hard, soft } = validatePlacement(allMatches, { id: selected, placement })
+  // Drop a match into a cell, gated by the shared validator (ADR-0033). A hard violation blocks the drop
+  // (the match stays in hand / in place); soft warnings open a confirm dialog the operator can override;
+  // a clean placement goes straight through. The single funnel for both gestures: tap a cell, or release
+  // a drag over it. Clearing to the backlog never runs this path.
+  const placeInto = (id: number, placement: Placement) => {
+    const { hard, soft } = validatePlacement(allMatches, { id, placement })
     if (hard.length > 0) {
       toast.error(hardBlockMessage(hard))
       return
     }
     if (soft.length > 0) {
-      setPending({ id: selected, placement, soft })
+      setPending({ id, placement, soft })
       return
     }
-    void place(selected, placement)
+    void place(id, placement)
   }
 
-  const [suggesting, setSuggesting] = useState(false)
-
+  // Auto-fill the backlog (#122): the shared planner proposes placements, then each is written through
+  // the same endpoint a hand placement uses — so the suggestion can never commit a hard-invalid plan.
   const suggest = async () => {
     setSuggesting(true)
     try {
@@ -183,9 +215,28 @@ export const ScheduleSurface = ({ registrations, draws, onPlace }: ScheduleSurfa
       setSelected(prev => (prev === cell.match.id ? null : cell.match.id))
     } else if (selected !== null) {
       // An empty cell with a match in hand: drop it here.
-      dropInto({ court, day, slot })
+      placeInto(selected, { court, day, slot })
     }
   }
+
+  const onDragStart = ({ active }: DragStartEvent) => {
+    // A new gesture takes over: drop any tap pickup so the two paths can't both claim a match in hand.
+    setSelected(null)
+    setDragId(Number(active.id))
+  }
+
+  const onDragEnd = ({ active, over }: DragEndEvent) => {
+    setDragId(null)
+    if (!over) return
+    // The structural guard greys too-early cells as disabled droppables, so dnd-kit never reports one
+    // here; the validator stays the authority all the same.
+    const placement = over.data.current as Placement | undefined
+    if (placement) placeInto(Number(active.id), placement)
+  }
+
+  // A drag abandoned without a drop — Escape, a tab switch, a window resize — fires cancel, never end, so
+  // it must clear the held match too, or the grid freezes in a phantom „match in hand" state.
+  const onDragCancel = () => setDragId(null)
 
   if (gridMatches.length === 0) {
     return (
@@ -204,51 +255,59 @@ export const ScheduleSurface = ({ registrations, draws, onPlace }: ScheduleSurfa
     )
   }
 
-  return (
-    <div className="min-h-0 flex-1 overflow-y-auto p-5">
-      <div className="flex w-full flex-col gap-5">
-        <div className="flex items-center justify-between gap-3">
-          <p className="text-muted-foreground text-sm">
-            {selected !== null
-              ? 'Match aufgenommen — tippe eine freie Zelle, um es zu platzieren.'
-              : 'Match wählen (unten oder im Raster), dann eine Zelle antippen.'}
-          </p>
+  const dragged = gridMatches.find(g => g.match.id === dragId) ?? null
 
-          {backlog.length > 0 && (
-            <Button size="sm" disabled={suggesting} onClick={suggest}>
-              <Sparkles className="size-4" />
-              Vorschlag
-            </Button>
-          )}
+  return (
+    <DndContext sensors={sensors} onDragStart={onDragStart} onDragEnd={onDragEnd} onDragCancel={onDragCancel}>
+      <div className="min-h-0 flex-1 overflow-y-auto p-5">
+        <div className="flex w-full flex-col gap-5">
+          <div className="flex items-center justify-between gap-3">
+            <p className="text-muted-foreground text-sm">
+              {inHand !== null
+                ? 'Match aufgenommen — auf eine freie Zelle ziehen oder eine antippen, um es zu platzieren.'
+                : 'Match auf eine freie Zelle ziehen — oder antippen und dann eine Zelle wählen.'}
+            </p>
+
+            {backlog.length > 0 && (
+              <Button size="sm" disabled={suggesting} onClick={suggest}>
+                <Sparkles className="size-4" />
+                Vorschlag
+              </Button>
+            )}
+          </div>
+
+          <Backlog
+            matches={backlog}
+            selected={selected}
+            onSelect={id => {
+              if (!suggesting) setSelected(prev => (prev === id ? null : id))
+            }}
+          />
+
+          {DAY_INDICES.map(day => (
+            <DayGrid
+              key={day}
+              day={day}
+              label={`${DAYS[day]?.weekday ?? `Tag ${day + 1}`} · ${DAYS[day]?.short ?? ''}`}
+              placedByCell={placedByCell}
+              selected={selected}
+              inHand={inHand}
+              inHandEarliest={inHandEarliest}
+              onCellClick={onCellClick}
+              onUnplace={id => void place(id, null)}
+            />
+          ))}
         </div>
 
-        <Backlog
-          matches={backlog}
-          selected={selected}
-          onSelect={id => {
-            if (!suggesting) setSelected(prev => (prev === id ? null : id))
-          }}
+        <SoftWarningDialog
+          soft={pending?.soft ?? null}
+          onConfirm={() => pending && void place(pending.id, pending.placement)}
+          onCancel={() => setPending(null)}
         />
-
-        {DAY_INDICES.map(day => (
-          <DayGrid
-            key={day}
-            day={day}
-            label={`${DAYS[day]?.weekday ?? `Tag ${day + 1}`} · ${DAYS[day]?.short ?? ''}`}
-            placedByCell={placedByCell}
-            selected={selected}
-            selectedEarliest={selectedEarliest}
-            onCellClick={onCellClick}
-            onUnplace={id => void place(id, null)}
-          />
-        ))}
       </div>
 
-      <SoftWarningDialog
-        soft={pending?.soft ?? null}
-        onConfirm={() => pending && void place(pending.id, pending.placement)}
-        onCancel={() => setPending(null)}
-      />
-    </div>
+      {/* The card under the pointer while dragging — rendered detached so the grid layout doesn't shift. */}
+      <DragOverlay>{dragged ? <DragChip match={dragged} /> : null}</DragOverlay>
+    </DndContext>
   )
 }
