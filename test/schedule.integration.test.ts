@@ -1,6 +1,6 @@
 import { applyD1Migrations, env } from 'cloudflare:test'
 import { beforeAll, beforeEach, describe, expect, it } from 'vitest'
-import { scheduleResponseSchema, type ScheduleResponse } from '../shared'
+import { SCHEDULE, scheduleResponseSchema, type ScheduleResponse } from '../shared'
 import { app } from '../worker/app'
 import { createDrawService } from '../worker/draw'
 import { createProjections } from '../worker/projections'
@@ -339,5 +339,39 @@ describe('POST /api/admin/match/place + GET /api/schedule', () => {
 
     const row = await env.DB.prepare('SELECT court FROM matches WHERE id = ?').bind(b).first<{ court: number | null }>()
     expect(row?.court).toBeNull()
+  })
+
+  // The per-court evening window is the third hard rule (ADR-0040), enforced server-side as the authority
+  // — the same 409 the grid pre-empts. We pin both edges at the HTTP level: the dark courts' actual ~20:00
+  // daylight bound (last legal start slot 19 = 18:30; slot 20 = 19:00 finishes 20:30, too late) and the
+  // floodlit pair's reach to the 22:00 curfew (the grid's last slot). The pure rule is in evening-window.test.ts.
+  it('enforces the dark courts’ ~20:00 edge and the floodlit pair’s curfew reach server-side', async () => {
+    await drawField()
+    const semi = (await env.DB.prepare('SELECT id FROM matches WHERE round = 1 ORDER BY position LIMIT 1').first<{
+      id: number
+    }>())!.id
+
+    // A dark court (1–4) takes its last in-window start: slot 19 = 18:30, finishing exactly at 20:00.
+    const darkOk = await place({ id: semi, placement: { court: 1, day: 0, slot: 19 } })
+    expect(darkOk.status).toBe(200)
+
+    // One slot later (19:00 → finishes 20:30) runs past the dark courts' daylight bound: refused, and the
+    // refused move leaves the match on its prior in-window cell (slot 19), never half-applied.
+    const darkLate = await place({ id: semi, placement: { court: 1, day: 0, slot: 20 } })
+    expect(darkLate.status).toBe(409)
+    const held = await env.DB.prepare('SELECT court, slot FROM matches WHERE id = ?')
+      .bind(semi)
+      .first<{ court: number; slot: number }>()
+    expect(held).toMatchObject({ court: 1, slot: 19 })
+
+    // The floodlit court 5 may take the grid's very last slot (20:30) — it runs to the 22:00 curfew, not
+    // past it — the slot no dark court can hold.
+    const lastSlot = SCHEDULE.slotsPerDay - 1
+    const lit = await place({ id: semi, placement: { court: 5, day: 0, slot: lastSlot } })
+    expect(lit.status).toBe(200)
+    const placed = await env.DB.prepare('SELECT court, slot FROM matches WHERE id = ?')
+      .bind(semi)
+      .first<{ court: number; slot: number }>()
+    expect(placed).toMatchObject({ court: 5, slot: lastSlot })
   })
 })

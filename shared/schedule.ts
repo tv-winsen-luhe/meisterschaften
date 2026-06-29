@@ -10,8 +10,8 @@
 // Each event day has its own first start (both currently 9:00), so `slotTime` is day-aware. The
 // numeric shape lives here (the single source both clients size the grid from); the day *labels*
 // („Samstag 22.08.") stay in src/data/tournament.ts, the home of the event's date copy. Per-court evening
-// windows (the floodlit-pair overflow valve, ADR-0040) layer on in a later slice; for now the grid is a
-// uniform height tall enough for the floodlit courts' late starts.
+// windows below make the grid lopsided — the floodlit pair reach later than the dark four (ADR-0040) —
+// but the grid height stays uniform (slotsPerDay), the dark courts' late cells disabled.
 export const SCHEDULE = {
   courts: 6,
   days: 2,
@@ -21,12 +21,22 @@ export const SCHEDULE = {
   slotMinutes: 30,
   // 30-minute start slots per day: 9:00 → 20:30 (the latest start the floodlit courts 5 & 6 allow before
   // the 22:00 quiet-hours curfew) at a 30-minute cadence = 24 slots. A uniform grid height for both days;
-  // the per-court evening windows that make the real grid lopsided come in a later slice.
+  // the per-court evening windows (below) gate which of those rows each court may actually take.
   slotsPerDay: 24,
   // Minutes-from-midnight of each day's first start — both days open at the earliest 9:00 per the
   // organizer. Indexed by the event day (0 = Saturday, 1 = Sunday) and read by `slotTime`, so a per-day
   // start stays expressible (ADR-0040) even though the two are equal today.
-  dayStartMinutes: [9 * 60, 9 * 60]
+  dayStartMinutes: [9 * 60, 9 * 60],
+  // The floodlit courts (ADR-0040): only courts 5 & 6 have lights, so only they may run on into the dark.
+  // They are the overflow valve for a packed Saturday, reaching the 22:00 curfew while the four dark
+  // courts must clear in daylight.
+  floodlitCourts: [5, 6],
+  // Per-court evening windows as fixed clock bounds (minutes from midnight), to be confirmed with the
+  // organizer nearer the event (ADR-0040) — deliberately NOT computed from sunset. A match's 90 minutes
+  // must *finish* by its court's bound: the four dark courts clear by ~20:00 in daylight (last start
+  // 18:30); the floodlit pair may run to the 22:00 quiet-hours curfew (last start 20:30).
+  daylightEndMinutes: 20 * 60,
+  curfewMinutes: 22 * 60
 } as const
 
 // The number of 30-minute slots a 90-minute match spans on the grid — three. A placement reserves its
@@ -49,6 +59,12 @@ export interface Placement {
   slot: number
 }
 
+// Minutes-from-midnight of a (day, slot) start — the single arithmetic both `slotTime` (the „ca." label)
+// and the evening-window check read, so a clock time and its window bound never drift apart. Day-aware
+// via `dayStartMinutes` (ADR-0040); an out-of-range day falls back to the first day's start, never NaN.
+const slotStartMinutes = (day: number, slot: number): number =>
+  (SCHEDULE.dayStartMinutes[day] ?? SCHEDULE.dayStartMinutes[0]) + slot * SCHEDULE.slotMinutes
+
 /**
  * The approximate clock time of a (day, slot) on the grid, "HH:MM" (24h). Times are explicitly a plan,
  * shown „ca." — the live truth is the match status, not a rewritten time (ADR-0032). Day-aware via
@@ -57,12 +73,30 @@ export interface Placement {
  * the first day's start rather than producing NaN.
  */
 export const slotTime = (day: number, slot: number): string => {
-  const start = SCHEDULE.dayStartMinutes[day] ?? SCHEDULE.dayStartMinutes[0]
-  const total = start + slot * SCHEDULE.slotMinutes
+  const total = slotStartMinutes(day, slot)
   const h = Math.floor(total / 60)
   const m = total % 60
   return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`
 }
+
+// Whether a court is floodlit (courts 5 & 6, ADR-0040) — the only courts that may run on past daylight.
+// `.some` rather than `.includes` so the `as const` tuple's literal element type doesn't reject a plain
+// `number` argument.
+export const isFloodlit = (court: number): boolean => SCHEDULE.floodlitCourts.some(c => c === court)
+
+// The latest clock minute (from midnight) a match may *finish* on a court (ADR-0040): the floodlit pair
+// (5 & 6) may run to the 22:00 curfew, the four dark courts must clear by the ~20:00 daylight bound.
+export const courtEndMinutes = (court: number): number =>
+  isFloodlit(court) ? SCHEDULE.curfewMinutes : SCHEDULE.daylightEndMinutes
+
+/**
+ * Whether a (court, day, slot) start respects that court's evening window (ADR-0040): the match's fixed
+ * 90 minutes must finish by the court's end bound — daylight ~20:00 on the four dark courts, the 22:00
+ * curfew on the floodlit pair (5 & 6). The hard `court-window` rule (the server-side authority) and the
+ * grid's drop-target gating both read this, so a dark court's late cell is unplaceable on both surfaces.
+ */
+export const withinEveningWindow = (court: number, day: number, slot: number): boolean =>
+  slotStartMinutes(day, slot) + SCHEDULE.matchMinutes <= courtEndMinutes(court)
 
 // The minimal match shape the schedule helpers read — a bracket position with its two slot references.
 // Generic over the wire `Match` and the store row so neither has to be imported here (and so the
@@ -211,9 +245,13 @@ interface PlacedMatch {
 //    SLOT_SPAN steps apart), not a shared cell (ADR-0040). `otherMatchId` is the match already there.
 //    With `court` bounded to the six courts, this also makes "more matches running at once than courts"
 //    structurally impossible (ADR-0033 — the grid's court rows make the court cap structural).
+//  - `court-window`: the candidate's 90 minutes would run past its court's evening window — the four dark
+//    courts must finish by ~20:00 daylight, the floodlit pair by the 22:00 curfew (ADR-0040). It is about
+//    the candidate's own cell, not a clash with another match, so it carries no `otherMatchId`.
 export type HardViolation =
   | { rule: 'feeder-order'; otherMatchId: number }
   | { rule: 'court-taken'; otherMatchId: number }
+  | { rule: 'court-window' }
 
 // A **soft** violation — a player-load comfort concern the operator may override (ADR-0033).
 //  - `player-load`: the player would hold more than 2 matches on the candidate's day. `count` is the total.
@@ -414,6 +452,12 @@ export const validatePlacement = (
   const { court } = candidate.placement
   const taken = placed.find(m => m.court === court && m.day === day && Math.abs(m.slot - slot) < SLOT_SPAN)
   if (taken) hard.push({ rule: 'court-taken', otherMatchId: taken.id })
+
+  // Hard — per-court evening window (ADR-0040): the dark courts 1–4 must finish in daylight by ~20:00,
+  // the floodlit pair 5 & 6 may run to the 22:00 curfew. A start whose 90 minutes spill past the court's
+  // bound is physically unplayable, so it blocks — the same "block the impossible" posture as court
+  // occupancy and feeder order, not a soft nudge.
+  if (!withinEveningWindow(court, day, slot)) hard.push({ rule: 'court-window' })
 
   // Soft — per named player (an undecided feeder/bye slot is null and carries no load yet).
   const players = [self.slot1RegId, self.slot2RegId].filter((r): r is number => r !== null)
