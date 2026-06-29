@@ -1,4 +1,4 @@
-import { type PublicDraw, type PublicRevealStep } from '../../shared'
+import { isFullyRevealed, type PublicDraw, type PublicRevealStep } from '../../shared'
 import { type RevealRead } from './use-reveal'
 
 // The draw show's playback engine (issue #71), lifted out of the DrawShow component so its reliability
@@ -64,7 +64,10 @@ const project = (phase: RevealPhase, draw: PublicDraw | null, busy: boolean): Re
   const cursor = draw?.cursor ?? 0
   const total = draw?.total ?? 0
   const steps = draw?.steps ?? []
-  const complete = total > 0 && cursor === total
+  // `total > 0` is the loading guard (a not-yet-loaded draw reads total 0, and an empty reveal is not a
+  // finished show); the cursor math itself is the shared predicate, so the operator surfaces and this
+  // controller can't drift on what „fully revealed" means.
+  const complete = total > 0 && isFullyRevealed({ cursor, total })
   return {
     phase,
     draw,
