@@ -70,9 +70,9 @@
   "simple-git-hooks": {
     "pre-commit": "pnpm exec lint-staged",
     "commit-msg": "pnpm exec commitlint --edit $1",
-    "post-merge": "sh scripts/install-if-deps-changed.sh",
-    "post-checkout": "sh scripts/install-if-deps-changed.sh",
-    "post-rewrite": "sh scripts/install-if-deps-changed.sh"
+    "post-merge": "[ ! -f scripts/install-if-deps-changed.sh ] || sh scripts/install-if-deps-changed.sh",
+    "post-checkout": "[ ! -f scripts/install-if-deps-changed.sh ] || sh scripts/install-if-deps-changed.sh",
+    "post-rewrite": "[ ! -f scripts/install-if-deps-changed.sh ] || sh scripts/install-if-deps-changed.sh"
   },
   "lint-staged": {
     "*.{ts,tsx}": [
