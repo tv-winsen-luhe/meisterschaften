@@ -1,6 +1,7 @@
 import {
   bracketDepth,
   type CompetitionSlug,
+  isChallengerField,
   isFullyRevealed,
   type Match,
   type PublicDraw,
@@ -39,6 +40,20 @@ export interface ScheduleFeed {
   matches: ScheduleMatch[]
 }
 
+// Redact a protected Challenger field's strength for the public reveal wire (ADR-0044): null each step's
+// `seed` and the player's `lk`, keeping the seeded structure (kind, position, names). A championship field
+// is returned unchanged. Mirrors #164's `isChallengerField` redaction of the participant list, on the
+// reveal surface — the public live bracket already hides these client-side (#155); this stops them at the
+// wire too. The operator's beamer reads the un-redacted reveal under Access (operatorDraws), so its draw
+// show keeps the LK + seed it needs to run a Challenger draw (ADR-0024).
+const redactChallenger = (draw: PublicDraw): PublicDraw =>
+  isChallengerField(draw.competition)
+    ? {
+        ...draw,
+        steps: draw.steps.map(s => ({ ...s, seed: null, player: s.player ? { ...s.player, lk: null } : null }))
+      }
+    : draw
+
 export const createProjections = (deps: ProjectionsDeps) => {
   const { drawStore, registrationsStore, appStateStore } = deps
 
@@ -49,43 +64,62 @@ export const createProjections = (deps: ProjectionsDeps) => {
   // never appears.
   const mainReveals = async () => (await drawStore.listReveals()).filter(r => r.bracket === 'main')
 
+  // The full main-bracket reveal, sliced to each field's cursor (ADR-0003): every drawn competition's reveal
+  // with the revealed prefix's players joined in by name + LK (the reveal sequence carries only ids). The
+  // unrevealed tail never leaves the server, so a spectator cannot read the outcome ahead of the show — the
+  // suspense is server-enforced. Both public and operator reads build on this; the public one redacts
+  // protected fields on top (ADR-0044). Only the main bracket has a reveal show; the consolation bracket
+  // publishes directly (ADR-0004).
+  const buildReveals = async (): Promise<PublicDraw[]> => {
+    const reveals = await mainReveals()
+
+    // Join names only for the revealed prefix — never read player rows for steps still to come.
+    const ids = new Set<number>()
+    for (const r of reveals) {
+      for (const s of r.steps.slice(0, r.cursor)) if (s.playerId !== null) ids.add(s.playerId)
+    }
+    const players = await registrationsStore.revealPlayers([...ids])
+
+    return reveals.map(r => ({
+      // The store speaks `string`; the wire contract narrows to CompetitionSlug (the route's Zod parse
+      // is the authority that rejects anything else), exactly as the match/draw projections do.
+      competition: r.competition as CompetitionSlug,
+      size: r.size,
+      cursor: r.cursor,
+      total: r.steps.length,
+      // Only the revealed prefix — `cursor` ≤ total (clamped by advance), so the slice is safe.
+      steps: r.steps.slice(0, r.cursor).map(s => ({
+        kind: s.kind,
+        position: s.position,
+        seed: s.seed,
+        // A lot-bye line has no player; every placed step joins its registration row. A missing id
+        // (only reachable if a slot's registration was hard-deleted out from under a frozen draw)
+        // degrades to null rather than throwing — the reveal still renders, that line just blank.
+        player: s.playerId !== null ? (players.get(s.playerId) ?? null) : null
+      }))
+    }))
+  }
+
   return {
     /**
-     * The public live bracket (ADR-0003): every drawn competition's main bracket reveal, **sliced to the
-     * cursor** — only the steps already revealed are sent, with each one's player joined in by name + LK
-     * (the reveal sequence carries only ids). The unrevealed tail never leaves the server, so a spectator
-     * polling the endpoint cannot read the outcome ahead of the show — the suspense is server-enforced,
-     * not a client-side display gate. Only the main bracket has a reveal show; the consolation bracket
-     * publishes directly (ADR-0004).
+     * The public live bracket (ADR-0003): the cursor-sliced reveal of every drawn competition, with a
+     * protected Challenger field's strength **redacted** on the wire — each step's `lk` and `seed` nulled,
+     * the seeded structure kept (ADR-0044, defense in depth behind #155's client-side hiding). This is the
+     * Access-free endpoint the off-site bracket polls; the operator's beamer reads the un-redacted
+     * operatorDraws() under Access.
      */
     async publicDraws(): Promise<PublicDraw[]> {
-      const reveals = await mainReveals()
+      return (await buildReveals()).map(redactChallenger)
+    },
 
-      // Join names only for the revealed prefix — never read player rows for steps still to come.
-      const ids = new Set<number>()
-      for (const r of reveals) {
-        for (const s of r.steps.slice(0, r.cursor)) if (s.playerId !== null) ids.add(s.playerId)
-      }
-      const players = await registrationsStore.revealPlayers([...ids])
-
-      return reveals.map(r => ({
-        // The store speaks `string`; the wire contract narrows to CompetitionSlug (the route's Zod parse
-        // is the authority that rejects anything else), exactly as the match/draw projections do.
-        competition: r.competition as CompetitionSlug,
-        size: r.size,
-        cursor: r.cursor,
-        total: r.steps.length,
-        // Only the revealed prefix — `cursor` ≤ total (clamped by advance), so the slice is safe.
-        steps: r.steps.slice(0, r.cursor).map(s => ({
-          kind: s.kind,
-          position: s.position,
-          seed: s.seed,
-          // A lot-bye line has no player; every placed step joins its registration row. A missing id
-          // (only reachable if a slot's registration was hard-deleted out from under a frozen draw)
-          // degrades to null rather than throwing — the reveal still renders, that line just blank.
-          player: s.playerId !== null ? (players.get(s.playerId) ?? null) : null
-        }))
-      }))
+    /**
+     * The operator's full main-bracket reveal (ADR-0044): the same cursor slice and suspense invariant as
+     * publicDraws(), but **without** the Challenger redaction, so the beamer draw show keeps the LK + seed
+     * it needs to run a Challenger draw (ADR-0024). Served only under Access (GET /api/admin/draw/reveal)
+     * — the protected-field strength never reaches the public wire.
+     */
+    async operatorDraws(): Promise<PublicDraw[]> {
+      return buildReveals()
     },
 
     /**

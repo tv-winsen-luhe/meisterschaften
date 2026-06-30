@@ -311,6 +311,16 @@ export const createApp = (makeDeps: (env: Env) => Deps = createDepsFromEnv) =>
       const draws = await c.var.deps.draws.listDraws()
       return c.json(drawsResponseSchema.parse({ draws }), 200, { 'cache-control': 'no-store' })
     })
+    // GET /api/admin/draw/reveal — the operator's full main-bracket reveal (ADR-0044). Same cursor-sliced
+    // shape as the public GET /api/draw, but **un-redacted**: a protected Challenger field keeps its LK +
+    // seed here, so the beamer draw show can run a Challenger draw (ADR-0024). It lives under
+    // /api/admin/* on purpose — the full reveal carries protected-field strength, so it is operator data and
+    // must sit behind Access (a route outside /api/admin/* is born public, CONTEXT „Admin"). The public wire
+    // never carries it.
+    .get('/api/admin/draw/reveal', async c => {
+      const draws = await c.var.deps.projections.operatorDraws()
+      return c.json(publicDrawsResponseSchema.parse({ draws }), 200, { 'cache-control': 'no-store' })
+    })
     // POST /api/admin/draw — the „Jetzt auslosen" action (ADR-0025). The draw service guards the
     // preconditions (phase = tournament, not yet drawn, supported size), computes the bracket with crypto
     // randomness, and writes the matches + draw record atomically. A failed guard maps to 400/409 with

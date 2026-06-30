@@ -78,10 +78,11 @@ concept here drifts or a new one appears, update this file rather than inventing
   both the draw's hard guard (a too-strong entry blocks the field's draw) and the provisional seeding
   list's affordance — authority in the draw, affordance in the client, definition once (ADR-0011).
   Because the field is **protected, its strength is not advertised publicly**: the public surfaces
-  (participant list, draw bracket) **omit the LK and the seed numbers** for it, and the public list
+  (participant list, draw bracket) **omit the LK and the seed numbers** for it **on the wire** (the server
+  projection redacts them, not just the client), and the public list
   **orders it by registration date, not strength** — the visible expression of its first-come-first-served
-  admission (Field cut, ADR-0043). Only the admin, which needs the LK to bind the cap, shows them.
-  _(See ADR-0024.)_
+  admission (Field cut, ADR-0043). Only the admin, which needs the LK to bind the cap and the seed to run
+  the draw, reads the full, un-redacted reveal. _(See ADR-0024, ADR-0044.)_
 - **Registration** (de: Anmeldung; D1 table `registrations`) — one member's entry into one competition.
   Status flow: `new` → `confirmed` → `cancelled`. **`cancelled`** is the single "no longer participating,
   keep the record" state, reached either by the member's self-service withdrawal (`/api/cancel`, by person)
@@ -199,14 +200,15 @@ concept here drifts or a new one appears, update this file rather than inventing
   no stepping back (the public live bracket mirrors the cursor; a back-step would un-reveal a lot there
   too). Once it has fully revealed (cursor === total) it is done, not a replayable show. The off-site
   audience follows a separate **public live bracket** (`tournament-draw.astro`) that mirrors the same
-  revealed prefix by polling (~1–2s). The operator client drives playback through a **forward-only state
+  revealed prefix by polling (~1–2s) — but **redacted** for protected fields: a Challenger field's LK and
+  seed are dropped on the public wire, while the operator's show reads the full reveal (ADR-0044). The operator client drives playback through a **forward-only state
   machine** (the reveal controller, `src/admin/reveal-controller.ts`) sitting over the two server seams:
   it owns the retry-on-blip read, the double-fire guard (a held presenter key may not reveal two lots),
   and the `loading → ready → absent/error/stale` reducer. It keeps a genuinely **not-yet-drawn** field
   (`absent`) distinct from a **transient read failure** (`error`/`stale`) — conflating them would show
   „nicht ausgelost" for a drawn field, or freeze the cursor mid-reveal; on a failed refresh it holds the
   last good reveal as **stale** (paused, re-read offered) rather than blanking the beamer. _(See ADR-0003,
-  ADR-0025, ADR-0031; issue #71.)_
+  ADR-0025, ADR-0031, ADR-0044; issue #71.)_
 - **Main bracket** (de: Hauptrunde; bracket value `main`) — the main KO bracket; the title is decided
   here. The German name is the concept; the stored/wire `bracket` discriminator value is the English
   `main` (CLAUDE.md — German terms never become stored values). _(See ADR-0025.)_
