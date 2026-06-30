@@ -8,10 +8,11 @@ import { DrawBracket, EASE, playerName } from './draw-bracket'
 import { competitionLabel } from './surfaces/registration-detail'
 
 // The large-screen draw show (ADR-0002/0003, issue #71): the operator-paced, beamer-projected reveal of
-// one competition's main bracket. It is *pure playback* of the reveal sequence — it reads the same public
-// reveal the off-site bracket polls (GET /api/draw, sliced to the cursor on the server, so the unrevealed
-// tail never reaches the beamer) and moves the cursor through the admin advance endpoint. It never
-// re-rolls (ADR-0003): a reload re-reads the persisted cursor and resumes where it stood.
+// one competition's main bracket. It is *pure playback* of the reveal sequence — it reads the operator's
+// full reveal (GET /api/admin/draw/reveal, the un-redacted sibling of the off-site bracket's feed, sliced
+// to the cursor on the server so the unrevealed tail never reaches the beamer; a Challenger field keeps its
+// LK + seed here, ADR-0044) and moves the cursor through the admin advance endpoint. It never re-rolls
+// (ADR-0003): a reload re-reads the persisted cursor and resumes where it stood.
 //
 // It escapes the admin chrome on purpose — a full-screen, high-contrast, large-typography stage so the
 // projector reads from across the hall, with a `motion` reveal on each lot and the just-drawn lot held up

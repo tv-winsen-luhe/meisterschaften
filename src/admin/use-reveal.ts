@@ -8,6 +8,11 @@ import { errorMessage, isAuthRedirect } from './lib/api'
 // The draw show's two server seams (issue #71), kept out of the admin shell: reading one competition's
 // reveal and moving its cursor. Both are *pure playback* of what the precompute already wrote (ADR-0003) —
 // the read never sees past the cursor (the server slices it), the advance never re-rolls.
+//
+// The read goes through the admin-only GET /api/admin/draw/reveal (under Access), not the public GET
+// /api/draw: the beamer needs the **full** reveal (a Challenger field keeps its LK + seed to run the
+// draw, ADR-0024), while the public wire redacts that protected strength (ADR-0044). Same cursor-
+// sliced shape, so this is the un-redacted sibling of the off-site bracket's feed.
 
 type Client = ReturnType<typeof hc<AppType>>
 
@@ -26,13 +31,20 @@ interface RevealApi {
 }
 
 export const useReveal = (client: Client): RevealApi => {
-  // The show reads the same public reveal the off-site bracket polls (GET /api/draw, already cursor-sliced
-  // server-side) and picks out this competition. A non-OK/thrown read is `error` (retryable); a clean read
-  // that simply does not list the field is `absent` (genuinely not drawn) — the two must not be confused.
+  // The show reads the operator's full reveal (GET /api/admin/draw/reveal, the un-redacted sibling of the
+  // off-site bracket's feed — already cursor-sliced server-side) and picks out this competition. Because
+  // this read is now behind Access (unlike the public /api/draw it used to poll), an expired session must
+  // be regated like advanceReveal — reload to re-auth rather than swallow the opaque redirect as a
+  // retryable `error`, which would freeze the beamer on a stale frame. A non-OK/thrown read is `error`
+  // (retryable); a clean read that simply does not list the field is `absent` (genuinely not drawn).
   const loadReveal = useCallback(
     async (competition: CompetitionSlug): Promise<RevealRead> => {
       try {
-        const res = await client.api.draw.$get()
+        const res = await client.api.admin.draw.reveal.$get()
+        if (isAuthRedirect(res)) {
+          location.reload()
+          return { status: 'error' }
+        }
         if (!res.ok) return { status: 'error' }
         const { draws } = await res.json()
         const draw = draws.find(d => d.competition === competition)
