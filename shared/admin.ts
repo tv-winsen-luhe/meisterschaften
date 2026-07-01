@@ -194,6 +194,20 @@ export type DrawRequest = z.infer<typeof drawRequestSchema>
 export const drawResponseSchema = z.object({ ok: z.literal(true), draw: competitionDrawSchema })
 export type DrawResponse = z.infer<typeof drawResponseSchema>
 
+// POST /api/admin/draw/consolation — draw the consolation bracket (de: „Nebenrunde auslosen", ADR-0004).
+// Mirrors the main draw request (just the competition); no Challenger cap rides along — the entrants are a
+// subset of the already-admitted main field, so no new cap check binds. The gate ("all first matches
+// decided", "not already drawn") is the shared `consolationBlocker`, enforced at the route.
+export const consolationDrawRequestSchema = z.object({
+  competition: z.enum(competitionSlug.options, { error: 'Ungültige Konkurrenz.' })
+})
+export type ConsolationDrawRequest = z.infer<typeof consolationDrawRequestSchema>
+
+// The drawn consolation bracket, the same assembled shape as the main draw response (bracket
+// 'consolation'). Published directly, with no reveal — its `total` is 0, so it reads as fully revealed.
+export const consolationDrawResponseSchema = z.object({ ok: z.literal(true), draw: competitionDrawSchema })
+export type ConsolationDrawResponse = z.infer<typeof consolationDrawResponseSchema>
+
 // ── Lot-by-lot reveal (ADR-0003, issue #70) ────────────────────────────────────────────────────
 // The draw is precomputed atomically, then revealed lot step by lot step (ADR-0003): the reveal cursor
 // (how many steps have been shown) advances over the stored reveal sequence — pure playback, never a

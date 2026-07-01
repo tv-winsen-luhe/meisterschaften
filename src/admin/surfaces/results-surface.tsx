@@ -62,6 +62,32 @@ export interface ResultMatch {
 
 const STATUS_LABEL: Record<MatchStatus, string> = { planned: 'geplant', running: 'läuft', done: 'beendet' }
 
+// One bracket's real matches, resolved + numbered over its whole set (so „Sieger M{n}" is stable) and
+// grouped by round label in match order — the third-place playoff sorts after the final (it shares the
+// final's round but a higher position). Runs per bracket, so the consolation labels read „Nebenrunde · …"
+// off its own depth; the caller concatenates a competition's brackets (main first, then consolation).
+const matchGroups = (draw: CompetitionDraw): [string, ResultMatch[]][] => {
+  const totalRounds = bracketDepth(draw.matches)
+  const rows: ResultMatch[] = []
+  for (const { match, number, slot1, slot2 } of resolveBracket(draw.matches)) {
+    if (match.outcome === 'bye') continue // a bye is never played, so it is never a result row
+    rows.push({
+      match,
+      number,
+      roundLabel: roundLabel({ bracket: draw.bracket, round: match.round, totalRounds, thirdPlace: match.thirdPlace }),
+      slot1,
+      slot2
+    })
+  }
+  const byLabel = new Map<string, ResultMatch[]>()
+  for (const r of [...rows].sort((a, b) => a.match.round - b.match.round || a.match.position - b.match.position)) {
+    const list = byLabel.get(r.roundLabel) ?? []
+    list.push(r)
+    byLabel.set(r.roundLabel, list)
+  }
+  return [...byLabel.entries()]
+}
+
 export const ResultsSurface = ({ registrations, draws, onRecordResult, onSetStatus }: ResultsSurfaceProps) => {
   const nameById = useMemo(() => {
     const map = new Map<number, string>()
@@ -82,37 +108,22 @@ export const ResultsSurface = ({ registrations, draws, onRecordResult, onSetStat
   // without the operator picking it, while an explicit pick still wins.
   const selected = fields.find(f => f.competition === active) ?? fields[0] ?? null
 
-  // The selected field's real matches, resolved + numbered over the whole bracket (so „Sieger M{n}" is
-  // stable), round-grouped with the third-place playoff last under its own heading.
-  const groups = useMemo(() => {
-    if (!selected) return []
-    const totalRounds = bracketDepth(selected.matches)
-    const rows: ResultMatch[] = []
-    for (const { match, number, slot1, slot2 } of resolveBracket(selected.matches)) {
-      if (match.outcome === 'bye') continue // a bye is never played, so it is never a result row
-      rows.push({
-        match,
-        number,
-        roundLabel: roundLabel({
-          bracket: selected.bracket,
-          round: match.round,
-          totalRounds,
-          thirdPlace: match.thirdPlace
-        }),
-        slot1,
-        slot2
-      })
-    }
-    // Group by the round label, in match order (round asc, third-place playoff sorts after the final since
-    // it shares the final's round but a higher position).
-    const byLabel = new Map<string, ResultMatch[]>()
-    for (const r of [...rows].sort((a, b) => a.match.round - b.match.round || a.match.position - b.match.position)) {
-      const list = byLabel.get(r.roundLabel) ?? []
-      list.push(r)
-      byLabel.set(r.roundLabel, list)
-    }
-    return [...byLabel.entries()]
-  }, [selected])
+  // The selected competition's consolation bracket, once it is drawn (ADR-0004) — its matches record like
+  // the main bracket's, appended below them under „Nebenrunde · …" headings.
+  const consolation = useMemo(
+    () =>
+      selected
+        ? (draws.find(d => d.competition === selected.competition && d.bracket === 'consolation') ?? null)
+        : null,
+    [draws, selected]
+  )
+
+  // The selected competition's result rows: the main bracket, then the consolation bracket, each resolved
+  // + numbered over its own set and round-grouped (the third-place playoff last under its own heading).
+  const groups = useMemo(
+    () => (selected ? [...matchGroups(selected), ...(consolation ? matchGroups(consolation) : [])] : []),
+    [selected, consolation]
+  )
 
   if (fields.length === 0) {
     return (

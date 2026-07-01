@@ -112,12 +112,13 @@ export const ScheduleSurface = ({
     return map
   }, [registrations])
 
-  // The schedulable matches: a main bracket's real matches (a bye is auto-resolved, never played, so it
-  // is never schedulable). An un-revealed bracket's *unplaced* matches stay hidden — projecting the
-  // admin must not spoil a draw still being revealed — but a *placed* match is always shown even if its
+  // The schedulable matches: every bracket's real matches (a bye is auto-resolved, never played, so it
+  // is never schedulable). A main bracket still being revealed keeps its *unplaced* matches hidden —
+  // projecting the admin must not spoil the reveal — but a *placed* match is always shown even if its
   // reveal was later rewound, so the operator can still move or unplace it (the public feed withholds it
-  // again while the bracket is rewound, ADR-0036 — but the operator must still be able to manage it).
-  // Feeders are resolved per bracket so „Sieger M3" reads stable.
+  // again while the bracket is rewound, ADR-0036 — but the operator must still be able to manage it). The
+  // consolation bracket has no reveal show (ADR-0004), so all its matches show at once. Feeders are
+  // resolved per bracket so „Sieger M3" reads stable.
   const gridMatches = useMemo<GridMatch[]>(() => {
     // The slot label: a player's name (the grid's own regId→name join, with a `#id` fallback), or the
     // shared German copy for every undecided slot. The unresolved flag is derivable from the kind —
@@ -130,8 +131,9 @@ export const ScheduleSurface = ({
 
     const out: GridMatch[] = []
     for (const draw of draws) {
-      if (draw.bracket !== 'main') continue
-      const revealed = isFullyRevealed(draw)
+      // The consolation bracket is published directly (no reveal show, ADR-0004), so it is always shown;
+      // a main bracket honours its reveal cursor (unplaced matches stay hidden until fully revealed).
+      const revealed = draw.bracket !== 'main' || isFullyRevealed(draw)
       // The bracket's depth (its highest round) — the shared `roundLabel` reads round names from the end,
       // so this turns each match's round into „Achtelfinale" … „Finale" (#142).
       const totalRounds = bracketDepth(draw.matches)
@@ -214,8 +216,9 @@ export const ScheduleSurface = ({
   const suggest = async () => {
     setSuggesting(true)
     try {
-      const mainMatches = allMatches.filter(m => m.bracket === 'main') as SchedulableMatch[]
-      const suggestions = suggestSchedule(mainMatches)
+      // Every bracket's matches — suggestSchedule packs the consolation on Saturday (targetDay) and skips
+      // byes itself, so the auto-fill places consolation matches too, not just the main bracket (#92).
+      const suggestions = suggestSchedule(allMatches as SchedulableMatch[])
       if (suggestions.length === 0) {
         toast.info('Keine Matches zum Platzieren.')
         return

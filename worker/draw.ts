@@ -2,10 +2,15 @@ import {
   CHALLENGER_MIN_LK,
   challengerEligibility,
   type CompetitionDraw,
+  type ConsolationBlocker,
+  CONSOLATION_BLOCKER_REASON,
+  consolationBlocker,
+  consolationEntrants,
   drawBlocker,
   type DrawBlocker,
   DRAW_BLOCKER_REASON,
   drawBracket,
+  drawConsolationBracket,
   type DrawPlayer,
   drawSize,
   isChallengerField,
@@ -46,6 +51,22 @@ export type TooStrongEntry = DrawPlayer
 export type DrawOutcome =
   | { ok: true; draw: CompetitionDraw }
   | { ok: false; error: DrawError; reason: string; tooStrong?: TooStrongEntry[] }
+
+// Drawing the consolation bracket (de: „Nebenrunde auslosen", ADR-0004): the failures are exactly the
+// shared ConsolationBlocker (main not drawn, no consolation at this size, already drawn, first matches
+// still pending) — so the client's disabled-button reason reads the same rule the server enforces
+// (ADR-0011). On success the assembled consolation draw is returned like the main draw.
+export type ConsolationOutcome =
+  | { ok: true; draw: CompetitionDraw }
+  | { ok: false; error: ConsolationBlocker; reason: string }
+
+// What „Nebenrunde auslosen" hands the service: which competition, and the write timestamp (the edge owns
+// `now`, keeping the orchestration testable). No Challenger cap — the entrants already cleared it at the
+// main draw.
+export interface ConsolationParams {
+  competition: string
+  now: string
+}
 
 // Advancing the reveal cursor (ADR-0003): pure playback over the stored sequence. The only failure is
 // advancing a field that was never drawn (no reveal sequence to play) — a 404 at the route.
@@ -166,6 +187,68 @@ export const createDrawService = (deps: DrawServiceDeps) => {
       const cursor = Math.max(0, Math.min(total, next))
       if (cursor !== reveal.cursor) await drawStore.setCursor(competition, 'main', cursor)
       return { ok: true, cursor, total }
+    },
+
+    /**
+     * Draw the consolation bracket for one competition (de: „Nebenrunde auslosen", ADR-0004). Gated by the
+     * shared `consolationBlocker` (main drawn, size ≥ 8, not already drawn, every first match decided) —
+     * the same rule the button's disabled reason reads (ADR-0011). Its entrants are the lost-their-first-
+     * match set (`consolationEntrants`) resolved to the field's seeded players (a subset of the main field,
+     * so filtering the seeded list keeps them strongest-first). The pure `drawConsolationBracket` reuses the
+     * draw procedure — seeded by LK, with byes, unbiased — and it is **published directly** (empty reveal
+     * sequence, no reveal show). The matches then schedule and record exactly like main-bracket matches.
+     */
+    async drawConsolation({ competition, now }: ConsolationParams): Promise<ConsolationOutcome> {
+      // The main draw (for the gate + entrants) and the "already drawn?" check are independent reads — run
+      // them together rather than serially.
+      const [mainDraw, existingConsolation] = await Promise.all([
+        drawStore.getDraw(competition, 'main'),
+        drawStore.findDraw(competition, 'consolation')
+      ])
+      const blocker = consolationBlocker(
+        mainDraw && { size: mainDraw.size, matches: mainDraw.matches },
+        existingConsolation !== null
+      )
+      if (blocker) return { ok: false, error: blocker, reason: CONSOLATION_BLOCKER_REASON[blocker] }
+
+      // The gate passed, so mainDraw is non-null. The entrants are ids in the main bracket; resolve them to
+      // the field's seeded players by filtering `confirmedForDraw` (already strongest-first), so the subset
+      // stays in seeding order for the draw. A registration hard-deleted from under the frozen draw would
+      // drop out here (ADR-0035) — the < 2 guard then refuses (the same reason the shared gate already
+      // returned as `too-few-entrants`) rather than forming a broken bracket.
+      const entrantIds = new Set(consolationEntrants(mainDraw!.matches))
+      const players = (await registrationsStore.confirmedForDraw(competition)).filter(p => entrantIds.has(p.id))
+      if (players.length < 2) {
+        return { ok: false, error: 'too-few-entrants', reason: CONSOLATION_BLOCKER_REASON['too-few-entrants'] }
+      }
+
+      const { size, seeding, matches } = drawConsolationBracket(players, randomSource)
+      try {
+        await drawStore.save({
+          competition,
+          bracket: 'consolation',
+          size,
+          seeding,
+          // Published directly, no reveal show (ADR-0004): an empty reveal sequence is the "no reveal"
+          // representation — it reads as fully revealed, so every surface treats the bracket as ready.
+          revealSequence: [],
+          matches,
+          // No Challenger cap on the consolation — its entrants already cleared the main draw's cap.
+          challengerMinLk: null,
+          createdAt: now
+        })
+      } catch (err) {
+        // A concurrent trigger can pass the findDraw check above and then lose the race to the unique
+        // (competition, bracket) index. Re-read: if a consolation draw now exists, the loser is just
+        // "already drawn", not a server error — only re-throw a genuine failure.
+        if (await drawStore.findDraw(competition, 'consolation'))
+          return { ok: false, error: 'already-drawn', reason: CONSOLATION_BLOCKER_REASON['already-drawn'] }
+        throw err
+      }
+
+      const draw = await drawStore.getDraw(competition, 'consolation')
+      if (!draw) throw new Error(`consolation draw vanished after save for ${competition}`)
+      return { ok: true, draw }
     }
   }
 }

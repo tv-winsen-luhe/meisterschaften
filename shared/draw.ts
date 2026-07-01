@@ -58,6 +58,15 @@ export const consolationMatches = (confirmed: number): number => {
   return entrants < 2 ? 0 : entrants - 1
 }
 
+/**
+ * Whether a main draw of this `size` carries a separate consolation bracket (CONTEXT: Consolation
+ * bracket, ADR-0004): only when its first round lies *before* the semifinals — i.e. size ≥ 8. At size 4
+ * the first round already *is* the semifinal, so its two losers are the two the third-place match pairs:
+ * that playoff serves as the consolation and no separate bracket is drawn. (Main draws are 4/8/16, so
+ * this reads "size 4 → no, 8/16 → yes".) The single threshold the consolation gate and its tests share.
+ */
+export const hasConsolationBracket = (size: number): boolean => size >= 8
+
 /** Total matches a field runs: main draw + consolation (R1-loser consolation). */
 export const matchCount = (confirmed: number): number => mainDrawMatches(confirmed) + consolationMatches(confirmed)
 
