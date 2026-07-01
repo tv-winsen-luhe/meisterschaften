@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { createInMemoryRegistrationsStore } from '../worker/store/registrations.memory'
-import { createInMemoryDrawStore } from '../worker/store/draw'
+import { createInMemoryDrawStore } from '../worker/store/draw.memory'
 import type { MatchSlots } from '../shared'
 import type { RegistrationRow } from '../worker/db/schema'
 
@@ -231,9 +231,9 @@ describe('in-memory draw store · schedule placement', () => {
   // A tiny 4-draw's worth of matches: two semifinals (round 1) + the final (round 2). The draw record
   // fields are irrelevant to placement, so they are minimal.
   const semis: MatchSlots[] = [
-    { round: 1, position: 0, slot1RegId: 1, slot2RegId: 2, winnerRegId: null, outcome: null },
-    { round: 1, position: 1, slot1RegId: 3, slot2RegId: 4, winnerRegId: null, outcome: null },
-    { round: 2, position: 0, slot1RegId: null, slot2RegId: null, winnerRegId: null, outcome: null }
+    { round: 1, position: 0, slot1RegId: 1, slot2RegId: 2, winnerRegId: null, outcome: null, thirdPlace: false },
+    { round: 1, position: 1, slot1RegId: 3, slot2RegId: 4, winnerRegId: null, outcome: null, thirdPlace: false },
+    { round: 2, position: 0, slot1RegId: null, slot2RegId: null, winnerRegId: null, outcome: null, thirdPlace: false }
   ]
   const drawn = async () => {
     const store = createInMemoryDrawStore()

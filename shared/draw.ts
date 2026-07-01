@@ -129,6 +129,13 @@ export type Bracket = (typeof BRACKETS)[number]
 export const MATCH_OUTCOMES = ['bye', 'walkover', 'retirement'] as const
 export type MatchOutcome = (typeof MATCH_OUTCOMES)[number]
 
+// The special outcomes the operator *enters* during Live (CONTEXT: Match result): a no-show (walkover,
+// winner advances with no score) or a mid-match retirement („Aufgabe", winner advances with the partial
+// score). `bye` is excluded — it auto-resolves at draw time and is never entered. The result endpoint's
+// wire enum reads this subset, so a `bye` can never be sent as an entered outcome.
+export const ENTERED_OUTCOMES = ['walkover', 'retirement'] as const
+export type EnteredOutcome = (typeof ENTERED_OUTCOMES)[number]
+
 // A match's live status (ADR-0005, ADR-0032) — the signal the public live board keys off. Stored/wire
 // values are English (CLAUDE.md); the German UI labels are „geplant"/„läuft"/„beendet". This epic's
 // tracer (#88) only ever writes the default `planned`; the status *transitions* (→ running with a live
@@ -509,7 +516,8 @@ export const drawBracket = ({ players, size, random }: DrawInput): DrawResult =>
 
 // A materialized match (ADR-0025): a bracket position with its two slot references and, once decided,
 // its winner + outcome. Feeders are implicit, so rounds after the first carry null slots until results
-// advance players into them — except a round-1 bye, which the draw resolves immediately.
+// advance players into them — except a round-1 bye, which the draw resolves immediately. `thirdPlace`
+// marks the one playoff whose feeders are the semifinal losers, not the implicit winner-feeders.
 export interface MatchSlots {
   round: number
   position: number
@@ -517,6 +525,7 @@ export interface MatchSlots {
   slot2RegId: number | null
   winnerRegId: number | null
   outcome: MatchOutcome | null
+  thirdPlace: boolean
 }
 
 /**
@@ -528,8 +537,13 @@ export interface MatchSlots {
  * consistent the moment it is drawn. Only round 1 auto-resolves; a null slot in any later round is an
  * undecided feeder, never a bye — so when two round-1 byes happen to feed the same round-2 match (e.g.
  * a 5-player 8-draw) both winners advance and that round-2 match is simply contested, not a second bye.
- * The main bracket KO tree only — third-place match and the consolation bracket are separate slices.
- * Total rows = size − 1.
+ * The KO tree plus the **third-place match** (de: „Spiel um Platz 3"), materialized at draw time as a
+ * structurally-known slot fed by the two semifinal *losers* (CONTEXT: Third-place match). It carries no
+ * implicit feeders — its `thirdPlace` flag marks it, and Advancement (`applyResult`) routes each
+ * semifinal's loser into it. Sat at the final's round, position 1 (the final is position 0), so the
+ * bracket's depth is unchanged. From four entrants up the semifinals are always contested (byes only
+ * occur in round one), so the playoff always fills with two real losers. The consolation bracket has no
+ * such playoff. Total rows = size − 1 (KO tree) + 1 (third place) = size, for size ≥ 4.
  */
 export const materializeMatches = (size: number, slots: (number | null)[]): MatchSlots[] => {
   const { rounds } = bracketStructure(size)
@@ -547,9 +561,29 @@ export const materializeMatches = (size: number, slots: (number | null)[]): Matc
       const isBye = round === 1 && (slot1RegId === null) !== (slot2RegId === null)
       const winnerRegId = isBye ? (slot1RegId ?? slot2RegId) : null
       winners[position] = winnerRegId
-      matches.push({ round, position, slot1RegId, slot2RegId, winnerRegId, outcome: isBye ? 'bye' : null })
+      matches.push({
+        round,
+        position,
+        slot1RegId,
+        slot2RegId,
+        winnerRegId,
+        outcome: isBye ? 'bye' : null,
+        thirdPlace: false
+      })
     }
     feeders = winners
   }
+  // The third-place playoff sits beside the final (same round, position 1) so the bracket depth is the
+  // final's round. Its slots stay open until the semifinals resolve — Advancement fills them with the
+  // losers, never the implicit winner-feeders the topology would otherwise imply.
+  matches.push({
+    round: rounds,
+    position: 1,
+    slot1RegId: null,
+    slot2RegId: null,
+    winnerRegId: null,
+    outcome: null,
+    thirdPlace: true
+  })
   return matches
 }

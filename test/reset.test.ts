@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { createInMemoryDrawStore, type SaveDrawInput } from '../worker/store/draw'
+import { type SaveDrawInput } from '../worker/store/draw'
+import { createInMemoryDrawStore } from '../worker/store/draw.memory'
 import { createInMemoryRegistrationsStore } from '../worker/store/registrations.memory'
 import { createInMemoryAppStateStore } from '../worker/store/app-state'
 import { createResetService } from '../worker/reset'

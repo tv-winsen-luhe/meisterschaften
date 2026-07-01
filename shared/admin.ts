@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import { CLUBS, clubSchema } from './club'
 import { competitionSlug } from './competition'
-import { BRACKETS, MATCH_OUTCOMES, MATCH_STATUSES, REVEAL_KINDS, seedingEntrySchema } from './draw'
+import { BRACKETS, ENTERED_OUTCOMES, MATCH_OUTCOMES, MATCH_STATUSES, REVEAL_KINDS, seedingEntrySchema } from './draw'
 import { REGISTRATION_STATUSES } from './registration'
 import { SCHEDULE } from './schedule'
 
@@ -97,22 +97,45 @@ export type RefreshLkResponse = z.infer<typeof refreshLkResponseSchema>
 // camelCase, like every other contract here; the snake_case D1 columns are translated once in the
 // Drizzle mapping. Match rows are the materialized bracket (feeders implicit via round/position).
 
+// One set's score as the two slots' games (or, for the Match-Tie-Break, points): `[slot1, slot2]`,
+// each a small non-negative integer. The pair travels together — a single number is meaningless — so the
+// tuple makes „both or neither" structural; a set not (yet) played is `null` (the whole tuple), never a
+// half-filled pair. The max is loose on purpose (operator-entered, not a scoring engine): a tennis set
+// caps near 7 and an MTB near the high teens, so 99 is a typo guard, not a rule.
+const setScore = z.tuple([z.number().int().min(0).max(99), z.number().int().min(0).max(99)])
+
+// A match's score (ADR-0032): best-of-2 sets + a Match-Tie-Break at 1:1, the universal shape across every
+// competition. Each field is that set's `[slot1, slot2]` pair, or `null` when not played — so the common
+// straight-sets case carries `set1` + `set2` with `mtb` null, a 1:1 split adds the `mtb`, and a walkover/
+// bye carries all-null. The store reads/writes this from the fixed set columns (set1/set2/MTB × slot).
+export const matchScoreSchema = z.object({
+  set1: setScore.nullable(),
+  set2: setScore.nullable(),
+  mtb: setScore.nullable()
+})
+export type MatchScore = z.infer<typeof matchScoreSchema>
+
 // One match row as the bracket exposes it. Slots are registration ids (the names are joined client
 // -side from the admin list); a round-1 slot is a player (or null for a bye), a later-round slot is a
 // not-yet-decided feeder (null). `winnerRegId`/`outcome` are set for a round-1 bye (winner advanced,
-// outcome 'bye', §31) and otherwise stay null until results land. `court`/`day`/`slot` are the schedule
+// outcome 'bye', §31) and once results land (§90). `court`/`day`/`slot` are the planned schedule
 // placement (ADR-0005) — all null until the operator places the match on the grid (#88), where they
-// travel together; `status` is the live signal (ADR-0032), `planned` until result entry moves it (#90).
+// travel together; `status` is the live signal (ADR-0032), `planned` until result entry moves it. The
+// Live phase (#90) adds `thirdPlace` (the playoff fed by the semifinal losers), `liveCourt` (the actual
+// court captured at the `running` transition — may differ from the planned court, read by the public
+// board with a fallback to `court`), and `score` (the fixed best-of-2 + MTB columns).
 export const matchSchema = z.object({
   id: z.number().int().positive(),
   competition: competitionSlug,
   bracket: z.enum(BRACKETS),
   round: z.number().int().positive(),
   position: z.number().int().nonnegative(),
+  thirdPlace: z.boolean(),
   slot1RegId: z.number().int().positive().nullable(),
   slot2RegId: z.number().int().positive().nullable(),
   winnerRegId: z.number().int().positive().nullable(),
   outcome: z.enum(MATCH_OUTCOMES).nullable(),
+  score: matchScoreSchema,
   court: z.number().int().min(1).max(SCHEDULE.courts).nullable(),
   day: z
     .number()
@@ -126,7 +149,8 @@ export const matchSchema = z.object({
     .min(0)
     .max(SCHEDULE.slotsPerDay - 1)
     .nullable(),
-  status: z.enum(MATCH_STATUSES)
+  status: z.enum(MATCH_STATUSES),
+  liveCourt: z.number().int().min(1).max(SCHEDULE.courts).nullable()
 })
 export type Match = z.infer<typeof matchSchema>
 
@@ -276,6 +300,9 @@ export const scheduleSlotSchema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('player'), firstName: z.string(), lastName: z.string() }),
   z.object({ kind: z.literal('bye') }),
   z.object({ kind: z.literal('feeder'), matchNumber: z.number().int().positive() }),
+  // The third-place playoff's open slots wait on a semifinal *loser* („Verlierer M{n}", #90), distinct from
+  // a winner-feeder so the public copy reads correctly and the admin grid never flags it „offen".
+  z.object({ kind: z.literal('loser'), matchNumber: z.number().int().positive() }),
   z.object({ kind: z.literal('unknown') })
 ])
 export type ScheduleSlot = z.infer<typeof scheduleSlotSchema>
@@ -293,6 +320,9 @@ export const scheduleMatchSchema = z.object({
   bracket: z.enum(BRACKETS),
   number: z.number().int().positive(),
   round: z.number().int().positive(),
+  // Whether this is the third-place playoff (de: „Spiel um Platz 3"), which shares the final's round —
+  // so the page can label it correctly instead of deriving „Finale" from round === totalRounds (#90).
+  thirdPlace: z.boolean(),
   // The 0-based bracket position within the round — the topology address the public draw looks each node
   // up by (#159). Numbered round-major like `number`, but carried explicitly so the join keys on topology.
   position: z.number().int().min(0),
@@ -338,3 +368,58 @@ export type SchedulePublishResponse = z.infer<typeof schedulePublishResponseSche
 // running/done — those keep their court). The draw, brackets, and results stay intact.
 export const scheduleResetResponseSchema = z.object({ ok: z.literal(true), published: z.literal(false) })
 export type ScheduleResetResponse = z.infer<typeof scheduleResetResponseSchema>
+
+// ── Result entry + bracket advancement (ADR-0032, ADR-0026, issue #90) ────────────────────────────
+// The operator records what happened on court and the bracket moves itself. Three writes, all under
+// /api/admin/* (behind Access): the live status transition (with the actual court), the result (which
+// advances the winner and routes a semifinal loser to the third-place playoff), and an opportunistic
+// per-set save while a match is ongoing. The winner is sent as the **slot** that won (1/2), not a regId —
+// the server resolves it against the match's own slots, so a winner outside the match cannot be sent.
+
+// The winning slot of a match: 1 or 2. Sent instead of a registration id so the result is always one of
+// the match's two players (the server reads the slot's regId); `winner` over `winnerRegId` makes that
+// structural. A literal union, not a number range, so anything but 1/2 is rejected.
+const winnerSlot = z.union([z.literal(1), z.literal(2)], { error: 'Ungültiger Sieger.' })
+
+// POST /api/admin/match/status — move a match's live status (ADR-0032). `liveCourt` is the **actual** court
+// the match is on; it is required when going `running` (the operator picks it, defaulting client-side to the
+// planned court) and ignored otherwise. The status enum is the shared MATCH_STATUSES (English wire values).
+export const matchStatusRequestSchema = z.object({
+  id,
+  status: z.enum(MATCH_STATUSES, { error: 'Ungültiger Status.' }),
+  liveCourt: z.number().int().min(1).max(SCHEDULE.courts).optional()
+})
+export type MatchStatusRequest = z.infer<typeof matchStatusRequestSchema>
+export const matchStatusResponseSchema = z.object({ ok: z.literal(true) })
+export type MatchStatusResponse = z.infer<typeof matchStatusResponseSchema>
+
+// POST /api/admin/match/result — record (or correct) a completed result, advancing the bracket (ADR-0026).
+// `winner` is the winning slot; `outcome` is null for a normal scored result, or walkover/retirement for a
+// special one (a `bye` is never entered — it auto-resolves at draw time). `score` carries the set columns:
+// a normal result fills `set1`+`set2` (+`mtb` at 1:1), a walkover carries all-null, a retirement its
+// partial score. The server resolves the winner's regId, applies the pure Advancement transform (winner →
+// parent, semifinal loser → third place), and — when the winner changes — cascade-clears dependent results.
+export const matchResultRequestSchema = z.object({
+  id,
+  winner: winnerSlot,
+  outcome: z.enum(ENTERED_OUTCOMES, { error: 'Ungültiges Ergebnis.' }).nullable(),
+  score: matchScoreSchema
+})
+export type MatchResultRequest = z.infer<typeof matchResultRequestSchema>
+export const matchResultResponseSchema = z.object({ ok: z.literal(true) })
+export type MatchResultResponse = z.infer<typeof matchResultResponseSchema>
+
+// The set a per-set save targets: 1 or 2 for the two sets, 3 for the Match-Tie-Break (the 1:1 decider).
+const setIndex = z.union([z.literal(1), z.literal(2), z.literal(3)], { error: 'Ungültiger Satz.' })
+
+// POST /api/admin/match/set — opportunistically save (or clear) one set's score while a match is ongoing
+// (ADR-0032 §20), so the live board can show „Satz 1: 6:3 · Satz 2 läuft". It never resolves the match —
+// no winner, no advancement; that is the result endpoint. `score` null clears the set back to unplayed.
+export const matchSetRequestSchema = z.object({
+  id,
+  set: setIndex,
+  score: setScore.nullable()
+})
+export type MatchSetRequest = z.infer<typeof matchSetRequestSchema>
+export const matchSetResponseSchema = z.object({ ok: z.literal(true) })
+export type MatchSetResponse = z.infer<typeof matchSetResponseSchema>

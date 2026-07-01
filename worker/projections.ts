@@ -205,6 +205,7 @@ export const createProjections = (deps: ProjectionsDeps) => {
           return p ? { kind: 'player', firstName: p.firstName, lastName: p.lastName } : { kind: 'unknown' }
         }
         if (view.kind === 'feeder') return { kind: 'feeder', matchNumber: view.matchNumber }
+        if (view.kind === 'loser') return { kind: 'loser', matchNumber: view.matchNumber }
         if (view.kind === 'unknown') return { kind: 'unknown' }
         return { kind: 'bye' }
       }
@@ -217,11 +218,17 @@ export const createProjections = (deps: ProjectionsDeps) => {
           bracket: m.bracket,
           number: r.number,
           round: m.round,
+          // The third-place playoff marker (#90): it shares the final's round, so the page labels it from
+          // this flag rather than deriving „Finale" from round === totalRounds.
+          thirdPlace: m.thirdPlace,
           // The bracket position (#159) — the public draw joins each matchup to its court/time on it.
           position: m.position,
           totalRounds: totalRoundsByGroup.get(`${m.competition}|${m.bracket}`) ?? m.round,
-          // Non-null by the `placed` filter; the contract narrows the nullable columns.
-          court: m.court!,
+          // The **actual** court once the match is running/done (ADR-0032): the live court captured at the
+          // `running` transition, falling back to the planned court before it starts — so a spectator is
+          // never sent to a stale planned court when a match moved to a freed one. The planned `court` is
+          // non-null by the `placed` filter; `liveCourt` is null until the match goes running.
+          court: m.liveCourt ?? m.court!,
           day: m.day!,
           slot: m.slot!,
           status: m.status,

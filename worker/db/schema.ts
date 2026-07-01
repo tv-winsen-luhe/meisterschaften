@@ -55,7 +55,7 @@ export type AppStateRow = typeof appState.$inferSelect
 // (round−1, 2·position) and (round−1, 2·position+1), so there are no feeder columns. An empty
 // round-1 slot would be a bye; an empty later-round slot is a not-yet-decided feeder — the round
 // disambiguates. The draw writes the bracket columns; the Live phase adds the schedule placement
-// (court + day + slot) and the live `status` (#88), then result columns later (#90).
+// (court + day + slot) and the live `status` (#88), then the result columns (#90).
 export const matches = sqliteTable(
   'matches',
   {
@@ -68,6 +68,11 @@ export const matches = sqliteTable(
     slot2RegId: integer('slot2_reg_id'),
     winnerRegId: integer('winner_reg_id'),
     outcome: text('outcome'),
+    // The third-place playoff (de: „Spiel um Platz 3", CONTEXT: Third-place match): a match materialized at
+    // draw time whose two slots are filled by the semifinal **losers** (loser-feeders), not by the implicit
+    // winner-feeders the round/position topology expresses. The flag is what marks it, since its feed is
+    // unlike every other match's. One per main bracket from four entrants up; null/false everywhere else.
+    thirdPlace: integer('third_place', { mode: 'boolean' }).notNull().default(false),
     // Schedule placement (ADR-0005, ADR-0040): the court (1..6) and the slot (event day 0/1 + 30-minute
     // start-slot index; a 90-minute match spans three) the operator placed this match on. All three null
     // ⇒ unscheduled (the grid backlog); they travel together (a half-placed match is meaningless). The
@@ -76,9 +81,25 @@ export const matches = sqliteTable(
     court: integer('court'),
     day: integer('day'),
     slot: integer('slot'),
-    // The live status (ADR-0032): the signal the public board keys off. Defaults to `planned`; the
-    // transitions (→ running, → done) land with result entry (#90).
-    status: text('status').$type<MatchStatus>().notNull().default('planned')
+    // The live status (ADR-0032): the signal the public board keys off. Defaults to `planned`; result
+    // entry moves it (→ running with a live court, → done).
+    status: text('status').$type<MatchStatus>().notNull().default('planned'),
+    // The **actual** court a running/finished match is on (ADR-0032), captured at the `running` transition —
+    // it may differ from the planned `court` (a match often takes whatever court frees up). The public live
+    // board reads this, falling back to the planned court before the match starts, so a spectator is never
+    // sent to a stale planned court. Null until the match goes running.
+    liveCourt: integer('live_court'),
+    // The match score (ADR-0032): best-of-2 sets + a Match-Tie-Break at 1:1, universal across every
+    // competition, so the shape is fixed columns (set1/set2/MTB × the two slots) — no JSON, no child table
+    // (ADR-0021). Each cell is that slot's games (sets) or points (MTB); a null set is one not (yet) played,
+    // so the operator can save a completed set opportunistically while a match is ongoing (§20). A bye/
+    // walkover carries no score (all null); a retirement keeps its partial score.
+    set1Slot1: integer('set1_slot1'),
+    set1Slot2: integer('set1_slot2'),
+    set2Slot1: integer('set2_slot1'),
+    set2Slot2: integer('set2_slot2'),
+    mtbSlot1: integer('mtb_slot1'),
+    mtbSlot2: integer('mtb_slot2')
   },
   table => [index('idx_matches_competition').on(table.competition)]
 )
