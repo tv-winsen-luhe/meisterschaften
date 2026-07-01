@@ -134,11 +134,13 @@ const drawMain = (competition: string) =>
   req('/api/admin/draw', { method: 'POST', headers: JSON_HEADERS, body: JSON.stringify({ competition }) })
 const drawConsolation = (competition: string) =>
   req('/api/admin/draw/consolation', { method: 'POST', headers: JSON_HEADERS, body: JSON.stringify({ competition }) })
+// Slot 1 wins each round-1 match with a straight-sets score. A normal result now requires a legal, decisive
+// score (ADR-0045) — a scoreless win would be a walkover — so this posts a real 2:0.
 const recordResult = (id: number) =>
   req('/api/admin/match/result', {
     method: 'POST',
     headers: JSON_HEADERS,
-    body: JSON.stringify({ id, winner: 1, outcome: null, score: EMPTY_SCORE })
+    body: JSON.stringify({ id, winner: 1, outcome: null, score: { set1: [6, 0], set2: [6, 0], mtb: null } })
   })
 
 describe('POST /api/admin/draw/consolation', () => {

@@ -4,6 +4,7 @@ import { competitionSlug } from './competition'
 import { BRACKETS, ENTERED_OUTCOMES, MATCH_OUTCOMES, MATCH_STATUSES, REVEAL_KINDS, seedingEntrySchema } from './draw'
 import { REGISTRATION_STATUSES } from './registration'
 import { SCHEDULE } from './schedule'
+import { RESULT_SCORE_ERROR_MESSAGE, SCORE_POINT_MAX, resultScoreError } from './score'
 
 // The admin (operator) contract — the single source of truth for the /api/admin/* JSON
 // shapes, shared by the worker (server validation) and the React admin (typed `hc`).
@@ -102,7 +103,8 @@ export type RefreshLkResponse = z.infer<typeof refreshLkResponseSchema>
 // tuple makes „both or neither" structural; a set not (yet) played is `null` (the whole tuple), never a
 // half-filled pair. The max is loose on purpose (operator-entered, not a scoring engine): a tennis set
 // caps near 7 and an MTB near the high teens, so 99 is a typo guard, not a rule.
-const setScore = z.tuple([z.number().int().min(0).max(99), z.number().int().min(0).max(99)])
+const scorePoint = z.number().int().min(0).max(SCORE_POINT_MAX)
+const setScore = z.tuple([scorePoint, scorePoint])
 
 // A match's score (ADR-0032): best-of-2 sets + a Match-Tie-Break at 1:1, the universal shape across every
 // competition. Each field is that set's `[slot1, slot2]` pair, or `null` when not played — so the common
@@ -421,12 +423,20 @@ export type MatchStatusResponse = z.infer<typeof matchStatusResponseSchema>
 // a normal result fills `set1`+`set2` (+`mtb` at 1:1), a walkover carries all-null, a retirement its
 // partial score. The server resolves the winner's regId, applies the pure Advancement transform (winner →
 // parent, semifinal loser → third place), and — when the winner changes — cascade-clears dependent results.
-export const matchResultRequestSchema = z.object({
-  id,
-  winner: winnerSlot,
-  outcome: z.enum(ENTERED_OUTCOMES, { error: 'Ungültiges Ergebnis.' }).nullable(),
-  score: matchScoreSchema
-})
+// The score legality + winner-consistency guard is the closed-space authority (ADR-0045): a normal result
+// must be legal, decisive, and match its winner; a walkover carries no score; a retirement is exempt. Owned
+// once in shared/score.ts so the drawer mirrors the exact same rule as affordance (ADR-0011/0022).
+export const matchResultRequestSchema = z
+  .object({
+    id,
+    winner: winnerSlot,
+    outcome: z.enum(ENTERED_OUTCOMES, { error: 'Ungültiges Ergebnis.' }).nullable(),
+    score: matchScoreSchema
+  })
+  .superRefine((val, ctx) => {
+    const err = resultScoreError(val.outcome, val.score, val.winner)
+    if (err) ctx.addIssue({ code: 'custom', message: RESULT_SCORE_ERROR_MESSAGE[err], path: ['score'] })
+  })
 export type MatchResultRequest = z.infer<typeof matchResultRequestSchema>
 export const matchResultResponseSchema = z.object({ ok: z.literal(true) })
 export type MatchResultResponse = z.infer<typeof matchResultResponseSchema>

@@ -183,14 +183,28 @@ concept here drifts or a new one appears, update this file rather than inventing
   playback over it. _(See ADR-0003, ADR-0025.)_
 - **Revealed bracket** — the reveal sequence applied **up to the cursor**: which round-1 lines are
   filled, and which round-2 slots already carry a **bye-winner** (the one round a round-1 bye carries a
-  player forward, §31). It is the single interpretation both the draw reveal show and the public live
-  bracket render — `revealedBracket(size, steps) → { lines, byeWinners }` in `shared/reveal.ts`. Pairs
+  player forward, §31). It is the **during-reveal** interpretation the draw reveal show and the public
+  bracket render _while a field is still revealing_ — `revealedBracket(size, steps) → { lines,
+byeWinners }` in `shared/reveal.ts`. It is **not** the whole story of the public bracket: once a field is
+  fully revealed the public bracket switches phase and renders **live results** from the `matches`
+  aggregate via `resolveBracket` (winners advancing round-by-round to the champion), not from reveal steps
+  — the reveal sequence carries no result (Public bracket, ADR-0046). Pairs
   with `bracketStructure` (the **empty** topology): structure is the shape, the revealed bracket is the
   shape filled to the cursor. The renderers stay framework-specific below this seam (the React show's
   per-line `motion` reveal and focus highlight, the Astro feed's poll-and-rebuild) — they compute no
   bracket logic. Reuse by the consolation bracket (which has **no** reveal show — ADR-0004) is
   conditional on how that bracket reaches a client: free if surfaced as reveal steps, not otherwise.
-  _(See ADR-0025; issue #71.)_
+  _(See ADR-0025, ADR-0046; issue #71.)_
+- **Public bracket** (`tournament-draw.astro`, „Der Draw") — the off-site spectator's bracket view, a
+  **two-phase** projection switched **per competition** on the reveal cursor (ADR-0046): _while revealing_
+  it mirrors the cursor-sliced **Revealed bracket** (suspense, ADR-0003); _once fully revealed_ it renders
+  **live results** from the `matches` aggregate (`resolveBracket`, ADR-0025) so winners advance to the
+  champion. Gated on full reveal **only** — never the schedule publish flag, because a result is reality
+  (ADR-0032), not the plan (ADR-0041). Shows the full field per competition — main knockout + the „Spiel um
+  Platz 3" + the **Consolation bracket** (public the moment it is drawn, since it has no reveal show) — as a
+  **„Hauptrunde / Nebenrunde" segmented view** (the Nebenrunde tab present only at draw size ≥ 8). A
+  protected Challenger field stays LK/seed-redacted on the wire in **both** phases (ADR-0044). _(See
+  ADR-0046.)_
 - **Draw reveal show** (de: Auslosungs-Show; operator UI label: „Auslosung") — the **operator-paced**
   beamer projection in the **gated admin** that plays the reveal sequence back on a large screen during
   the live draw event. It is **not** a public self-serve URL: the operator drives it (projecting onto
@@ -243,12 +257,25 @@ reveal sequence }`. Randomness enters through an injected **`RandomSource`** por
   (rejection sampling, not `value % n`) — fairness is a product feature here, not a detail (ADR-0002).
   The main bracket runs it once up front with a live reveal; the consolation bracket runs it after round
   1 with no reveal. _(See ADR-0004, ADR-0025.)_
-- **Match** — a single tie between two players; best of 2 sets, Match-Tie-Break to 10 at 1:1. A match
-  exists as a bracket position from the moment of the draw; until results arrive it names its feeders
-  ("winner M3 vs winner M4"). Default planned length: **90 minutes**.
+- **Match** — a single tie between two players. **Format:** two full sets, then a **Match-Tie-Break to
+  10** as the third set at 1:1 — Winsen **never plays a full third set** (a standing choice under DTB
+  §37.1, whose default is a full third set; ADR-0045). A match exists as a bracket position from the
+  moment of the draw; until results arrive it names its feeders ("winner M3 vs winner M4"). Default
+  planned length: **90 minutes**.
+- **Legal score** — the **closed** set of scores the format admits, so an illegal score is _impossible_
+  (blocked, not warned — ADR-0033/0045): a **set** is `6:0…6:4`, `7:5`, or `7:6` (no advantage sets — the
+  tiebreak decides 6:6, so `7:6` is the ceiling); a **Match-Tie-Break** reaches **10, win by 2,
+  open-ended** (`10:0…10:8`, then `11:9`, `12:10`, …). One pure predicate in `shared/` is the server's
+  authority and the drawer's affordance (ADR-0011, ADR-0022). Retirement scores are **exempt** (partial by
+  nature). _(See ADR-0045.)_
 - **Match result** (de: Match-Ergebnis) — full set scores (e.g. `6:3, 4:6, [10:7]`) plus the winner,
-  captured by the operator during the live phase. Entry defaults to a quick straight-sets path and
-  expands as needed. Beyond a normal completed score, a match can resolve as a special outcome:
+  captured by the operator during the live phase. The **winner is the authoritative advancement datum**,
+  but for a **normal** result it is **derived from the score** (`2:0` in sets → that player; `1:1` → the
+  MTB winner) and shown read-only — it can never contradict its own score. The explicit **Sieger** choice
+  survives only where the score cannot decide it: **Walkover** (no score) and **Retirement** (the retiree
+  loses even when ahead). So the outcome is a trichotomy — **Normal ⟺ a full, legal, decisive score;
+  Walkover ⟺ no score; Retirement ⟺ partial score** — and beyond a normal completed score a match can
+  resolve as a special outcome:
   - **Bye** (de: Freilos) — auto-resolves at draw time; winner advances, no score, never scheduled.
   - **Walkover (w.o.)** — opponent didn't appear; winner advances, no score.
   - **Retirement** (de: Aufgabe) — a player retires mid-match; partial score may be recorded.
