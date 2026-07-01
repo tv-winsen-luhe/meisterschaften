@@ -1,77 +1,256 @@
 ---
 import Layout from '@/layouts/default.astro'
 
-// The public schedule (ADR-0005, issue #88): the placed matches across all competitions, grouped by
-// day with their court and an explicitly approximate („ca.") time. A tracer surface — the full live
-// board (the „jetzt auf dem Platz" courts strip, the competition filter, the actual-court switch) is
-// issue #91. Built with the public site's inline-`<script>` + polling pattern (ADR-0008).
+// The public event-wide schedule + live board (ADR-0005, ADR-0032, issue #91): one page for the whole
+// weekend that always shows the current truth, never the stale plan. It leads with a „Jetzt auf dem Platz"
+// courts board — the 6 courts, each showing what is live on it right now (or „frei") — over a schedule
+// that reflects status (geplant/läuft/beendet) and shows results for finished matches. The schedule can be
+// regrouped „Nach Tag" or „Nach Platz" and filtered by competition. A match's court is the **actual** live
+// court once running (the feed already falls back to the planned court before it starts), so a spectator is
+// never sent to the wrong court. Built with the public site's inline-`<script>` + polling pattern (ADR-0008).
 ---
 
-<Layout title="Spielplan — Winsener Meisterschaften 2026" chrome="legal">
-  <div class="mx-auto max-w-[800px] px-5 pt-12 pb-20 text-navy md:px-10 md:pt-16 md:pb-[120px]">
-    <h1 class="mt-0 mb-3 text-[clamp(36px,6vw,56px)] font-black tracking-[-0.04em] uppercase">Spielplan</h1>
-    <p class="mb-10 text-sm leading-[1.6] opacity-70">
-      Alle angesetzten Spiele mit Platz und ungefährer Zeit. Zeiten sind ein Plan — „ca." und ohne Gewähr; der
-      tatsächliche Stand steht im Match-Status.
+<Layout title="Spielplan & Live — Winsener Meisterschaften 2026" chrome="legal">
+  <div class="mx-auto max-w-[900px] px-5 pt-12 pb-20 text-navy md:px-10 md:pt-16 md:pb-[120px]">
+    <h1 class="mt-0 mb-3 text-[clamp(36px,6vw,56px)] font-black tracking-[-0.04em] uppercase">Spielplan &amp; Live</h1>
+    <p class="mb-10 max-w-[60ch] text-sm leading-[1.6] opacity-70">
+      Oben steht, was gerade auf den sechs Plätzen läuft. Darunter der Spielplan mit Platz und ungefährer Zeit — „ca."
+      und ohne Gewähr. Was wirklich passiert, steht im Status: läuft oder beendet mit Ergebnis.
     </p>
 
-    <div data-schedule>
-      <p class="sched-unpublished">
+    <!-- Starts in the loading state so the board never paints a misleading empty „keine Spiele" grid before
+         the first poll resolves — and if the inline script fails to load at all, this benign „lädt…" holding
+         message stays put instead of a fake-empty board during a live event. The first successful render (or
+         a failed poll) clears it. -->
+    <div data-board class="is-loading">
+      <p class="board-loading">Spielplan wird geladen …</p>
+      <!-- The publish gate (ADR-0041): until the operator publishes and nothing is live yet, the planned
+           schedule stays private and only this notice shows. A running/done match is live truth and is
+           served + rendered even while unpublished, so the notice yields to it the moment any match arrives. -->
+      <p class="board-unpublished">
         Der Spielplan ist noch nicht veröffentlicht. Sobald die Auslosung abgeschlossen ist, erscheinen hier alle
-        Ansetzungen mit Platz und ungefährer Zeit.
+        Ansetzungen mit Platz und ungefährer Zeit — und am Wochenende, was gerade läuft.
       </p>
-      <p class="sched-empty">Noch keine Spiele geplant. Sobald die Auslosung läuft, erscheinen hier die Ansetzungen.</p>
-      <div data-days></div>
-      <p class="sched-error">Der Spielplan lässt sich gerade nicht laden. Bitte später erneut versuchen.</p>
+      <p class="board-error">Der Spielplan lässt sich gerade nicht laden. Bitte später erneut versuchen.</p>
+
+      <section class="board-courts" aria-label="Jetzt auf dem Platz">
+        <h2 class="board-heading">Jetzt auf dem Platz</h2>
+        <div class="courts" data-courts></div>
+      </section>
+
+      <section class="board-schedule" aria-label="Spielplan">
+        <div class="board-controls" data-controls>
+          <div class="board-filter" data-filter aria-label="Konkurrenz filtern" role="group"></div>
+          <div class="board-toggle" role="group" aria-label="Gruppierung" data-grouping>
+            <button type="button" class="board-toggle__btn is-active" data-group="day" aria-pressed="true"
+              >Nach Tag</button
+            >
+            <button type="button" class="board-toggle__btn" data-group="court" aria-pressed="false">Nach Platz</button>
+          </div>
+        </div>
+
+        <p class="board-empty">
+          Noch keine Spiele geplant. Sobald die Auslosung läuft, erscheinen hier die Ansetzungen.
+        </p>
+        <div data-sections></div>
+      </section>
     </div>
   </div>
 </Layout>
 
 <style is:global>
-  .sched-error,
-  [data-schedule].is-error [data-days],
-  [data-schedule].is-error .sched-empty {
+  /* ── State visibility ─────────────────────────────────────────────────────────────────────────── */
+  /* The initial loading state (before the first poll, or if the script never runs): hide the whole board
+     and every notice, show only „lädt…". Cleared by the first successful render or a failed poll. */
+  .board-loading {
     display: none;
-  }
-  [data-schedule].is-error .sched-error {
-    display: block;
-    font-size: 14px;
-    color: rgba(12, 30, 58, 0.7);
-  }
-  .sched-error {
-    display: none;
-  }
-  /* The empty state hides the moment any match arrives (the day list is populated), and while the schedule
-     is still unpublished — there the „noch nicht veröffentlicht" notice takes its place. */
-  [data-schedule].has-matches .sched-empty,
-  [data-schedule].not-published .sched-empty,
-  [data-schedule].is-error .sched-unpublished {
-    display: none;
-  }
-  .sched-empty {
     font-size: 15px;
     line-height: 1.6;
     color: rgba(12, 30, 58, 0.7);
   }
-  /* The publish gate (ADR-0041): until the operator publishes, the planned schedule stays private and the
-     page shows this notice instead of the day list. */
-  .sched-unpublished {
-    display: none;
-  }
-  [data-schedule].not-published .sched-unpublished {
+  [data-board].is-loading .board-loading {
     display: block;
-    font-size: 15px;
-    line-height: 1.6;
-    color: rgba(12, 30, 58, 0.7);
+  }
+  [data-board].is-loading .board-courts,
+  [data-board].is-loading .board-schedule,
+  [data-board].is-loading .board-unpublished,
+  [data-board].is-loading .board-error {
+    display: none;
   }
 
-  .sched-day {
+  .board-error,
+  .board-unpublished {
+    display: none;
+    font-size: 15px;
+    line-height: 1.6;
+    color: rgba(12, 30, 58, 0.7);
+  }
+  /* Error wins over everything: hide the whole board (and the „noch nicht veröffentlicht" notice, which a
+     prior successful poll may have left showing — render() only runs on success, so a failed poll adds
+     `is-error` without clearing `not-published`), show only the error. */
+  [data-board].is-error .board-courts,
+  [data-board].is-error .board-schedule,
+  [data-board].is-error .board-unpublished {
+    display: none;
+  }
+  [data-board].is-error .board-error {
+    display: block;
+    font-size: 14px;
+  }
+  /* Unpublished with nothing live: hide the board, show the „noch nicht veröffentlicht" notice. */
+  [data-board].not-published .board-courts,
+  [data-board].not-published .board-schedule {
+    display: none;
+  }
+  [data-board].not-published .board-unpublished {
+    display: block;
+  }
+  /* The controls (filter + grouping toggle) only mean anything once there are matches. */
+  [data-board]:not(.has-matches) .board-controls {
+    display: none;
+  }
+  /* The empty note shows only when published-but-empty (no matches, but past the publish gate). */
+  .board-empty {
+    font-size: 15px;
+    line-height: 1.6;
+    color: rgba(12, 30, 58, 0.7);
+  }
+  [data-board].has-matches .board-empty,
+  [data-board].not-published .board-empty,
+  [data-board].is-error .board-empty {
+    display: none;
+  }
+
+  .board-heading {
+    margin: 0 0 14px;
+    font-size: 12px;
+    font-weight: 800;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--color-navy);
+  }
+
+  /* ── Courts board („Jetzt auf dem Platz") ─────────────────────────────────────────────────────── */
+  .board-courts {
+    margin-bottom: 44px;
+  }
+  .courts {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 10px;
+  }
+  .court {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    min-height: 104px;
+    padding: 12px 14px;
+    border: 1px solid rgba(12, 30, 58, 0.14);
+    border-radius: 10px;
+    background: rgba(12, 30, 58, 0.02);
+    transition: opacity 0.15s ease;
+  }
+  /* A court running a match gets a live accent; an empty one stays quiet. */
+  .court--live {
+    border-color: rgba(31, 122, 61, 0.35);
+    background: rgba(31, 122, 61, 0.06);
+  }
+  /* When a competition filter is active, courts that are not the focused field fade back — never blanked
+     to „frei" (that would lie about a physically busy court), just de-emphasised (ADR-0032: stay truthful). */
+  .court--dim {
+    opacity: 0.4;
+  }
+  .court__no {
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: rgba(12, 30, 58, 0.55);
+  }
+  .court--live .court__no {
+    color: #1f7a3d;
+  }
+  .court__free {
+    margin: auto 0;
+    font-size: 15px;
+    font-weight: 700;
+    color: rgba(12, 30, 58, 0.35);
+  }
+  .court__players {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+  .court__meta {
+    margin-top: 2px;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: rgba(12, 30, 58, 0.45);
+  }
+
+  /* ── Controls (competition filter + grouping toggle) ──────────────────────────────────────────── */
+  .board-controls {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 26px;
+  }
+  .board-filter {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  .board-chip {
+    padding: 6px 12px;
+    font-size: 12px;
+    font-weight: 800;
+    letter-spacing: 0.02em;
+    color: rgba(12, 30, 58, 0.65);
+    background: rgba(12, 30, 58, 0.06);
+    border: 1px solid transparent;
+    border-radius: 999px;
+    cursor: pointer;
+  }
+  .board-chip.is-active {
+    color: #fff;
+    background: var(--color-navy);
+  }
+  .board-toggle {
+    display: inline-flex;
+    padding: 3px;
+    gap: 2px;
+    background: rgba(12, 30, 58, 0.06);
+    border-radius: 999px;
+  }
+  .board-toggle__btn {
+    padding: 6px 14px;
+    font-size: 12px;
+    font-weight: 800;
+    letter-spacing: 0.02em;
+    color: rgba(12, 30, 58, 0.6);
+    background: transparent;
+    border: none;
+    border-radius: 999px;
+    cursor: pointer;
+  }
+  .board-toggle__btn.is-active {
+    color: var(--color-navy);
+    background: #fff;
+    box-shadow: 0 1px 2px rgba(12, 30, 58, 0.12);
+  }
+
+  /* ── Schedule sections (by day or by court) ───────────────────────────────────────────────────── */
+  .sched-section {
     margin-top: 40px;
   }
-  .sched-day:first-child {
+  .sched-section:first-child {
     margin-top: 0;
   }
-  .sched-day__head {
+  .sched-section__head {
     margin: 0 0 14px;
     font-size: 12px;
     font-weight: 800;
@@ -83,7 +262,7 @@ import Layout from '@/layouts/default.astro'
   }
   .sched-match {
     display: grid;
-    grid-template-columns: 64px 1fr auto;
+    grid-template-columns: 74px 1fr auto;
     align-items: center;
     gap: 12px;
     padding: 12px 4px;
@@ -99,18 +278,40 @@ import Layout from '@/layouts/default.astro'
     min-width: 0;
   }
   .sched-match__player {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 10px;
+  }
+  .sched-match__name {
+    min-width: 0;
     font-size: 14px;
     font-weight: 700;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
   }
-  .sched-match__player--tbd {
+  .sched-match__player--tbd .sched-match__name {
     font-weight: 600;
     color: rgba(12, 30, 58, 0.5);
   }
+  /* The winner of a finished match reads bold — the primary result signal on the board. */
+  .sched-match__player--winner .sched-match__name {
+    font-weight: 800;
+  }
+  .sched-match__games {
+    flex-shrink: 0;
+    font-size: 13px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0.08em;
+    color: rgba(12, 30, 58, 0.6);
+  }
+  .sched-match__player--winner .sched-match__games {
+    color: var(--color-navy);
+  }
   .sched-match__meta {
-    margin-top: 2px;
+    margin-top: 3px;
     font-size: 11px;
     font-weight: 700;
     letter-spacing: 0.04em;
@@ -153,22 +354,25 @@ import Layout from '@/layouts/default.astro'
 
 <script>
   import { hc } from 'hono/client'
-  import { roundLabel, slotLabel, slotTime } from '../../shared'
+  import { COURT_NUMBERS, roundLabel, slotGames, slotLabel, slotTime } from '../../shared'
   import { competitions, tournament } from '../data/tournament'
   import type { AppType } from '../../worker/app'
-  import type { ScheduleMatch, ScheduleResponse, ScheduleSlot } from '../../shared'
+  import type { MatchScore, ScheduleMatch, ScheduleResponse, ScheduleSlot } from '../../shared'
 
   const client = hc<AppType>(location.origin)
 
-  // The public schedule polls ~15 s (ADR-0008): a placed/started match appears within the interval,
-  // light enough for a phone on event Wi-Fi.
+  // The live board polls ~15 s (ADR-0008): a started match, a moved court, or a completed result appears
+  // within the interval, light enough for a phone on event Wi-Fi.
   const POLL_MS = 15000
 
-  // Day labels from the event's date copy (src/data/tournament.ts), indexed by the wire `day` (0/1).
+  // Day labels from the event's date copy (src/data/tournament.ts), indexed by the wire `day` (0/1): the
+  // full „Samstag · 22.08." heads a by-day section; the two-letter „Sa"/„So" prefixes a by-court row's time.
   const DAYS = [tournament.saturday, tournament.sunday]
+  const DAY_ABBR = DAYS.map(d => d.weekday.slice(0, 2))
 
-  // Competition slug → German label (the wire carries the English slug; the page shows the club's name).
+  // Competition slug → German label, and the stable display order (the wire carries the English slug).
   const COMPETITION_LABELS = new Map(competitions.map(c => [c.slug, c.label]))
+  const COMPETITION_ORDER = competitions.map(c => c.slug)
 
   const STATUS_LABEL: Record<ScheduleMatch['status'], string> = {
     planned: 'geplant',
@@ -176,56 +380,183 @@ import Layout from '@/layouts/default.astro'
     done: 'beendet'
   }
 
-  const root = document.querySelector<HTMLElement>('[data-schedule]')
-  const daysEl = root?.querySelector<HTMLElement>('[data-days]')
+  // The German note for a special outcome (ADR-0032), appended to a finished match's meta line. A normal
+  // scored result carries no note — its set scores are the result.
+  const OUTCOME_NOTE: Record<NonNullable<ScheduleMatch['outcome']>, string> = {
+    walkover: 'Walkover',
+    retirement: 'Aufgabe'
+  }
 
-  // One slot's display text: a player's name, a „Freilos" bye line, a „Sieger M{n}" feeder, or an
-  // „offen" line — the graceful degrade when a feeder cannot be resolved (ADR-0035). Every not-yet-decided
-  // slot (bye/feeder/unknown) is rendered muted.
+  const root = document.querySelector<HTMLElement>('[data-board]')
+  const courtsEl = root?.querySelector<HTMLElement>('[data-courts]')
+  const filterEl = root?.querySelector<HTMLElement>('[data-filter]')
+  const sectionsEl = root?.querySelector<HTMLElement>('[data-sections]')
+  const groupButtons = [...(root?.querySelectorAll<HTMLButtonElement>('[data-group]') ?? [])]
+
+  // The last-served feed plus the two view controls. The controls re-render from the cached feed (no
+  // refetch), so a filter or grouping change is instant; the poll only replaces `feed` and re-renders.
+  let feed: ScheduleResponse = { published: false, matches: [] }
+  let selected: string | null = null // competition slug, or null = „Alle"
+  let grouping: 'day' | 'court' = 'day'
+
+  // One slot's display text: a player's name, or the shared German label for a „Freilos"/„Sieger M{n}"/
+  // „Verlierer M{n}"/„offen" line — every not-yet-decided slot renders muted (ADR-0035).
   interface SlotText {
     text: string
     tbd: boolean
   }
-  const slotText = (slot: ScheduleSlot): SlotText => {
-    if (slot.kind === 'player') return { text: `${slot.firstName} ${slot.lastName}`.trim(), tbd: false }
-    // Every undecided slot (bye/feeder/unknown) shares the German copy with the admin grid (#109) and
-    // renders muted.
-    return { text: slotLabel(slot), tbd: true }
-  }
+  const slotDisplay = (slot: ScheduleSlot): SlotText =>
+    slot.kind === 'player'
+      ? { text: `${slot.firstName} ${slot.lastName}`.trim(), tbd: false }
+      : { text: slotLabel(slot), tbd: true }
 
-  const playerLine = (slot: ScheduleSlot): HTMLElement => {
-    const { text, tbd } = slotText(slot)
+  // One slot's games across the three sets as a line, e.g. „6 4 10" — the shared `slotGames` (the single
+  // „which games" rule, also read by the admin results surface) joined with a space. Empty when nothing is
+  // recorded, so an unplayed (or walkover) match shows no trailing numbers, and a running match with an
+  // opportunistically-saved set shows just that set (ADR-0032 §20).
+  const gamesLine = (score: MatchScore, slot: 1 | 2): string => slotGames(score, slot).join(' ')
+
+  // A player line: the name (truncated), the slot's games (if any), and the winner emphasised. Shared by
+  // the courts board and the schedule rows.
+  const playerLine = (slot: ScheduleSlot, games: string, winner: boolean): HTMLElement => {
     const el = document.createElement('div')
-    el.className = tbd ? 'sched-match__player sched-match__player--tbd' : 'sched-match__player'
-    el.textContent = text
+    el.className = 'sched-match__player'
+    const { text, tbd } = slotDisplay(slot)
+    if (tbd) el.classList.add('sched-match__player--tbd')
+    if (winner) el.classList.add('sched-match__player--winner')
+    const name = document.createElement('span')
+    name.className = 'sched-match__name'
+    name.textContent = text
+    el.appendChild(name)
+    if (games) {
+      const g = document.createElement('span')
+      g.className = 'sched-match__games'
+      g.textContent = games
+      el.appendChild(g)
+    }
     return el
   }
 
-  const matchRow = (m: ScheduleMatch): HTMLElement => {
+  const roundText = (m: ScheduleMatch): string =>
+    roundLabel({ bracket: m.bracket, round: m.round, totalRounds: m.totalRounds, thirdPlace: m.thirdPlace })
+  const compLabel = (m: ScheduleMatch): string => COMPETITION_LABELS.get(m.competition) ?? m.competition
+
+  // ── Courts board ────────────────────────────────────────────────────────────────────────────────
+
+  // The single running match on a court (occupancy is enforced server-side, so at most one). The feed's
+  // `court` is already the actual live court for a running match (ADR-0032), so this indexes by reality.
+  const runningByCourt = (matches: ScheduleMatch[]): Map<number, ScheduleMatch> => {
+    const map = new Map<number, ScheduleMatch>()
+    for (const m of matches) if (m.status === 'running') map.set(m.court, m)
+    return map
+  }
+
+  const courtCell = (court: number, match: ScheduleMatch | undefined): HTMLElement => {
+    const cell = document.createElement('div')
+    cell.className = 'court'
+    if (match) cell.classList.add('court--live')
+    // Fade back the courts that are not the focused field when a filter is active — including free ones —
+    // so „mein Feld" pops without ever relabelling a busy court „frei".
+    if (selected && match?.competition !== selected) cell.classList.add('court--dim')
+
+    const no = document.createElement('div')
+    no.className = 'court__no'
+    no.textContent = `Platz ${court}`
+    cell.appendChild(no)
+
+    if (!match) {
+      const free = document.createElement('div')
+      free.className = 'court__free'
+      free.textContent = 'frei'
+      cell.appendChild(free)
+      return cell
+    }
+
+    const players = document.createElement('div')
+    players.className = 'court__players'
+    // Running — no winner yet; show any opportunistically-saved set games.
+    players.appendChild(playerLine(match.slot1, gamesLine(match.score, 1), false))
+    players.appendChild(playerLine(match.slot2, gamesLine(match.score, 2), false))
+    cell.appendChild(players)
+
+    const meta = document.createElement('div')
+    meta.className = 'court__meta'
+    meta.textContent = `${roundText(match)} · ${compLabel(match)}`
+    cell.appendChild(meta)
+    return cell
+  }
+
+  const renderCourts = (matches: ScheduleMatch[]) => {
+    if (!courtsEl) return
+    const running = runningByCourt(matches)
+    courtsEl.replaceChildren(...COURT_NUMBERS.map(court => courtCell(court, running.get(court))))
+  }
+
+  // ── Competition filter ────────────────────────────────────────────────────────────────────────
+
+  // A competition filter chip: „Alle" (slug null) or one field. The active chip narrows the schedule to
+  // that field and focuses its courts on the board.
+  interface FilterChip {
+    slug: string | null
+    label: string
+  }
+
+  const renderFilter = (present: string[]) => {
+    if (!filterEl) return
+    // A filter with fewer than two fields present has nothing to choose between — hide it.
+    if (present.length < 2) {
+      filterEl.replaceChildren()
+      filterEl.hidden = true
+      return
+    }
+    filterEl.hidden = false
+    const chips: FilterChip[] = [
+      { slug: null, label: 'Alle' },
+      ...present.map((slug): FilterChip => ({ slug, label: COMPETITION_LABELS.get(slug) ?? slug }))
+    ]
+    filterEl.replaceChildren(
+      ...chips.map(chip => {
+        const btn = document.createElement('button')
+        btn.type = 'button'
+        btn.className = 'board-chip'
+        const active = selected === chip.slug
+        btn.classList.toggle('is-active', active)
+        btn.setAttribute('aria-pressed', String(active))
+        btn.textContent = chip.label
+        btn.addEventListener('click', () => {
+          selected = chip.slug
+          render()
+        })
+        return btn
+      })
+    )
+  }
+
+  // ── Schedule rows ─────────────────────────────────────────────────────────────────────────────
+
+  // `showDay` prefixes the time with the two-letter day — needed in the by-court view, where a section's
+  // rows span both days; the by-day view's section header already carries the day.
+  const matchRow = (m: ScheduleMatch, showDay: boolean): HTMLElement => {
     const row = document.createElement('div')
     row.className = 'sched-match'
 
     const time = document.createElement('div')
     time.className = 'sched-match__time'
     // The „ca." time is day-aware — Saturday and Sunday start at different clock times (ADR-0040).
-    time.textContent = `ca. ${slotTime(m.day, m.slot)}`
+    const clock = `ca. ${slotTime(m.day, m.slot)}`
+    time.textContent = showDay ? `${DAY_ABBR[m.day] ?? `T${m.day + 1}`} · ${clock}` : clock
     row.appendChild(time)
 
     const players = document.createElement('div')
     players.className = 'sched-match__players'
-    players.appendChild(playerLine(m.slot1))
-    players.appendChild(playerLine(m.slot2))
+    players.appendChild(playerLine(m.slot1, gamesLine(m.score, 1), m.winner === 1))
+    players.appendChild(playerLine(m.slot2, gamesLine(m.score, 2), m.winner === 2))
     const meta = document.createElement('div')
     meta.className = 'sched-match__meta'
-    // The round („Achtelfinale" … „Finale", „Nebenrunde · …") via the shared label, so the spectator sees
-    // the stage of each match — derived at the edge from the round/totalRounds the feed carries (#142).
-    const round = roundLabel({
-      bracket: m.bracket,
-      round: m.round,
-      totalRounds: m.totalRounds,
-      thirdPlace: m.thirdPlace
-    })
-    meta.textContent = `${round} · M${m.number} · ${COMPETITION_LABELS.get(m.competition) ?? m.competition}`
+    // The round („Achtelfinale" … „Finale", „Nebenrunde · …"), the match number, the field, and — for a
+    // special outcome — „Walkover"/„Aufgabe" so a scoreless finish still reads as a result.
+    const note = m.outcome ? ` · ${OUTCOME_NOTE[m.outcome]}` : ''
+    meta.textContent = `${roundText(m)} · M${m.number} · ${compLabel(m)}${note}`
     players.appendChild(meta)
     row.appendChild(players)
 
@@ -240,35 +571,79 @@ import Layout from '@/layouts/default.astro'
     status.textContent = STATUS_LABEL[m.status]
     right.appendChild(status)
     row.appendChild(right)
-
     return row
   }
 
-  const render = (published: boolean, matches: ScheduleMatch[]) => {
-    if (!root || !daysEl) return
-    daysEl.innerHTML = ''
-    // Unpublished with nothing live to show → the „noch nicht veröffentlicht" notice. A running/done match
-    // is live truth and is served + rendered even while unpublished (the plan gate, ADR-0041), so the
-    // notice yields to it the moment any match arrives.
+  const section = (head: string, matches: ScheduleMatch[], showDay: boolean): HTMLElement => {
+    const el = document.createElement('section')
+    el.className = 'sched-section'
+    const h = document.createElement('h2')
+    h.className = 'sched-section__head'
+    h.textContent = head
+    el.appendChild(h)
+    for (const m of matches) el.appendChild(matchRow(m, showDay))
+    return el
+  }
+
+  // Group by the day values actually present (ascending), each day's matches ordered by slot then court —
+  // so a match is never silently dropped because the day axis was sized too small.
+  const renderByDay = (matches: ScheduleMatch[]): HTMLElement[] => {
+    const days = [...new Set(matches.map(m => m.day))].sort((a, b) => a - b)
+    return days.map(day => {
+      const dayMatches = matches.filter(m => m.day === day).sort((a, b) => a.slot - b.slot || a.court - b.court)
+      const label = DAYS[day]
+      return section(label ? `${label.weekday} · ${label.short}` : `Tag ${day + 1}`, dayMatches, false)
+    })
+  }
+
+  // Group by court (one „Platz N" section per court present, ascending), each court's matches ordered by
+  // day then slot — so an on-site player reads down their court's column to see when they play (#91).
+  const renderByCourt = (matches: ScheduleMatch[]): HTMLElement[] => {
+    const courts = [...new Set(matches.map(m => m.court))].sort((a, b) => a - b)
+    return courts.map(court => {
+      const courtMatches = matches.filter(m => m.court === court).sort((a, b) => a.day - b.day || a.slot - b.slot)
+      return section(`Platz ${court}`, courtMatches, true)
+    })
+  }
+
+  const renderSchedule = (matches: ScheduleMatch[]) => {
+    if (!sectionsEl) return
+    const visible = selected ? matches.filter(m => m.competition === selected) : matches
+    sectionsEl.replaceChildren(...(grouping === 'court' ? renderByCourt(visible) : renderByDay(visible)))
+  }
+
+  const syncGrouping = () => {
+    for (const btn of groupButtons) {
+      const active = btn.dataset.group === grouping
+      btn.classList.toggle('is-active', active)
+      btn.setAttribute('aria-pressed', String(active))
+    }
+  }
+
+  const render = () => {
+    if (!root) return
+    // The first render replaces the initial „lädt…" holding state with the real one.
+    root.classList.remove('is-loading')
+    const { published, matches } = feed
     root.classList.toggle('not-published', !published && matches.length === 0)
     root.classList.toggle('has-matches', matches.length > 0)
 
-    // Group by the day values actually present (ascending), so a match is never silently dropped because
-    // the day axis was sized too small. Each day's matches are ordered by slot then court.
-    const days = [...new Set(matches.map(m => m.day))].sort((a, b) => a - b)
-    for (const day of days) {
-      const dayMatches = matches.filter(m => m.day === day).sort((a, b) => a.slot - b.slot || a.court - b.court)
+    // The competitions actually present, in the fixed display order. A filter that no longer has its field
+    // (e.g. a reset dropped it) falls back to „Alle"; fewer than two present hides the filter entirely.
+    const present = COMPETITION_ORDER.filter(slug => matches.some(m => m.competition === slug))
+    if (present.length < 2 || (selected && !present.includes(selected))) selected = null
 
-      const section = document.createElement('section')
-      section.className = 'sched-day'
-      const head = document.createElement('h2')
-      head.className = 'sched-day__head'
-      const dayLabel = DAYS[day]
-      head.textContent = dayLabel ? `${dayLabel.weekday} · ${dayLabel.short}` : `Tag ${day + 1}`
-      section.appendChild(head)
-      for (const m of dayMatches) section.appendChild(matchRow(m))
-      daysEl.appendChild(section)
-    }
+    renderFilter(present)
+    syncGrouping()
+    renderCourts(matches)
+    renderSchedule(matches)
+  }
+
+  for (const btn of groupButtons) {
+    btn.addEventListener('click', () => {
+      grouping = btn.dataset.group === 'court' ? 'court' : 'day'
+      render()
+    })
   }
 
   let lastJson = ''
@@ -280,12 +655,16 @@ import Layout from '@/layouts/default.astro'
       const body: ScheduleResponse = await res.json()
       root.classList.remove('is-error')
       // Skip the rebuild when nothing changed since the last poll — the publish flag is part of the
-      // signature so a publish/reset toggles the page on the next poll.
+      // signature so a publish/reset toggles the page on the next poll. View-control changes bypass this
+      // (they call render() directly), so a filter/grouping toggle is always instant.
       const sig = JSON.stringify({ published: body.published, matches: body.matches })
       if (sig === lastJson) return
       lastJson = sig
-      render(body.published, body.matches)
+      feed = { published: body.published, matches: body.matches }
+      render()
     } catch {
+      // A failed poll clears the loading state too, so a first-poll failure shows the error, not „lädt…".
+      root.classList.remove('is-loading')
       root.classList.add('is-error')
     }
   }

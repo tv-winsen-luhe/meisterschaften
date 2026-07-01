@@ -212,6 +212,12 @@ export const createProjections = (deps: ProjectionsDeps) => {
 
       const matches = placed.map(m => {
         const r = resolved.get(m.id)!
+        // The winning **slot** (1/2) the page bolds, mapped from `winnerRegId` by which slot it fills —
+        // null when the match is undecided, or when the winner is neither slot (only reachable if a slot's
+        // registration was hard-deleted under a frozen draw, ADR-0035). Bound with its literal type so the
+        // wire's `1 | 2 | null` is preserved rather than widened to `number`.
+        const winner: 1 | 2 | null =
+          m.winnerRegId === null ? null : m.winnerRegId === m.slot1RegId ? 1 : m.winnerRegId === m.slot2RegId ? 2 : null
         return {
           id: m.id,
           competition: m.competition,
@@ -232,6 +238,12 @@ export const createProjections = (deps: ProjectionsDeps) => {
           day: m.day!,
           slot: m.slot!,
           status: m.status,
+          // The live result (#91, ADR-0032): the winning slot (above), the entered outcome, and the set
+          // scores — so the board shows what happened without a second fetch. A `bye` outcome never reaches
+          // here (byes are filtered above), so it degrades to null for the wire's entered-outcome enum.
+          winner,
+          outcome: m.outcome === 'bye' ? null : m.outcome,
+          score: m.score,
           slot1: toSlot(r.slot1),
           slot2: toSlot(r.slot2)
         }

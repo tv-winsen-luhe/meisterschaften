@@ -13,6 +13,7 @@ import {
   type MatchStatus,
   resolveBracket,
   roundLabel,
+  slotGames,
   slotLabel,
   type SlotView
 } from '../../../shared'
@@ -309,10 +310,6 @@ const Contestant = ({ label, score, winner, muted }: ContestantProps) => (
 const slotName = (view: SlotView, nameById: Map<number, string>): string =>
   view.kind === 'player' ? (nameById.get(view.regId) ?? `#${view.regId}`) : slotLabel(view)
 
-// One slot's score across the three sets, e.g. „6 4 10" — the games (or MTB points) that slot won, in
-// order. Empty when nothing is recorded yet, so an unplayed match shows no trailing numbers.
-const scoreFor = (score: MatchScore, slot: 1 | 2): string =>
-  [score.set1, score.set2, score.mtb]
-    .map(pair => (pair ? pair[slot - 1] : null))
-    .filter((n): n is number => n !== null)
-    .join('  ')
+// One slot's score across the three sets, e.g. „6 4 10" — the shared `slotGames` (the single „which
+// games" rule, reused by the public live board #91), joined for this surface with a wider gap.
+const scoreFor = (score: MatchScore, slot: 1 | 2): string => slotGames(score, slot).join('  ')

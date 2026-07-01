@@ -310,10 +310,10 @@ export type ScheduleSlot = z.infer<typeof scheduleSlotSchema>
 // One placed match as the public schedule shows it: its court + slot (the page derives the „ca." time
 // from the slot), its live status, its display number (M{number}), its round + position (the bracket
 // topology the public draw joins on to annotate each matchup, #159) + the bracket's total round count (so
-// both surfaces derive the round label „Achtelfinale"… via the shared `roundLabel`, #142), and its two
-// resolved slots. Only placed, real matches appear (a bye is auto-resolved, never played, so it is never
-// scheduled). `round`/`position`/`totalRounds` are numeric (English/data, ADR-0028) — the German label is
-// computed at the edge, never carried on the wire.
+// both surfaces derive the round label „Achtelfinale"… via the shared `roundLabel`, #142), its two
+// resolved slots, and — once play begins — its live result (#91). Only placed, real matches appear (a bye
+// is auto-resolved, never played, so it is never scheduled). `round`/`position`/`totalRounds` are numeric
+// (English/data, ADR-0028) — the German label is computed at the edge, never carried on the wire.
 export const scheduleMatchSchema = z.object({
   id: z.number().int().positive(),
   competition: competitionSlug,
@@ -339,6 +339,14 @@ export const scheduleMatchSchema = z.object({
     .min(0)
     .max(SCHEDULE.slotsPerDay - 1),
   status: z.enum(MATCH_STATUSES),
+  // The live result, so the board shows what happened without a second fetch (#91, ADR-0032): the winning
+  // **slot** (1/2, so the page bolds the winner without a regId join; null until the match is decided), the
+  // entered `outcome` (walkover/retirement, or null for a normal scored result — a `bye` never reaches the
+  // feed, it is filtered upstream), and the best-of-2 + MTB `score`. `score` is carried even while
+  // `running` so an opportunistically-saved set („Satz 1: 6:3") shows before the match is over (§20).
+  winner: z.union([z.literal(1), z.literal(2)]).nullable(),
+  outcome: z.enum(ENTERED_OUTCOMES).nullable(),
+  score: matchScoreSchema,
   slot1: scheduleSlotSchema,
   slot2: scheduleSlotSchema
 })
