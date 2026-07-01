@@ -25,8 +25,9 @@ describe('drawBracket — 4-draw (sub-DTB extension, 2 fixed seeds, ADR-0034)', 
       { kind: 'draw', position: 1, playerId: 3, seed: null },
       { kind: 'draw', position: 2, playerId: 4, seed: null }
     ])
-    // The final is the one round-2 match; round 1 is the two semifinals (size − 1 = 3 matches).
-    expect(materializeMatches(4, result.slots)).toHaveLength(3)
+    // The final is the one round-2 match; round 1 is the two semifinals (size − 1 = 3 KO matches), plus
+    // the third-place playoff materialized beside the final = 4 rows.
+    expect(materializeMatches(4, result.slots)).toHaveLength(4)
   })
 
   it('3-player field: the single bye goes to Nr.1, the third player faces Nr.2', () => {
@@ -41,8 +42,8 @@ describe('drawBracket — 4-draw (sub-DTB extension, 2 fixed seeds, ADR-0034)', 
     // The bye auto-resolves: Nr.1 advances to the final „ohne Spiel"; the other semifinal is contested.
     const m = materializeMatches(4, result.slots)
     expect(m.filter(x => x.round === 1)).toEqual([
-      { round: 1, position: 0, slot1RegId: 1, slot2RegId: null, winnerRegId: 1, outcome: 'bye' },
-      { round: 1, position: 1, slot1RegId: 3, slot2RegId: 2, winnerRegId: null, outcome: null }
+      { round: 1, position: 0, slot1RegId: 1, slot2RegId: null, winnerRegId: 1, outcome: 'bye', thirdPlace: false },
+      { round: 1, position: 1, slot1RegId: 3, slot2RegId: 2, winnerRegId: null, outcome: null, thirdPlace: false }
     ])
   })
 })

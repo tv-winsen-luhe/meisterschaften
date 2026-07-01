@@ -12,6 +12,9 @@ import {
   deleteRequestSchema,
   drawRequestSchema,
   drawsResponseSchema,
+  matchResultRequestSchema,
+  matchSetRequestSchema,
+  matchStatusRequestSchema,
   participantsResponseSchema,
   placeMatchRequestSchema,
   publicDrawsResponseSchema,
@@ -26,6 +29,9 @@ import {
   type ConfirmResponse,
   type DeleteResponse,
   type DrawResponse,
+  type MatchResultResponse,
+  type MatchSetResponse,
+  type MatchStatusResponse,
   type ParticipantsResponse,
   type PhaseResponse,
   type PlaceMatchResponse,
@@ -378,6 +384,41 @@ export const createApp = (makeDeps: (env: Env) => Deps = createDepsFromEnv) =>
       }
       await c.var.deps.draws.placeMatch(id, placement)
       return c.json({ ok: true } satisfies PlaceMatchResponse)
+    })
+    // POST /api/admin/match/status — move a match's live status (ADR-0032), the signal the public board
+    // keys off. Going `running` captures the **actual** court the match is on (`liveCourt`); the operator
+    // picks it (the admin defaults to the planned court), and the store falls back to the planned court
+    // when none is sent, so the board never points at a stale planned court. A pure status write — the
+    // bracket is untouched; result entry is the separate /result endpoint.
+    .post('/api/admin/match/status', parseGuard, v(matchStatusRequestSchema), async c => {
+      const { id, status, liveCourt } = c.req.valid('json')
+      await c.var.deps.draws.setMatchStatus(id, status, liveCourt)
+      return c.json({ ok: true } satisfies MatchStatusResponse)
+    })
+    // POST /api/admin/match/result — record (or correct) a completed result and advance the bracket
+    // (CONTEXT: Advancement, ADR-0026). `winner` is the winning **slot** (1/2); the server resolves it
+    // against the match's own slots, so a winner outside the match cannot be sent, then runs the pure
+    // `applyResult` transform (winner → parent, semifinal loser → third-place playoff) and — on a winner
+    // change — cascade-clears dependent downstream results. A result needs both players known (a
+    // not-yet-decided feeder cannot resolve), so an unfilled slot is a 400, not a silent no-op.
+    .post('/api/admin/match/result', parseGuard, v(matchResultRequestSchema), async c => {
+      const { id, winner, outcome, score } = c.req.valid('json')
+      const match = await c.var.deps.draws.findMatch(id)
+      if (!match) return c.json({ error: 'Match nicht gefunden.' }, 404)
+      if (match.slot1RegId === null || match.slot2RegId === null)
+        return c.json({ error: 'Dieses Match hat noch keine zwei Spieler.' }, 400)
+      const winnerRegId = winner === 1 ? match.slot1RegId : match.slot2RegId
+      await c.var.deps.draws.recordResult(id, { winnerRegId, outcome, score })
+      return c.json({ ok: true } satisfies MatchResultResponse)
+    })
+    // POST /api/admin/match/set — opportunistically save (or clear) one set's score while a match is
+    // ongoing (ADR-0032 §20): the live board can show „Satz 1: 6:3 · Satz 2 läuft" without the match being
+    // over. It never resolves the match — no winner, no advancement (that is /result); `score` null clears
+    // the set back to unplayed.
+    .post('/api/admin/match/set', parseGuard, v(matchSetRequestSchema), async c => {
+      const { id, set, score } = c.req.valid('json')
+      await c.var.deps.draws.saveSet(id, set, score)
+      return c.json({ ok: true } satisfies MatchSetResponse)
     })
     // GET /api/admin/schedule — the operator's lightweight publish-state read (ADR-0041): just the flag,
     // so the admin reflects it on mount without resolving the whole public schedule feed. Behind Access

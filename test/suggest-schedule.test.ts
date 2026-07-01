@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { absoluteSlot, suggestSchedule, validatePlacement } from '../shared/schedule'
+import { absoluteSlot, validatePlacement } from '../shared/schedule'
+import { suggestSchedule } from '../shared/suggest-schedule'
 import type { Placement, SchedulableMatch } from '../shared/schedule'
 
 // The auto-suggest planner (suggestSchedule): a greedy, deterministic fill of unplaced matches into

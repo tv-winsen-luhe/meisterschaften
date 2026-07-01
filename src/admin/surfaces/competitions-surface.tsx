@@ -226,7 +226,9 @@ const Bracket = ({ draw, nameById }: BracketProps) => {
   const totalRounds = Math.log2(draw.size)
   const byRound = useMemo(() => {
     const rounds: Match[][] = Array.from({ length: totalRounds }, () => [])
-    for (const m of draw.matches) rounds[m.round - 1]?.push(m)
+    // The third-place playoff shares the final's round but is a separate placement match, not a KO-tree
+    // node — excluded here so the final column shows the final alone, not a phantom second box (#90).
+    for (const m of draw.matches) if (!m.thirdPlace) rounds[m.round - 1]?.push(m)
     for (const r of rounds) r.sort((a, b) => a.position - b.position)
     return rounds
   }, [draw.matches, totalRounds])

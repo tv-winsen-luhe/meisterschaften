@@ -273,27 +273,49 @@ describe('materializeMatches', () => {
   it('pairs round 1 by adjacent lines and leaves later rounds as implicit-feeder slots', () => {
     const { slots } = drawBracket({ players: field(8), size: 8, random: createFakeRandomSource([0, 0, 0, 0, 0]) })
     const m = materializeMatches(8, slots)
-    // 8-draw: 4 + 2 + 1 = 7 matches.
-    expect(m).toHaveLength(7)
+    // 8-draw: 4 + 2 + 1 KO matches + 1 third-place playoff = 8 rows.
+    expect(m).toHaveLength(8)
     expect(m.filter(x => x.round === 1)).toEqual([
-      { round: 1, position: 0, slot1RegId: 1, slot2RegId: 3, winnerRegId: null, outcome: null },
-      { round: 1, position: 1, slot1RegId: 4, slot2RegId: 5, winnerRegId: null, outcome: null },
-      { round: 1, position: 2, slot1RegId: 6, slot2RegId: 7, winnerRegId: null, outcome: null },
-      { round: 1, position: 3, slot1RegId: 8, slot2RegId: 2, winnerRegId: null, outcome: null }
+      { round: 1, position: 0, slot1RegId: 1, slot2RegId: 3, winnerRegId: null, outcome: null, thirdPlace: false },
+      { round: 1, position: 1, slot1RegId: 4, slot2RegId: 5, winnerRegId: null, outcome: null, thirdPlace: false },
+      { round: 1, position: 2, slot1RegId: 6, slot2RegId: 7, winnerRegId: null, outcome: null, thirdPlace: false },
+      { round: 1, position: 3, slot1RegId: 8, slot2RegId: 2, winnerRegId: null, outcome: null, thirdPlace: false }
     ])
     // A full field has no byes, so nothing is resolved at draw time.
     expect(m.every(x => x.winnerRegId === null && x.outcome === null)).toBe(true)
-    // Later rounds carry no slots — feeders are implicit via (round, position) (ADR-0025).
+    // Later rounds carry no slots — feeders are implicit via (round, position) (ADR-0025); the third-place
+    // playoff likewise opens empty (its loser-feeders fill on Advancement).
     expect(m.filter(x => x.round > 1).every(x => x.slot1RegId === null && x.slot2RegId === null)).toBe(true)
   })
 
-  it('produces size − 1 matches for a 16-draw', () => {
+  it('materializes the third-place playoff beside the final (position 1, same round)', () => {
+    const { slots } = drawBracket({ players: field(8), size: 8, random: createFakeRandomSource([0, 0, 0, 0, 0]) })
+    const m = materializeMatches(8, slots)
+    const third = m.filter(x => x.thirdPlace)
+    expect(third).toEqual([
+      { round: 3, position: 1, slot1RegId: null, slot2RegId: null, winnerRegId: null, outcome: null, thirdPlace: true }
+    ])
+    // The final sits at the same round, position 0 — so the bracket depth is unchanged.
+    expect(m.find(x => x.round === 3 && x.position === 0 && !x.thirdPlace)).toBeDefined()
+  })
+
+  it('materializes the third-place playoff at four entrants too (it doubles as the consolation)', () => {
+    const { slots } = drawBracket({ players: field(4), size: 4, random: createFakeRandomSource([0, 0]) })
+    const m = materializeMatches(4, slots)
+    // 4-draw: 2 semifinals + 1 final + 1 third-place = 4 rows.
+    expect(m).toHaveLength(4)
+    expect(m.filter(x => x.thirdPlace)).toEqual([
+      { round: 2, position: 1, slot1RegId: null, slot2RegId: null, winnerRegId: null, outcome: null, thirdPlace: true }
+    ])
+  })
+
+  it('produces size − 1 KO matches + the third-place playoff for a 16-draw', () => {
     const { slots } = drawBracket({
       players: field(16),
       size: 16,
       random: createFakeRandomSource([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0])
     })
-    expect(materializeMatches(16, slots)).toHaveLength(15)
+    expect(materializeMatches(16, slots)).toHaveLength(16)
   })
 
   it('auto-resolves round-1 byes and advances the winner into round 2 (§32.4)', () => {
@@ -304,15 +326,15 @@ describe('materializeMatches', () => {
       random: createFakeRandomSource([0, 0, 0, 0, 0, 0, 0, 0, 0])
     })
     const m = materializeMatches(16, slots)
-    expect(m).toHaveLength(15) // size − 1, byes included as resolved rows
+    expect(m).toHaveLength(16) // size − 1 KO rows (byes included) + the third-place playoff
 
     const round1 = m.filter(x => x.round === 1)
     const byes = round1.filter(x => x.outcome === 'bye')
     // Three byes, each with the present player as winner, no score, the empty slot left null.
     expect(byes).toEqual([
-      { round: 1, position: 0, slot1RegId: 1, slot2RegId: null, winnerRegId: 1, outcome: 'bye' },
-      { round: 1, position: 2, slot1RegId: 3, slot2RegId: null, winnerRegId: 3, outcome: 'bye' },
-      { round: 1, position: 7, slot1RegId: null, slot2RegId: 2, winnerRegId: 2, outcome: 'bye' }
+      { round: 1, position: 0, slot1RegId: 1, slot2RegId: null, winnerRegId: 1, outcome: 'bye', thirdPlace: false },
+      { round: 1, position: 2, slot1RegId: 3, slot2RegId: null, winnerRegId: 3, outcome: 'bye', thirdPlace: false },
+      { round: 1, position: 7, slot1RegId: null, slot2RegId: 2, winnerRegId: 2, outcome: 'bye', thirdPlace: false }
     ])
     // A contested round-1 match stays open.
     expect(round1.find(x => x.position === 1)).toMatchObject({

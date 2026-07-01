@@ -2,15 +2,10 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { hc } from 'hono/client'
 import { toast } from 'sonner'
 import type { AppType } from '../../worker/app'
-import {
-  type AdminRegistration,
-  type CompetitionDraw,
-  type CompetitionSlug,
-  type Phase,
-  type Placement
-} from '../../shared'
+import { type AdminRegistration, type CompetitionDraw, type CompetitionSlug, type Phase } from '../../shared'
 import { errorMessage, isAuthRedirect } from './lib/api'
 import { useReveal } from './use-reveal'
+import { useResults } from './use-results'
 import { useSchedule } from './use-schedule'
 import { Button } from '@/admin/ui/button'
 import { Separator } from '@/admin/ui/separator'
@@ -20,6 +15,7 @@ import { AppSidebar, type Surface } from './app-sidebar'
 import { PHASE_LABELS, PhaseStepper } from './phase-stepper'
 import { CompetitionsSurface } from './surfaces/competitions-surface'
 import { ScheduleSurface } from './surfaces/schedule-surface'
+import { ResultsSurface } from './surfaces/results-surface'
 import { DrawShow } from './draw-show'
 import { DebugSurface } from './surfaces/debug-surface'
 import { OverviewSurface } from './surfaces/overview-surface'
@@ -133,9 +129,9 @@ export const AdminApp = () => {
     [load]
   )
 
-  // The schedule publication seams (ADR-0041), kept out of the shell like useReveal: the published flag and
-  // the publish/reset actions, each routed through `mutate` for the shared 401-regate/toast behaviour.
-  const { published, publishSchedule, resetSchedule } = useSchedule(client, mutate)
+  // The schedule write seams (ADR-0041, ADR-0005), kept out of the shell like useReveal: place/move plus the
+  // published flag and the publish/reset actions, each routed through `mutate` for the shared behaviour.
+  const { placeMatch, published, publishSchedule, resetSchedule } = useSchedule(client, mutate)
 
   // Set the operator-controlled phase (ADR-0006): the public site reflects it and the weekly
   // cron is gated to 'signup'. Goes through mutate, so it shares the 401-regate/error/toast
@@ -214,16 +210,10 @@ export const AdminApp = () => {
     await mutate(() => client.api.admin['refresh-lk'].$post(), 'LK aktualisiert.')
   }, [client, mutate])
 
-  // Place a match on the schedule grid, move it, or clear it back to the backlog (null). Via mutate
-  // (shared 401-regate/error/reload); the success reload re-fetches the draws (matches carry their
-  // placement), re-rendering the grid. Resolves to success so the surface clears its selection only on a
-  // persisted placement. Success is **silent** (`null`) — the grid already shows the move, so a toast per
-  // nudge is pure noise (#139); a blocked or failed placement still toasts (the surface / mutate's error).
-  const placeMatch = useCallback(
-    (id: number, placement: Placement | null) =>
-      mutate(() => client.api.admin.match.place.$post({ json: { id, placement } }), null),
-    [client, mutate]
-  )
+  // The result-entry seams (ADR-0032, ADR-0026), kept out of the shell like useSchedule/useReveal: the live
+  // status transition (with the actual court) and the result write that advances the bracket. Both ride the
+  // shared `mutate`, so the success reload re-fetches the draws and the bracket reflects the new result.
+  const { recordResult, setMatchStatus } = useResults(client, mutate)
 
   // The debug-only reset levers (ADR-0029): all three go through mutate, so they share the
   // 401-regate/error/toast behaviour, and the success reload re-fetches draws + phase so the UI
@@ -366,6 +356,13 @@ export const AdminApp = () => {
             onPlace={placeMatch}
             onPublish={publishSchedule}
             onReset={resetSchedule}
+          />
+        ) : surface === 'results' ? (
+          <ResultsSurface
+            registrations={registrations}
+            draws={draws}
+            onRecordResult={recordResult}
+            onSetStatus={setMatchStatus}
           />
         ) : surface === 'debug' && resetEnabled ? (
           <DebugSurface draws={draws} onUndraw={undraw} onReadmit={readmit} onBackToSignup={backToSignup} />

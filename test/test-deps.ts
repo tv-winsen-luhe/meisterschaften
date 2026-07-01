@@ -1,7 +1,7 @@
 import { createDeps, type Deps, type DepsAdapters } from '../worker/deps'
 import { createInMemoryRosterSource } from '../worker/seeding-lk'
 import { createInMemoryAppStateStore } from '../worker/store/app-state'
-import { createInMemoryDrawStore } from '../worker/store/draw'
+import { createInMemoryDrawStore } from '../worker/store/draw.memory'
 import { createInMemoryRegistrationsStore } from '../worker/store/registrations.memory'
 import { createFakeRandomSource } from './fake-random'
 

@@ -16,6 +16,9 @@ import {
   seedingEntrySchema
 } from '../../shared'
 import { draws, matches, type DrawRow, type MatchRow, type NewMatchRow } from '../db/schema'
+// The result-write helpers (score column mapping + the Advancement diff both adapters apply) live in
+// draw.results.ts, so the store module stays within the file budget and the two adapters share one diff.
+import { type RecordResultInput, resultPatches, setColumns, toScore } from './draw.results'
 
 // The deep draw Store (ADR-0025): callers speak in draws and brackets, never SQL. It owns the two
 // tables the draw writes — the `draws` record (seeding snapshot + reveal sequence + cursor) and
@@ -77,6 +80,9 @@ export interface DrawStore {
    */
   listMatches(): Promise<Match[]>
 
+  /** One match by id, or null — the single-row read the result endpoint resolves the winning slot from. */
+  findMatch(id: number): Promise<Match | null>
+
   /**
    * Place a match on the grid, move it to another cell, or clear it back to the backlog (ADR-0005): set
    * the court + day + slot to `placement`, or null all three with `placement: null`. A pure placement
@@ -84,6 +90,33 @@ export interface DrawStore {
    * (no raw SQL in handlers); result/status writes extend it in #90.
    */
   placeMatch(id: number, placement: Placement | null): Promise<void>
+
+  /**
+   * Move a match's live status (ADR-0032), the signal the public board keys off. Going `running` captures
+   * the **actual** court the match is on (`liveCourt`) — the operator's pick, defaulting to the planned
+   * court when none is given — so the board can send spectators to the right place even when a match moves
+   * to a freed court. `planned` clears the live court (the match has un-started); `done` keeps it (where it
+   * was played). A pure status/court write — it never touches the bracket.
+   */
+  setMatchStatus(id: number, status: MatchStatus, liveCourt?: number): Promise<void>
+
+  /**
+   * Record (or correct) a completed result and advance the bracket (CONTEXT: Advancement, ADR-0026). Writes
+   * the target match's winner + outcome + set scores, marks it `done`, and runs the pure `applyResult`
+   * transform to propagate the winner into the parent slot and a semifinal loser into the third-place
+   * playoff. A **winner change** cascade-clears any downstream result that consumed the old winner (those
+   * rows revert to `planned`, their scores cleared), so the bracket never holds a player who lost; a
+   * score-only correction (same winner) touches nothing downstream. The whole propagation lands atomically.
+   */
+  recordResult(id: number, input: RecordResultInput): Promise<void>
+
+  /**
+   * Opportunistically save (or clear) one set's score while a match is ongoing (ADR-0032 §20): set 1/2 for
+   * the two sets, 3 for the Match-Tie-Break. It never resolves the match — no winner, no advancement — so
+   * the live board can show „Satz 1: 6:3 · Satz 2 läuft" without the match being over. `score` null clears
+   * the set back to unplayed.
+   */
+  saveSet(id: number, set: 1 | 2 | 3, score: readonly [number, number] | null): Promise<void>
 
   /**
    * Reset the schedule to the backlog (ADR-0041): clear court/day/slot for every match still `planned`,
@@ -130,20 +163,23 @@ export interface DrawStore {
 
 // Map a stored match row to the wire shape (the text columns narrow to their domain enums; the
 // Zod response schema is the authority that rejects anything that does not).
-const toMatch = (row: MatchRow): Match => ({
+export const toMatch = (row: MatchRow): Match => ({
   id: row.id,
   competition: row.competition as CompetitionSlug,
   bracket: row.bracket as Bracket,
   round: row.round,
   position: row.position,
+  thirdPlace: row.thirdPlace,
   slot1RegId: row.slot1RegId,
   slot2RegId: row.slot2RegId,
   winnerRegId: row.winnerRegId,
   outcome: row.outcome as MatchOutcome | null,
+  score: toScore(row),
   court: row.court,
   day: row.day,
   slot: row.slot,
-  status: row.status as MatchStatus
+  status: row.status as MatchStatus,
+  liveCourt: row.liveCourt
 })
 
 // Built once, not per row: toCompetitionDraw runs on every row of listDraws, and the array schema is
@@ -158,7 +194,7 @@ const seedingArraySchema = seedingEntrySchema.array()
 // radius — because listDraws maps this over every row, one corrupt row fails the whole draws overview
 // (and reset's readmit count), not just its own field. We accept that: a corrupt row is a state that
 // should never exist, and degrading per-row would be defensive complexity guarding the unreachable.
-const toCompetitionDraw = (draw: DrawRow, matchRows: MatchRow[]): CompetitionDraw => ({
+export const toCompetitionDraw = (draw: DrawRow, matchRows: MatchRow[]): CompetitionDraw => ({
   competition: draw.competition as CompetitionSlug,
   bracket: draw.bracket as Bracket,
   size: draw.size,
@@ -176,7 +212,7 @@ const revealSequenceArraySchema = revealStepSchema.array()
 // Project a draw row to its reveal state — the reveal sequence parsed at the seam (a malformed
 // `reveal_sequence` throws here, the one cast the JSON column would otherwise hide), the cursor and
 // size carried straight through.
-const toRevealState = (draw: DrawRow): RevealState => ({
+export const toRevealState = (draw: DrawRow): RevealState => ({
   competition: draw.competition,
   bracket: draw.bracket as Bracket,
   size: draw.size,
@@ -213,10 +249,13 @@ export const createD1DrawStore = (d1: D1Database): DrawStore => {
         slot2RegId: m.slot2RegId,
         // A round-1 bye is already resolved at draw time (winner advances, no score, §32.4).
         winnerRegId: m.winnerRegId,
-        outcome: m.outcome
+        outcome: m.outcome,
+        // The third-place playoff flag rides along (its loser-feeders fill on Advancement); every other
+        // column defaults (unscheduled, planned, no score).
+        thirdPlace: m.thirdPlace
       }))
-      // D1 caps bound parameters at 100 per query. A match row binds 8 columns, so a 16-draw's 15 rows
-      // (= 120 params) overflow a single multi-row insert — split them into chunks of ≤ 10 rows (≤ 80
+      // D1 caps bound parameters at 100 per query. A match row binds 9 columns, so a 16-draw's 16 rows
+      // (= 144 params) overflow a single multi-row insert — split them into chunks of ≤ 10 rows (≤ 90
       // params). All inserts ride one D1 batch = one transaction, so the draw record and every match
       // row land together or not at all; the unique (competition, bracket) index turns a racing second
       // draw into a failed insert.
@@ -260,6 +299,11 @@ export const createD1DrawStore = (d1: D1Database): DrawStore => {
       return (await db.select().from(matches)).map(toMatch)
     },
 
+    async findMatch(id) {
+      const rows = await db.select().from(matches).where(eq(matches.id, id)).limit(1)
+      return rows[0] ? toMatch(rows[0]) : null
+    },
+
     async placeMatch(id, placement) {
       await db
         .update(matches)
@@ -269,6 +313,42 @@ export const createD1DrawStore = (d1: D1Database): DrawStore => {
           slot: placement?.slot ?? null
         })
         .where(eq(matches.id, id))
+    },
+
+    async setMatchStatus(id, status, liveCourt) {
+      const patch: Partial<NewMatchRow> = { status }
+      if (status === 'running') {
+        // The actual court (ADR-0032): the operator's pick, defaulting to the planned court when none is
+        // sent — read the row only in that fallback case, not on every transition.
+        let court = liveCourt
+        if (court === undefined) {
+          const row = (await db.select({ court: matches.court }).from(matches).where(eq(matches.id, id)).limit(1))[0]
+          court = row?.court ?? undefined
+        }
+        patch.liveCourt = court ?? null
+      } else if (status === 'planned') {
+        patch.liveCourt = null // un-started: forget the actual court; `done` keeps where it was played.
+      }
+      await db.update(matches).set(patch).where(eq(matches.id, id))
+    },
+
+    async recordResult(id, input) {
+      const target = (await db.select().from(matches).where(eq(matches.id, id)).limit(1))[0]
+      if (!target) return
+      // Advancement is local to one competition+bracket — load that whole set so feeders/successors resolve.
+      const group = await db
+        .select()
+        .from(matches)
+        .where(and(eq(matches.competition, target.competition), eq(matches.bracket, target.bracket)))
+      const [first, ...rest] = resultPatches(group, id, input).map(p =>
+        db.update(matches).set(p.patch).where(eq(matches.id, p.id))
+      )
+      // The whole propagation lands in one batch = one transaction, so a cascade can never half-apply.
+      await db.batch([first, ...rest])
+    },
+
+    async saveSet(id, set, score) {
+      await db.update(matches).set(setColumns(set, score)).where(eq(matches.id, id))
     },
 
     async resetSchedule() {
@@ -320,134 +400,4 @@ export const createD1DrawStore = (d1: D1Database): DrawStore => {
       return removed.length
     }
   }
-}
-
-// The in-memory adapter holds the raw rows so the orchestration can be driven through this interface
-// in tests (no D1). save() mirrors the D1 batch — draw record + match rows in one push, ids assigned
-// like AUTOINCREMENT — and enforces the same one-draw-per-(competition,bracket) invariant.
-export const createInMemoryDrawStore = (): DrawStore => {
-  const drawRows: DrawRow[] = []
-  const matchRows: MatchRow[] = []
-  let nextDrawId = 1
-  let nextMatchId = 1
-
-  const store: DrawStore = {
-    async findDraw(competition, bracket) {
-      return drawRows.find(d => d.competition === competition && d.bracket === bracket) ?? null
-    },
-
-    async save(input) {
-      // A break-glass re-run (replace) drops the competition's existing draw + matches first, mirroring
-      // the D1 batch's in-transaction delete; a fresh draw still refuses to overwrite (the unique-index
-      // guard the D1 adapter enforces).
-      if (input.replace) {
-        await store.deleteByCompetition(input.competition)
-      } else if (await store.findDraw(input.competition, input.bracket)) {
-        throw new Error(`draw already exists for ${input.competition}/${input.bracket}`)
-      }
-      drawRows.push({
-        id: nextDrawId++,
-        competition: input.competition,
-        bracket: input.bracket,
-        size: input.size,
-        seeding: JSON.stringify(input.seeding),
-        revealSequence: JSON.stringify(input.revealSequence),
-        revealCursor: 0,
-        challengerMinLk: input.challengerMinLk,
-        createdAt: input.createdAt
-      })
-      for (const m of input.matches) {
-        matchRows.push({
-          id: nextMatchId++,
-          competition: input.competition,
-          bracket: input.bracket,
-          round: m.round,
-          position: m.position,
-          slot1RegId: m.slot1RegId,
-          slot2RegId: m.slot2RegId,
-          // A round-1 bye is already resolved at draw time (winner advances, no score, §32.4).
-          winnerRegId: m.winnerRegId,
-          outcome: m.outcome,
-          // A freshly drawn match is unscheduled and `planned` — the operator places it later (#88).
-          court: null,
-          day: null,
-          slot: null,
-          status: 'planned'
-        })
-      }
-    },
-
-    async getDraw(competition, bracket) {
-      const draw = await store.findDraw(competition, bracket)
-      if (!draw) return null
-      return toCompetitionDraw(
-        draw,
-        matchRows.filter(m => m.competition === competition && m.bracket === bracket)
-      )
-    },
-
-    async listMatches() {
-      return matchRows.map(toMatch)
-    },
-
-    async placeMatch(id, placement) {
-      const row = matchRows.find(m => m.id === id)
-      if (row) {
-        row.court = placement?.court ?? null
-        row.day = placement?.day ?? null
-        row.slot = placement?.slot ?? null
-      }
-    },
-
-    async resetSchedule() {
-      // Clear only the still-`planned` placements back to the backlog; running/done keep their court.
-      for (const row of matchRows) {
-        if (row.status === 'planned') {
-          row.court = null
-          row.day = null
-          row.slot = null
-        }
-      }
-    },
-
-    async getReveal(competition, bracket) {
-      const draw = await store.findDraw(competition, bracket)
-      return draw ? toRevealState(draw) : null
-    },
-
-    async listReveals() {
-      return drawRows.map(toRevealState)
-    },
-
-    async setCursor(competition, bracket, cursor) {
-      const draw = drawRows.find(d => d.competition === competition && d.bracket === bracket)
-      if (draw) draw.revealCursor = cursor
-    },
-
-    async listDraws() {
-      return drawRows.map(draw =>
-        toCompetitionDraw(
-          draw,
-          matchRows.filter(m => m.competition === draw.competition && m.bracket === draw.bracket)
-        )
-      )
-    },
-
-    async deleteByCompetition(competition) {
-      const removed = drawRows.filter(d => d.competition === competition).length
-      // Mutate in place (the arrays are closed over): drop this competition's draw records and
-      // matches across every bracket — the in-memory mirror of the D1 batch delete.
-      drawRows.splice(0, drawRows.length, ...drawRows.filter(d => d.competition !== competition))
-      matchRows.splice(0, matchRows.length, ...matchRows.filter(m => m.competition !== competition))
-      return removed
-    },
-
-    async deleteAll() {
-      const removed = drawRows.length
-      drawRows.length = 0
-      matchRows.length = 0
-      return removed
-    }
-  }
-  return store
 }

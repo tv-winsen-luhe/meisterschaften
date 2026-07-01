@@ -3,7 +3,8 @@ import { beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { CHALLENGER_MIN_LK, type CompetitionDraw } from '../shared'
 import { app } from '../worker/app'
 import { createDrawService } from '../worker/draw'
-import { createD1DrawStore, createInMemoryDrawStore } from '../worker/store/draw'
+import { createD1DrawStore } from '../worker/store/draw'
+import { createInMemoryDrawStore } from '../worker/store/draw.memory'
 import { createInMemoryRegistrationsStore } from '../worker/store/registrations.memory'
 import type { RegistrationRow } from '../worker/db/schema'
 import { createFakeRandomSource } from './fake-random'
@@ -50,7 +51,7 @@ describe('createDrawService.draw', () => {
     expect(result.draw.size).toBe(8)
     expect(result.draw.bracket).toBe('main')
     expect(result.draw.seeding).toHaveLength(2)
-    expect(result.draw.matches).toHaveLength(7)
+    expect(result.draw.matches).toHaveLength(8) // 7 KO + the third-place playoff
     // The materialized round-1 matches carry persisted ids and the slot references.
     const round1 = result.draw.matches.filter(m => m.round === 1)
     expect(round1).toHaveLength(4)
@@ -117,7 +118,7 @@ describe('createDrawService.draw', () => {
     expect(result.ok).toBe(true)
     if (!result.ok) return
     expect(result.draw.size).toBe(8)
-    expect(result.draw.matches).toHaveLength(7)
+    expect(result.draw.matches).toHaveLength(8) // 7 KO (one a bye) + the third-place playoff
     // The 7th entrant rounds up to an 8-draw with one bye, resolved at draw time (winner, no score).
     const byes = result.draw.matches.filter(m => m.outcome === 'bye')
     expect(byes).toHaveLength(1)
@@ -130,7 +131,7 @@ describe('createDrawService.draw', () => {
     expect(result.ok).toBe(true)
     if (!result.ok) return
     expect(result.draw.size).toBe(4)
-    expect(result.draw.matches).toHaveLength(3) // two semifinals + final, no byes (a full 4-draw)
+    expect(result.draw.matches).toHaveLength(4) // two semifinals + final + third-place playoff (a full 4-draw)
   })
 
   it('refuses an over-full field whose size has no seed table (17+ rounds to 32)', async () => {
@@ -295,10 +296,10 @@ describe('POST /api/admin/draw + GET /api/admin/draws', () => {
     expect(res.status).toBe(200)
     const body = (await res.json()) as { ok: true; draw: CompetitionDraw }
     expect(body.draw.size).toBe(8)
-    expect(body.draw.matches).toHaveLength(7)
+    expect(body.draw.matches).toHaveLength(8) // 7 KO + the third-place playoff
 
     const count = await env.DB.prepare('SELECT COUNT(*) AS c FROM matches').first<{ c: number }>()
-    expect(count?.c).toBe(7)
+    expect(count?.c).toBe(8)
 
     const list = await req('/api/admin/draws', { headers: JSON_HEADERS })
     const listed = (await list.json()) as { draws: CompetitionDraw[] }
@@ -313,7 +314,7 @@ describe('POST /api/admin/draw + GET /api/admin/draws', () => {
     expect(res.status).toBe(200)
     const body = (await res.json()) as { ok: true; draw: CompetitionDraw }
     expect(body.draw.size).toBe(8)
-    expect(body.draw.matches).toHaveLength(7)
+    expect(body.draw.matches).toHaveLength(8) // 7 KO (one a bye) + the third-place playoff
 
     const byes = await env.DB.prepare("SELECT COUNT(*) AS c FROM matches WHERE outcome = 'bye'").first<{ c: number }>()
     expect(byes?.c).toBe(1)
@@ -329,10 +330,10 @@ describe('POST /api/admin/draw + GET /api/admin/draws', () => {
     expect(res.status).toBe(200)
     const body = (await res.json()) as { ok: true; draw: CompetitionDraw }
     expect(body.draw.size).toBe(16)
-    expect(body.draw.matches).toHaveLength(15)
+    expect(body.draw.matches).toHaveLength(16) // 15 KO + the third-place playoff
 
     const count = await env.DB.prepare('SELECT COUNT(*) AS c FROM matches').first<{ c: number }>()
-    expect(count?.c).toBe(15)
+    expect(count?.c).toBe(16)
     const byes = await env.DB.prepare("SELECT COUNT(*) AS c FROM matches WHERE outcome = 'bye'").first<{ c: number }>()
     expect(byes?.c).toBe(3)
   })

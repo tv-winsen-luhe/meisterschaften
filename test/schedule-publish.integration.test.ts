@@ -5,7 +5,7 @@ import { app } from '../worker/app'
 import { createDrawService } from '../worker/draw'
 import { createProjections } from '../worker/projections'
 import { createInMemoryAppStateStore } from '../worker/store/app-state'
-import { createInMemoryDrawStore } from '../worker/store/draw'
+import { createInMemoryDrawStore } from '../worker/store/draw.memory'
 import { createInMemoryRegistrationsStore } from '../worker/store/registrations.memory'
 import type { RegistrationRow } from '../worker/db/schema'
 import { createFakeRandomSource } from './fake-random'
@@ -172,8 +172,8 @@ describe('POST /api/admin/schedule/{publish,reset} + GET /api/schedule', () => {
       c: number
     }>()
     expect(placed?.c).toBe(0)
-    // The draw + its three matches survive — reset never touches the bracket.
-    expect((await env.DB.prepare('SELECT COUNT(*) AS c FROM matches').first<{ c: number }>())?.c).toBe(3)
+    // The draw + its matches survive — reset never touches the bracket (4-draw: 3 KO + the third-place playoff).
+    expect((await env.DB.prepare('SELECT COUNT(*) AS c FROM matches').first<{ c: number }>())?.c).toBe(4)
     expect((await env.DB.prepare('SELECT COUNT(*) AS c FROM draws').first<{ c: number }>())?.c).toBe(1)
   })
 

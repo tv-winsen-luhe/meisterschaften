@@ -17,7 +17,7 @@ import {
 // The two surfaces this slice ships (ADR-0019). The overview is the home dashboard; registrations is
 // the registration workbench. Surface switching is client-side inside the single island (ADR-0008) —
 // these are not Astro routes.
-export type Surface = 'overview' | 'registrations' | 'seeding' | 'competitions' | 'schedule' | 'debug'
+export type Surface = 'overview' | 'registrations' | 'seeding' | 'competitions' | 'schedule' | 'results' | 'debug'
 
 // Navigation is one flat list in event-flow order (ADR-0023): overview (home), then the phase
 // surfaces in the order the event runs them. Registrations is live; the later phases are disabled
@@ -49,7 +49,9 @@ const PHASES: PhaseEntry[] = [
   // The schedule grid (issue #88): the operator places drawn matches onto courts × time slots, so it
   // sits right after the draw in event-flow order.
   { label: 'Spielplan', icon: CalendarDays, surface: 'schedule' },
-  { label: 'Ergebnisse', icon: Trophy }
+  // The result workbench (issue #90): status transitions + result entry, advancing the bracket. It is the
+  // last event-flow surface, after the schedule it reads its matches from.
+  { label: 'Ergebnisse', icon: Trophy, surface: 'results' }
 ]
 
 interface AppSidebarProps {

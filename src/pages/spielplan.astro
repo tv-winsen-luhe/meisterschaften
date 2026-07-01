@@ -219,7 +219,12 @@ import Layout from '@/layouts/default.astro'
     meta.className = 'sched-match__meta'
     // The round („Achtelfinale" … „Finale", „Nebenrunde · …") via the shared label, so the spectator sees
     // the stage of each match — derived at the edge from the round/totalRounds the feed carries (#142).
-    const round = roundLabel({ bracket: m.bracket, round: m.round, totalRounds: m.totalRounds })
+    const round = roundLabel({
+      bracket: m.bracket,
+      round: m.round,
+      totalRounds: m.totalRounds,
+      thirdPlace: m.thirdPlace
+    })
     meta.textContent = `${round} · M${m.number} · ${COMPETITION_LABELS.get(m.competition) ?? m.competition}`
     players.appendChild(meta)
     row.appendChild(players)

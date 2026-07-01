@@ -117,15 +117,17 @@ export const courtEndMinutes = (court: number): number =>
 export const withinEveningWindow = (court: number, day: number, slot: number): boolean =>
   slotStartMinutes(day, slot) + SCHEDULE.matchMinutes <= courtEndMinutes(court)
 
-// The minimal match shape the schedule helpers read — a bracket position with its two slot references.
-// Generic over the wire `Match` and the store row so neither has to be imported here (and so the
-// helpers never depend on placement/status fields they do not need).
+// The minimal match shape the schedule helpers read — a bracket position with its two slot references and
+// whether it is the third-place playoff (its slots are fed by the semifinal losers, not the implicit
+// winner-feeders). Generic over the wire `Match` and the store row so neither has to be imported here (and
+// so the helpers never depend on placement/status fields they do not need).
 interface MatchPosition {
   id: number
   round: number
   position: number
   slot1RegId: number | null
   slot2RegId: number | null
+  thirdPlace?: boolean
 }
 
 /**
@@ -155,14 +157,16 @@ export const feederPosition = (
 
 // What occupies one slot of a scheduled match, resolved for display: a known player (a drawn entrant,
 // or a bye/result winner already advanced), an empty round-1 bye line („Freilos"), a not-yet-decided
-// feeder pointing at the match whose winner fills it („Sieger M{matchNumber}"), or an `unknown` slot
-// („offen") — the graceful degrade when a feeder cannot be resolved (ADR-0035), never a bogus feeder
-// number. The single branching rule both the grid and the public feed render from — the consumers only
-// supply the regId→name join.
+// feeder pointing at the match whose winner fills it („Sieger M{matchNumber}"), a third-place playoff slot
+// waiting on the *loser* of a semifinal („Verlierer M{matchNumber}"), or an `unknown` slot („offen") — the
+// graceful degrade when a feeder cannot be resolved (ADR-0035), never a bogus feeder number. The single
+// branching rule both the grid and the public feed render from — the consumers only supply the regId→name
+// join.
 export type SlotView =
   | { kind: 'player'; regId: number }
   | { kind: 'bye' }
   | { kind: 'feeder'; matchNumber: number }
+  | { kind: 'loser'; matchNumber: number }
   | { kind: 'unknown' }
 
 /**
@@ -182,6 +186,14 @@ export const viewSlot = (
 ): SlotView => {
   const regId = slot === 1 ? match.slot1RegId : match.slot2RegId
   if (regId !== null) return { kind: 'player', regId }
+  // The third-place playoff is fed by the semifinal *losers* (round − 1, positions 0/1), not the implicit
+  // winner-feeders the topology expresses — so an open slot names the semifinal it waits on as „Verlierer
+  // M{n}", each slot the same-numbered semifinal. A missing semifinal degrades to „offen" like any feeder.
+  if (match.thirdPlace) {
+    const semi = matchAt(match.round - 1, slot === 1 ? 0 : 1)
+    const matchNumber = semi ? numbers.get(semi.id) : undefined
+    return matchNumber ? { kind: 'loser', matchNumber } : { kind: 'unknown' }
+  }
   if (match.round <= 1) return { kind: 'bye' }
   const fp = feederPosition(match.round, match.position, slot)
   const feeder = fp ? matchAt(fp.round, fp.position) : undefined
@@ -197,14 +209,20 @@ interface PlayerSlotKind {
 }
 
 /**
- * The German label for a non-player slot — „Freilos" / „Sieger M{n}" / „offen" — the single copy both
- * the admin grid and the public schedule feed render (#109). Keyed off `SlotView['kind']`; the `player`
- * line is excluded because each surface joins the name its own way (the grid resolves a regId, the feed
- * carries the joined name), so a copy change here lands on both surfaces at once. Structural, so the
- * wire `ScheduleSlot`'s non-player members satisfy it too.
+ * The German label for a non-player slot — „Freilos" / „Sieger M{n}" / „Verlierer M{n}" / „offen" — the
+ * single copy both the admin grid and the public schedule feed render (#109). Keyed off `SlotView['kind']`;
+ * the `player` line is excluded because each surface joins the name its own way (the grid resolves a regId,
+ * the feed carries the joined name), so a copy change here lands on both surfaces at once. Structural, so
+ * the wire `ScheduleSlot`'s non-player members satisfy it too.
  */
 export const slotLabel = (slot: Exclude<SlotView, PlayerSlotKind>): string =>
-  slot.kind === 'bye' ? 'Freilos' : slot.kind === 'feeder' ? `Sieger M${slot.matchNumber}` : 'offen'
+  slot.kind === 'bye'
+    ? 'Freilos'
+    : slot.kind === 'feeder'
+      ? `Sieger M${slot.matchNumber}`
+      : slot.kind === 'loser'
+        ? `Verlierer M${slot.matchNumber}`
+        : 'offen'
 
 // One bracket match resolved for display: its stable number and the two SlotViews. Generic over the
 // caller's match row (the wire `Match`, the store row) so each keeps its own placement/status fields.
@@ -349,6 +367,9 @@ interface PlacedMatch {
   slot1RegId: number | null
   slot2RegId: number | null
   outcome: string | null
+  // The third-place playoff, fed by the semifinal losers — its feeder chain is the two semifinals, not the
+  // implicit winner-feeders, so `earliestPlaceableSlot` and `validatePlacement` route it specially.
+  thirdPlace?: boolean
   court: number | null
   day: number | null
   slot: number | null
@@ -450,6 +471,19 @@ export const earliestPlaceableSlot = (match: PlacedMatch, matches: readonly Plac
     return max
   }
 
+  // The third-place playoff is fed by the two semifinals (round − 1, positions 0/1) — the losers, not the
+  // implicit winner-feeders — so its floor is one full interval after the deeper semifinal's own chain.
+  if (match.thirdPlace) {
+    const semiRound = match.round - 1
+    let max = 0
+    for (const position of [0, 1]) {
+      const semi = byPosition.get(`${semiRound}-${position}`)
+      if (!semi || semi.outcome === 'bye') continue
+      max = Math.max(max, SLOT_SPAN + depth(semiRound, position))
+    }
+    return max
+  }
+
   return depth(match.round, match.position)
 }
 
@@ -469,93 +503,16 @@ export const earliestPlaceableSlot = (match: PlacedMatch, matches: readonly Plac
 // passes one array to both validation and auto-suggest.
 export type { PlacedMatch as SchedulableMatch }
 
-// One newly-suggested placement (a named interface — the lint rule forbids the inline `{…}[]` return).
-export interface Suggestion {
-  id: number
-  placement: Placement
-}
-
 // Whether a match is a main-bracket semifinal or final — the rounds reserved for the finals day (Sunday)
 // (ADR-0040): `round ≥ depth − 1`, main bracket only (the consolation bracket and earlier rounds carry no
 // preference). The `bracket === 'main'` guard comes first, so a consolation match skips the depth scan
 // entirely. The single predicate `targetDay` (auto-suggest) and `validatePlacement` (the soft nudge)
-// share, so the plan the suggest builds and the warnings it raises can never disagree.
-const isFinalsDayMatch = (match: PlacedMatch, matches: readonly PlacedMatch[]): boolean =>
+// share, so the plan the suggest builds and the warnings it raises can never disagree. Exported so the
+// auto-suggest (shared/suggest-schedule.ts) reads the very same finals-day predicate this file's soft rule does.
+export const isFinalsDayMatch = (match: PlacedMatch, matches: readonly PlacedMatch[]): boolean =>
   match.bracket === 'main' &&
   match.round >=
     bracketDepth(matches.filter(m => m.competition === match.competition && m.bracket === match.bracket)) - 1
-
-// The day a match targets first (ADR-0040): Sunday — the last event day, the finals day — for a main
-// bracket's semifinals and final; Saturday for everything earlier and the whole consolation bracket. The
-// fill tries this day first; only if it has no legal cell does it spill to the other day, so the
-// finals-day shape holds without ever hard-blocking a day.
-const targetDay = (match: PlacedMatch, matches: readonly PlacedMatch[]): number =>
-  isFinalsDayMatch(match, matches) ? SCHEDULE.days - 1 : 0
-
-// The first cell that takes a match, scanning the given days in order then slot-ascending, court-
-// ascending. A warning-free cell (zero soft violations) wins outright; otherwise the first merely-legal
-// cell is the fallback. Returns null when no day in `dayOrder` has a legal cell. Because the finals day
-// is scanned first, even the fallback lands on the target day unless it is wholly full.
-const firstValidPlacement = (
-  working: readonly PlacedMatch[],
-  id: number,
-  dayOrder: readonly number[]
-): Placement | null => {
-  let fallback: Placement | null = null
-  for (const day of dayOrder) {
-    for (let slot = 0; slot < SCHEDULE.slotsPerDay; slot++) {
-      for (let court = 1; court <= SCHEDULE.courts; court++) {
-        const placement: Placement = { court, day, slot }
-        const { hard, soft } = validatePlacement(working, { id, placement })
-        if (hard.length > 0) continue
-        if (soft.length === 0) return placement
-        fallback ??= placement
-      }
-    }
-  }
-  return fallback
-}
-
-/**
- * Auto-suggest a finals-day-shaped draft schedule: fill unplaced matches into grid cells, respecting all
- * hard constraints (via `validatePlacement`) and preferring cells without soft warnings. Already-placed
- * matches are treated as fixed — never moved. Deterministic (no clock, no randomness): same input → same
- * plan. Returns only the newly suggested placements (the caller applies them as a draft).
- *
- * Algorithm: each unplaced match (round asc, position asc) targets a day — Saturday through the
- * quarterfinals plus the consolation bracket, Sunday for the semifinals/final (`targetDay`) — and is
- * placed in the first valid cell of that day (then the other day as a spill), preferring a warning-free
- * cell. The finals-day *soft* rule and this day ordering reinforce each other: a final scanned on Saturday
- * is never warning-free (the finals-day nudge), so it settles on Sunday on its own. A simple greedy fill,
- * not a global optimizer — per the issue spec (ADR-0040, ADR-0033).
- */
-export const suggestSchedule = (matches: readonly PlacedMatch[]): Suggestion[] => {
-  const result: Suggestion[] = []
-
-  // Mutable working copy: as we suggest placements, we apply them so subsequent candidates see them.
-  const working: PlacedMatch[] = matches.map(m => ({ ...m }))
-
-  // Unplaced matches, sorted for deterministic greedy fill: round 1 first, then by position.
-  const unplaced = working
-    .filter(m => m.court === null && m.outcome !== 'bye')
-    .sort((a, b) => a.round - b.round || a.position - b.position)
-
-  for (const match of unplaced) {
-    // The target day first, then the rest as a spill — so the finals-day shape holds but a full day never
-    // strands a match in the backlog.
-    const first = targetDay(match, working)
-    const dayOrder = [first, ...DAY_INDICES.filter(d => d !== first)]
-    const placement = firstValidPlacement(working, match.id, dayOrder)
-    if (!placement) continue
-
-    // Apply to the working set so subsequent matches see this cell as occupied.
-    const idx = working.findIndex(m => m.id === match.id)
-    working[idx] = { ...working[idx], court: placement.court, day: placement.day, slot: placement.slot }
-    result.push({ id: match.id, placement })
-  }
-
-  return result
-}
 
 export const validatePlacement = (
   matches: readonly PlacedMatch[],
@@ -601,6 +558,29 @@ export const validatePlacement = (
   const successor = at(self.round + 1, Math.floor(self.position / 2))
   if (successor && !endsBefore(candidate.placement, successor))
     hard.push({ rule: 'feeder-order', otherMatchId: successor.id })
+
+  // Hard — the third-place playoff's loser-feeders (not the implicit winner-feeders the topology yields).
+  // The playoff cannot start until both feeding semifinals' 90 minutes are over; conversely a semifinal
+  // must end before a placed playoff starts. The structural floor above already guards against *unplaced*
+  // semifinals; this binds the candidate to where they (or the playoff) are actually placed, both ways.
+  if (self.thirdPlace) {
+    for (const position of [0, 1] as const) {
+      const semi = at(self.round - 1, position)
+      if (semi && !endsBefore(semi, candidate.placement)) hard.push({ rule: 'feeder-order', otherMatchId: semi.id })
+    }
+  } else {
+    const thirdPlace = placed.find(
+      m => m.thirdPlace && m.competition === self.competition && m.bracket === self.bracket
+    )
+    if (
+      thirdPlace &&
+      self.round === thirdPlace.round - 1 &&
+      (self.position === 0 || self.position === 1) &&
+      !endsBefore(candidate.placement, thirdPlace)
+    ) {
+      hard.push({ rule: 'feeder-order', otherMatchId: thirdPlace.id })
+    }
+  }
 
   // Hard — court occupancy by interval overlap (ADR-0040): a 90-minute match reserves its court for
   // [slot, slot + SLOT_SPAN), so two same-day matches on one court conflict when their starts are fewer
