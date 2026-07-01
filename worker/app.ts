@@ -9,6 +9,7 @@ import {
   cancelRegistrationRequestSchema,
   cancelRequestSchema,
   confirmRequestSchema,
+  consolationDrawRequestSchema,
   deleteRequestSchema,
   drawRequestSchema,
   drawsResponseSchema,
@@ -27,6 +28,7 @@ import {
   type BackToSignupResponse,
   type CancelRegistrationResponse,
   type ConfirmResponse,
+  type ConsolationDrawResponse,
   type DeleteResponse,
   type DrawResponse,
   type MatchResultResponse,
@@ -51,6 +53,11 @@ import { notifyCancellation } from './notify'
 // Soft rate limit: max 3 registrations per IP per hour.
 const RATE_LIMIT = 3
 const RATE_WINDOW_MS = 3600_000
+
+// The operator-facing reason a hard-invalid placement is refused (ADR-0033) — the union of the hard rules
+// validatePlacement enforces, in one message the grid also shows.
+const PLACEMENT_BLOCKED =
+  'Diese Platzierung ist nicht möglich: Runden-Reihenfolge, belegter Platz, Abendfenster oder ein Spieler gleichzeitig in zwei Matches.'
 
 // The worker's bindings. Explicit `import type` for the Cloudflare types (no ambient
 // `/// <reference>`) keeps this module loadable from the client's tsconfig for the
@@ -360,6 +367,17 @@ export const createApp = (makeDeps: (env: Env) => Deps = createDepsFromEnv) =>
       if (!result.ok) return c.json({ error: result.reason }, 404)
       return c.json({ ok: true, cursor: result.cursor, total: result.total } satisfies AdvanceResponse)
     })
+    // POST /api/admin/draw/consolation — the „Nebenrunde auslosen" action (ADR-0004). The draw service gates
+    // on the shared consolationBlocker (main drawn, size ≥ 8, not already drawn, every first match decided),
+    // batch-draws the lost-their-first-match set with crypto randomness via the shared draw procedure, and
+    // writes the consolation matches — published directly, no reveal show. AlreadyDrawn is a conflict (409);
+    // every other guard is a precondition the operator must reach first (400), carrying the shared reason.
+    .post('/api/admin/draw/consolation', parseGuard, v(consolationDrawRequestSchema), async c => {
+      const { competition } = c.req.valid('json')
+      const result = await c.var.deps.drawService.drawConsolation({ competition, now: new Date().toISOString() })
+      if (!result.ok) return c.json({ error: result.reason }, result.error === 'already-drawn' ? 409 : 400)
+      return c.json({ ok: true, draw: result.draw } satisfies ConsolationDrawResponse)
+    })
     // POST /api/admin/match/place — place a match on the schedule grid, move it, or clear it back to the
     // backlog (ADR-0005). The schema enforces the all-or-nothing placement shape; `validatePlacement`
     // then enforces the **hard** rules server-side as the authority (ADR-0033, ADR-0040): a match may not
@@ -373,14 +391,7 @@ export const createApp = (makeDeps: (env: Env) => Deps = createDepsFromEnv) =>
       if (placement) {
         const matches = await c.var.deps.draws.listMatches()
         const { hard } = validatePlacement(matches, { id, placement })
-        if (hard.length > 0)
-          return c.json(
-            {
-              error:
-                'Diese Platzierung ist nicht möglich: Runden-Reihenfolge, belegter Platz, Abendfenster oder ein Spieler gleichzeitig in zwei Matches.'
-            },
-            409
-          )
+        if (hard.length > 0) return c.json({ error: PLACEMENT_BLOCKED }, 409)
       }
       await c.var.deps.draws.placeMatch(id, placement)
       return c.json({ ok: true } satisfies PlaceMatchResponse)

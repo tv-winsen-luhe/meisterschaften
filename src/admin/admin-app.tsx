@@ -4,6 +4,7 @@ import { toast } from 'sonner'
 import type { AppType } from '../../worker/app'
 import { type AdminRegistration, type CompetitionDraw, type CompetitionSlug, type Phase } from '../../shared'
 import { errorMessage, isAuthRedirect } from './lib/api'
+import { useDraw } from './use-draw'
 import { useReveal } from './use-reveal'
 import { useResults } from './use-results'
 import { useSchedule } from './use-schedule'
@@ -39,9 +40,6 @@ export const AdminApp = () => {
   // production, so the Debug nav entry and surface never appear there.
   const [resetEnabled, setResetEnabled] = useState(false)
   const [surface, setSurface] = useState<Surface>('overview')
-  // The competition a draw is currently running for, so its card shows a pending button (and a second
-  // click can't fire). Cleared when the action resolves.
-  const [drawingCompetition, setDrawingCompetition] = useState<CompetitionSlug | null>(null)
   // The competition whose large-screen draw show is running (issue #71), or null for the normal admin.
   // When set, the shell hands the whole screen to the beamer projection instead of the sidebar layout.
   const [showCompetition, setShowCompetition] = useState<CompetitionSlug | null>(null)
@@ -185,24 +183,13 @@ export const AdminApp = () => {
     [client, mutate]
   )
 
-  // Start the draw for one competition (ADR-0025). Goes through mutate, so it shares the
-  // 401-regate/error/toast behaviour and the success reload re-fetches the drawn brackets. The
-  // pending flag drives the card's button state and guards against a double-fire. On success the
-  // large-screen show opens straight away (at cursor 0, ready for the first lot) — the live flow is
-  // „auslosen, dann enthüllen", so the operator goes from the button to the beamer in one click rather
-  // than drawing and then hunting for „Großbild-Show" (that button stays for re-opening a drawn field).
-  const drawCompetition = useCallback(
-    async (competition: CompetitionSlug): Promise<boolean> => {
-      setDrawingCompetition(competition)
-      try {
-        const ok = await mutate(() => client.api.admin.draw.$post({ json: { competition } }), 'Konkurrenz ausgelost.')
-        if (ok) setShowCompetition(competition)
-        return ok
-      } finally {
-        setDrawingCompetition(null)
-      }
-    },
-    [client, mutate]
+  // The draw seams (ADR-0025, ADR-0004), kept out of the shell like useResults: „Jetzt auslosen" (which on
+  // success hands off to the beamer show) and „Nebenrunde auslosen" (published directly). Each owns its
+  // pending flag; both ride the shared `mutate`, so the success reload re-fetches the drawn brackets.
+  const { drawCompetition, drawingCompetition, drawConsolation, drawingConsolation } = useDraw(
+    client,
+    mutate,
+    setShowCompetition
   )
 
   const refreshLk = useCallback(async () => {
@@ -347,6 +334,8 @@ export const AdminApp = () => {
             onDraw={drawCompetition}
             drawingCompetition={drawingCompetition}
             onStartShow={setShowCompetition}
+            onDrawConsolation={drawConsolation}
+            drawingConsolation={drawingConsolation}
           />
         ) : surface === 'schedule' ? (
           <ScheduleSurface

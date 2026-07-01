@@ -6,10 +6,14 @@ import {
   type CompetitionDraw,
   COMPETITION_SLUGS,
   type CompetitionSlug,
+  type ConsolationBlocker,
+  CONSOLATION_BLOCKER_REASON,
+  consolationBlocker,
   drawBlocker,
   type DrawBlocker,
   DRAW_BLOCKER_REASON,
   drawSize,
+  hasConsolationBracket,
   isDrawStageLocked,
   isFullyRevealed,
   type Match,
@@ -33,6 +37,11 @@ interface CompetitionsSurfaceProps {
   // Enter the full-screen Auslosung for a competition (issue #71): „Jetzt auslosen" starts it, and this
   // re-enters one still running („Auslosung fortsetzen"); the shell takes over the screen for the beamer.
   onStartShow: (competition: CompetitionSlug) => void
+  // Draw the consolation bracket for one competition (de: „Nebenrunde auslosen", ADR-0004); resolves to
+  // whether it succeeded (the shell toasts + reloads). Enabled only once every first match is decided.
+  onDrawConsolation: (competition: CompetitionSlug) => Promise<boolean>
+  // True while a consolation draw is in flight, so the triggered card shows a pending button.
+  drawingConsolation: CompetitionSlug | null
 }
 
 // The competitions surface (ADR-0027): one card per competition with its lifecycle — *nicht ausgelost* →
@@ -47,7 +56,9 @@ export const CompetitionsSurface = ({
   phase,
   onDraw,
   drawingCompetition,
-  onStartShow
+  onStartShow,
+  onDrawConsolation,
+  drawingConsolation
 }: CompetitionsSurfaceProps) => {
   // Resolve a registration id to a short label once, for the bracket slots and the seeding column.
   const nameById = useMemo(() => {
@@ -60,6 +71,14 @@ export const CompetitionsSurface = ({
     const map = new Map<string, CompetitionDraw>()
     for (const d of draws) if (d.bracket === 'main') map.set(d.competition, d)
     return map
+  }, [draws])
+
+  // The competitions whose consolation bracket is already drawn — so the card shows „Nebenrunde ausgelost"
+  // instead of the trigger (the gate's `consolationExists`, ADR-0004).
+  const consolationDrawn = useMemo(() => {
+    const set = new Set<string>()
+    for (const d of draws) if (d.bracket === 'consolation') set.add(d.competition)
+    return set
   }, [draws])
 
   // The pre-draw lock (isDrawStageLocked, see its rationale): in `signup` with nothing drawn the surface
@@ -169,6 +188,21 @@ export const CompetitionsSurface = ({
                     Auslosung fortsetzen
                   </Button>
                 ) : null}
+                {/* The consolation trigger (ADR-0004) surfaces only once the main draw is fully revealed and
+                    the field is large enough to carry a Nebenrunde (size ≥ 8) — a 4-field's third-place match
+                    is its consolation. Once drawn, a badge replaces the button. */}
+                {row.draw &&
+                  isFullyRevealed(row.draw) &&
+                  hasConsolationBracket(row.draw.size) &&
+                  (consolationDrawn.has(row.slug) ? (
+                    <Badge className="border-emerald-300 bg-emerald-50 text-emerald-900">Nebenrunde ausgelost</Badge>
+                  ) : (
+                    <ConsolationAction
+                      blocker={consolationBlocker({ size: row.draw.size, matches: row.draw.matches }, false)}
+                      pending={drawingConsolation === row.slug}
+                      onDraw={() => onDrawConsolation(row.slug)}
+                    />
+                  ))}
               </div>
             </div>
 
@@ -206,6 +240,27 @@ const DrawAction = ({ blocker, pending, onDraw }: DrawActionProps) => (
   >
     <Shuffle className="size-4" />
     {pending ? 'Lost aus …' : 'Jetzt auslosen'}
+  </Button>
+)
+
+interface ConsolationActionProps {
+  blocker: ConsolationBlocker | null
+  pending: boolean
+  onDraw: () => void
+}
+// The „Nebenrunde auslosen" button (ADR-0004). Like „Jetzt auslosen" it carries its disabled reason as a
+// native title tooltip — the shared reason the server returns — so affordance and authority can't drift
+// (ADR-0011). Until every first match is decided it reads „Erst wenn alle ersten Spiele entschieden sind."
+const ConsolationAction = ({ blocker, pending, onDraw }: ConsolationActionProps) => (
+  <Button
+    size="sm"
+    variant="outline"
+    onClick={onDraw}
+    disabled={blocker !== null || pending}
+    title={blocker ? CONSOLATION_BLOCKER_REASON[blocker] : undefined}
+  >
+    <Shuffle className="size-4" />
+    {pending ? 'Lost aus …' : 'Nebenrunde auslosen'}
   </Button>
 )
 
