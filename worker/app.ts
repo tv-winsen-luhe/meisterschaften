@@ -18,6 +18,7 @@ import {
   matchStatusRequestSchema,
   participantsResponseSchema,
   placeMatchRequestSchema,
+  publicBracketsResponseSchema,
   publicDrawsResponseSchema,
   registerRequestSchema,
   scheduleResponseSchema,
@@ -187,14 +188,15 @@ export const createApp = (makeDeps: (env: Env) => Deps = createDepsFromEnv) =>
       const phase = await c.var.deps.appState.getPhase()
       return c.json({ phase } satisfies PhaseResponse, 200, { 'cache-control': 'no-store' })
     })
-    // GET /api/draw — the public live bracket (ADR-0003). Every drawn competition's main bracket reveal
-    // (the reveal sequence with players joined by name + LK) plus its cursor + total, so the public
-    // reveal show can render the bracket revealed up to the cursor and poll for the next lot. Public and
-    // outside Access like /api/participants; orthogonal to PUBLIC_LIST_ENABLED (the live draw is its own
-    // surface). Empty until a field is drawn.
+    // GET /api/draw — the public two-phase bracket (ADR-0046). Per competition: while its main bracket is
+    // still revealing it carries the cursor-sliced reveal steps (the suspense invariant, ADR-0003); once
+    // fully revealed it carries the resolved main bracket (+ „Spiel um Platz 3") and, once drawn, the
+    // resolved consolation — winners advancing to the champion (ADR-0025). Public and outside Access like
+    // /api/participants; orthogonal to PUBLIC_LIST_ENABLED (the live bracket is its own surface). Empty
+    // until a field is drawn.
     .get('/api/draw', async c => {
-      const draws = await c.var.deps.projections.publicDraws()
-      return c.json(publicDrawsResponseSchema.parse({ draws }), 200, { 'cache-control': 'no-store' })
+      const brackets = await c.var.deps.projections.publicDraws()
+      return c.json(publicBracketsResponseSchema.parse({ brackets }), 200, { 'cache-control': 'no-store' })
     })
     // GET /api/schedule — the public schedule + live board feed (ADR-0005): every placed match across all
     // competitions, slots resolved for display. Public and outside Access like /api/draw; polled by the

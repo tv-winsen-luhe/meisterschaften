@@ -123,8 +123,8 @@ describe('projections.publicDraws', () => {
       appStateStore: createInMemoryAppStateStore()
     })
     const [draw] = await projections.publicDraws()
-    expect(draw).toMatchObject({ competition: 'mens', size: 8, cursor: 0, total: 8 })
-    expect(draw.steps).toEqual([])
+    expect(draw).toMatchObject({ phase: 'revealing', competition: 'mens', size: 8, cursor: 0, total: 8 })
+    expect(draw.phase === 'revealing' && draw.steps).toEqual([])
   })
 
   it('exposes only the revealed prefix, with players joined by name + LK', async () => {
@@ -145,9 +145,9 @@ describe('projections.publicDraws', () => {
       appStateStore: createInMemoryAppStateStore()
     })
     const [draw] = await projections.publicDraws()
-    // Two lots revealed of eight: only those two steps are shipped, total still reports the full length.
-    expect(draw).toMatchObject({ competition: 'mens', size: 8, cursor: 2, total: 8 })
-    expect(draw.steps).toHaveLength(2)
+    // Two lots revealed of eight: still revealing, so only those two steps are shipped, total the full length.
+    expect(draw).toMatchObject({ phase: 'revealing', competition: 'mens', size: 8, cursor: 2, total: 8 })
+    expect(draw.phase === 'revealing' && draw.steps).toHaveLength(2)
     // The first step is seed 1 (the strongest LK, id 1) on the first line, joined to its name + LK.
     expect(draw.steps[0]).toEqual({
       kind: 'seed-fixed',
@@ -187,8 +187,29 @@ const advance = (competition: string, direction: 'forward' | 'back') =>
     body: JSON.stringify({ competition, direction })
   })
 
-interface PublicDrawBody {
-  draws: { competition: string; size: number; cursor: number; total: number; steps: { player: unknown }[] }[]
+// The public /api/draw feed is now the two-phase bracket union (ADR-0046); a still-revealing field is the
+// `revealing` member, carrying the same cursor-sliced steps as before.
+interface PublicRevealStepBody {
+  player: unknown
+}
+interface PublicBracketBody {
+  brackets: {
+    phase: string
+    competition: string
+    size: number
+    cursor: number
+    total: number
+    steps: PublicRevealStepBody[]
+  }[]
+}
+
+// The live member's shape the fully-revealed HTTP smoke reads back (just enough to prove the wire parses).
+interface PublicLiveBracket {
+  size: number
+  totalRounds: number
+}
+interface PublicLiveBody {
+  brackets: { phase: string; main?: PublicLiveBracket }[]
 }
 
 describe('POST /api/admin/draw/advance + GET /api/draw', () => {
@@ -247,20 +268,37 @@ describe('POST /api/admin/draw/advance + GET /api/draw', () => {
 
     const res = await req('/api/draw')
     expect(res.status).toBe(200)
-    const body = (await res.json()) as PublicDrawBody
-    expect(body.draws).toHaveLength(1)
-    const [draw0] = body.draws
-    expect(draw0).toMatchObject({ competition: 'mens', size: 8, cursor: 1, total: 8 })
+    const body = (await res.json()) as PublicBracketBody
+    expect(body.brackets).toHaveLength(1)
+    const [draw0] = body.brackets
+    // Still revealing (cursor 1 of 8), so the `revealing` member carries the cursor-sliced steps as before.
+    expect(draw0).toMatchObject({ phase: 'revealing', competition: 'mens', size: 8, cursor: 1, total: 8 })
     // Only the one revealed lot is shipped (not the full eight) — the unrevealed tail stays server-side.
     expect(draw0.steps).toHaveLength(1)
     // The revealed step's player is joined from the registration row (name present, not just an id).
     expect(draw0.steps[0]?.player).toMatchObject({ lastName: expect.any(String) })
   })
 
+  it('switches to the live bracket once fully revealed (ADR-0046), parsing through the wire schema', async () => {
+    for (let i = 1; i <= 8; i++) await seedConfirmed(i)
+    await setPhase('tournament')
+    expect((await draw('mens')).status).toBe(200)
+    // Reveal every lot (8 steps) → the competition flips to the live phase.
+    for (let i = 0; i < 8; i++) await advance('mens', 'forward')
+
+    const res = await req('/api/draw')
+    // 200 (not 500) proves the resolved live payload passes publicBracketsResponseSchema end to end.
+    expect(res.status).toBe(200)
+    const body = (await res.json()) as PublicLiveBody
+    const [live] = body.brackets
+    expect(live.phase).toBe('live')
+    expect(live.main).toMatchObject({ size: 8, totalRounds: 3 })
+  })
+
   it('GET /api/draw is empty before any field is drawn', async () => {
     const res = await req('/api/draw')
     expect(res.status).toBe(200)
-    expect((await res.json()) as { draws: unknown[] }).toEqual({ draws: [] })
+    expect((await res.json()) as { brackets: unknown[] }).toEqual({ brackets: [] })
   })
 
   it('fails loudly at the store seam on a malformed reveal_sequence column', async () => {

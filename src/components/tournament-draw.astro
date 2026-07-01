@@ -41,6 +41,7 @@ const drawCompetitions = competitions
           data-panel={c.slug}
           hidden={i !== 0}
         >
+          <div class="dm-segments" role="tablist" aria-label="Runde wählen" data-segments hidden />
           <div class="dm-scroll" data-scroll>
             <div class="dm-bracket" data-bracket />
           </div>
@@ -113,11 +114,89 @@ const drawCompetitions = competitions
     padding-bottom: 10px;
     -webkit-overflow-scrolling: touch;
   }
+  /* The render target (vertical): the horizontal round-column tree, plus — on the Hauptrunde — the
+     „Spiel um Platz 3" box beneath it (ADR-0046). Left-anchored so both start at the first column. */
   .dm-bracket {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 30px;
+  }
+  /* A bracket's round columns, laid out left→right; the widest thing in the panel, so the scroll rides it. */
+  .dm-tree {
     display: flex;
     align-items: stretch;
     gap: var(--dm-gap);
     min-width: min-content;
+  }
+
+  /* — Segment control (Hauptrunde / Nebenrunde) — a lighter, secondary tab row inside a live panel, shown
+     only when a consolation bracket exists (ADR-0046). The 3rd-place box rides under Hauptrunde, so there
+     is no tab for it. */
+  .dm-segments {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 22px;
+  }
+  .dm-segments[hidden] {
+    display: none;
+  }
+  .dm-seg {
+    font-family: inherit;
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: rgba(12, 30, 58, 0.55);
+    background: transparent;
+    border: 1.5px solid rgba(12, 30, 58, 0.18);
+    border-radius: 999px;
+    padding: 6px 15px;
+    cursor: pointer;
+    transition:
+      background 0.18s,
+      color 0.18s,
+      border-color 0.18s;
+  }
+  .dm-seg:hover {
+    border-color: var(--color-navy);
+    color: var(--color-navy);
+  }
+  .dm-seg[aria-selected='true'] {
+    background: var(--color-navy);
+    color: #fff;
+    border-color: var(--color-navy);
+  }
+  .dm-seg:focus-visible {
+    outline: 2px solid var(--color-navy);
+    outline-offset: 3px;
+  }
+
+  /* — The „Spiel um Platz 3" box beneath the Hauptrunde tree (ADR-0046): a single labelled matchup, set off
+     from the tree by a hairline. Sized to the first column so it reads as a coda to the bracket. */
+  .dm-third {
+    display: flex;
+    flex-direction: column;
+    width: 232px;
+    padding-top: 20px;
+    border-top: 1px dashed rgba(12, 30, 58, 0.2);
+  }
+  .dm-third__label {
+    height: 34px;
+    display: flex;
+    align-items: center;
+    margin-bottom: 6px;
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--color-navy);
+    border-bottom: 2px solid var(--color-navy);
+  }
+  .dm-third__match {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
   }
 
   /* The pre-draw „needs ≥4" notice — shown instead of a bracket while a field is below the draw floor
@@ -286,6 +365,35 @@ const drawCompetitions = competitions
     color: rgba(12, 30, 58, 0.5);
   }
 
+  /* A not-yet-decided later-round line in the live bracket (ADR-0046): „Sieger M3" / „Verlierer M2" /
+     „offen" (ADR-0035). Dashed + muted like the „?" line, but carrying the feeder label. */
+  .dm-slot--feeder {
+    background: transparent;
+    border-style: dashed;
+    border-color: rgba(12, 30, 58, 0.24);
+  }
+  .dm-feeder {
+    flex: 1;
+    min-width: 0;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.01em;
+    color: rgba(12, 30, 58, 0.5);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  /* A decided match (ADR-0046): the winner's line takes a navy accent bar and stays fully inked; the
+     loser's fades back. Layered on top of the base player slot, so a seeded winner keeps its seed badge. */
+  .dm-slot--winner {
+    border-color: var(--color-navy);
+    box-shadow: inset 3px 0 0 var(--color-navy);
+  }
+  .dm-slot--loser {
+    opacity: 0.5;
+  }
+
   .dm-seedno {
     flex-shrink: 0;
     width: 22px;
@@ -381,273 +489,33 @@ const drawCompetitions = competitions
 
 <script>
   import { hc } from 'hono/client'
-  import {
-    bracketStructure,
-    displayDrawSize,
-    indexScheduleByNode,
-    isChallengerField,
-    MIN_DRAW_ENTRIES,
-    revealedBracket,
-    scheduleNodeKey
-  } from '../../shared'
-  import { tournament } from '../data/tournament'
+  import { indexScheduleByNode, isChallengerField } from '../../shared'
+  import { renderLive, renderPreview, renderReveal } from './tournament-draw.render'
   import type { AppType } from '../../worker/app'
-  import type {
-    NodeSchedule,
-    Participant,
-    ParticipantsResponse,
-    PlayerDisplay,
-    PublicDraw,
-    PublicRevealStep,
-    ScheduleResponse
-  } from '../../shared'
+  import type { Entry, Segment } from './tournament-draw.render'
+  import type { ParticipantsResponse, PublicCompetitionBracket, ScheduleResponse } from '../../shared'
 
-  type Entry = Participant
-  type Slot = { seed: number; player: Entry } | null
-  // PlayerDisplay (shared) is the display fields a bracket line shows — the wire contract's reveal-step
-  // player. A Participant is structurally assignable to it, so the preview and the reveal share one shape.
-
+  // The public bracket controller (ADR-0046): fetch → state → poll → per-panel dispatch. All the DOM
+  // building lives in ./tournament-draw.render; this script only decides which renderer each panel gets
+  // (preview / reveal / live) and keeps the segment + feed state the renderers read.
   const client = hc<AppType>(location.origin)
 
-  // The public draw reveal polls ~1.5 s during the live draw show — fast enough that a revealed lot
-  // appears within a step, light enough for a phone on event Wi-Fi (small N, ADR-0021).
+  // The public bracket polls ~1.5 s during the live show — fast enough that a revealed lot or a fresh
+  // result appears within a step, light enough for a phone on event Wi-Fi (small N, ADR-0021).
   const POLL_MS = 1500
-
-  // Round labels, outermost → final. A bracket reads the tail for its size (16 → all four, 8 → last
-  // three, 4 → last two), so one ordered list covers every size and a new size needs no parallel entry
-  // — the round *count* is topology (log2(size)), the labels are display copy (the live-draw bracket's
-  // own; the schedule cards' round names are the shared `roundLabel`, shared/schedule.ts).
-  const ROUND_LABELS = ['Achtelfinale', 'Viertelfinale', 'Halbfinale', 'Finale']
-  const roundLabels = (size: number): string[] => ROUND_LABELS.slice(ROUND_LABELS.length - Math.log2(size))
-
-  // Compact day labels for the matchup court/time line („Sa"/„So"), from the event's date copy — the
-  // weekday's first two letters (Samstag → Sa, Sonntag → So), indexed by the wire `day` (0/1). The full
-  // „Samstag · 22.08." stays on /spielplan; the bracket line is tight, so a two-letter day reads cleanest.
-  const DAY_ABBR = [tournament.saturday, tournament.sunday].map(d => d.weekday.slice(0, 2))
 
   const root = document.querySelector<HTMLElement>('[data-draw]')
 
-  // An empty „?" line — not yet drawn (a round-1 line before its reveal, or any later-round feeder).
-  const tbdEl = (): HTMLElement => {
-    const el = document.createElement('div')
-    el.className = 'dm-slot dm-slot--tbd'
-    const q = document.createElement('span')
-    q.className = 'dm-q'
-    q.textContent = '?'
-    q.setAttribute('aria-label', 'Wird ausgelost')
-    el.appendChild(q)
-    return el
-  }
-
-  // A placed line: a player with their name, LK, and (if seeded) the seed badge. Shared by the
-  // provisional preview (always seeded) and the live reveal (seeded or drawn). On a protected
-  // Challenger field (`challenger`) the public bracket does not advertise strength (CONTEXT:
-  // Challenger), so both the seed badge and the LK are omitted — only the admin draw show keeps them.
-  const playerEl = (player: PlayerDisplay, seed: number | null, challenger: boolean): HTMLElement => {
-    const el = document.createElement('div')
-    el.className = 'dm-slot dm-slot--seed'
-
-    if (seed !== null && !challenger) {
-      const no = document.createElement('span')
-      no.className = 'dm-seedno'
-      no.textContent = String(seed)
-      no.title = `An ${seed} gesetzt`
-      el.appendChild(no)
-    }
-
-    const name = document.createElement('span')
-    name.className = 'dm-name'
-    name.textContent = `${player.firstName} ${player.lastName}`.trim()
-    el.appendChild(name)
-
-    if (!challenger) {
-      const lk = document.createElement('span')
-      lk.className = player.lk ? 'dm-lk' : 'dm-lk dm-lk--pending'
-      lk.textContent = player.lk ? `LK ${player.lk}` : 'LK folgt'
-      el.appendChild(lk)
-    }
-
-    return el
-  }
-
-  const slotEl = (slot: Slot, challenger: boolean): HTMLElement =>
-    slot ? playerEl(slot.player, slot.seed, challenger) : tbdEl()
-
-  // A revealed reveal step → its line element: a placed player, or an empty bye line („Freilos", §31).
-  const revealSlotEl = (step: PublicRevealStep | undefined, challenger: boolean): HTMLElement => {
-    if (!step) return tbdEl()
-    if (step.kind === 'bye') {
-      const el = document.createElement('div')
-      el.className = 'dm-slot dm-slot--bye'
-      const fl = document.createElement('span')
-      fl.className = 'dm-bye'
-      fl.textContent = 'Freilos'
-      el.appendChild(fl)
-      return el
-    }
-    return step.player ? playerEl(step.player, step.seed, challenger) : tbdEl()
-  }
-
-  // The matchup's court + approximate time line („Platz 3 · Sa ca. 14:00", #159) — a compact caption above
-  // the two slots, shown only when the schedule index carries this node. The feed already gates it (placed +
-  // published + revealed), so an unscheduled or withheld match never reaches here. The time carries „ca." —
-  // it is explicitly a plan, not a promise (ADR-0032), matching /spielplan; the day is abbreviated for the
-  // tight column.
-  const scheduleNoteEl = (entry: NodeSchedule): HTMLElement => {
-    const el = document.createElement('div')
-    el.className = 'dm-when'
-    const day = DAY_ABBR[entry.day] ?? `Tag ${entry.day + 1}`
-    el.textContent = `Platz ${entry.court} · ${day} ca. ${entry.time}`
-    return el
-  }
-
-  // Render one round column (label + matches). `slotFor(line)` yields each round-1 line's element;
-  // later rounds are implicit feeders, all „?". Shared shell for the preview and the reveal.
-  // `cellFor(roundIndex, slotIndex)` yields the element for one slot — round 0's slots are the first-round
-  // lines (0..size-1), round r's slots its 2·matchCount feeders. The shared column shell for preview and
-  // reveal; both decide per slot what to show. `noteFor(roundIndex, matchIndex)` is the optional per-matchup
-  // caption (the reveal's court/time line, #159); preview passes none and the line is simply absent.
-  const renderBracket = (
-    bracket: HTMLElement,
-    size: number,
-    cellFor: (roundIndex: number, slotIndex: number) => HTMLElement,
-    noteFor?: (roundIndex: number, matchIndex: number) => HTMLElement | null
-  ) => {
-    const rounds = roundLabels(size)
-    if (!rounds.length) return
-    bracket.innerHTML = ''
-    for (let r = 0; r < rounds.length; r++) {
-      const matchCount = size / 2 ** (r + 1)
-      const col = document.createElement('div')
-      col.className = 'dm-round'
-
-      const label = document.createElement('div')
-      label.className = 'dm-round__label'
-      label.append(rounds[r])
-      const count = document.createElement('span')
-      count.className = 'dm-round__count'
-      count.textContent = String(matchCount)
-      label.appendChild(count)
-      col.appendChild(label)
-
-      const matches = document.createElement('div')
-      matches.className = 'dm-round__matches'
-      for (let m = 0; m < matchCount; m++) {
-        const match = document.createElement('div')
-        match.className = 'dm-match'
-        // The court/time caption sits ABOVE the pairing (#159), labelling the matchup from the top before
-        // its two slots; preview passes no noteFor, so the line is simply absent there.
-        const note = noteFor?.(r, m)
-        if (note) match.appendChild(note)
-        match.appendChild(cellFor(r, 2 * m))
-        match.appendChild(cellFor(r, 2 * m + 1))
-        matches.appendChild(match)
-      }
-      col.appendChild(matches)
-      bracket.appendChild(col)
-    }
-  }
-
-  // Below the draw floor (ADR-0034) there is no real field yet: show a „needs ≥4" count card, never a
-  // bracket. A 4-skeleton for 2–3 confirmed would look ready, but the draw can't be cast — and after
-  // registration closes it never will. Phase-agnostic: during signup it reads as a countdown, after
-  // close as „didn't reach 4".
-  const needFourEl = (count: number): HTMLElement => {
-    const remaining = MIN_DRAW_ENTRIES - count
-    const wrap = document.createElement('div')
-    wrap.className = 'dm-needfour'
-
-    const eyebrow = document.createElement('div')
-    eyebrow.className = 'dm-needfour__eyebrow'
-    eyebrow.textContent = 'Auslosung ab vier'
-    wrap.appendChild(eyebrow)
-
-    // The signature: four marks for the draw floor — the confirmed entrants fill in, the rest stay open.
-    // The field fills toward four; below that there is no draw yet (so never a bracket). The filled mark
-    // echoes a seed head without claiming a seeding, so it reads from the draw's own world.
-    const pips = document.createElement('div')
-    pips.className = 'dm-needfour__pips'
-    pips.setAttribute('role', 'img')
-    pips.setAttribute('aria-label', `${count} von ${MIN_DRAW_ENTRIES} Plätzen belegt`)
-    for (let i = 0; i < MIN_DRAW_ENTRIES; i++) {
-      const pip = document.createElement('span')
-      pip.className = i < count ? 'dm-pip dm-pip--filled' : 'dm-pip'
-      pips.appendChild(pip)
-    }
-    wrap.appendChild(pips)
-
-    const caption = document.createElement('div')
-    caption.className = 'dm-needfour__caption'
-    caption.textContent = `Noch ${remaining} ${remaining === 1 ? 'Anmeldung' : 'Anmeldungen'} bis zur Auslosung.`
-    wrap.appendChild(caption)
-
-    return wrap
-  }
-
-  // The provisional preview (before the draw): the strongest LKs sit on their seed lines, every other
-  // line is „?". Pure affordance — the lot has not run. The size follows the **confirmed field**, not the
-  // competition capacity (ADR-0034): 7 confirmed shows an 8-bracket, not a 16, mirroring the real draw.
-  // displayDrawSize clamps to the supported sizes (4/8/16), so bracketStructure never throws.
-  const buildPreview = (bracket: HTMLElement, players: Entry[], challenger: boolean) => {
-    if (players.length < MIN_DRAW_ENTRIES) {
-      bracket.innerHTML = ''
-      bracket.appendChild(needFourEl(players.length))
-      return
-    }
-    const size = displayDrawSize(players.length)
-    // One bracketStructure — the single topology source the real draw also uses (ADR-0025), so the
-    // preview's seed lines and count can't drift from the draw's. Lot seeds (Nr.3/4) sit on the first
-    // of their prescribed lines until the actual lot runs at the draw.
-    const struct = bracketStructure(size)
-    const seedPos: Record<number, number> = {}
-    for (const group of struct.seedGroups) group.seeds.forEach((seed, i) => (seedPos[seed] = group.lines[i]))
-    const slots: Slot[] = Array.from({ length: size }, () => null)
-    players.slice(0, struct.seedCount).forEach((player, i) => {
-      const pos = seedPos[i + 1]
-      if (pos !== undefined) slots[pos] = { seed: i + 1, player }
-    })
-    renderBracket(bracket, size, (r, i) => (r === 0 ? slotEl(slots[i], challenger) : tbdEl()))
-  }
-
-  // The live reveal: the server sends only the steps revealed so far (sliced to the cursor), each placing
-  // a player onto its first-round line. A revealed round-1 bye is a resolved match (§31): the paired
-  // player advances „ohne Spiel", so once both its lines are revealed it already shows in round 2 — the
-  // one round a bye carries a player forward (ADR-0025; deeper rounds stay „?" until matches are played).
-  const buildReveal = (
-    bracket: HTMLElement,
-    draw: PublicDraw,
-    challenger: boolean,
-    scheduleIndex: Map<string, NodeSchedule>
-  ) => {
-    // The revealed bracket: round-1 lines by position and the round-2 bye-winners (§31). The same shared
-    // interpretation the operator draw show renders (CONTEXT: Revealed bracket) — no bracket logic here,
-    // only the DOM binding below.
-    const { lines, byeWinners } = revealedBracket(draw.size, draw.steps)
-
-    renderBracket(
-      bracket,
-      draw.size,
-      (r, i) => {
-        if (r === 0) return revealSlotEl(lines[i], challenger)
-        const winner = r === 1 ? byeWinners[i] : null
-        return winner ? playerEl(winner.player, winner.seed, challenger) : tbdEl()
-      },
-      // The court/time annotation (#159): the public draw shows the **main** bracket only (the consolation
-      // has no reveal show), and a node at column r, match m is the schedule's round r+1, position m. Joins
-      // on topology via `scheduleNodeKey`; a node the feed doesn't carry simply has no line.
-      (r, m) => {
-        const entry = scheduleIndex.get(scheduleNodeKey(draw.competition, 'main', r + 1, m))
-        return entry ? scheduleNoteEl(entry) : null
-      }
-    )
-  }
+  // The selected segment (Hauptrunde / Nebenrunde) per live competition — persisted across polls so a
+  // re-render keeps the chosen tab. Defaults to the main bracket; only set on a field with a consolation.
+  const segmentByComp = new Map<string, Segment>()
 
   // Latest of each feed; the panels re-render from both whenever either arrives (a competition switches
-  // from preview to reveal the first poll after it is drawn). `lastDrawsJson` lets the 1.5 s poll skip a
-  // full DOM rebuild when nothing changed between revealed lots — no flicker on the beamer between steps.
+  // from preview → reveal → live results over its lifetime). `lastBracketsJson` lets the 1.5 s poll skip a
+  // full DOM rebuild when nothing changed between polls — no flicker between revealed lots or live results.
   let participants: ParticipantsResponse = { enabled: false, participants: [] }
-  let draws: PublicDraw[] = []
-  let lastDrawsJson = ''
+  let brackets: PublicCompetitionBracket[] = []
+  let lastBracketsJson = ''
   let schedule: ScheduleResponse = { published: false, matches: [] }
   let lastScheduleJson = ''
 
@@ -661,18 +529,30 @@ const drawCompetitions = competitions
         byComp.set(e.competition, arr)
       }
     }
-    // One topology index over the whole feed (#159), shared by every revealed bracket — the publish/reveal
-    // gates already filtered the matches, so a node simply isn't here when it shouldn't show its time.
+    // One topology index over the whole feed (#159), shared by every bracket — the publish/reveal gates
+    // already filtered the matches, so a node simply isn't here when it shouldn't show its time.
     const scheduleIndex = indexScheduleByNode(schedule.matches)
-    const drawByComp = new Map(draws.map(d => [d.competition as string, d]))
+    const bracketByComp = new Map(brackets.map(b => [b.competition as string, b]))
     root.querySelectorAll<HTMLElement>('[data-panel]').forEach(panel => {
       const slug = panel.dataset.panel!
       const bracket = panel.querySelector<HTMLElement>('[data-bracket]')
-      if (!bracket) return
+      const segmentsEl = panel.querySelector<HTMLElement>('[data-segments]')
+      if (!bracket || !segmentsEl) return
       const challenger = isChallengerField(slug)
-      const drawn = drawByComp.get(slug)
-      if (drawn) buildReveal(bracket, drawn, challenger, scheduleIndex)
-      else buildPreview(bracket, byComp.get(slug) ?? [], challenger)
+      const entry = bracketByComp.get(slug)
+      // Fully revealed → live results (segment control + resolved brackets); still revealing → reveal steps;
+      // not yet drawn → the provisional preview. The segment control belongs to the live phase only. The
+      // segment state + re-render live here (the controller), so a segment switch survives the poll.
+      if (entry && entry.phase === 'live') {
+        renderLive(segmentsEl, bracket, entry, challenger, scheduleIndex, segmentByComp.get(slug) ?? 'main', seg => {
+          segmentByComp.set(slug, seg)
+          render()
+        })
+        return
+      }
+      segmentsEl.hidden = true
+      if (entry && entry.phase === 'revealing') renderReveal(bracket, entry, challenger, scheduleIndex)
+      else renderPreview(bracket, byComp.get(slug) ?? [], challenger)
     })
   }
 
@@ -719,22 +599,23 @@ const drawCompetitions = competitions
     }
   }
 
-  // The draw reveal feed drives the live bracket; it is polled. A transient poll failure keeps the last
-  // good state on screen (the show must not flash an error mid-reveal) — the error surface is owned by
-  // loadParticipants, so a flaky poll never blanks the page.
+  // The bracket feed drives the live bracket (reveal steps while revealing, resolved results once fully
+  // revealed); it is polled. A transient poll failure keeps the last good state on screen (the show must
+  // not flash an error mid-reveal) — the error surface is owned by loadParticipants, so a flaky poll never
+  // blanks the page.
   const loadDraws = async () => {
     try {
       const res = await client.api.draw.$get()
       if (!res.ok) return
       const body = await res.json()
-      // Skip the rebuild when the reveal is unchanged since the last poll — the common case between lots.
-      const sig = JSON.stringify(body.draws)
-      if (sig === lastDrawsJson) return
-      lastDrawsJson = sig
-      ;({ draws } = body)
+      // Skip the rebuild when nothing changed since the last poll — the common case between lots/results.
+      const sig = JSON.stringify(body.brackets)
+      if (sig === lastBracketsJson) return
+      lastBracketsJson = sig
+      brackets = body.brackets as PublicCompetitionBracket[]
       render()
     } catch {
-      /* keep the last good reveal on a transient poll failure */
+      /* keep the last good bracket on a transient poll failure */
     }
   }
 

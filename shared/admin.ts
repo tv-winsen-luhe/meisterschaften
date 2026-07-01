@@ -274,6 +274,83 @@ export type PublicDraw = z.infer<typeof publicDrawSchema>
 export const publicDrawsResponseSchema = z.object({ draws: z.array(publicDrawSchema) })
 export type PublicDrawsResponse = z.infer<typeof publicDrawsResponseSchema>
 
+// ── Public live bracket, phase two: results (GET /api/draw, ADR-0046) ─────────────────────────────
+// Once a competition is fully revealed the public bracket stops being reveal steps and becomes the
+// **resolved matches aggregate** — winners advancing round-by-round to the champion (ADR-0025). The
+// per-competition `/api/draw` payload is therefore a discriminated shape (below): a still-revealing field
+// carries reveal steps (as today); a fully-revealed one carries its resolved main bracket (+ „Spiel um
+// Platz 3") and, once drawn, its resolved consolation bracket. The operator's reveal endpoint keeps the
+// reveal-only `publicDrawSchema` above — this two-phase shape is public-only.
+
+// One resolved slot of the live bracket. Extends the schedule feed's SlotView vocabulary (ADR-0035:
+// player / bye / feeder „Sieger M{n}" / loser „Verlierer M{n}" / unknown „offen"), but the `player`
+// member also carries the seed + LK the bracket badges show — nulled for a protected Challenger field on
+// the wire (ADR-0044) — which the schedule feed's leaner player slot omits. The German labels for the
+// non-player members come from the shared `slotLabel` on both surfaces.
+export const liveBracketSlotSchema = z.discriminatedUnion('kind', [
+  z.object({
+    kind: z.literal('player'),
+    firstName: z.string(),
+    lastName: z.string(),
+    // Strength signals, redacted to null on a protected Challenger field (ADR-0044); a seed is null for an
+    // unseeded player, an LK is null when the player has none.
+    lk: z.string().nullable(),
+    seed: z.number().int().positive().nullable()
+  }),
+  z.object({ kind: z.literal('bye') }),
+  z.object({ kind: z.literal('feeder'), matchNumber: z.number().int().positive() }),
+  z.object({ kind: z.literal('loser'), matchNumber: z.number().int().positive() }),
+  z.object({ kind: z.literal('unknown') })
+])
+export type LiveBracketSlot = z.infer<typeof liveBracketSlotSchema>
+
+// One resolved match of the live bracket: its bracket position (the client lays out the round columns
+// from it), its stable number (a feeder points at it by number), which slot won (so the page bolds the
+// winner + fades the loser), and the two resolved slots. The third-place playoff rides along in the main
+// bracket's match list, marked `thirdPlace` (its round is the final's, position 1) — the client pulls it
+// out into its own „Spiel um Platz 3" box. Court/time is not here (that is the schedule feed's join, #159).
+export const liveBracketMatchSchema = z.object({
+  round: z.number().int().positive(),
+  position: z.number().int().min(0),
+  thirdPlace: z.boolean(),
+  number: z.number().int().positive(),
+  winner: z.union([z.literal(1), z.literal(2)]).nullable(),
+  slot1: liveBracketSlotSchema,
+  slot2: liveBracketSlotSchema
+})
+export type LiveBracketMatch = z.infer<typeof liveBracketMatchSchema>
+
+// One fully-revealed bracket resolved for display: its draw size + depth (the client sizes the round
+// columns and labels them from the end via the shared `roundLabel`), and every match resolved. Used for
+// both the main bracket (carries the third-place match) and the consolation (does not, ADR-0004).
+export const liveBracketSchema = z.object({
+  size: z.number().int().positive(),
+  totalRounds: z.number().int().positive(),
+  matches: z.array(liveBracketMatchSchema)
+})
+export type LiveBracket = z.infer<typeof liveBracketSchema>
+
+// One competition's public bracket, discriminated on `phase` (ADR-0046): while its main bracket is still
+// revealing (`cursor < total`) it carries the cursor-sliced reveal steps (the revealing member is the
+// reveal-only `publicDrawSchema` plus the tag); once fully revealed it carries the resolved main bracket
+// and — the moment it is drawn (no reveal show, ADR-0004) — the resolved consolation bracket. The switch is
+// per competition: one field can be live while another is still being revealed.
+export const publicCompetitionBracketSchema = z.discriminatedUnion('phase', [
+  publicDrawSchema.extend({ phase: z.literal('revealing') }),
+  z.object({
+    phase: z.literal('live'),
+    competition: competitionSlug,
+    main: liveBracketSchema,
+    consolation: liveBracketSchema.nullable()
+  })
+])
+export type PublicCompetitionBracket = z.infer<typeof publicCompetitionBracketSchema>
+
+// GET /api/draw — the public two-phase bracket feed (ADR-0046): every drawn competition, each either
+// revealing or live. Empty until a field is drawn; polled by the public page like the schedule feed.
+export const publicBracketsResponseSchema = z.object({ brackets: z.array(publicCompetitionBracketSchema) })
+export type PublicBracketsResponse = z.infer<typeof publicBracketsResponseSchema>
+
 // ── Schedule (ADR-0005, issue #88) ──────────────────────────────────────────────────────────────
 // The grid placement contract and the public schedule feed. The admin grid reads matches (with their
 // placement) from the draws response above (matchSchema now carries court/day/slot/status); this

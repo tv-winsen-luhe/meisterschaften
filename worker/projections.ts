@@ -1,9 +1,13 @@
 import {
   bracketDepth,
+  type CompetitionDraw,
   type CompetitionSlug,
   isChallengerField,
   isFullyRevealed,
+  type LiveBracket,
+  type LiveBracketSlot,
   type Match,
+  type PublicCompetitionBracket,
   type PublicDraw,
   type ResolvedMatch,
   resolveBracket,
@@ -13,7 +17,7 @@ import {
 } from '../shared'
 import type { AppStateStore } from './store/app-state'
 import type { DrawStore } from './store/draw'
-import type { RegistrationsStore } from './store/registrations'
+import type { RegistrationsStore, RevealPlayer } from './store/registrations'
 
 // The draw read-model (ADR-0025): the public projections over the drawn state — the live bracket and
 // the schedule feed. Split from the draw orchestration (worker/draw.ts): that module *mutates* state
@@ -53,6 +57,69 @@ const redactChallenger = (draw: PublicDraw): PublicDraw =>
         steps: draw.steps.map(s => ({ ...s, seed: null, player: s.player ? { ...s.player, lk: null } : null }))
       }
     : draw
+
+// Redact a protected Challenger field's strength on the *resolved* live bracket (ADR-0044): null each
+// player slot's seed + LK, keeping the name and the bracket structure. The live-phase analogue of
+// `redactChallenger`'s reveal-step redaction — applied server-side to both the main and consolation
+// brackets before they leave for the public wire (ADR-0022). A non-player slot passes through untouched.
+const redactLiveSlot = (slot: LiveBracketSlot): LiveBracketSlot =>
+  slot.kind === 'player' ? { ...slot, lk: null, seed: null } : slot
+const redactLiveBracket = (bracket: LiveBracket): LiveBracket => ({
+  ...bracket,
+  matches: bracket.matches.map(m => ({ ...m, slot1: redactLiveSlot(m.slot1), slot2: redactLiveSlot(m.slot2) }))
+})
+
+// Resolve one fully-revealed competition+bracket draw into its live wire shape (ADR-0046): the `matches`
+// aggregate run through the shared `resolveBracket` (the same resolver the schedule feed and admin grid
+// read), with each filled slot joined to its player name + LK, a seeded player's seed number, and the
+// winning slot mapped from `winnerRegId`. Feeders („Sieger M{n}"), losers („Verlierer M{n}"), byes, and the
+// „offen" degrade (ADR-0035) ride through as their SlotView kinds — the client renders the label. This is
+// the after-reveal interpretation `resolveBracket(matches)` gives, replacing the during-reveal reveal
+// steps (CONTEXT: Revealed bracket). `players` is the shared name join built once across all live fields.
+const buildLiveBracket = (draw: CompetitionDraw, players: Map<number, RevealPlayer>): LiveBracket => {
+  // The seed number a placed player carries (from the frozen seeding), so a seed keeps its badge as it
+  // advances round by round — mirroring how the reveal show marks a bye-winner's seed forward.
+  const seedByPlayer = new Map(draw.seeding.map(s => [s.playerId, s.seed]))
+  const toSlot = (view: SlotView): LiveBracketSlot => {
+    if (view.kind === 'player') {
+      const p = players.get(view.regId)
+      // A named slot with no registration row (only reachable if a row was hard-deleted under a frozen
+      // draw) degrades to „offen" like the schedule feed, never a whole-feed 500 (ADR-0035).
+      return p
+        ? {
+            kind: 'player',
+            firstName: p.firstName,
+            lastName: p.lastName,
+            lk: p.lk,
+            seed: seedByPlayer.get(view.regId) ?? null
+          }
+        : { kind: 'unknown' }
+    }
+    if (view.kind === 'feeder') return { kind: 'feeder', matchNumber: view.matchNumber }
+    if (view.kind === 'loser') return { kind: 'loser', matchNumber: view.matchNumber }
+    if (view.kind === 'unknown') return { kind: 'unknown' }
+    return { kind: 'bye' }
+  }
+  const matches = resolveBracket(draw.matches).map(({ match: m, number, slot1, slot2 }) => ({
+    round: m.round,
+    position: m.position,
+    thirdPlace: m.thirdPlace,
+    number,
+    // The winning slot (1/2) the page bolds, mapped from `winnerRegId` by which slot it fills — null while
+    // undecided, or when the winner is neither slot (a hard-deleted registration, ADR-0035). Same rule the
+    // schedule feed uses for its `winner`.
+    winner: (m.winnerRegId === null
+      ? null
+      : m.winnerRegId === m.slot1RegId
+        ? 1
+        : m.winnerRegId === m.slot2RegId
+          ? 2
+          : null) as 1 | 2 | null,
+    slot1: toSlot(slot1),
+    slot2: toSlot(slot2)
+  }))
+  return { size: draw.size, totalRounds: bracketDepth(draw.matches), matches }
+}
 
 export const createProjections = (deps: ProjectionsDeps) => {
   const { drawStore, registrationsStore, appStateStore } = deps
@@ -102,14 +169,72 @@ export const createProjections = (deps: ProjectionsDeps) => {
 
   return {
     /**
-     * The public live bracket (ADR-0003): the cursor-sliced reveal of every drawn competition, with a
-     * protected Challenger field's strength **redacted** on the wire — each step's `lk` and `seed` nulled,
-     * the seeded structure kept (ADR-0044, defense in depth behind #155's client-side hiding). This is the
-     * Access-free endpoint the off-site bracket polls; the operator's beamer reads the un-redacted
-     * operatorDraws() under Access.
+     * The public bracket (ADR-0046), a **two-phase** projection switched per competition on its main
+     * bracket's reveal cursor:
+     *   - **while revealing** (`cursor < total`) — the cursor-sliced reveal steps, unchanged (ADR-0003):
+     *     the unrevealed tail never leaves the server. A protected Challenger field is **redacted** on the
+     *     wire (each step's `lk` + `seed` nulled, ADR-0044).
+     *   - **once fully revealed** — the resolved main bracket (+ „Spiel um Platz 3") and, the moment it is
+     *     drawn (no reveal show, ADR-0004), the resolved consolation bracket, both from the `matches`
+     *     aggregate (ADR-0025) so winners advance to the champion. The gate is full-reveal **only**, never
+     *     the schedule publish flag — a recorded result is reality (ADR-0032), not the plan (ADR-0041). A
+     *     Challenger field's LK + seed are redacted on the live wire too (ADR-0044).
+     *
+     * The Access-free endpoint the off-site bracket polls; the operator's beamer reads the un-redacted,
+     * reveal-only operatorDraws() under Access.
      */
-    async publicDraws(): Promise<PublicDraw[]> {
-      return (await buildReveals()).map(redactChallenger)
+    async publicDraws(): Promise<PublicCompetitionBracket[]> {
+      // Two independent reads: the cursor-sliced reveal build (the revealing phase) and the full draw set
+      // (a fully-revealed field resolves its live bracket from the matches aggregate). No dependency
+      // between them on a user-facing path, so fetch together.
+      const [reveals, draws] = await Promise.all([buildReveals(), drawStore.listDraws()])
+      const revealByComp = new Map(reveals.map(r => [r.competition, r]))
+
+      // The drawn brackets per competition. `listDraws` returns one entry per competition+bracket; the
+      // **main** bracket's reveal cursor is the per-competition phase switch (a consolation only ever
+      // exists once its main is fully revealed, so it never appears in the revealing phase).
+      const mainByComp = new Map<CompetitionSlug, CompetitionDraw>()
+      const consolationByComp = new Map<CompetitionSlug, CompetitionDraw>()
+      for (const d of draws) {
+        if (d.bracket === 'main') mainByComp.set(d.competition, d)
+        else if (d.bracket === 'consolation') consolationByComp.set(d.competition, d)
+      }
+
+      // Join names once across every live field's filled slots (both brackets) — the resolved bracket shows
+      // the player, unlike the reveal which ships only its revealed prefix (already joined by buildReveals).
+      const ids = new Set<number>()
+      for (const main of mainByComp.values()) {
+        if (!isFullyRevealed(main)) continue
+        const consolation = consolationByComp.get(main.competition)
+        for (const m of [...main.matches, ...(consolation?.matches ?? [])]) {
+          if (m.slot1RegId !== null) ids.add(m.slot1RegId)
+          if (m.slot2RegId !== null) ids.add(m.slot2RegId)
+        }
+      }
+      const players = await registrationsStore.revealPlayers([...ids])
+
+      const brackets: PublicCompetitionBracket[] = []
+      for (const [competition, main] of mainByComp) {
+        if (!isFullyRevealed(main)) {
+          // Revealing: the cursor-sliced, redacted reveal steps — the suspense invariant (ADR-0003).
+          const reveal = revealByComp.get(competition)
+          if (reveal) brackets.push({ phase: 'revealing', ...redactChallenger(reveal) })
+          continue
+        }
+        // Live: resolve the main bracket (+ third place) and, once drawn, the consolation from the matches
+        // aggregate; redact a protected Challenger field's strength on both (ADR-0044).
+        const redact = isChallengerField(competition)
+        const mainBracket = buildLiveBracket(main, players)
+        const consolationDraw = consolationByComp.get(competition)
+        const consolationBracket = consolationDraw ? buildLiveBracket(consolationDraw, players) : null
+        brackets.push({
+          phase: 'live',
+          competition: main.competition,
+          main: redact ? redactLiveBracket(mainBracket) : mainBracket,
+          consolation: consolationBracket && redact ? redactLiveBracket(consolationBracket) : consolationBracket
+        })
+      }
+      return brackets
     },
 
     /**
