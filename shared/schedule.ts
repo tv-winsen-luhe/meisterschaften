@@ -224,6 +224,25 @@ export const slotLabel = (slot: Exclude<SlotView, PlayerSlotKind>): string =>
         ? `Verlierer M${slot.matchNumber}`
         : 'offen'
 
+// The minimal score shape `slotGames` reads — the best-of-2 + Match-Tie-Break columns, each a `[slot1,
+// slot2]` pair or null. Structural, so the wire `MatchScore` satisfies it without schedule.ts importing the
+// admin contract (which imports this file).
+interface SlotScores {
+  set1: readonly [number, number] | null
+  set2: readonly [number, number] | null
+  mtb: readonly [number, number] | null
+}
+
+/**
+ * One slot's games across the three sets, in order — e.g. `[6, 4, 10]` for the games (or MTB points) that
+ * slot won. An unplayed set contributes nothing, so a not-yet-started (or walkover) match yields `[]` and a
+ * mid-match with one saved set yields just that set (ADR-0032 §20). The single source both the admin
+ * results surface (`scoreFor`) and the public live board join into a score line (#91) — each surface picks
+ * its own separator, so the „which games" rule can never drift between them.
+ */
+export const slotGames = (score: SlotScores, slot: 1 | 2): number[] =>
+  [score.set1, score.set2, score.mtb].map(pair => (pair ? pair[slot - 1] : null)).filter((n): n is number => n !== null)
+
 // One bracket match resolved for display: its stable number and the two SlotViews. Generic over the
 // caller's match row (the wire `Match`, the store row) so each keeps its own placement/status fields.
 export interface ResolvedMatch<M extends MatchPosition> {
