@@ -9,12 +9,13 @@ import { createInMemoryRegistrationsStore } from '../worker/store/registrations.
 import type { RegistrationRow } from '../worker/db/schema'
 import { createFakeRandomSource } from './fake-random'
 
-// Challenger strength redaction on the draw reveal wire (#166, ADR-0044). A protected Challenger field is
-// seeded by LK internally (ADR-0043), but its strength must not leave the server on the public wire:
-// publicDraws nulls each revealed step's lk + seed for an isChallengerField competition (defense in depth
-// behind #155's client-side hiding), while operatorDraws — the beamer's full reveal, served under Access —
-// keeps them so the draw show can run (ADR-0024). The seeded *structure* (kind, position, names) is
-// deliberately kept (ADR-0044); the draw itself is untouched, only the projection.
+// Challenger strength redaction on the public bracket wire (#166, ADR-0044, ADR-0046). A protected
+// Challenger field is seeded by LK internally (ADR-0043), but its strength must not leave the server on the
+// public wire — in **both** phases of the two-phase bracket (ADR-0046): publicDraws nulls each revealed
+// step's lk + seed while revealing, and each resolved player slot's lk + seed once live (defense in depth
+// behind #155's client-side hiding). operatorDraws — the beamer's full reveal, served under Access — keeps
+// them so the draw show can run (ADR-0024). The seeded *structure* (kind, position, names) is deliberately
+// kept (ADR-0044); the draw itself is untouched, only the projection.
 
 // A confirmed registration row for the in-memory store. Mirrors draw-reveal.test.ts.
 const confirmed = (id: number, overrides: Partial<RegistrationRow> = {}): RegistrationRow => ({
@@ -52,14 +53,40 @@ describe('projections — Challenger redaction (#166)', () => {
     return createProjections({ drawStore, registrationsStore, appStateStore: createInMemoryAppStateStore() })
   }
 
-  it('publicDraws nulls lk + seed on every revealed step of a Challenger field, keeping the structure', async () => {
+  it('publicDraws nulls lk + seed on a fully-revealed Challenger field, keeping names + structure', async () => {
+    // Fully revealed → the live phase (ADR-0046): the redaction now applies to the resolved bracket's player
+    // slots, not reveal steps. Every player drops its strength signals; the names + bracket structure stay.
     const projections = await drawnChallenger()
+    const [bracket] = await projections.publicDraws()
+    expect(bracket.phase).toBe('live')
+    if (bracket.phase !== 'live') return
+    const playerSlots = bracket.main.matches.flatMap(m => [m.slot1, m.slot2]).filter(s => s.kind === 'player')
+    expect(playerSlots.length).toBeGreaterThan(0)
+    expect(playerSlots.every(s => s.kind === 'player' && s.seed === null)).toBe(true)
+    expect(playerSlots.every(s => s.kind === 'player' && s.lk === null)).toBe(true)
+    // … but the names survive: seed 1 (id 1, LK 21) still sits on the first line, named.
+    const first = bracket.main.matches.find(m => m.round === 1 && m.position === 0)
+    expect(first?.slot1).toMatchObject({ kind: 'player', firstName: 'P1', lastName: 'Player1' })
+  })
+
+  it('publicDraws nulls lk + seed on a still-revealing Challenger field, keeping the reveal structure', async () => {
+    // While revealing, the redaction still nulls each revealed step's seed + player LK (ADR-0044), keeping
+    // the seeded structure — the phase-one half of the two-phase redaction.
+    const drawStore = createInMemoryDrawStore()
+    const registrationsStore = createInMemoryRegistrationsStore(challengerField())
+    const svc = createDrawService({ registrationsStore, drawStore, randomSource: createFakeRandomSource([0]) })
+    await svc.draw({ competition: 'mens-challenger', phase: 'tournament', now: 'now' })
+    await svc.advance('mens-challenger', 'forward')
+    const projections = createProjections({
+      drawStore,
+      registrationsStore,
+      appStateStore: createInMemoryAppStateStore()
+    })
     const [draw] = await projections.publicDraws()
-    expect(draw).toMatchObject({ competition: 'mens-challenger', size: 4, cursor: 4, total: 4 })
-    // The strength signals are dropped on every step …
+    expect(draw.phase).toBe('revealing')
+    if (draw.phase !== 'revealing') return
     expect(draw.steps.every(s => s.seed === null)).toBe(true)
     expect(draw.steps.every(s => s.player === null || s.player.lk === null)).toBe(true)
-    // … but the seeded structure survives: a seed line still carries its kind, position, and player name.
     expect(draw.steps[0]).toEqual({
       kind: 'seed-fixed',
       position: 0,
@@ -97,6 +124,8 @@ describe('projections — Challenger redaction (#166)', () => {
       appStateStore: createInMemoryAppStateStore()
     })
     const [draw] = await projections.publicDraws()
+    expect(draw.phase).toBe('revealing')
+    if (draw.phase !== 'revealing') return
     expect(draw.steps[0]).toEqual({
       kind: 'seed-fixed',
       position: 0,
@@ -120,7 +149,12 @@ interface RevealStepBody {
   seed: number | null
   player: RevealPlayerBody
 }
-interface RevealBody {
+// The public /api/draw feed is the two-phase bracket (`brackets`, a still-revealing member carrying steps);
+// the operator /api/admin/draw/reveal keeps the reveal-only `draws` shape (ADR-0046 is public-only).
+interface PublicRevealingBody {
+  brackets: { steps: RevealStepBody[] }[]
+}
+interface OperatorRevealBody {
   draws: { steps: RevealStepBody[] }[]
 }
 
@@ -161,21 +195,20 @@ describe('GET /api/draw vs GET /api/admin/draw/reveal — Challenger wire split 
     expect((await draw('mens-challenger')).status).toBe(200)
     await advance('mens-challenger')
 
-    const stepsOf = async (path: string) => {
-      const res = await req(path)
-      expect(res.status).toBe(200)
-      const body = (await res.json()) as RevealBody
-      return body.draws[0].steps
-    }
-
-    // Public wire (Access-free): the revealed seed line keeps its name but drops the strength signals.
-    const [pub] = await stepsOf('/api/draw')
+    // Public wire (Access-free): the revealed seed line keeps its name but drops the strength signals. Still
+    // revealing (cursor 1 of 4), so the two-phase feed's `revealing` member carries the steps.
+    const pubRes = await req('/api/draw')
+    expect(pubRes.status).toBe(200)
+    const [pub] = ((await pubRes.json()) as PublicRevealingBody).brackets[0].steps
     expect(pub.player.lastName).toBe('Chal1')
     expect(pub.seed).toBeNull()
     expect(pub.player.lk).toBeNull()
 
-    // Admin reveal (behind Access in prod; open on localhost): the beamer keeps the full LK + seed.
-    const [adm] = await stepsOf('/api/admin/draw/reveal')
+    // Admin reveal (behind Access in prod; open on localhost): the beamer keeps the full LK + seed, and the
+    // operator endpoint keeps the reveal-only `draws` shape.
+    const admRes = await req('/api/admin/draw/reveal')
+    expect(admRes.status).toBe(200)
+    const [adm] = ((await admRes.json()) as OperatorRevealBody).draws[0].steps
     expect(adm.seed).toBe(1)
     expect(adm.player.lk).toBe('21.0')
   })
