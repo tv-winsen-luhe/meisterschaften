@@ -114,3 +114,29 @@ export const loserOf = (m: MatchSlotRefs, winnerRegId: number | null): number | 
   if (m.slot2RegId === winnerRegId) return m.slot1RegId
   return null
 }
+
+// The minimal match shape `winningSlot` reads — the two slot refs plus the recorded winner. Extends
+// `MatchSlotRefs` (the winner is matched against those two slots); every match row satisfies it structurally
+// (the store row, the wire `Match`, `AdvanceableMatch`), so all read one definition without importing each
+// other (the AdvanceableMatch idiom). `winnerRegId: null` means the match is undecided.
+export interface DecidedMatchRef extends MatchSlotRefs {
+  winnerRegId: number | null
+}
+
+/**
+ * The slot (1 | 2) the recorded winner fills — which contestant line a surface bolds, and the wire's
+ * `winner` (CONTEXT: Bracket topology). A sibling of `loserOf`: both read a decided match's slot layout,
+ * this one returning the winner's *ordinal* rather than the loser's regId. The winner is read off the match
+ * (not a parameter like `loserOf`), because every caller wants the match's own recorded winner. The
+ * load-bearing `winnerRegId === null` guard comes first: without it an undecided match whose slot is still
+ * an empty feeder (regId null) would match `null === null` and bold the wrong line. A winner that is neither
+ * slot — only reachable if a slot's registration was hard-deleted under a frozen draw (ADR-0035) — yields
+ * `null`. The one definition the live bracket, the schedule feed, and the two admin result surfaces read,
+ * replacing the four hand-rolled copies that used to drift.
+ */
+export const winningSlot = (m: DecidedMatchRef): 1 | 2 | null => {
+  if (m.winnerRegId === null) return null
+  if (m.slot1RegId === m.winnerRegId) return 1
+  if (m.slot2RegId === m.winnerRegId) return 2
+  return null
+}

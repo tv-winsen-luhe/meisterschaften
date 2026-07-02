@@ -270,8 +270,10 @@ byeWinners }` in `shared/reveal.ts`. It is **not** the whole story of the public
   `semifinalPositions`/`thirdPlacePosition`); the draw, Advancement, the schedule, and the consolation bracket
   resolve those against their own match set instead of re-deriving parity per surface (so main-vs-consolation
   falls out for free —
-  a consolation bracket has no `(depth, 1)` match). Also owns the reconciled `loserOf` (the loser of a decided
-  match) and `bracketDepth`. Distinct from the **seed-line skeleton** (`bracketStructure`): the skeleton says
+  a consolation bracket has no `(depth, 1)` match). Also owns the two slot-identity readers of a decided
+  match — `loserOf` (the loser's regId) and `winningSlot` (which slot `1|2` the winner fills, read by the
+  live bracket, the schedule feed, and both admin result surfaces instead of a per-surface copy) — plus
+  `bracketDepth`. Distinct from the **seed-line skeleton** (`bracketStructure`): the skeleton says
   _where the seeds sit_, the topology says _what feeds what_ — draw.ts **builds** the tree, bracket-topology
   **walks** it. _Avoid_: "structure"/"skeleton" for adjacency, "topology" for seed placement. _(See ADR-0049,
   ADR-0025.)_

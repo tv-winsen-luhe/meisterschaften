@@ -1,6 +1,13 @@
 import { useState } from 'react'
 import type { EnteredOutcome, MatchScore } from '../../../shared'
-import { RESULT_SCORE_ERROR_MESSAGE, checkNormalScore, legalMtb, legalSet, resultScoreError } from '../../../shared'
+import {
+  RESULT_SCORE_ERROR_MESSAGE,
+  checkNormalScore,
+  legalMtb,
+  legalSet,
+  resultScoreError,
+  winningSlot
+} from '../../../shared'
 import { cn } from '@/admin/lib/utils'
 import { Button } from '@/admin/ui/button'
 import { Input } from '@/admin/ui/input'
@@ -76,13 +83,9 @@ const ResultForm = ({ match: row, nameById, onSubmit }: ResultFormProps) => {
   const name1 = nameById.get(match.slot1RegId ?? -1) ?? 'Slot 1'
   const name2 = nameById.get(match.slot2RegId ?? -1) ?? 'Slot 2'
 
-  // The previously-recorded winning slot, if any — what a winner change is measured against (the cascade warn).
-  const prevWinner: 1 | 2 | null =
-    match.winnerRegId !== null && match.winnerRegId === match.slot1RegId
-      ? 1
-      : match.winnerRegId !== null && match.winnerRegId === match.slot2RegId
-        ? 2
-        : null
+  // The previously-recorded winning slot, if any — what a winner change is measured against (the cascade
+  // warn). One definition (CONTEXT: Bracket topology) rather than a locally-phrased guard.
+  const prevWinner = winningSlot(match)
 
   // The explicit Sieger — used only for Walkover/Aufgabe, where the score cannot decide the winner. A normal
   // result derives its winner from the score instead (below).
