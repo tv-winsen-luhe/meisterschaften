@@ -36,7 +36,7 @@ describe('in-memory registrations store · listConfirmed', () => {
     const list = await store.listConfirmed()
 
     expect(list).toEqual([
-      { firstName: 'Real', lastName: 'Muster', club: 'TV Winsen', competition: 'mens', lk: '12.0' }
+      { firstName: 'Real', lastName: 'Muster', club: 'TV Winsen', competition: 'mens', lk: '12.0', seedRank: null }
     ])
   })
 
@@ -87,6 +87,8 @@ describe('in-memory registrations store · listConfirmed', () => {
     // The draw input still reads the real LK — the omission is public-surface only.
     expect((await store.confirmedForDraw('mens-challenger')).map(p => p.lk)).toEqual(['22.0'])
   })
+
+  // The provisional seedRank the public list carries (ADR-0047) lives in its own file: participant-seeding.test.ts.
 })
 
 describe('in-memory registrations store · write + lookup ops', () => {

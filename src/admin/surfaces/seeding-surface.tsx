@@ -10,7 +10,8 @@ import {
   fieldCut,
   isActive,
   isChallengerField,
-  isSupportedDrawSize
+  isSupportedDrawSize,
+  provisionalSeedRanks
 } from '../../../shared'
 import { cn } from '@/admin/lib/utils'
 import { Badge } from '@/admin/ui/badge'
@@ -21,13 +22,14 @@ interface SeedingSurfaceProps {
   registrations: AdminRegistration[]
 }
 
-// One row of the provisional seeding: the registration, its position in the cut order (1-based),
-// whether it is a drawn seed (DTB §30.5a), whether it falls below the field cut (a reserve), and —
-// for the Challenger field — whether its LK is too strong for the cap.
+// One row of the provisional seeding: the registration, its position in the cut order (1-based), its
+// seed number if it is a drawn seed (DTB §30.5a — by LK, so on a Challenger field it need not match the
+// row position; null when unseeded), whether it falls below the field cut (a reserve), and — for the
+// Challenger field — whether its LK is too strong for the cap.
 interface SeedingRow {
   reg: AdminRegistration
   position: number
-  seeded: boolean
+  seed: number | null
   reserve: boolean
   tooStrong: boolean
 }
@@ -39,9 +41,10 @@ interface SeedingRow {
 // ranks by LK (the cut is **provisional** — LK drifts until the seeding freeze, ADR-0010/0024), a
 // Challenger field by registration order (the cut is **stable** — that key never drifts). `new` rows
 // carry an LK because `matchOnRegister` matches them at signup and `syncAll` refreshes them weekly, so
-// the list is rankable without confirming anyone first. The top `seedCount` of a championship field's
-// drawn entries are marked as seeded (the cut order is the LK order there); a Challenger field is not
-// ranked by strength, so it shows no seed badges. Too-strong Challenger entries are flagged via the
+// the list is rankable without confirming anyone first. Seed numbers are by LK on **every** field
+// (provisionalSeedRanks, ADR-0047): on a championship field they read down the rows (cut order is LK
+// order); on a Challenger field, listed in registration order, a seed badge can sit at any row (Nr. 1 may
+// be last) — the honest signal that seeding ≠ registration. Too-strong Challenger entries are flagged via the
 // shared challengerEligibility predicate — the same authority the draw guard reuses (affordance here,
 // hard block there; ADR-0011, ADR-0024). Read-only: the operator eyeballs the cut + eligibility before
 // auslosen; authority stays in the domain (the draw enforces the cut at the freeze, Schicht 2).
@@ -56,11 +59,13 @@ export const SeedingSurface = ({ registrations }: SeedingSurfaceProps) => {
       const capacity = competitionCapacity(slug)
       const cut = fieldCut(active, slug, capacity ?? active.length)
       // Seeds preview the *drawn* field (the in-field entries): the DTB seed count for that field's
-      // draw size, and only for the supported sizes (4/8/16) — bracketStructure throws otherwise.
-      // Shown only for a championship field, where the cut order is the LK order so the top rows are
-      // the seeds; a Challenger field cuts by registration order, so its rows are not in seed order.
+      // draw size, and only for the supported sizes (4/8/16) — bracketStructure throws otherwise. The
+      // seeds are ranked by LK for **every** field (provisionalSeedRanks, ADR-0047), so a Challenger
+      // field — listed in registration order — still marks its LK-strongest, not its earliest registrants.
       const size = drawSize(cut.inField)
-      const seedCount = !isChallenger && isSupportedDrawSize(size) ? bracketStructure(size).seedCount : 0
+      const seedCount = isSupportedDrawSize(size) ? bracketStructure(size).seedCount : 0
+      const inField = cut.ranked.filter(r => !r.reserve).map(r => r.entry)
+      const seedRankOf = provisionalSeedRanks(inField, seedCount)
       // The Challenger field is judged against the current cap (over the active set); other fields
       // have none, so the too-strong set stays empty.
       const tooStrong = isChallenger ? challengerEligibility(active, CHALLENGER_MIN_LK).tooStrong : []
@@ -68,7 +73,7 @@ export const SeedingSurface = ({ registrations }: SeedingSurfaceProps) => {
       const rows: SeedingRow[] = cut.ranked.map(({ entry, position, reserve }) => ({
         reg: entry,
         position,
-        seeded: !reserve && position <= seedCount,
+        seed: reserve ? null : (seedRankOf.get(entry) ?? null),
         reserve,
         tooStrong: tooStrongIds.has(entry.id)
       }))
@@ -194,12 +199,14 @@ const CutLine = ({ capacity, provisional }: CutLineProps) => (
   </li>
 )
 
-// One ranked row: the position in the cut order (a filled seed badge for a drawn seed — mirroring the
-// bracket's seed badge — a muted number otherwise), the club logo, the player name, the LK, and — for
-// a too-strong Challenger entry — an amber „stark"-marker. A reserve (below the cut) is dimmed: still
-// confirmed, simply not drawn. The LK is shown as stored; a row with no resolvable rating seeds at the
-// weakest, which its position already reflects.
-const SeedRow = ({ reg, position, seeded, reserve, tooStrong }: SeedingRow) => (
+// One ranked row: the position in the cut order (a muted number — the first-come order for a Challenger
+// field), then the club logo and player name, followed by a filled **seed badge** (the LK seed number,
+// mirroring the bracket) when the row is a drawn seed, the LK, and — for a too-strong Challenger entry —
+// an amber „stark"-marker. Because seeding is by LK (ADR-0047), the seed badge can sit at any row on a
+// Challenger field (Nr. 1 may be the last-registered), which is exactly the divergence to surface. A
+// reserve (below the cut) is dimmed and never seeded. The LK is shown as stored; a row with no resolvable
+// rating seeds at the weakest.
+const SeedRow = ({ reg, position, seed, reserve, tooStrong }: SeedingRow) => (
   <li
     className={cn(
       'flex items-center gap-3 border-b py-2 text-sm last:border-b-0',
@@ -208,16 +215,7 @@ const SeedRow = ({ reg, position, seeded, reserve, tooStrong }: SeedingRow) => (
     )}
   >
     <span className="flex w-6 shrink-0 justify-center">
-      {seeded ? (
-        <span
-          className="bg-foreground text-background inline-flex size-5 items-center justify-center rounded-full text-[10px] font-bold tabular-nums"
-          title={`An ${position} gesetzt`}
-        >
-          {position}
-        </span>
-      ) : (
-        <span className="text-muted-foreground tabular-nums">{position}</span>
-      )}
+      <span className="text-muted-foreground tabular-nums">{position}</span>
     </span>
     <img
       src={CLUB_LOGOS[reg.club]}
@@ -230,6 +228,14 @@ const SeedRow = ({ reg, position, seeded, reserve, tooStrong }: SeedingRow) => (
     <span className="min-w-0 flex-1 truncate">
       {reg.firstName} {reg.lastName}
     </span>
+    {seed !== null && (
+      <span
+        className="bg-foreground text-background inline-flex size-5 shrink-0 items-center justify-center rounded-full text-[10px] font-bold tabular-nums"
+        title={`An ${seed} gesetzt`}
+      >
+        {seed}
+      </span>
+    )}
     {tooStrong && (
       <span
         className="inline-flex items-center gap-1 text-xs font-medium text-amber-700"

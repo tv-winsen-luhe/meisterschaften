@@ -301,10 +301,15 @@ export const renderPreview = (bracket: HTMLElement, players: Entry[], challenger
   const seedPos: Record<number, number> = {}
   for (const group of struct.seedGroups) group.seeds.forEach((seed, i) => (seedPos[seed] = group.lines[i]))
   const slots: Slot[] = Array.from({ length: size }, () => null)
-  players.slice(0, struct.seedCount).forEach((player, i) => {
-    const pos = seedPos[i + 1]
-    if (pos !== undefined) slots[pos] = { seed: i + 1, player }
-  })
+  // Place each seed on its line by the server-computed `seedRank` (by LK, ADR-0047), never by list
+  // position: the participants feed is in list order — registration date for a Challenger field — so
+  // slicing the top of it would seed the earliest registrants, not the LK-strongest (the prod bug). The
+  // seed number stays hidden for a Challenger field (playerEl) and the LK never reaches this wire.
+  for (const player of players) {
+    if (player.seedRank == null) continue
+    const pos = seedPos[player.seedRank]
+    if (pos !== undefined) slots[pos] = { seed: player.seedRank, player }
+  }
   bracket.innerHTML = ''
   bracket.append(renderTree(size, roundLabels(size), (r, i) => (r === 0 ? slotEl(slots[i], challenger) : tbdEl())))
 }

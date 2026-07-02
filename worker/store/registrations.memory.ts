@@ -1,10 +1,9 @@
 import { isActive } from '../../shared'
 import type { RegistrationRow } from '../db/schema'
 import {
-  byListOrder,
   bySeedingThenTime,
   nowIso,
-  toConfirmedParticipant,
+  toPublicParticipants,
   type PersonInCompetition,
   type RegistrationsStore
 } from './registrations'
@@ -29,10 +28,7 @@ export const createInMemoryRegistrationsStore = (seed: RegistrationRow[] = []): 
 
   return {
     async listConfirmed() {
-      return rows
-        .filter(r => r.status === 'confirmed')
-        .sort(byListOrder)
-        .map(toConfirmedParticipant)
+      return toPublicParticipants(rows.filter(r => r.status === 'confirmed'))
     },
 
     async listAll() {
