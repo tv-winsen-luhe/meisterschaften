@@ -202,8 +202,8 @@ byeWinners }` in `shared/reveal.ts`. It is **not** the whole story of the public
   fully revealed the public bracket switches phase and renders **live results** from the `matches`
   aggregate via `resolveBracket` (winners advancing round-by-round to the champion), not from reveal steps
   — the reveal sequence carries no result (Public bracket, ADR-0046). Pairs
-  with `bracketStructure` (the **empty** topology): structure is the shape, the revealed bracket is the
-  shape filled to the cursor. The renderers stay framework-specific below this seam (the React show's
+  with `bracketStructure` (the **empty** skeleton — seed lines + shape): the skeleton is the shape, the
+  revealed bracket is the shape filled to the cursor. The renderers stay framework-specific below this seam (the React show's
   per-line `motion` reveal and focus highlight, the Astro feed's poll-and-rebuild) — they compute no
   bracket logic. Reuse by the consolation bracket (which has **no** reveal show — ADR-0004) is
   conditional on how that bracket reaches a client: free if surfaced as reveal steps, not otherwise.
@@ -262,6 +262,19 @@ byeWinners }` in `shared/reveal.ts`. It is **not** the whole story of the public
   counts toward the court load (ADR-0023). At exactly four entrants it doubles as the consolation (see
   Consolation bracket): the two semifinal losers have no separate consolation bracket, so this match is
   their guaranteed second match.
+- **Bracket topology** — the adjacency rule of a materialized bracket: _what feeds `(round, position)`_ —
+  the two feeders below (`(r−1, 2p)` / `(r−1, 2p+1)`) and the parent above — plus the **third-place playoff
+  at `(depth, 1)`** fed by the semifinal _losers_, and the bracket's _depth_. Lives once in
+  `shared/bracket-topology.ts` (ADR-0049) as pure position math keyed on `(round, position, depth)`, returning
+  bracket coordinates (winner edges via `winnerFeeders`/`winnerTarget`, the loser edge via
+  `semifinalPositions`/`thirdPlacePosition`); the draw, Advancement, the schedule, and the consolation bracket
+  resolve those against their own match set instead of re-deriving parity per surface (so main-vs-consolation
+  falls out for free —
+  a consolation bracket has no `(depth, 1)` match). Also owns the reconciled `loserOf` (the loser of a decided
+  match) and `bracketDepth`. Distinct from the **seed-line skeleton** (`bracketStructure`): the skeleton says
+  _where the seeds sit_, the topology says _what feeds what_ — draw.ts **builds** the tree, bracket-topology
+  **walks** it. _Avoid_: "structure"/"skeleton" for adjacency, "topology" for seed placement. _(See ADR-0049,
+  ADR-0025.)_
 - **Draw procedure** — the single reusable operation behind both brackets: given a set of players with
   seeding LK, produce a seeded DTB bracket with byes. A **pure module in `shared/`** (beside the
   existing draw math in `shared/draw.ts`): `drawBracket({ players, size, random }) → { seeding, slots,

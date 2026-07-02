@@ -1,3 +1,4 @@
+import { loserOf, semifinalPositions, winnerTarget } from './bracket-topology'
 import type { MatchOutcome } from './draw'
 
 // Advancement (CONTEXT: Advancement, ADR-0026): how a result propagates through the bracket — resolving a
@@ -40,16 +41,12 @@ interface AdvanceEdge {
   regId: number
 }
 
-// The other slot's player — the loser of a decided match (the slot that is not the winner). Null when the
-// match has an empty slot (a bye carries no opponent; byes never reach Advancement, so this is a guard).
-const loserOf = (m: AdvanceableMatch, winnerRegId: number): number | null =>
-  m.slot1RegId === winnerRegId ? m.slot2RegId : m.slot2RegId === winnerRegId ? m.slot1RegId : null
-
-// Where a decided match's winner and loser advance to (CONTEXT: Advancement). The winner fills the parent
-// match's slot, fixed by the child's position parity (even → slot 1, odd → slot 2); a semifinal's loser
-// fills the third-place playoff's slot (semifinal 0 → slot 1, semifinal 1 → slot 2). The final and the
-// third-place match have no parent; the consolation bracket has no third-place playoff. Returns the edges
-// to apply (winner first, then loser).
+// Where a decided match's winner and loser advance to — read from `bracket-topology` (ADR-0049), not
+// re-derived here (CONTEXT: Advancement). The winner fills the parent match's slot (`winnerTarget` fixes
+// the slot by position parity); a semifinal's loser fills the third-place playoff's slot, the semifinals
+// resolved by `semifinalPositions` (position 0 → slot 1, position 1 → slot 2). The final and the third-
+// place match have no parent; the consolation bracket has no third-place playoff (found by the flag, so it
+// resolves to none there). Returns the edges to apply (winner first, then loser).
 const advanceEdges = <M extends AdvanceableMatch>(
   matches: M[],
   m: M,
@@ -59,21 +56,19 @@ const advanceEdges = <M extends AdvanceableMatch>(
   const edges: AdvanceEdge[] = []
   const sameBracket = (x: M) => x.competition === m.competition && x.bracket === m.bracket
   // Winner → parent. A `thirdPlace` parent is excluded: it is fed by losers, never by this winner edge.
+  const target = winnerTarget(m.round, m.position)
   const parent = matches.find(
-    x => sameBracket(x) && !x.thirdPlace && x.round === m.round + 1 && x.position === Math.floor(m.position / 2)
+    x => sameBracket(x) && !x.thirdPlace && x.round === target.round && x.position === target.position
   )
-  if (parent) edges.push({ id: parent.id, which: m.position % 2 === 0 ? 1 : 2, regId: winnerRegId })
-  // Loser → third-place playoff, only for the two semifinals (round = depth − 1, positions 0/1). The
-  // playoff exists only in the main bracket; a consolation semifinal finds none and routes no loser.
+  if (parent) edges.push({ id: parent.id, which: target.which, regId: winnerRegId })
+  // Loser → third-place playoff, only from the two semifinals feeding it. The playoff exists only in the
+  // main bracket (found by the flag); a consolation semifinal finds none and routes no loser.
   const thirdPlace = matches.find(x => sameBracket(x) && x.thirdPlace)
-  if (
-    thirdPlace &&
-    !m.thirdPlace &&
-    loserRegId !== null &&
-    m.round === thirdPlace.round - 1 &&
-    (m.position === 0 || m.position === 1)
-  ) {
-    edges.push({ id: thirdPlace.id, which: m.position === 0 ? 1 : 2, regId: loserRegId })
+  if (thirdPlace && !m.thirdPlace && loserRegId !== null) {
+    const semiIndex = semifinalPositions(thirdPlace.round).findIndex(
+      s => s.round === m.round && s.position === m.position
+    )
+    if (semiIndex !== -1) edges.push({ id: thirdPlace.id, which: semiIndex === 0 ? 1 : 2, regId: loserRegId })
   }
   return edges
 }

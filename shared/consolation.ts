@@ -1,3 +1,4 @@
+import { bracketDepth, loserOf } from './bracket-topology'
 import {
   drawBracket,
   drawSize,
@@ -30,15 +31,6 @@ export interface ConsolationMatch {
   thirdPlace: boolean
 }
 
-// The loser of a decided, contested match — the slot that is not the winner. Null for an undecided match,
-// a bye (no opponent), or a winner that is neither slot (unreachable under a consistent bracket, guarded).
-const loserOf = (m: ConsolationMatch): number | null => {
-  if (m.winnerRegId === null || m.outcome === 'bye') return null
-  if (m.slot1RegId === m.winnerRegId) return m.slot2RegId
-  if (m.slot2RegId === m.winnerRegId) return m.slot1RegId
-  return null
-}
-
 // The round-1 bye-holders: the winners of round-1 bye matches. A bye gives a free pass into round 2, so a
 // bye-holder's *first real* match is in round 2 — a genuine first match, unlike the round-1 winners beside
 // them who already played (and won) one. Whether a bye-holder's round-2 loss feeds the consolation depends
@@ -49,11 +41,6 @@ const byeHolders = (matches: readonly ConsolationMatch[]): Set<number> => {
     if (m.round === 1 && m.outcome === 'bye' && m.winnerRegId !== null) holders.add(m.winnerRegId)
   return holders
 }
-
-// The bracket's depth — its highest round (the final / third-place round). Computed inline (rather than
-// importing schedule.ts's bracketDepth) so this module stays free of that dependency.
-const bracketDepth = (matches: readonly ConsolationMatch[]): number =>
-  matches.reduce((max, m) => Math.max(max, m.round), 0)
 
 /**
  * The players who **lost their first main-bracket match** — the consolation bracket's entrants (CONTEXT:
@@ -80,7 +67,7 @@ export const consolationEntrants = (matches: readonly ConsolationMatch[]): numbe
   // semifinal, so a round-1 loser is always a pre-semifinal first-match loss.
   for (const m of matches) {
     if (m.round === 1 && !m.thirdPlace) {
-      const loser = loserOf(m)
+      const loser = loserOf(m, m.winnerRegId)
       if (loser !== null) entrants.push(loser)
     }
   }
@@ -89,7 +76,7 @@ export const consolationEntrants = (matches: readonly ConsolationMatch[]): numbe
   if (roundTwoBeforeSemifinal) {
     for (const m of matches) {
       if (m.round === 2 && !m.thirdPlace) {
-        const loser = loserOf(m)
+        const loser = loserOf(m, m.winnerRegId)
         if (loser !== null && holders.has(loser)) entrants.push(loser)
       }
     }

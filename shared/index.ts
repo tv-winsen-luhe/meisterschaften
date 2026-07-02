@@ -3,6 +3,7 @@
 // free of any environment-specific globals — only Zod and plain TS.
 export * from './admin'
 export * from './advancement'
+export * from './bracket-topology'
 export * from './club'
 export * from './competition'
 export * from './constants'
