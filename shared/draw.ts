@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { thirdPlacePosition } from './bracket-topology'
 import type { Phase } from './phase'
 import { seedingValue } from './seeding'
 
@@ -119,11 +120,12 @@ export const courtBudgetProjection = (
 }
 
 // ── Bracket structure (ADR-0025) ────────────────────────────────────────────────────────────────
-// The single home for the bracket *topology* — seed lines and per-round shape — that the public
-// preview's client JS (tournament-draw.astro: SEED_POS / ROUNDS) used to re-derive. The draw, the
-// future draw reveal show, and the schedule validator read this one source. Feeders are implicit
-// (ADR-0025): a match at (round r, position p) is fed by (r−1, 2p) and (r−1, 2p+1); the topology
-// here is what yields them, so they are never stored.
+// The single home for the bracket's *seed-line skeleton* — where the seeds sit and how many rounds the
+// tree has — that the public preview's client JS (tournament-draw.astro: SEED_POS / ROUNDS) used to
+// re-derive. The draw and the draw reveal show read this one source for *where the seeds go*. The
+// *adjacency* rule — what feeds `(round, position)`, feeders being implicit (ADR-0025): a match at
+// (round r, position p) is fed by (r−1, 2p) and (r−1, 2p+1) — is a separate question, homed once in
+// `shared/bracket-topology.ts` (ADR-0049); `materializeMatches` reads `thirdPlacePosition` from there.
 
 // The two brackets a competition can carry (ADR-0025): the main KO tree (main bracket) and the
 // consolation (consolation bracket). Stored/wire values are English (CLAUDE.md — data values are
@@ -583,11 +585,13 @@ export const materializeMatches = (size: number, slots: (number | null)[]): Matc
     feeders = winners
   }
   // The third-place playoff sits beside the final (same round, position 1) so the bracket depth is the
-  // final's round. Its slots stay open until the semifinals resolve — Advancement fills them with the
-  // losers, never the implicit winner-feeders the topology would otherwise imply.
+  // final's round. Its coordinate is single-sourced in `thirdPlacePosition` (ADR-0049), not re-derived
+  // here. Its slots stay open until the semifinals resolve — Advancement fills them with the losers, never
+  // the implicit winner-feeders the topology would otherwise imply.
+  const thirdPlace = thirdPlacePosition(rounds)
   matches.push({
-    round: rounds,
-    position: 1,
+    round: thirdPlace.round,
+    position: thirdPlace.position,
     slot1RegId: null,
     slot2RegId: null,
     winnerRegId: null,

@@ -1,8 +1,10 @@
 // Schedule math, owned once in shared/ so the admin grid (place/move affordance) and the public
-// schedule feed read one definition (CONTEXT: Schedule, ADR-0005, ADR-0040). Pure, no deps — the same
-// single-source discipline as shared/draw.ts. This file owns the grid shape, the approximate slot time,
-// match numbering, feeder resolution, and `validatePlacement` (block the impossible, warn the unwise —
-// ADR-0033).
+// schedule feed read one definition (CONTEXT: Schedule, ADR-0005, ADR-0040). Pure; its only dependency is
+// the bracket-topology adjacency rule (ADR-0049) — the same single-source discipline as shared/draw.ts.
+// This file owns the grid shape, the approximate slot time, match numbering, feeder *resolution* (against
+// topology's `winnerFeeders` / `winnerTarget` / `semifinalPositions`), and `validatePlacement` (block the
+// impossible, warn the unwise — ADR-0033).
+import { bracketDepth, semifinalPositions, winnerFeeders, winnerTarget, type BracketPosition } from './bracket-topology'
 
 // The courts×time grid the operator places matches on (ADR-0005, ADR-0040). A match is a fixed
 // **90 minutes**, but its **start** is set on a **30-minute** cadence, so a `slot` is a 30-minute index
@@ -144,16 +146,12 @@ export const numberMatches = (matches: MatchPosition[]): Map<number, number> => 
 }
 
 /**
- * The bracket position feeding one slot of a match (feeders are implicit, ADR-0025): the match at
- * (round−1, 2·position) feeds slot 1, (round−1, 2·position+1) feeds slot 2. Round 1 has no feeder
- * (its slots are drawn players or byes), so it returns null.
+ * The bracket position feeding one slot of a match — the single-slot read over `bracket-topology`'s
+ * `winnerFeeders` (ADR-0049): the match at (round−1, 2·position) feeds slot 1, (round−1, 2·position+1)
+ * feeds slot 2. Round 1 has no feeder (its slots are drawn players or byes), so it returns null.
  */
-export const feederPosition = (
-  round: number,
-  position: number,
-  slot: 1 | 2
-): { round: number; position: number } | null =>
-  round <= 1 ? null : { round: round - 1, position: position * 2 + (slot === 1 ? 0 : 1) }
+export const feederPosition = (round: number, position: number, slot: 1 | 2): BracketPosition | null =>
+  winnerFeeders(round, position)?.[slot - 1] ?? null
 
 // What occupies one slot of a scheduled match, resolved for display: a known player (a drawn entrant,
 // or a bye/result winner already advanced), an empty round-1 bye line („Freilos"), a not-yet-decided
@@ -186,11 +184,13 @@ export const viewSlot = (
 ): SlotView => {
   const regId = slot === 1 ? match.slot1RegId : match.slot2RegId
   if (regId !== null) return { kind: 'player', regId }
-  // The third-place playoff is fed by the semifinal *losers* (round − 1, positions 0/1), not the implicit
+  // The third-place playoff is fed by the semifinal *losers* (`semifinalPositions`), not the implicit
   // winner-feeders the topology expresses — so an open slot names the semifinal it waits on as „Verlierer
-  // M{n}", each slot the same-numbered semifinal. A missing semifinal degrades to „offen" like any feeder.
+  // M{n}", slot 1 the first semifinal, slot 2 the second. A missing semifinal degrades to „offen" like any
+  // feeder.
   if (match.thirdPlace) {
-    const semi = matchAt(match.round - 1, slot === 1 ? 0 : 1)
+    const feeder = semifinalPositions(match.round)[slot - 1]
+    const semi = matchAt(feeder.round, feeder.position)
     const matchNumber = semi ? numbers.get(semi.id) : undefined
     return matchNumber ? { kind: 'loser', matchNumber } : { kind: 'unknown' }
   }
@@ -304,20 +304,9 @@ export const roundLabel = ({ bracket, round, totalRounds, thirdPlace = false }: 
   return bracket === 'consolation' ? `Nebenrunde · ${name}` : name
 }
 
-// The minimal shape `bracketDepth` reads — any match carrying its round.
-interface RoundedMatch {
-  round: number
-}
-
-/**
- * The bracket's depth — its highest round — over a single bracket's match set. The `totalRounds` both the
- * admin grid card and the public schedule card hand `roundLabel` so the round names read from the end
- * (#142), and the last round the finals-day rule reserves for Sunday (ADR-0040). One definition, so the
- * depth can never diverge across the two surfaces, the validator, and the auto-suggest. Pass one
- * competition+bracket's matches (an empty set ⇒ 0).
- */
-export const bracketDepth = (matches: readonly RoundedMatch[]): number =>
-  matches.reduce((max, m) => Math.max(max, m.round), 0)
+// The bracket's depth (its highest round) is `bracketDepth`, homed in `bracket-topology` (ADR-0049) and
+// re-exported through the shared barrel — the `totalRounds` both surface cards hand `roundLabel` (#142) and
+// the last round the finals-day rule reserves for Sunday (ADR-0040). This file reads it for `isFinalsDayMatch`.
 
 // ── Public draw ↔ schedule join (#159) ────────────────────────────────────────────────────────────
 
@@ -479,10 +468,10 @@ export const earliestPlaceableSlot = (match: PlacedMatch, matches: readonly Plac
   }
 
   const depth = (round: number, position: number): number => {
-    if (round <= 1) return 0
+    const feeders = winnerFeeders(round, position)
+    if (!feeders) return 0
     let max = 0
-    for (const which of [1, 2] as const) {
-      const fp = feederPosition(round, position, which)!
+    for (const fp of feeders) {
       const feeder = byPosition.get(`${fp.round}-${fp.position}`)
       if (!feeder || feeder.outcome === 'bye') continue
       max = Math.max(max, SLOT_SPAN + depth(fp.round, fp.position))
@@ -490,15 +479,14 @@ export const earliestPlaceableSlot = (match: PlacedMatch, matches: readonly Plac
     return max
   }
 
-  // The third-place playoff is fed by the two semifinals (round − 1, positions 0/1) — the losers, not the
+  // The third-place playoff is fed by the two semifinals (`semifinalPositions`) — the losers, not the
   // implicit winner-feeders — so its floor is one full interval after the deeper semifinal's own chain.
   if (match.thirdPlace) {
-    const semiRound = match.round - 1
     let max = 0
-    for (const position of [0, 1]) {
-      const semi = byPosition.get(`${semiRound}-${position}`)
+    for (const { round, position } of semifinalPositions(match.round)) {
+      const semi = byPosition.get(`${round}-${position}`)
       if (!semi || semi.outcome === 'bye') continue
-      max = Math.max(max, SLOT_SPAN + depth(semiRound, position))
+      max = Math.max(max, SLOT_SPAN + depth(round, position))
     }
     return max
   }
@@ -569,22 +557,23 @@ export const validatePlacement = (
   // intervals (ADR-0040): each placed feeder's 90 minutes must be over before the candidate starts, and
   // the candidate's must be over before a placed successor starts. Day-aware (see `endsBefore`) so a
   // late-evening feeder never wrongly blocks its next-morning successor.
-  for (const which of [1, 2] as const) {
-    const fp = feederPosition(self.round, self.position, which)
-    const feeder = fp && at(fp.round, fp.position)
+  for (const fp of winnerFeeders(self.round, self.position) ?? []) {
+    const feeder = at(fp.round, fp.position)
     if (feeder && !endsBefore(feeder, candidate.placement)) hard.push({ rule: 'feeder-order', otherMatchId: feeder.id })
   }
-  const successor = at(self.round + 1, Math.floor(self.position / 2))
+  const target = winnerTarget(self.round, self.position)
+  const successor = at(target.round, target.position)
   if (successor && !endsBefore(candidate.placement, successor))
     hard.push({ rule: 'feeder-order', otherMatchId: successor.id })
 
-  // Hard — the third-place playoff's loser-feeders (not the implicit winner-feeders the topology yields).
-  // The playoff cannot start until both feeding semifinals' 90 minutes are over; conversely a semifinal
-  // must end before a placed playoff starts. The structural floor above already guards against *unplaced*
-  // semifinals; this binds the candidate to where they (or the playoff) are actually placed, both ways.
+  // Hard — the third-place playoff's loser-feeders (`semifinalPositions`, not the implicit winner-feeders
+  // the topology yields). The playoff cannot start until both feeding semifinals' 90 minutes are over;
+  // conversely a semifinal must end before a placed playoff starts. The structural floor above already
+  // guards against *unplaced* semifinals; this binds the candidate to where they (or the playoff) are
+  // actually placed, both ways.
   if (self.thirdPlace) {
-    for (const position of [0, 1] as const) {
-      const semi = at(self.round - 1, position)
+    for (const { round, position } of semifinalPositions(self.round)) {
+      const semi = at(round, position)
       if (semi && !endsBefore(semi, candidate.placement)) hard.push({ rule: 'feeder-order', otherMatchId: semi.id })
     }
   } else {
@@ -593,8 +582,7 @@ export const validatePlacement = (
     )
     if (
       thirdPlace &&
-      self.round === thirdPlace.round - 1 &&
-      (self.position === 0 || self.position === 1) &&
+      semifinalPositions(thirdPlace.round).some(s => s.round === self.round && s.position === self.position) &&
       !endsBefore(candidate.placement, thirdPlace)
     ) {
       hard.push({ rule: 'feeder-order', otherMatchId: thirdPlace.id })
