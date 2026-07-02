@@ -81,8 +81,10 @@ concept here drifts or a new one appears, update this file rather than inventing
   (participant list, draw bracket) **omit the LK and the seed numbers** for it **on the wire** (the server
   projection redacts them, not just the client), and the public list
   **orders it by registration date, not strength** — the visible expression of its first-come-first-served
-  admission (Field cut, ADR-0043). Only the admin, which needs the LK to bind the cap and the seed to run
-  the draw, reads the full, un-redacted reveal. _(See ADR-0024, ADR-0044.)_
+  admission (Field cut, ADR-0043). The pre-draw seeding preview still places players on their **LK seed
+  lines** — _which_ players are seeded is the accepted relative-rank signal (ADR-0044/0047); only the LK
+  value and the seed number are withheld. Only the admin, which needs the LK to bind the cap and the seed to
+  run the draw, reads the full, un-redacted reveal. _(See ADR-0024, ADR-0044, ADR-0047.)_
 - **Registration** (de: Anmeldung; D1 table `registrations`) — one member's entry into one competition.
   Status flow: `new` → `confirmed` → `cancelled`. **`cancelled`** is the single "no longer participating,
   keep the record" state, reached either by the member's self-service withdrawal (`/api/cancel`, by person)
@@ -119,7 +121,9 @@ concept here drifts or a new one appears, update this file rather than inventing
   no-ID is explicitly set); `resolveSeedingBasis` (beside it) derives the basis fields from that input.
   There is deliberately no operator LK override. _(See ADR-0011, ADR-0020.)_
 - **Seeding** (de: Setzung) — ordering players in the draw by LK so the strongest are kept apart early.
-  Follows the DTB Turnierordnung 2026 (Stand 09.11.2025), §§ 30–32:
+  Seed rank is derived from LK on **every** surface (draw, public preview, operator Setzliste), independent
+  of the cut/participant-list order: a field ordered by registration (a Challenger field) still seeds by LK,
+  never by row position (ADR-0047). Follows the DTB Turnierordnung 2026 (Stand 09.11.2025), §§ 30–32:
   - **Number of seeds** by draw size (§30.5a): 8 → 2, 16 → 4, 24/32 → 8, 48/64/128 → 16 — plus our
     extension **4 → 2** (§30.5a's table starts at 8; a 4-field reuses the 8-field's 2-seed pattern, a
     deliberate sub-DTB extension — ADR-0034). Our fields draw at **4, 8, or 16**.

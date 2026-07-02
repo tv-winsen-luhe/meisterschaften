@@ -93,6 +93,31 @@ export const compareForCut =
       ? a.createdAt.localeCompare(b.createdAt)
       : seedingValue(a.lk) - seedingValue(b.lk) || a.createdAt.localeCompare(b.createdAt)
 
+// ── Seed order (CONTEXT: Seeding, ADR-0043, ADR-0047) ────────────────────────────────────────────
+// Distinct from the cut order above: the **cut** decides *who is in* (Challenger by registration), the
+// **seeding** decides *where* — and seed rank is LK on **every** field, championship and Challenger
+// alike. This is the order the draw itself seeds on (worker confirmedForDraw / drawBracket): strongest
+// first by LK, registration time breaking ties. Owned here (ADR-0011) so every surface's seed rank
+// agrees with the draw — the fix for surfaces that used to read a seed from list/cut position (ADR-0047).
+export const bySeedingLk = (a: FieldCutEntry, b: FieldCutEntry): number =>
+  seedingValue(a.lk) - seedingValue(b.lk) || a.createdAt.localeCompare(b.createdAt)
+
+// The provisional seed ranks for a field's entries (ADR-0047): rank them strongest-first by LK
+// (bySeedingLk) and hand ranks 1..`seedCount` to the top. `seedCount` is the caller's — a surface passes
+// the DTB seed count for the field's draw size, or 0 below the draw floor. Returns a Map from each seeded
+// entry to its 1-based seed number; unseeded entries are absent (the caller reads `null`). Pure: it copies
+// before sorting, so the caller keeps its own display order (registration date for a Challenger list)
+// while its seeds are still the LK-strongest — the whole point of ADR-0047.
+export const provisionalSeedRanks = <E extends FieldCutEntry>(
+  entries: readonly E[],
+  seedCount: number
+): Map<E, number> => {
+  const ranked = [...entries].sort(bySeedingLk)
+  const ranks = new Map<E, number>()
+  for (let i = 0; i < seedCount && i < ranked.length; i++) ranks.set(ranked[i], i + 1)
+  return ranks
+}
+
 // One ranked entry: its 1-based position in the cut order and whether it falls below the cut (a
 // reserve — still `confirmed`, simply not drawn; CONTEXT: Reserve).
 export interface RankedCutEntry<E> {

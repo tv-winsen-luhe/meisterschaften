@@ -4,8 +4,11 @@ import { and, asc, count, eq, gt, inArray, sql } from 'drizzle-orm'
 import {
   ACTIVE_STATUSES,
   compareForCut,
+  displaySeedCount,
   type DrawPlayer,
   isChallengerField,
+  MIN_DRAW_ENTRIES,
+  provisionalSeedRanks,
   seedingValue,
   type RegistrationStatus
 } from '../../shared'
@@ -43,14 +46,44 @@ export const byListOrder = (a: SeedingOrdered, b: SeedingOrdered): number =>
 // projection are now both shared, so the two adapters can't drift on either. A protected Challenger
 // field's strength is not advertised publicly (CONTEXT: Challenger, ADR-0024), so its LK is dropped to
 // null here — at the projection seam, not the view — and never reaches the public wire. The gated draw
-// input reads the real LK through confirmedForDraw, which is unaffected.
-export const toConfirmedParticipant = (r: ConfirmedParticipant): ConfirmedParticipant => ({
+// input reads the real LK through confirmedForDraw, which is unaffected. `seedRank` is filled by
+// toPublicParticipants (which alone sees the whole field); a lone row carries none.
+export const toConfirmedParticipant = (r: ConfirmedRow): ConfirmedParticipant => ({
   firstName: r.firstName,
   lastName: r.lastName,
   club: r.club,
   competition: r.competition,
-  lk: isChallengerField(r.competition) ? null : r.lk
+  lk: isChallengerField(r.competition) ? null : r.lk,
+  seedRank: null
 })
+
+// A confirmed row as either adapter holds it before projection: the public display fields plus the two
+// keys the ordering + seeding read (createdAt for the tie-break / Challenger list order, lk for both).
+export type ConfirmedRow = Omit<ConfirmedParticipant, 'seedRank'> & { createdAt: string }
+
+// Project confirmed rows to the public participant list, in one place so both adapters stay identical
+// (ADR-0043, ADR-0044, ADR-0047). Orders every field by byListOrder — a championship field by LK, a
+// Challenger field by registration date — and attaches each row's provisional `seedRank`, computed by LK
+// **per competition, independent of that display order** (provisionalSeedRanks). So a Challenger field
+// listed by registration still marks its LK-strongest as the seeds: the preview places the right players
+// on the seed lines while the LK value stays redacted (toConfirmedParticipant) — the seed rank is the
+// relative-rank structural signal the preview reads, never the LK (ADR-0044 Consequence 4, refined by
+// ADR-0047). Seeds appear only from the draw floor up (MIN_DRAW_ENTRIES), matching the preview and the
+// participant board (which show no seed markers on a still-filling field).
+export const toPublicParticipants = (rows: readonly ConfirmedRow[]): ConfirmedParticipant[] => {
+  const byCompetition = new Map<string, ConfirmedRow[]>()
+  for (const r of rows) {
+    const group = byCompetition.get(r.competition) ?? []
+    group.push(r)
+    byCompetition.set(r.competition, group)
+  }
+  const seedRankOf = new Map<ConfirmedRow, number>()
+  for (const group of byCompetition.values()) {
+    const seedCount = group.length >= MIN_DRAW_ENTRIES ? displaySeedCount(group.length) : 0
+    for (const [row, rank] of provisionalSeedRanks(group, seedCount)) seedRankOf.set(row, rank)
+  }
+  return [...rows].sort(byListOrder).map(r => ({ ...toConfirmedParticipant(r), seedRank: seedRankOf.get(r) ?? null }))
+}
 
 // updated_at is a persistence fact ("when was this row last written"), stamped here on every
 // value-changing write rather than threaded through the domain. Insert/revive use the same
@@ -64,6 +97,9 @@ export interface ConfirmedParticipant {
   club: string
   competition: string
   lk: string | null
+  // Provisional seed number by LK (ADR-0047), or null when unseeded / below the draw floor. Filled by
+  // toPublicParticipants, which sees the whole field; the per-row toConfirmedParticipant leaves it null.
+  seedRank: number | null
 }
 
 // The display fields the public draw reveal joins onto each reveal step by registration id (the
@@ -248,7 +284,7 @@ export const createD1RegistrationsStore = (d1: D1Database): RegistrationsStore =
         })
         .from(registrations)
         .where(eq(registrations.status, 'confirmed'))
-      return rows.sort(byListOrder).map(toConfirmedParticipant)
+      return toPublicParticipants(rows)
     },
 
     listAll() {

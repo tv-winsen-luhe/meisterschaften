@@ -11,7 +11,13 @@ export const participantSchema = z.object({
   lastName: z.string(),
   club: clubSchema,
   competition: competitionSlug,
-  lk: z.string().nullable()
+  lk: z.string().nullable(),
+  // The provisional seed number (1..seedCount), or null when unseeded / below the draw floor. Computed
+  // by LK per competition, independent of the list order (ADR-0047), so the pre-draw preview places the
+  // LK-strongest on the seed lines. For a protected Challenger field it is the *only* strength signal on
+  // the wire — the relative-rank structural signal (ADR-0044); the LK value stays redacted, and the seed
+  // number itself is not rendered for that field.
+  seedRank: z.number().int().positive().nullable()
 })
 
 export const participantsResponseSchema = z.object({

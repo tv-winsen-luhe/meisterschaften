@@ -44,11 +44,26 @@ describe('GET /api/participants (integration)', () => {
     expect(body.enabled).toBe(true)
     // Confirmed only (Pending/Gone excluded), ordered by competition then LK (null = 25.0). The
     // Challenger entry sorts between the championship fields and womens, and its LK is stripped on the wire.
+    // Every field here is below the four-player draw floor, so no seeds are marked yet (seedRank: null).
     expect(body.participants).toEqual([
-      { firstName: 'MensStrong', lastName: 'Muster', club: 'TV Winsen', competition: 'mens', lk: '11.5' },
-      { firstName: 'MensNoLk', lastName: 'Muster', club: 'TSV Winsen', competition: 'mens', lk: null },
-      { firstName: 'Chally', lastName: 'Muster', club: 'TV Winsen', competition: 'mens-challenger', lk: null },
-      { firstName: 'Wilma', lastName: 'Muster', club: 'TV Winsen', competition: 'womens', lk: '9.0' }
+      {
+        firstName: 'MensStrong',
+        lastName: 'Muster',
+        club: 'TV Winsen',
+        competition: 'mens',
+        lk: '11.5',
+        seedRank: null
+      },
+      { firstName: 'MensNoLk', lastName: 'Muster', club: 'TSV Winsen', competition: 'mens', lk: null, seedRank: null },
+      {
+        firstName: 'Chally',
+        lastName: 'Muster',
+        club: 'TV Winsen',
+        competition: 'mens-challenger',
+        lk: null,
+        seedRank: null
+      },
+      { firstName: 'Wilma', lastName: 'Muster', club: 'TV Winsen', competition: 'womens', lk: '9.0', seedRank: null }
     ])
   })
 
