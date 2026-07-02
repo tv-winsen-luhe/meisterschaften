@@ -1,5 +1,13 @@
 import { describe, expect, it } from 'vitest'
-import { bracketDepth, loserOf, semifinalPositions, thirdPlacePosition, winnerFeeders, winnerTarget } from '../shared'
+import {
+  bracketDepth,
+  loserOf,
+  semifinalPositions,
+  thirdPlacePosition,
+  winnerFeeders,
+  winnerTarget,
+  winningSlot
+} from '../shared'
 
 // Bracket topology (CONTEXT: Bracket topology, ADR-0049): the pure adjacency rule of a materialized
 // bracket — what feeds `(round, position)` — that draw/advancement/schedule/consolation used to re-derive.
@@ -93,5 +101,28 @@ describe('loserOf', () => {
 
   it('is null when the winner is neither slot (unreachable under a consistent bracket)', () => {
     expect(loserOf(m, 42)).toBeNull()
+  })
+})
+
+describe('winningSlot', () => {
+  it('is the slot (1/2) the recorded winner fills', () => {
+    expect(winningSlot({ slot1RegId: 7, slot2RegId: 9, winnerRegId: 7 })).toBe(1)
+    expect(winningSlot({ slot1RegId: 7, slot2RegId: 9, winnerRegId: 9 })).toBe(2)
+  })
+
+  it('is null on an undecided match (winner null)', () => {
+    expect(winningSlot({ slot1RegId: 7, slot2RegId: 9, winnerRegId: null })).toBeNull()
+  })
+
+  it('is null for an undecided match with an empty feeder slot — the load-bearing guard', () => {
+    // Without the winnerRegId === null gate, an undecided match whose slot is still an empty feeder
+    // (regId null) would match null === null and bold the wrong line as the winner.
+    expect(winningSlot({ slot1RegId: null, slot2RegId: 9, winnerRegId: null })).toBeNull()
+    expect(winningSlot({ slot1RegId: 7, slot2RegId: null, winnerRegId: null })).toBeNull()
+    expect(winningSlot({ slot1RegId: null, slot2RegId: null, winnerRegId: null })).toBeNull()
+  })
+
+  it('is null when the winner is neither slot (a hard-deleted registration under a frozen draw, ADR-0035)', () => {
+    expect(winningSlot({ slot1RegId: 7, slot2RegId: 9, winnerRegId: 42 })).toBeNull()
   })
 })

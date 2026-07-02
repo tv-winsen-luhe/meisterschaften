@@ -13,7 +13,8 @@ import {
   resolveBracket,
   type ScheduleMatch,
   type ScheduleSlot,
-  type SlotView
+  type SlotView,
+  winningSlot
 } from '../shared'
 import type { AppStateStore } from './store/app-state'
 import type { DrawStore } from './store/draw'
@@ -108,16 +109,9 @@ const buildLiveBracket = (draw: CompetitionDraw, players: Map<number, RevealPlay
     position: m.position,
     thirdPlace: m.thirdPlace,
     number,
-    // The winning slot (1/2) the page bolds, mapped from `winnerRegId` by which slot it fills — null while
-    // undecided, or when the winner is neither slot (a hard-deleted registration, ADR-0035). Same rule the
-    // schedule feed uses for its `winner`.
-    winner: (m.winnerRegId === null
-      ? null
-      : m.winnerRegId === m.slot1RegId
-        ? 1
-        : m.winnerRegId === m.slot2RegId
-          ? 2
-          : null) as 1 | 2 | null,
+    // The winning slot (1/2) the page bolds (CONTEXT: Bracket topology) — null while undecided, or when the
+    // winner is neither slot (a hard-deleted registration, ADR-0035). Same rule the schedule feed reads.
+    winner: winningSlot(m),
     slot1: toSlot(slot1),
     slot2: toSlot(slot2)
   }))
@@ -345,12 +339,10 @@ export const createProjections = (deps: ProjectionsDeps) => {
 
       const matches = placed.map(m => {
         const r = resolved.get(m.id)!
-        // The winning **slot** (1/2) the page bolds, mapped from `winnerRegId` by which slot it fills —
-        // null when the match is undecided, or when the winner is neither slot (only reachable if a slot's
-        // registration was hard-deleted under a frozen draw, ADR-0035). Bound with its literal type so the
-        // wire's `1 | 2 | null` is preserved rather than widened to `number`.
-        const winner: 1 | 2 | null =
-          m.winnerRegId === null ? null : m.winnerRegId === m.slot1RegId ? 1 : m.winnerRegId === m.slot2RegId ? 2 : null
+        // The winning **slot** (1/2) the page bolds (CONTEXT: Bracket topology) — null when the match is
+        // undecided, or when the winner is neither slot (only reachable if a slot's registration was
+        // hard-deleted under a frozen draw, ADR-0035).
+        const winner = winningSlot(m)
         return {
           id: m.id,
           competition: m.competition,

@@ -15,7 +15,8 @@ import {
   roundLabel,
   slotGames,
   slotLabel,
-  type SlotView
+  type SlotView,
+  winningSlot
 } from '../../../shared'
 import { cn } from '@/admin/lib/utils'
 import { Button } from '@/admin/ui/button'
@@ -211,17 +212,9 @@ const MatchRow = ({ row, nameById, onOpen, onSetStatus }: MatchRowProps) => {
   // The court a läuft-start defaults to: the actual court if already set, else the planned court, else 1.
   const [court, setCourt] = useState<number>(match.liveCourt ?? match.court ?? COURT_NUMBERS[0])
 
-  // The winning slot, or null when undecided. The `winnerRegId !== null` guard is load-bearing: without it
-  // an undecided match (winnerRegId null) whose slot is an empty feeder (regId null) would match `null ===
-  // null` and bold the wrong line as the winner.
-  const winnerSlot =
-    match.winnerRegId === null
-      ? null
-      : match.winnerRegId === match.slot1RegId
-        ? 1
-        : match.winnerRegId === match.slot2RegId
-          ? 2
-          : null
+  // The winning slot, or null when undecided (CONTEXT: Bracket topology). The load-bearing `winnerRegId ===
+  // null` guard lives in `winningSlot`, so an undecided match with an empty feeder slot never bolds a line.
+  const winnerSlot = winningSlot(match)
 
   return (
     <div className="rounded-lg border p-3">
