@@ -60,6 +60,8 @@ describe('projections — Challenger redaction (#166)', () => {
     const [bracket] = await projections.publicDraws()
     expect(bracket.phase).toBe('live')
     if (bracket.phase !== 'live') return
+    // The decision travels with its after-effect (ADR-0048): the bracket carries `redacted: true`.
+    expect(bracket.main.redacted).toBe(true)
     const playerSlots = bracket.main.matches.flatMap(m => [m.slot1, m.slot2]).filter(s => s.kind === 'player')
     expect(playerSlots.length).toBeGreaterThan(0)
     expect(playerSlots.every(s => s.kind === 'player' && s.seed === null)).toBe(true)
@@ -85,6 +87,7 @@ describe('projections — Challenger redaction (#166)', () => {
     const [draw] = await projections.publicDraws()
     expect(draw.phase).toBe('revealing')
     if (draw.phase !== 'revealing') return
+    expect(draw.redacted).toBe(true)
     expect(draw.steps.every(s => s.seed === null)).toBe(true)
     expect(draw.steps.every(s => s.player === null || s.player.lk === null)).toBe(true)
     expect(draw.steps[0]).toEqual({
@@ -95,9 +98,12 @@ describe('projections — Challenger redaction (#166)', () => {
     })
   })
 
-  it('operatorDraws keeps lk + seed intact — the beamer reads the full reveal', async () => {
+  it('operatorDraws keeps lk + seed intact and never redacts — the beamer reads the full reveal', async () => {
     const projections = await drawnChallenger()
     const [draw] = await projections.operatorDraws()
+    // The operator wire never redacts, even for a Challenger field (ADR-0024): the flag stays false and the
+    // strength is intact, so the beamer draw show can run.
+    expect(draw.redacted).toBe(false)
     expect(draw.steps[0]).toEqual({
       kind: 'seed-fixed',
       position: 0,
@@ -126,12 +132,78 @@ describe('projections — Challenger redaction (#166)', () => {
     const [draw] = await projections.publicDraws()
     expect(draw.phase).toBe('revealing')
     if (draw.phase !== 'revealing') return
+    expect(draw.redacted).toBe(false)
     expect(draw.steps[0]).toEqual({
       kind: 'seed-fixed',
       position: 0,
       seed: 1,
       player: { firstName: 'P1', lastName: 'Player1', lk: '1.0' }
     })
+  })
+})
+
+// ── The cross-projection strength-redaction invariant (ADR-0048) ──────────────────────────────────
+// One decision, enforced across every public projection — the load-bearing deliverable of #176. A
+// protected field emits no LK value and no seed number and carries `redacted: true`; a championship field
+// carries `redacted: false` with its strength intact; and — the de-overload the flag buys — a not-yet-synced
+// championship LK is `lk: null` but `redacted: false`, so a client can tell „LK folgt" from a withheld
+// rating. This single invariant replaces the per-surface `isChallengerField` guards the public clients used
+// to run (the participant list + the draw bracket). The reveal/live dimensions are covered above; this block
+// adds the participant list and the pending-LK de-overload, plus a championship live bracket for symmetry.
+describe('strength redaction is one decision across public projections (ADR-0048)', () => {
+  const drawnChampionship = async () => {
+    const drawStore = createInMemoryDrawStore()
+    const registrationsStore = createInMemoryRegistrationsStore(field(8))
+    const svc = createDrawService({
+      registrationsStore,
+      drawStore,
+      randomSource: createFakeRandomSource(Array(20).fill(0))
+    })
+    await svc.draw({ competition: 'mens', phase: 'tournament', now: 'now' })
+    // Advance past the last step (clamped at total) so the field is fully revealed → the live phase.
+    for (let i = 0; i < 20; i++) await svc.advance('mens', 'forward')
+    return createProjections({ drawStore, registrationsStore, appStateStore: createInMemoryAppStateStore() })
+  }
+
+  it('participant list: a Challenger field is redacted (lk null, redacted true) but keeps its relative rank', async () => {
+    const store = createInMemoryRegistrationsStore(
+      [21, 22, 23, 24].map((lk, i) => confirmed(i + 1, { competition: 'mens-challenger', lk: `${lk}.0` }))
+    )
+    const list = await store.listConfirmed()
+    expect(list.length).toBe(4)
+    expect(list.every(p => p.redacted === true)).toBe(true)
+    expect(list.every(p => p.lk === null)).toBe(true)
+    // The relative-rank signal survives redaction (ADR-0047): the LK-strongest still carry a seedRank, so the
+    // pre-draw preview can place them on the seed lines without ever exposing the withheld LK.
+    expect(list.some(p => p.seedRank !== null)).toBe(true)
+  })
+
+  it('participant list: a championship field is not redacted, and a pending LK stays redacted:false (the de-overload)', async () => {
+    const store = createInMemoryRegistrationsStore([
+      confirmed(1, { competition: 'mens', lk: '10.0' }),
+      confirmed(2, { competition: 'mens', lk: '11.0' }),
+      confirmed(3, { competition: 'mens', lk: '12.0' }),
+      confirmed(4, { competition: 'mens', lk: null }) // rated later — a genuine „LK folgt", not a withheld one
+    ])
+    const list = await store.listConfirmed()
+    expect(list.every(p => p.redacted === false)).toBe(true)
+    // The rated rows keep their LK on the wire (a championship field advertises strength).
+    expect(list.filter(p => p.lk !== null).length).toBe(3)
+    // The pending row: lk null AND redacted false — a client renders „LK folgt", never a protected blank.
+    const pending = list.find(p => p.lk === null)
+    expect(pending).toBeDefined()
+    expect(pending?.redacted).toBe(false)
+  })
+
+  it('live bracket: a championship field is not redacted and keeps lk + seed', async () => {
+    const projections = await drawnChampionship()
+    const [bracket] = await projections.publicDraws()
+    expect(bracket.phase).toBe('live')
+    if (bracket.phase !== 'live') return
+    expect(bracket.main.redacted).toBe(false)
+    const playerSlots = bracket.main.matches.flatMap(m => [m.slot1, m.slot2]).filter(s => s.kind === 'player')
+    expect(playerSlots.some(s => s.kind === 'player' && s.lk !== null)).toBe(true)
+    expect(playerSlots.some(s => s.kind === 'player' && s.seed !== null)).toBe(true)
   })
 })
 
@@ -152,10 +224,10 @@ interface RevealStepBody {
 // The public /api/draw feed is the two-phase bracket (`brackets`, a still-revealing member carrying steps);
 // the operator /api/admin/draw/reveal keeps the reveal-only `draws` shape (ADR-0046 is public-only).
 interface PublicRevealingBody {
-  brackets: { steps: RevealStepBody[] }[]
+  brackets: { redacted: boolean; steps: RevealStepBody[] }[]
 }
 interface OperatorRevealBody {
-  draws: { steps: RevealStepBody[] }[]
+  draws: { redacted: boolean; steps: RevealStepBody[] }[]
 }
 
 describe('GET /api/draw vs GET /api/admin/draw/reveal — Challenger wire split (#166, ADR-0044)', () => {
@@ -199,16 +271,20 @@ describe('GET /api/draw vs GET /api/admin/draw/reveal — Challenger wire split 
     // revealing (cursor 1 of 4), so the two-phase feed's `revealing` member carries the steps.
     const pubRes = await req('/api/draw')
     expect(pubRes.status).toBe(200)
-    const [pub] = ((await pubRes.json()) as PublicRevealingBody).brackets[0].steps
+    const pubBracket = ((await pubRes.json()) as PublicRevealingBody).brackets[0]
+    expect(pubBracket.redacted).toBe(true)
+    const [pub] = pubBracket.steps
     expect(pub.player.lastName).toBe('Chal1')
     expect(pub.seed).toBeNull()
     expect(pub.player.lk).toBeNull()
 
-    // Admin reveal (behind Access in prod; open on localhost): the beamer keeps the full LK + seed, and the
-    // operator endpoint keeps the reveal-only `draws` shape.
+    // Admin reveal (behind Access in prod; open on localhost): the beamer keeps the full LK + seed, never
+    // redacts, and the operator endpoint keeps the reveal-only `draws` shape.
     const admRes = await req('/api/admin/draw/reveal')
     expect(admRes.status).toBe(200)
-    const [adm] = ((await admRes.json()) as OperatorRevealBody).draws[0].steps
+    const admDraw = ((await admRes.json()) as OperatorRevealBody).draws[0]
+    expect(admDraw.redacted).toBe(false)
+    const [adm] = admDraw.steps
     expect(adm.seed).toBe(1)
     expect(adm.player.lk).toBe('21.0')
   })

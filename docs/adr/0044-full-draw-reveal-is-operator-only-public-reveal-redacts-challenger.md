@@ -2,6 +2,7 @@
 
 - Status: accepted
 - Date: 2026-06-30
+- Revised by: ADR-0048 (Consequence 4: per-surface hand-nulling → a single enforced strength-redaction decision on the public wire)
 
 ## Context
 

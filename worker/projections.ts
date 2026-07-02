@@ -44,28 +44,31 @@ export interface ScheduleFeed {
   matches: ScheduleMatch[]
 }
 
-// Redact a protected Challenger field's strength for the public reveal wire (ADR-0044): null each step's
-// `seed` and the player's `lk`, keeping the seeded structure (kind, position, names). A championship field
-// is returned unchanged. Mirrors #164's `isChallengerField` redaction of the participant list, on the
-// reveal surface — the public live bracket already hides these client-side (#155); this stops them at the
-// wire too. The operator's beamer reads the un-redacted reveal under Access (operatorDraws), so its draw
-// show keeps the LK + seed it needs to run a Challenger draw (ADR-0024).
+// Redact a protected Challenger field's strength for the public reveal wire (ADR-0044, ADR-0048): null each
+// step's `seed` and the player's `lk` **and** set `redacted: true`, in one object literal so the withheld
+// values and the decision that withheld them cannot drift (the enforced invariant). The seeded structure
+// (kind, position, names) is kept. A championship field is returned unchanged (its `redacted: false` from
+// buildReveals stands). The operator's beamer reads the un-redacted reveal under Access (operatorDraws), so
+// its draw show keeps the LK + seed it needs to run a Challenger draw (ADR-0024).
 const redactChallenger = (draw: PublicDraw): PublicDraw =>
   isChallengerField(draw.competition)
     ? {
         ...draw,
+        redacted: true,
         steps: draw.steps.map(s => ({ ...s, seed: null, player: s.player ? { ...s.player, lk: null } : null }))
       }
     : draw
 
-// Redact a protected Challenger field's strength on the *resolved* live bracket (ADR-0044): null each
-// player slot's seed + LK, keeping the name and the bracket structure. The live-phase analogue of
-// `redactChallenger`'s reveal-step redaction — applied server-side to both the main and consolation
-// brackets before they leave for the public wire (ADR-0022). A non-player slot passes through untouched.
+// Redact a protected Challenger field's strength on the *resolved* live bracket (ADR-0044, ADR-0048): null
+// each player slot's seed + LK and set `redacted: true` in the same step, keeping the name and the bracket
+// structure. The live-phase analogue of `redactChallenger`'s reveal-step redaction — applied server-side to
+// both the main and consolation brackets before they leave for the public wire (ADR-0022). A non-player slot
+// passes through untouched.
 const redactLiveSlot = (slot: LiveBracketSlot): LiveBracketSlot =>
   slot.kind === 'player' ? { ...slot, lk: null, seed: null } : slot
 const redactLiveBracket = (bracket: LiveBracket): LiveBracket => ({
   ...bracket,
+  redacted: true,
   matches: bracket.matches.map(m => ({ ...m, slot1: redactLiveSlot(m.slot1), slot2: redactLiveSlot(m.slot2) }))
 })
 
@@ -118,7 +121,9 @@ const buildLiveBracket = (draw: CompetitionDraw, players: Map<number, RevealPlay
     slot1: toSlot(slot1),
     slot2: toSlot(slot2)
   }))
-  return { size: draw.size, totalRounds: bracketDepth(draw.matches), matches }
+  // The un-redacted base: `redactLiveBracket` flips `redacted` to true (and nulls the slots) for a
+  // protected field; a championship field ships as built (ADR-0048).
+  return { size: draw.size, totalRounds: bracketDepth(draw.matches), redacted: false, matches }
 }
 
 export const createProjections = (deps: ProjectionsDeps) => {
@@ -154,6 +159,9 @@ export const createProjections = (deps: ProjectionsDeps) => {
       size: r.size,
       cursor: r.cursor,
       total: r.steps.length,
+      // The un-redacted base (operatorDraws ships this as-is, ADR-0024); publicDraws runs it through
+      // `redactChallenger`, which flips `redacted` to true and nulls the strength for a protected field.
+      redacted: false,
       // Only the revealed prefix — `cursor` ≤ total (clamped by advance), so the slice is safe.
       steps: r.steps.slice(0, r.cursor).map(s => ({
         kind: s.kind,

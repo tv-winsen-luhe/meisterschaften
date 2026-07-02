@@ -78,13 +78,22 @@ concept here drifts or a new one appears, update this file rather than inventing
   both the draw's hard guard (a too-strong entry blocks the field's draw) and the provisional seeding
   list's affordance — authority in the draw, affordance in the client, definition once (ADR-0011).
   Because the field is **protected, its strength is not advertised publicly**: the public surfaces
-  (participant list, draw bracket) **omit the LK and the seed numbers** for it **on the wire** (the server
-  projection redacts them, not just the client), and the public list
+  (participant list, draw bracket) **omit the LK and the seed numbers** for it **on the wire** — a single
+  **Strength redaction** decision the server makes and every public surface reads, not a rule each surface
+  re-derives from the field's identity (ADR-0048) — and the public list
   **orders it by registration date, not strength** — the visible expression of its first-come-first-served
   admission (Field cut, ADR-0043). The pre-draw seeding preview still places players on their **LK seed
   lines** — _which_ players are seeded is the accepted relative-rank signal (ADR-0044/0047); only the LK
   value and the seed number are withheld. Only the admin, which needs the LK to bind the cap and the seed to
-  run the draw, reads the full, un-redacted reveal. _(See ADR-0024, ADR-0044, ADR-0047.)_
+  run the draw, reads the full, un-redacted reveal. _(See ADR-0024, ADR-0044, ADR-0047, ADR-0048.)_
+- **Strength redaction** — how a **protected** field's strength is kept off the public surfaces: its
+  **absolute** strength (the LK value and the seed number) is dropped wherever the public can read it, while
+  its **relative rank** — which players sit on the seed lines, the provisional seed rank — stays, because the
+  protection is against an absolute-weakness broadcast, not against relative rank (ADR-0044 §2, ADR-0047). It
+  is **one decision every public surface reads as a single signal**, not a rule each surface re-derives from
+  the field's identity — so turning it on for a new protected field (Damen Freizeit) is a single change, and
+  a not-yet-synced rating („LK folgt") can never be confused with a withheld one. The gated admin reads the
+  un-redacted strength it needs to bind the cap and run the draw (ADR-0024). _(See ADR-0044, ADR-0047, ADR-0048.)_
 - **Registration** (de: Anmeldung; D1 table `registrations`) — one member's entry into one competition.
   Status flow: `new` → `confirmed` → `cancelled`. **`cancelled`** is the single "no longer participating,
   keep the record" state, reached either by the member's self-service withdrawal (`/api/cancel`, by person)

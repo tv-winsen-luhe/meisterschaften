@@ -36,7 +36,15 @@ describe('in-memory registrations store · listConfirmed', () => {
     const list = await store.listConfirmed()
 
     expect(list).toEqual([
-      { firstName: 'Real', lastName: 'Muster', club: 'TV Winsen', competition: 'mens', lk: '12.0', seedRank: null }
+      {
+        firstName: 'Real',
+        lastName: 'Muster',
+        club: 'TV Winsen',
+        competition: 'mens',
+        lk: '12.0',
+        redacted: false,
+        seedRank: null
+      }
     ])
   })
 

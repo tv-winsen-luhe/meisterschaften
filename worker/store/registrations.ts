@@ -44,22 +44,29 @@ export const byListOrder = (a: SeedingOrdered, b: SeedingOrdered): number =>
 // Narrow any confirmed row (a full RegistrationRow or the D1 projection) to the public list shape,
 // in one place so both adapters' listConfirmed project identically — the comparator and the
 // projection are now both shared, so the two adapters can't drift on either. A protected Challenger
-// field's strength is not advertised publicly (CONTEXT: Challenger, ADR-0024), so its LK is dropped to
-// null here — at the projection seam, not the view — and never reaches the public wire. The gated draw
-// input reads the real LK through confirmedForDraw, which is unaffected. `seedRank` is filled by
-// toPublicParticipants (which alone sees the whole field); a lone row carries none.
-export const toConfirmedParticipant = (r: ConfirmedRow): ConfirmedParticipant => ({
-  firstName: r.firstName,
-  lastName: r.lastName,
-  club: r.club,
-  competition: r.competition,
-  lk: isChallengerField(r.competition) ? null : r.lk,
-  seedRank: null
-})
+// field's strength is not advertised publicly (CONTEXT: Strength redaction, ADR-0024, ADR-0048): the
+// same call that nulls its LK sets `redacted: true`, so the withheld value and the decision that
+// withheld it can never drift, and a public consumer reads the flag rather than re-deriving protection
+// from the competition (`redacted === false` for a not-yet-synced `lk: null`, so „LK folgt" stays
+// distinct). The gated draw input reads the real LK through confirmedForDraw, which is unaffected.
+// `seedRank` is filled by toPublicParticipants (which alone sees the whole field); a lone row carries none.
+export const toConfirmedParticipant = (r: ConfirmedRow): ConfirmedParticipant => {
+  const redacted = isChallengerField(r.competition)
+  return {
+    firstName: r.firstName,
+    lastName: r.lastName,
+    club: r.club,
+    competition: r.competition,
+    lk: redacted ? null : r.lk,
+    redacted,
+    seedRank: null
+  }
+}
 
 // A confirmed row as either adapter holds it before projection: the public display fields plus the two
 // keys the ordering + seeding read (createdAt for the tie-break / Challenger list order, lk for both).
-export type ConfirmedRow = Omit<ConfirmedParticipant, 'seedRank'> & { createdAt: string }
+// `redacted` and `seedRank` are computed by the projection, not carried on the input row.
+export type ConfirmedRow = Omit<ConfirmedParticipant, 'seedRank' | 'redacted'> & { createdAt: string }
 
 // Project confirmed rows to the public participant list, in one place so both adapters stay identical
 // (ADR-0043, ADR-0044, ADR-0047). Orders every field by byListOrder — a championship field by LK, a
@@ -97,6 +104,9 @@ export interface ConfirmedParticipant {
   club: string
   competition: string
   lk: string | null
+  // The strength-redaction decision (ADR-0048), set beside the `lk` null so the two cannot drift: `true`
+  // for a protected field whose LK is withheld, `false` otherwise (including a not-yet-synced `lk: null`).
+  redacted: boolean
   // Provisional seed number by LK (ADR-0047), or null when unseeded / below the draw floor. Filled by
   // toPublicParticipants, which sees the whole field; the per-row toConfirmedParticipant leaves it null.
   seedRank: number | null
