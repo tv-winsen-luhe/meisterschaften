@@ -69,21 +69,21 @@ const tbdEl = (): HTMLElement => {
 
 // A placed line: a player with their name, LK, and (if seeded) the seed badge. Shared by the
 // provisional preview (always seeded), the live reveal (seeded or drawn), and the fully-revealed live
-// bracket. On a protected Challenger field (`challenger`) the public bracket does not advertise strength
-// (CONTEXT: Challenger), so both the seed badge and the LK are omitted — only the admin draw show keeps
-// them. `state` marks a decided match's winner (navy accent) or loser (faded) in the live phase (ADR-0046);
-// it is undefined during the preview/reveal, where no result exists yet.
+// bracket. When the wire says this field is `redacted` (ADR-0048) the public bracket does not advertise
+// strength, so both the seed badge and the LK are omitted — the client renders the flag, not a slug check,
+// and only the admin draw show keeps them. `state` marks a decided match's winner (navy accent) or loser
+// (faded) in the live phase (ADR-0046); it is undefined during the preview/reveal, where no result exists yet.
 const playerEl = (
   player: PlayerDisplay,
   seed: number | null,
-  challenger: boolean,
+  redacted: boolean,
   state?: 'winner' | 'loser'
 ): HTMLElement => {
   const el = elem('div', 'dm-slot dm-slot--seed')
   if (state === 'winner') el.classList.add('dm-slot--winner')
   else if (state === 'loser') el.classList.add('dm-slot--loser')
 
-  if (seed !== null && !challenger) {
+  if (seed !== null && !redacted) {
     const no = elem('span', 'dm-seedno', String(seed))
     no.title = `An ${seed} gesetzt`
     el.append(no)
@@ -91,14 +91,14 @@ const playerEl = (
 
   el.append(elem('span', 'dm-name', `${player.firstName} ${player.lastName}`.trim()))
 
-  if (!challenger)
+  if (!redacted)
     el.append(elem('span', player.lk ? 'dm-lk' : 'dm-lk dm-lk--pending', player.lk ? `LK ${player.lk}` : 'LK folgt'))
 
   return el
 }
 
-const slotEl = (slot: Slot, challenger: boolean): HTMLElement =>
-  slot ? playerEl(slot.player, slot.seed, challenger) : tbdEl()
+const slotEl = (slot: Slot, redacted: boolean): HTMLElement =>
+  slot ? playerEl(slot.player, slot.seed, redacted) : tbdEl()
 
 // An empty bye line („Freilos", §31) — the paired seed advances „ohne Spiel". Shared by the reveal (a
 // revealed bye step) and the live bracket (a resolved round-1 bye slot).
@@ -109,10 +109,10 @@ const byeEl = (): HTMLElement => {
 }
 
 // A revealed reveal step → its line element: a placed player, or an empty bye line („Freilos", §31).
-const revealSlotEl = (step: PublicRevealStep | undefined, challenger: boolean): HTMLElement => {
+const revealSlotEl = (step: PublicRevealStep | undefined, redacted: boolean): HTMLElement => {
   if (!step) return tbdEl()
   if (step.kind === 'bye') return byeEl()
-  return step.player ? playerEl(step.player, step.seed, challenger) : tbdEl()
+  return step.player ? playerEl(step.player, step.seed, redacted) : tbdEl()
 }
 
 // A not-yet-decided later-round line in the live bracket: „Sieger M3" / „Verlierer M2" / „offen" — the
@@ -130,8 +130,8 @@ const slotState = (match: LiveBracketMatch, slot: 1 | 2): 'winner' | 'loser' | u
 
 // One resolved live-bracket slot → its line element (ADR-0046). A player shows name + LK + seed (with the
 // winner/loser highlight); an empty round-1 slot is „Freilos"; a feeder/loser/unknown is its shared label.
-const liveSlotEl = (slot: LiveBracketSlot, state: 'winner' | 'loser' | undefined, challenger: boolean): HTMLElement => {
-  if (slot.kind === 'player') return playerEl(slot, slot.seed, challenger, state)
+const liveSlotEl = (slot: LiveBracketSlot, state: 'winner' | 'loser' | undefined, redacted: boolean): HTMLElement => {
+  if (slot.kind === 'player') return playerEl(slot, slot.seed, redacted, state)
   if (slot.kind === 'bye') return byeEl()
   return feederEl(slotLabel(slot))
 }
@@ -212,7 +212,7 @@ const renderLiveTree = (
   live: LiveBracket,
   bracketKind: Segment,
   competition: string,
-  challenger: boolean,
+  redacted: boolean,
   scheduleIndex: Map<string, NodeSchedule>
 ): HTMLElement => {
   // Index the KO matches by (round, position); the third-place match rides its own box, not the tree.
@@ -228,7 +228,7 @@ const renderLiveTree = (
       const m = matchAt.get(`${r + 1}-${Math.floor(slotIndex / 2)}`)
       if (!m) return tbdEl()
       const isSlot1 = slotIndex % 2 === 0
-      return liveSlotEl(isSlot1 ? m.slot1 : m.slot2, slotState(m, isSlot1 ? 1 : 2), challenger)
+      return liveSlotEl(isSlot1 ? m.slot1 : m.slot2, slotState(m, isSlot1 ? 1 : 2), redacted)
     },
     (r, m) => {
       const entry = scheduleIndex.get(scheduleNodeKey(competition, bracketKind, r + 1, m))
@@ -243,7 +243,7 @@ const renderLiveTree = (
 const thirdPlaceBox = (
   match: LiveBracketMatch,
   competition: string,
-  challenger: boolean,
+  redacted: boolean,
   scheduleIndex: Map<string, NodeSchedule>
 ): HTMLElement => {
   const box = elem('div', 'dm-third')
@@ -254,8 +254,8 @@ const thirdPlaceBox = (
 
   const pair = elem('div', 'dm-third__match')
   pair.append(
-    liveSlotEl(match.slot1, slotState(match, 1), challenger),
-    liveSlotEl(match.slot2, slotState(match, 2), challenger)
+    liveSlotEl(match.slot1, slotState(match, 1), redacted),
+    liveSlotEl(match.slot2, slotState(match, 2), redacted)
   )
   box.append(pair)
   return box
@@ -287,7 +287,7 @@ const renderSegments = (segmentsEl: HTMLElement, selected: Segment, onSelect: (s
 // line is „?". Pure affordance — the lot has not run. The size follows the **confirmed field**, not the
 // competition capacity (ADR-0034): 7 confirmed shows an 8-bracket, not a 16, mirroring the real draw.
 // displayDrawSize clamps to the supported sizes (4/8/16), so bracketStructure never throws.
-export const renderPreview = (bracket: HTMLElement, players: Entry[], challenger: boolean) => {
+export const renderPreview = (bracket: HTMLElement, players: Entry[], redacted: boolean) => {
   if (players.length < MIN_DRAW_ENTRIES) {
     bracket.innerHTML = ''
     bracket.append(needFourEl(players.length))
@@ -304,14 +304,14 @@ export const renderPreview = (bracket: HTMLElement, players: Entry[], challenger
   // Place each seed on its line by the server-computed `seedRank` (by LK, ADR-0047), never by list
   // position: the participants feed is in list order — registration date for a Challenger field — so
   // slicing the top of it would seed the earliest registrants, not the LK-strongest (the prod bug). The
-  // seed number stays hidden for a Challenger field (playerEl) and the LK never reaches this wire.
+  // seed number stays hidden on a `redacted` field (playerEl) and the LK never reaches this wire.
   for (const player of players) {
     if (player.seedRank == null) continue
     const pos = seedPos[player.seedRank]
     if (pos !== undefined) slots[pos] = { seed: player.seedRank, player }
   }
   bracket.innerHTML = ''
-  bracket.append(renderTree(size, roundLabels(size), (r, i) => (r === 0 ? slotEl(slots[i], challenger) : tbdEl())))
+  bracket.append(renderTree(size, roundLabels(size), (r, i) => (r === 0 ? slotEl(slots[i], redacted) : tbdEl())))
 }
 
 // The live reveal (phase one, ADR-0046): the server sends only the steps revealed so far (sliced to the
@@ -322,7 +322,7 @@ export const renderPreview = (bracket: HTMLElement, players: Entry[], challenger
 export const renderReveal = (
   bracket: HTMLElement,
   draw: RevealingBracket,
-  challenger: boolean,
+  redacted: boolean,
   scheduleIndex: Map<string, NodeSchedule>
 ) => {
   // The revealed bracket: round-1 lines by position and the round-2 bye-winners (§31). The same shared
@@ -336,9 +336,9 @@ export const renderReveal = (
       draw.size,
       roundLabels(draw.size),
       (r, i) => {
-        if (r === 0) return revealSlotEl(lines[i], challenger)
+        if (r === 0) return revealSlotEl(lines[i], redacted)
         const winner = r === 1 ? byeWinners[i] : null
-        return winner ? playerEl(winner.player, winner.seed, challenger) : tbdEl()
+        return winner ? playerEl(winner.player, winner.seed, redacted) : tbdEl()
       },
       // The court/time annotation (#159): while revealing, the public bracket shows the **main** bracket
       // only (the consolation has no reveal show), and a node at column r, match m is the schedule's round
@@ -359,7 +359,7 @@ export const renderLive = (
   segmentsEl: HTMLElement,
   bracket: HTMLElement,
   live: LiveCompetition,
-  challenger: boolean,
+  redacted: boolean,
   scheduleIndex: Map<string, NodeSchedule>,
   selected: Segment,
   onSelect: (segment: Segment) => void
@@ -373,10 +373,10 @@ export const renderLive = (
   }
   bracket.innerHTML = ''
   if (consolation && selected === 'consolation') {
-    bracket.append(renderLiveTree(consolation, 'consolation', live.competition, challenger, scheduleIndex))
+    bracket.append(renderLiveTree(consolation, 'consolation', live.competition, redacted, scheduleIndex))
     return
   }
-  bracket.append(renderLiveTree(live.main, 'main', live.competition, challenger, scheduleIndex))
+  bracket.append(renderLiveTree(live.main, 'main', live.competition, redacted, scheduleIndex))
   const third = live.main.matches.find(m => m.thirdPlace)
-  if (third) bracket.append(thirdPlaceBox(third, live.competition, challenger, scheduleIndex))
+  if (third) bracket.append(thirdPlaceBox(third, live.competition, redacted, scheduleIndex))
 }

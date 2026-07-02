@@ -267,6 +267,11 @@ export const publicDrawSchema = z.object({
   size: z.number().int().positive(),
   cursor: z.number().int().nonnegative(),
   total: z.number().int().nonnegative(),
+  // The strength-redaction decision for this reveal (ADR-0048), set in the same step that nulls each
+  // step's `seed` + player `lk`: `true` on the public wire for a protected field, `false` on the operator
+  // reveal (which keeps LK + seed to run the draw, ADR-0024) and for a championship field. The client
+  // renders the flag rather than re-deriving protection from the competition.
+  redacted: z.boolean(),
   steps: z.array(publicRevealStepSchema)
 })
 export type PublicDraw = z.infer<typeof publicDrawSchema>
@@ -326,6 +331,10 @@ export type LiveBracketMatch = z.infer<typeof liveBracketMatchSchema>
 export const liveBracketSchema = z.object({
   size: z.number().int().positive(),
   totalRounds: z.number().int().positive(),
+  // The strength-redaction decision for this bracket (ADR-0048), set in the same step that nulls each
+  // player slot's `lk` + `seed`: `true` for a protected field, `false` otherwise. Per bracket, so the main
+  // and consolation of one field each carry it; the client reads the flag instead of the competition slug.
+  redacted: z.boolean(),
   matches: z.array(liveBracketMatchSchema)
 })
 export type LiveBracket = z.infer<typeof liveBracketSchema>

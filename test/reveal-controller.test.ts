@@ -21,6 +21,8 @@ const drawAt = (cursor: number, total: number): PublicDraw => ({
   size: 8,
   cursor,
   total,
+  // The operator reveal never redacts (ADR-0024, ADR-0048) — the beamer reads the full draw.
+  redacted: false,
   steps: Array.from({ length: cursor }, (_, i) => step(i))
 })
 

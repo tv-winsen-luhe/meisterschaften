@@ -51,7 +51,11 @@ const drawCompetitions = competitions
   </div>
 
   <p class="dm-legend" data-legend>
-    <span class="dm-legend__item" data-legend-seed>
+    {
+      /* Starts hidden: the seed legend advertises LK-based seeding, so it stays off until the wire confirms
+        the selected field is *not* redacted (ADR-0048) — a protected field must never flash it pre-load. */
+    }
+    <span class="dm-legend__item" data-legend-seed hidden>
       <span class="dm-legend__chip dm-legend__chip--seed">1</span> nach Leistungsklasse gesetzt
     </span>
     <span class="dm-legend__item">
@@ -489,7 +493,7 @@ const drawCompetitions = competitions
 
 <script>
   import { hc } from 'hono/client'
-  import { indexScheduleByNode, isChallengerField } from '../../shared'
+  import { indexScheduleByNode } from '../../shared'
   import { renderLive, renderPreview, renderReveal } from './tournament-draw.render'
   import type { AppType } from '../../worker/app'
   import type { Entry, Segment } from './tournament-draw.render'
@@ -519,6 +523,24 @@ const drawCompetitions = competitions
   let schedule: ScheduleResponse = { published: false, matches: [] }
   let lastScheduleJson = ''
 
+  // The wire's per-field strength-redaction decision (ADR-0048), learned from whichever feed carries the
+  // field — the participants list before a draw, the bracket feed once drawn. The client renders this flag
+  // instead of re-deriving a field's protection from its slug; every panel and the seed legend read it here.
+  const redactedByComp = new Map<string, boolean>()
+
+  // The seed legend item explains the LK-based seed badge — meaningless on a redacted field, whose bracket
+  // suppresses the badge. Show it for the selected tab only once the wire says that field is *not* redacted.
+  // The default is fail-safe: an unknown field (its feed hasn't loaded, or it has no confirmed entrants yet)
+  // is treated as redacted, so a protected field never advertises strength („nach Leistungsklasse gesetzt")
+  // in the gap before its `redacted: false` arrives — the leak the old synchronous slug guard couldn't have.
+  // Re-run on every render (the flag may only arrive with the feeds) and on every tab switch.
+  const syncSeedLegend = () => {
+    if (!root) return
+    const seedLegend = root.querySelector<HTMLElement>('[data-legend-seed]')
+    const selected = root.querySelector<HTMLElement>('[data-tab][aria-selected="true"]')
+    if (seedLegend && selected) seedLegend.hidden = redactedByComp.get(selected.dataset.tab!) ?? true
+  }
+
   const render = () => {
     if (!root) return
     const byComp = new Map<string, Entry[]>()
@@ -533,40 +555,58 @@ const drawCompetitions = competitions
     // already filtered the matches, so a node simply isn't here when it shouldn't show its time.
     const scheduleIndex = indexScheduleByNode(schedule.matches)
     const bracketByComp = new Map(brackets.map(b => [b.competition as string, b]))
+    // Learn each field's redaction decision from the wire: the participants list carries it per row, the
+    // bracket feed per bracket (main = consolation for a field). Both agree per competition (ADR-0048).
+    redactedByComp.clear()
+    for (const [slug, entries] of byComp) if (entries[0]) redactedByComp.set(slug, entries[0].redacted)
+    for (const b of brackets) redactedByComp.set(b.competition, b.phase === 'live' ? b.main.redacted : b.redacted)
     root.querySelectorAll<HTMLElement>('[data-panel]').forEach(panel => {
       const slug = panel.dataset.panel!
       const bracket = panel.querySelector<HTMLElement>('[data-bracket]')
       const segmentsEl = panel.querySelector<HTMLElement>('[data-segments]')
       if (!bracket || !segmentsEl) return
-      const challenger = isChallengerField(slug)
       const entry = bracketByComp.get(slug)
       // Fully revealed → live results (segment control + resolved brackets); still revealing → reveal steps;
-      // not yet drawn → the provisional preview. The segment control belongs to the live phase only. The
-      // segment state + re-render live here (the controller), so a segment switch survives the poll.
+      // not yet drawn → the provisional preview. Redaction is read from the wire per phase — the live
+      // bracket's flag, the reveal's flag, or (before any draw) the participants feed. The segment control
+      // belongs to the live phase only; the segment state + re-render live here so a switch survives the poll.
       if (entry && entry.phase === 'live') {
-        renderLive(segmentsEl, bracket, entry, challenger, scheduleIndex, segmentByComp.get(slug) ?? 'main', seg => {
-          segmentByComp.set(slug, seg)
-          render()
-        })
+        renderLive(
+          segmentsEl,
+          bracket,
+          entry,
+          entry.main.redacted,
+          scheduleIndex,
+          segmentByComp.get(slug) ?? 'main',
+          seg => {
+            segmentByComp.set(slug, seg)
+            render()
+          }
+        )
         return
       }
       segmentsEl.hidden = true
-      if (entry && entry.phase === 'revealing') renderReveal(bracket, entry, challenger, scheduleIndex)
-      else renderPreview(bracket, byComp.get(slug) ?? [], challenger)
+      if (entry && entry.phase === 'revealing') renderReveal(bracket, entry, entry.redacted, scheduleIndex)
+      else {
+        const players = byComp.get(slug) ?? []
+        // Same fail-safe default as the legend: an unknown field is treated as redacted. In practice a
+        // preview with ≥4 players always has its slug in the map (it was populated from those very rows),
+        // so this default only bites the empty-field case, which draws no strength anyway.
+        renderPreview(bracket, players, redactedByComp.get(slug) ?? true)
+      }
     })
+    // The flag may only arrive with the feeds, so re-sync the seed legend for the selected tab each render.
+    syncSeedLegend()
   }
 
   const initTabs = () => {
     if (!root) return
     const tabs = [...root.querySelectorAll<HTMLButtonElement>('[data-tab]')]
-    // The seed legend item explains the LK-based seed badge — meaningless on a protected Challenger tab,
-    // whose bracket suppresses the badge (CONTEXT: Challenger). Hide it there so the public legend never
-    // advertises strength („nach Leistungsklasse gesetzt") for a field that shows none.
-    const seedLegend = root.querySelector<HTMLElement>('[data-legend-seed]')
     const select = (slug: string) => {
       tabs.forEach(t => t.setAttribute('aria-selected', String(t.dataset.tab === slug)))
       root.querySelectorAll<HTMLElement>('[data-panel]').forEach(p => (p.hidden = p.dataset.panel !== slug))
-      if (seedLegend) seedLegend.hidden = isChallengerField(slug)
+      // Sync the seed legend to the newly-selected tab, reading the wire's redaction flag (ADR-0048).
+      syncSeedLegend()
     }
     tabs.forEach((tab, i) => {
       tab.addEventListener('click', () => select(tab.dataset.tab!))
@@ -578,7 +618,9 @@ const drawCompetitions = competitions
         select(tabs[next].dataset.tab!)
       })
     })
-    // Sync the legend to the server-rendered initial tab (first tab = championship, so the seed item shows).
+    // Select the server-rendered initial tab (first tab = championship). The seed legend stays hidden until
+    // a feed confirms the field is not redacted (fail-safe, ADR-0048); on the championship tab it appears
+    // with the first participants fetch, alongside the rest of the bracket populating.
     const initial = tabs.find(t => t.getAttribute('aria-selected') === 'true') ?? tabs[0]
     if (initial) select(initial.dataset.tab!)
   }

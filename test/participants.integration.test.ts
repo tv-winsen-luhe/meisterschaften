@@ -52,18 +52,36 @@ describe('GET /api/participants (integration)', () => {
         club: 'TV Winsen',
         competition: 'mens',
         lk: '11.5',
+        redacted: false,
         seedRank: null
       },
-      { firstName: 'MensNoLk', lastName: 'Muster', club: 'TSV Winsen', competition: 'mens', lk: null, seedRank: null },
+      {
+        firstName: 'MensNoLk',
+        lastName: 'Muster',
+        club: 'TSV Winsen',
+        competition: 'mens',
+        lk: null,
+        redacted: false,
+        seedRank: null
+      },
       {
         firstName: 'Chally',
         lastName: 'Muster',
         club: 'TV Winsen',
         competition: 'mens-challenger',
         lk: null,
+        redacted: true,
         seedRank: null
       },
-      { firstName: 'Wilma', lastName: 'Muster', club: 'TV Winsen', competition: 'womens', lk: '9.0', seedRank: null }
+      {
+        firstName: 'Wilma',
+        lastName: 'Muster',
+        club: 'TV Winsen',
+        competition: 'womens',
+        lk: '9.0',
+        redacted: false,
+        seedRank: null
+      }
     ])
   })
 

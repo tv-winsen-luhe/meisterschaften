@@ -12,6 +12,12 @@ export const participantSchema = z.object({
   club: clubSchema,
   competition: competitionSlug,
   lk: z.string().nullable(),
+  // The strength-redaction decision the server made for this row (ADR-0048), set in the same step that
+  // nulls `lk`. `true` ⟺ a protected field whose absolute strength is withheld — so the client renders
+  // the flag instead of re-deriving protection from the competition slug, and a redacted `lk: null` can
+  // never be confused with a not-yet-synced one („LK folgt"). The relative-rank `seedRank` below is kept
+  // either way (ADR-0047), so `redacted` withholds only the LK value, not the placement.
+  redacted: z.boolean(),
   // The provisional seed number (1..seedCount), or null when unseeded / below the draw floor. Computed
   // by LK per competition, independent of the list order (ADR-0047), so the pre-draw preview places the
   // LK-strongest on the seed lines. For a protected Challenger field it is the *only* strength signal on
