@@ -62,8 +62,8 @@ concept here drifts or a new one appears, update this file rather than inventing
 
 - **Competition** (de: Konkurrenz; code: `competition`) — a single field a member registers for.
   Identified by a `slug`. Three are registerable today (`COMPETITION_SLUGS`): Damen (`womens`), Herren
-  (`mens`), Herren Challenger (`mens-challenger`). Damen Freizeit is planned but not yet a registerable
-  competition.
+  (`mens`), Herren Challenger (`mens-challenger`). Damen Freizeit — the planned **Social mixer** field
+  (see below) — is not yet a registerable competition.
 - **Championship field** (de: Hauptfeld) — an open championship field where the Winsener
   Meister/Meisterin title is decided (Damen, Herren).
 - **Challenger / recreational field** (de: Freizeit) — a protected field for recreational/returning
@@ -94,6 +94,26 @@ concept here drifts or a new one appears, update this file rather than inventing
   the field's identity — so turning it on for a new protected field (Damen Freizeit) is a single change, and
   a not-yet-synced rating („LK folgt") can never be confused with a withheld one. The gated admin reads the
   un-redacted strength it needs to bind the cap and run the draw (ADR-0024). _(See ADR-0044, ADR-0047, ADR-0048.)_
+- **Social mixer** (de: Schleifchenturnier; planned field, user label „Damen-Doppel zum Kennenlernen") —
+  the real shape of the planned **Damen Freizeit** field, and a **third field type** beside Championship
+  field and Challenger / recreational field: the first **unseeded** competition. A rotating-partner social
+  **doubles** event — each member registers **alone**, partners rotate over the day to maximise mixing; the
+  point is _Kennenlernen_, not a result. It produces **no system result**: no draw, no seeding, no bracket,
+  no consolation / third-place, no champion, no live board — the tournament engine never touches it. The
+  app's only job is the **signup surface**: it reuses the Registration lifecycle (`new → confirmed →
+cancelled`, duplicate check, capacity, first-come cut) **unchanged**, with one relaxation — being
+  unseeded, an entry carries **no LK** and `confirm` needs **no seeding basis** (seedability is a property
+  of the competition, not of every registration). The partner rotation and any on-court scoring run
+  **offline** on the day (a Spielleiterin with a printed plan), never in the system. It runs on **one day
+  of the championship weekend**, sharing the court budget (`freizeitReservedSlots`). The **one-active-entry**
+  invariant is scoped to **seeded** competitions, so a member may hold a seeded entry **and** the mixer —
+  the invariant guards the schedule validator, which sees no mixer matches, so its guarantee holds exactly.
+  **It is not a „Challenger":** not LK-capped, not singles, not competitive — „Freizeit"/„Challenger" stays
+  reserved for the protected LK-capped singles field, and the code slug is to be renamed `womens-challenger`
+  → `womens-social`. **Provisional:** the format rests on 5 self-admittedly non-representative conversations
+  (Damen 50); whether it runs, and whether it **replaces or sits beside** the competitive Damen
+  championship, is unresolved pending more conversations — nothing here is built yet. _(See Competition,
+  Registration, Court budget, Active entry.)_
 - **Registration** (de: Anmeldung; D1 table `registrations`) — one member's entry into one competition.
   Status flow: `new` → `confirmed` → `cancelled`. **`cancelled`** is the single "no longer participating,
   keep the record" state, reached either by the member's self-service withdrawal (`/api/cancel`, by person)

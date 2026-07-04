@@ -1,5 +1,5 @@
 ---
-import { competitions, signupDeadline } from '@/data/tournament'
+import { competitions, contactEmail, signupDeadline } from '@/data/tournament'
 import tvLogo from '@/assets/logo.svg'
 import tsvLogo from '@/assets/tsv-winsen.png'
 
@@ -59,7 +59,13 @@ const layoutFor = (slug: string) => (slug === 'mens' || slug === 'womens' ? 'boa
               <span class="pl-tag-planned">In Planung</span>
             </header>
           </div>
-          <p class="pl-planned__note">Ein geselliges Feld zum Mitspielen — Format folgt nach dem 02.07.</p>
+          <p class="pl-planned__note">
+            Ein geselliges Feld zum Mitspielen — das Format stimmen wir gerade mit den Spielerinnen ab. Magst du dabei
+            sein oder es mitgestalten? Schreib uns an
+            <a href={`mailto:${contactEmail}`} class="font-semibold underline underline-offset-2">
+              {contactEmail}
+            </a>
+          </p>
         </section>
       ))
     }

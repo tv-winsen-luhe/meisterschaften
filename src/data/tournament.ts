@@ -60,8 +60,9 @@ export const matchSlotsPerWeekend = courtSchedule.courts * courtSchedule.matches
 
 /**
  * Provisional court-slot reservation for the planned Damen-Freizeit field, which shares the event
- * weekend's courts (ADR-0023). A placeholder until the format is decided (talks 02.07): set the
- * real figure once group format, size and match length are known. Shown as its own segment in the
+ * weekend's courts (ADR-0023). A placeholder until the format is settled: the talks pointed toward a
+ * social doubles mixer (see CONTEXT.md → Social mixer), still being validated with more players — set
+ * the real figure once format, size and session length are known. Shown as its own segment in the
  * total-utilization gauge so the championship load and this reservation read against the same 72-slot budget.
  */
 export const freizeitReservedSlots = 10
@@ -117,7 +118,7 @@ export const competitions: readonly Competition[] = [
     label: 'Damen Freizeit',
     audience: 'Du spielst vor allem zum Spaß und fürs Miteinander — Wettkampf muss nicht im Vordergrund stehen.',
     blurb:
-      'Ein lockeres, geselliges Damen-Feld ohne Titeldruck. Wie das Format genau aussieht, besprechen wir bei den Gesprächen am 02.07.',
+      'Ein lockeres, geselliges Damen-Feld ohne Titeldruck. Das Format stimmen wir gerade mit den Spielerinnen ab.',
     title: '',
     status: 'planned'
   }
