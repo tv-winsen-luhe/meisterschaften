@@ -178,7 +178,7 @@ const sunday = [
       <SectionHeader
         eyebrow="Konkurrenzen"
         headline={['Wähl dein', 'Feld.']}
-        note={`Zwei Spielarten: das Hauptfeld um den Titel — offen für alle — und ein lockeres Feld für Freizeit & Einsteiger. Bei den Herren ist beides fix (das lockere Feld heißt „Challenger“), bei den Damen steht das Hauptfeld, das Freizeit-Feld ist in Planung. Dein Feld wählst du bei der Anmeldung selbst, deine Leistungsklasse musst du dafür nicht kennen. Startgeld: ${entryFee} € pro Person, bar vor Ort beim Check-in.`}
+        note={`Zwei Spielarten: das Hauptfeld um den Titel — offen für alle — und daneben ein lockeres Feld. Bei den Herren ist das ein geschütztes Feld für Freizeit & Einsteiger (heißt „Challenger“). Bei den Damen steht das Hauptfeld; ein geselliges Damen-Feld ist zusätzlich in Planung. Dein Feld wählst du bei der Anmeldung selbst, deine Leistungsklasse musst du dafür nicht kennen. Startgeld: ${entryFee} € pro Person, bar vor Ort beim Check-in.`}
       />
 
       <div class="cat-grid grid grid-cols-3 gap-0.5 bg-navy p-0.5 max-[900px]:grid-cols-1">
@@ -254,7 +254,9 @@ const sunday = [
                 Ein lockeres, geselliges Damen-Feld zum Mitspielen — ohne Titeldruck, der Spaß steht im Vordergrund.
               </p>
               <p class="mt-2 text-[13px] leading-[1.6] opacity-60">
-                Wie das Format genau aussieht, besprechen wir am 02.07. — Details folgen.
+                Wie das Format genau aussieht, stimmen wir gerade mit den Spielerinnen ab. Magst du dabei sein oder es
+                mitgestalten? Schreib uns an
+                <a href={`mailto:${contactEmail}`} class="font-semibold text-navy underline-offset-2">{contactEmail}</a>
               </p>
             </div>
           </div>

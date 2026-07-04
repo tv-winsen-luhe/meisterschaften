@@ -258,7 +258,7 @@ const CourtLoad = ({ projection, fields }: CourtLoadProps) => {
         />
       </div>
       <p className="text-muted-foreground text-xs">
-        Championship {load} (voll ≈ {fullLoad}) · Damen Freizeit ~{reserved} reserviert (Format offen, 02.07)
+        Championship {load} (voll ≈ {fullLoad}) · Damen Freizeit ~{reserved} reserviert (Format offen)
       </p>
 
       {/* Per-field court-slot breakdown — current load vs the field's limit, so the operator sees which
