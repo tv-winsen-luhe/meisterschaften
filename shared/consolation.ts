@@ -113,11 +113,7 @@ export const firstMatchesDecided = (matches: readonly ConsolationMatch[]): boole
 // and the competitions surface renders as the disabled „Nebenrunde auslosen" reason (affordance) — defined
 // once so the two can never drift, exactly like `drawBlocker` for the main draw (ADR-0011). `null` = drawable.
 export type ConsolationBlocker =
-  | 'main-not-drawn'
-  | 'no-consolation'
-  | 'first-matches-pending'
-  | 'too-few-entrants'
-  | 'already-drawn'
+  'main-not-drawn' | 'no-consolation' | 'first-matches-pending' | 'too-few-entrants' | 'already-drawn'
 
 // The operator-facing reason per blocker — one source for the server's 400/409 body and the button hint.
 export const CONSOLATION_BLOCKER_REASON: Record<ConsolationBlocker, string> = {
