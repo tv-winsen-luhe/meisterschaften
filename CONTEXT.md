@@ -7,8 +7,16 @@ concept here drifts or a new one appears, update this file rather than inventing
 
 ## Event
 
-- **Championships** (de: Meisterschaften) — the joint club championship of TV Winsen/Luhe and TSV
-  Winsen, held on one weekend (22./23.08.2026). Members only, no LK rating effect.
+- **Championships** (de: Meisterschaften) — **TV Winsen/Luhe's** club championship, held on one
+  weekend (22./23.08.2026). Members only, no LK rating effect. **TSV Winsen members may enter** — they
+  share the courts under a usage contract — but the event is TV Winsen's: organised, funded, and
+  **billed** as such. This is a **presentation** stance, not a data one: `club` still records both
+  clubs (`shared/club.ts`) and signup still asks which club you play for. What changed is the framing —
+  TV Winsen is the **sole billed organiser** (hero, OG, title, meta), the old „two clubs, one venue"
+  partnership motif is **retired**, and TSV eligibility lives in a **single factual footnote** (the „Wer
+  darf mitmachen?" FAQ), never a co-headline. Per-entry club logos stay (they identify a person's club,
+  not a co-organiser); the signup's two logos stay too (they are the mandatory club choice, not a
+  partnership badge). _(See ADR-0050.)_
 - **Phase** — the event moves through **three** operator-set phases, kept to the two transitions that
   are genuine global decisions; the site presents itself differently in each. The phase is a single
   value stored in D1 and toggled in the admin (not derived from dates); every public surface keys off

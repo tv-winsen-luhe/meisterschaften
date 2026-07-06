@@ -1,6 +1,8 @@
 import { z } from 'zod'
 
-// The two clubs of the joint championship — TV Winsen/Luhe and TSV Winsen. A closed set
+// The two clubs whose members may enter — TV Winsen/Luhe (the organiser) and TSV Winsen
+// (participating under a usage contract; the event is TV Winsen's, not a co-billed partnership —
+// ADR-0050, a presentation stance that leaves this value untouched). A closed set
 // (CONTEXT.md: vereinsintern, members only). Own module mirroring competition.ts: the single
 // source of truth for the `club` value, imported by every contract — the read path
 // (participants list, admin list) and the write path (register, confirm) — and the seeding
