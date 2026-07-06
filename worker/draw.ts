@@ -49,16 +49,14 @@ const challengerReason = (count: number, threshold: number): string =>
 export type TooStrongEntry = DrawPlayer
 
 export type DrawOutcome =
-  | { ok: true; draw: CompetitionDraw }
-  | { ok: false; error: DrawError; reason: string; tooStrong?: TooStrongEntry[] }
+  { ok: true; draw: CompetitionDraw } | { ok: false; error: DrawError; reason: string; tooStrong?: TooStrongEntry[] }
 
 // Drawing the consolation bracket (de: „Nebenrunde auslosen", ADR-0004): the failures are exactly the
 // shared ConsolationBlocker (main not drawn, no consolation at this size, already drawn, first matches
 // still pending) — so the client's disabled-button reason reads the same rule the server enforces
 // (ADR-0011). On success the assembled consolation draw is returned like the main draw.
 export type ConsolationOutcome =
-  | { ok: true; draw: CompetitionDraw }
-  | { ok: false; error: ConsolationBlocker; reason: string }
+  { ok: true; draw: CompetitionDraw } | { ok: false; error: ConsolationBlocker; reason: string }
 
 // What „Nebenrunde auslosen" hands the service: which competition, and the write timestamp (the edge owns
 // `now`, keeping the orchestration testable). No Challenger cap — the entrants already cleared it at the
@@ -74,8 +72,7 @@ export type AdvanceError = 'NotDrawn'
 const NOT_DRAWN_REASON = 'Diese Konkurrenz ist noch nicht ausgelost.'
 
 export type AdvanceOutcome =
-  | { ok: true; cursor: number; total: number }
-  | { ok: false; error: AdvanceError; reason: string }
+  { ok: true; cursor: number; total: number } | { ok: false; error: AdvanceError; reason: string }
 
 // Which way the operator moves the reveal cursor: forward reveals the next lot, back corrects one.
 export type AdvanceDirection = 'forward' | 'back'

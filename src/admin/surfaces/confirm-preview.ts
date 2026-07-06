@@ -34,9 +34,7 @@ export interface ConfirmDraft {
 //   - pending  a complete id is entered but its rating is not on hand — the edge will fetch it
 //   - unknown  no rating to forecast: no-id off with an empty or incomplete id → "—"
 export type LkPreview =
-  | { state: 'known'; lk: string; source: 'nuliga' | 'default' }
-  | { state: 'pending' }
-  | { state: 'unknown' }
+  { state: 'known'; lk: string; source: 'nuliga' | 'default' } | { state: 'pending' } | { state: 'unknown' }
 
 // The Challenger judgment + the LK it judged (for the dialog title). Reads the LK preview: it can
 // only judge a known rating, and defers (tooStrong: false) while pending or unknown.
