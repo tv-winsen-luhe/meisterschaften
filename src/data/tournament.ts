@@ -180,8 +180,8 @@ export const signupDeadline = {
 export const facts = {
   date: `${tournament.longWithWeekdays} · Start Sa ${tournament.startTime}`,
   venue: 'Tennisanlage TV Winsen · 6 Sandplätze',
-  organizer: 'TV Winsen & TSV Winsen',
-  eligibility: 'Mitglieder von TV Winsen und TSV Winsen ab 15 Jahren',
+  organizer: 'TV Winsen',
+  eligibility: 'Mitglieder des TV Winsen ab 15 Jahren; TSV Winsen zugelassen',
   scoring: 'Vereinsintern — keine LK-Wertung',
   format: 'K.O. mit Nebenrunde · 2 Gewinnsätze, bei 1:1 Match-Tie-Break bis 10',
   seeding: 'Setzung nach Leistungsklasse (nuLiga)',
