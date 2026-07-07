@@ -1,20 +1,16 @@
 ---
 import Layout from '@/layouts/default.astro'
 import SectionHeader from '@/components/section-header.astro'
-import Card from '@/components/card.astro'
+import CompetitionCard from '@/components/competition-card.astro'
 import FaqItem from '@/components/faq-item.astro'
-import MarkerHighlight from '@/components/marker-highlight.astro'
 import SignupModal from '@/components/signup-modal.astro'
 import TournamentBracket from '@/components/tournament-bracket.astro'
 import TournamentDraw from '@/components/tournament-draw.astro'
 import ParticipantList from '@/components/participant-list.astro'
 import { competitions, contactEmail, entryFee, signupDeadline, tournament } from '@/data/tournament'
+import { cardStyleFor } from '@/data/competition-cards'
 
 const sectClass = 'sect border-t border-navy py-20 focus:outline-none md:py-[120px]'
-const catBadgeClass =
-  'self-start border-[1.5px] border-navy px-2.5 py-1 text-[11px] font-black uppercase tracking-[0.15em]'
-const catBadgeInvClass =
-  'self-start border-[1.5px] border-white/40 px-2.5 py-1 text-[11px] font-black uppercase tracking-[0.15em] text-white'
 
 const mens = competitions.find(c => c.id === 'mens')!
 const challenger = competitions.find(c => c.id === 'mens-challenger')!
@@ -183,80 +179,10 @@ const sunday = [
       />
 
       <div class="cat-grid grid grid-cols-2 gap-0.5 bg-navy p-0.5 max-[900px]:grid-cols-1">
-        <Card variant="dark" stagger={0}>
-          <span class={catBadgeInvClass}>Hauptfeld</span>
-          <div class="my-5 flex flex-col gap-1 uppercase">
-            <span class="text-[clamp(11px,2.8cqw,15px)] font-bold tracking-[0.18em] text-white/85">Einzel</span>
-            <span class="text-[clamp(34px,13cqw,64px)] leading-[0.85] font-black tracking-[-0.04em] text-white"
-              >{womens.label}</span
-            >
-          </div>
-          <p class="m-0 text-[13px] leading-[1.6] font-semibold text-white">{womens.audience}</p>
-          <p class="mt-2 mb-7 text-[13px] leading-[1.6] text-white/80">{womens.blurb}</p>
-          <button
-            type="button"
-            class="cta-primary mt-auto w-full text-center"
-            data-signup-open
-            data-signup-competition={womens.slug}
-          >
-            Anmelden
-          </button>
-        </Card>
-        <Card variant="light" stagger={1}>
-          <span class={catBadgeClass}>Hauptfeld</span>
-          <div class="my-5 flex flex-col gap-1 uppercase">
-            <span class="text-[clamp(11px,2.8cqw,15px)] font-bold tracking-[0.18em] opacity-55">Einzel</span>
-            <span class="text-[clamp(34px,13cqw,64px)] leading-[0.85] font-black tracking-[-0.04em]">{mens.label}</span>
-          </div>
-          <p class="m-0 text-[13px] leading-[1.6] font-semibold">{mens.audience}</p>
-          <p class="mt-2 mb-7 text-[13px] leading-[1.6] opacity-65">{mens.blurb}</p>
-          <button
-            type="button"
-            class="cta-primary mt-auto w-full text-center"
-            data-signup-open
-            data-signup-competition={mens.slug}
-          >
-            Anmelden
-          </button>
-        </Card>
-        <Card variant="clay" stagger={2}>
-          <span class={catBadgeInvClass}>Gesellig</span>
-          <div class="my-5 flex flex-col gap-1 uppercase">
-            <span class="text-[clamp(11px,2.8cqw,15px)] font-bold tracking-[0.18em] text-white/85">Doppel</span>
-            <span class="text-[clamp(30px,11cqw,52px)] leading-[0.85] font-black tracking-[-0.04em] text-white"
-              >{womensSocial.label}</span
-            >
-          </div>
-          <p class="m-0 text-[13px] leading-[1.6] font-semibold text-white">{womensSocial.audience}</p>
-          <p class="mt-2 mb-7 text-[13px] leading-[1.6] text-white/80">{womensSocial.blurb}</p>
-          <button
-            type="button"
-            class="cta-primary mt-auto w-full text-center"
-            data-signup-open
-            data-signup-competition={womensSocial.slug}
-          >
-            Anmelden
-          </button>
-        </Card>
-        <Card variant="blue" stagger={3}>
-          <span class={catBadgeInvClass}>Freizeit & Einsteiger</span>
-          <div class="my-5 flex flex-col gap-1 uppercase">
-            <span class="text-[clamp(11px,2.8cqw,15px)] font-bold tracking-[0.18em] opacity-85">Einzel</span>
-            <span class="text-[clamp(30px,11cqw,52px)] leading-[0.85] font-black tracking-[-0.04em] text-navy">
-              <MarkerHighlight brush={3}>Herren Challenger</MarkerHighlight>
-            </span>
-          </div>
-          <p class="m-0 text-[13px] leading-[1.6] font-semibold">{challenger.audience}</p>
-          <p class="mt-2 mb-7 text-[13px] leading-[1.6] opacity-80">{challenger.blurb}</p>
-          <button
-            type="button"
-            class="cta-primary mt-auto w-full text-center"
-            data-signup-open
-            data-signup-competition={challenger.slug}
-          >
-            Anmelden
-          </button>
-        </Card>
+        <CompetitionCard competition={womens} style={cardStyleFor(womens.id)} stagger={0} />
+        <CompetitionCard competition={mens} style={cardStyleFor(mens.id)} stagger={1} />
+        <CompetitionCard competition={womensSocial} style={cardStyleFor(womensSocial.id)} stagger={2} />
+        <CompetitionCard competition={challenger} style={cardStyleFor(challenger.id)} stagger={3} />
       </div>
     </section>
 
@@ -494,58 +420,6 @@ const sunday = [
 </Layout>
 
 <style is:global>
-  /* CTA buttons */
-  .cta-primary {
-    display: inline-block;
-    background: var(--color-neon);
-    color: var(--color-navy);
-    font-family: inherit;
-    font-weight: 800;
-    font-size: 14px;
-    letter-spacing: 0.02em;
-    padding: 14px 28px;
-    border: none;
-    cursor: pointer;
-    text-decoration: none;
-    text-transform: uppercase;
-    transition:
-      background 0.2s,
-      transform 0.2s;
-  }
-  .cta-primary:hover {
-    background: #e0ff4d;
-    transform: translateY(-1px);
-  }
-  .cta-primary:focus-visible {
-    outline: 2px solid var(--color-navy);
-    outline-offset: 3px;
-  }
-  .cta-primary--sm {
-    padding: 8px 16px;
-    font-size: 12px;
-  }
-
-  .cta-secondary {
-    font-size: 14px;
-    font-weight: 600;
-    color: var(--color-navy);
-    opacity: 0.5;
-    text-decoration: underline;
-    text-underline-offset: 3px;
-    transition: opacity 0.2s;
-    background: none;
-    border: none;
-    cursor: pointer;
-    font-family: inherit;
-  }
-  .cta-secondary:hover {
-    opacity: 0.8;
-  }
-  .cta-secondary:focus-visible {
-    outline: 2px solid var(--color-navy);
-    outline-offset: 3px;
-  }
-
   /* Hero head: date stacked above title on mobile, top-right on desktop */
   .hero-head {
     display: flex;

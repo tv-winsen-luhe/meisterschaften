@@ -427,6 +427,19 @@ reveal sequence }`. Randomness enters through an injected **`RandomSource`** por
 
 ## System
 
+- **Outreach porch** (de: gezielte Anmelde-Seite) — a thin, **signup-era** landing page for **one
+  side** of the event (`/damen`, `/herren`), handed out by **link only** (WhatsApp) to convert a
+  targeted audience. It is **not** the phase-projected front door (`index.astro`, ADR-0042) and not a
+  full composition: it carries a bespoke targeted lead, the side's **two** field cards as equals
+  (Damen: Hauptfeld + Doppel; Herren: Hauptfeld + Challenger — ADR-0051), a signup CTA, and a
+  „→ Das ganze Wochenende" hand-off to `/` — everything evergreen (Event, Modus, Ablauf, FAQ) stays
+  on the front door and is linked, never restated. The **route earns its keep at the preview layer**:
+  a per-URL `ogTitle`/`ogDescription` makes the WhatsApp preview card itself the pitch — the one
+  thing a query param on the front door cannot do (its OG is the homepage's). It reads `GET /api/phase`
+  once on load and **redirects to `/` once phase ≠ `signup`** (the ADR-0042 client-side pattern), so it
+  never becomes a results surface. Reachable **only** by the shared link — stripped chrome, not linked
+  from the site, `noindex` site-wide (ADR-0017). _Avoid_: "landing page" (too generic), "competition
+  page" (it is per-**side**, two fields, not per-competition). _(See ADR-0052, ADR-0042.)_
 - **Source of truth** — the site (Astro + Cloudflare Worker + D1) owns the tournament data end to
   end: registrations, the draw, and live results all live in D1. No external tournament tool.
   _(See ADR-0001.)_
