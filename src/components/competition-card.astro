@@ -1,0 +1,48 @@
+---
+import Card from './card.astro'
+import MarkerHighlight from './marker-highlight.astro'
+import type { Competition } from '@/data/tournament'
+import type { CardStyle } from '@/data/competition-cards'
+
+interface Props {
+  competition: Competition
+  style: CardStyle
+  stagger?: number
+}
+
+const { competition, style, stagger } = Astro.props
+const { variant } = style
+const isLight = variant === 'light'
+
+// Per-variant class fragments, faithful to the four hand-written cards the front door used to carry.
+// Kept here so both the front door and the outreach porches render identical cards (ADR-0052).
+const badgeClass = isLight
+  ? 'self-start border-[1.5px] border-navy px-2.5 py-1 text-[11px] font-black uppercase tracking-[0.15em]'
+  : 'self-start border-[1.5px] border-white/40 px-2.5 py-1 text-[11px] font-black uppercase tracking-[0.15em] text-white'
+
+const typeColor = { light: 'opacity-55', dark: 'text-white/85', clay: 'text-white/85', blue: 'opacity-85' }[variant]
+const labelSize = style.compact ? 'text-[clamp(30px,11cqw,52px)]' : 'text-[clamp(34px,13cqw,64px)]'
+const labelColor = style.marker ? 'text-navy' : variant === 'dark' || variant === 'clay' ? 'text-white' : ''
+const audienceColor = variant === 'dark' || variant === 'clay' ? 'text-white' : ''
+const blurbColor = { light: 'opacity-65', dark: 'text-white/80', clay: 'text-white/80', blue: 'opacity-80' }[variant]
+---
+
+<Card variant={variant} stagger={stagger}>
+  <span class={badgeClass}>{style.badge}</span>
+  <div class="my-5 flex flex-col gap-1 uppercase">
+    <span class:list={['text-[clamp(11px,2.8cqw,15px)] font-bold tracking-[0.18em]', typeColor]}>{style.type}</span>
+    <span class:list={['leading-[0.85] font-black tracking-[-0.04em]', labelSize, labelColor]}>
+      {style.marker ? <MarkerHighlight brush={3}>{competition.label}</MarkerHighlight> : competition.label}
+    </span>
+  </div>
+  <p class:list={['m-0 text-[13px] leading-[1.6] font-semibold', audienceColor]}>{competition.audience}</p>
+  <p class:list={['mt-2 mb-7 text-[13px] leading-[1.6]', blurbColor]}>{competition.blurb}</p>
+  <button
+    type="button"
+    class="cta-primary mt-auto w-full text-center"
+    data-signup-open
+    data-signup-competition={competition.slug}
+  >
+    Anmelden
+  </button>
+</Card>

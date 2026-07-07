@@ -87,3 +87,57 @@ html {
   box-shadow: 0 0 0 100vmax var(--color-clay);
   clip-path: inset(0 -100vmax);
 }
+
+/* Shared CTA buttons — used by the front door, the competition cards, the signup modal and the
+   header, so they live here rather than in any one page (the cards render on the outreach porches
+   too — ADR-0052). */
+.cta-primary {
+  display: inline-block;
+  background: var(--color-neon);
+  color: var(--color-navy);
+  font-family: inherit;
+  font-weight: 800;
+  font-size: 14px;
+  letter-spacing: 0.02em;
+  padding: 14px 28px;
+  border: none;
+  cursor: pointer;
+  text-decoration: none;
+  text-transform: uppercase;
+  transition:
+    background 0.2s,
+    transform 0.2s;
+}
+.cta-primary:hover {
+  background: #e0ff4d;
+  transform: translateY(-1px);
+}
+.cta-primary:focus-visible {
+  outline: 2px solid var(--color-navy);
+  outline-offset: 3px;
+}
+.cta-primary--sm {
+  padding: 8px 16px;
+  font-size: 12px;
+}
+
+.cta-secondary {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-navy);
+  opacity: 0.5;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  transition: opacity 0.2s;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-family: inherit;
+}
+.cta-secondary:hover {
+  opacity: 0.8;
+}
+.cta-secondary:focus-visible {
+  outline: 2px solid var(--color-navy);
+  outline-offset: 3px;
+}

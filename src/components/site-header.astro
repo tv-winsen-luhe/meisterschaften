@@ -10,7 +10,7 @@ interface Anchor {
 interface Props {
   variant?: 'event' | 'legal'
   anchors?: Anchor[]
-  cta?: { href: string; label: string }
+  cta?: { href: string; label: string; competition?: string }
 }
 
 const { variant = 'event', anchors = [], cta } = Astro.props
@@ -58,7 +58,12 @@ const home = import.meta.env.BASE_URL || '/'
           <span class="site-header__eyebrow">Vereinsmeisterschaft</span>
 
           {cta && (
-            <a href={cta.href} class="cta-primary cta-primary--sm site-header__cta" data-signup-open>
+            <a
+              href={cta.href}
+              class="cta-primary cta-primary--sm site-header__cta"
+              data-signup-open
+              data-signup-competition={cta.competition}
+            >
               {cta.label}
             </a>
           )}
