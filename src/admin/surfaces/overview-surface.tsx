@@ -9,9 +9,10 @@ import {
   courtBudgetProjection,
   drawSize,
   isActive,
+  isUnseededCompetition,
   matchCount
 } from '../../../shared'
-import { courtSchedule, freizeitReservedSlots, matchSlotsPerWeekend } from '@/data/tournament'
+import { courtSchedule, socialMixerReservedSlots, matchSlotsPerWeekend } from '@/data/tournament'
 import { cn } from '@/admin/lib/utils'
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/admin/ui/empty'
 import { CLUB_LOGOS, competitionCapacity, competitionLabel } from './registration-detail'
@@ -90,8 +91,12 @@ export const OverviewSurface = ({
   // shared, tested `courtBudgetProjection`, so the gauge never re-derives it. A field's load is its
   // match count *clamped to capacity*: the cut (ADR-0043) leaves the surplus as reserves, who run no
   // bracket matches, so an over-subscribed field reads at its cap, not at a phantom over-full count.
-  const planFields = rows.map(r => ({ active: r.new + r.confirmed, capacity: r.capacity ?? 0 }))
-  const projection = courtBudgetProjection(planFields, freizeitReservedSlots, matchSlotsPerWeekend)
+  // An unseeded field (Social mixer) runs no bracket at all (ADR-0051) — its court use is the separate
+  // `socialMixerReservedSlots` reservation, so it must be excluded here or it would be counted twice.
+  const planFields = rows
+    .filter(r => !isUnseededCompetition(r.slug))
+    .map(r => ({ active: r.new + r.confirmed, capacity: r.capacity ?? 0 }))
+  const projection = courtBudgetProjection(planFields, socialMixerReservedSlots, matchSlotsPerWeekend)
   // Per-field court-slot consumption for the planning breakdown: load now (clamped) vs at the cap —
   // the "if it fills" figure. Same clamp as the projection, so the rows always sum to its total.
   const fieldLoads = rows.map(r => ({
@@ -210,7 +215,7 @@ interface CourtLoadProps {
   fields: { label: string; load: number; capacityLoad: number }[]
 }
 // The Gesamtauslastung gauge + planning cockpit (ADR-0023 follow-up, ADR-0043): weekend court pressure
-// as two stacked segments — the live championship load (solid) and the reserved Damen-Freizeit block
+// as two stacked segments — the live championship load (solid) and the reserved social-mixer block
 // (striped, provisional) — against the 72-slot budget. The marker sits where a full field plus the
 // reservation would land, so the operator sees whether the weekend still fits if every field fills to
 // its cap. Beneath it, the per-field slot breakdown shows where the load sits and which cap drives it —
@@ -239,7 +244,7 @@ const CourtLoad = ({ projection, fields }: CourtLoadProps) => {
           className={cn('absolute inset-y-0 left-0', over ? 'bg-red-500' : 'bg-foreground')}
           style={{ width: seg(load) }}
         />
-        {/* Reserved Freizeit block — striped to read as provisional, not yet booked matches. */}
+        {/* Reserved social-mixer block — striped to read as provisional, not yet booked matches. */}
         <div
           className="absolute inset-y-0"
           style={{
@@ -258,7 +263,7 @@ const CourtLoad = ({ projection, fields }: CourtLoadProps) => {
         />
       </div>
       <p className="text-muted-foreground text-xs">
-        Championship {load} (voll ≈ {fullLoad}) · Damen Freizeit ~{reserved} reserviert (Format offen)
+        Championship {load} (voll ≈ {fullLoad}) · Damen Doppel ~{reserved} Slots reserviert
       </p>
 
       {/* Per-field court-slot breakdown — current load vs the field's limit, so the operator sees which

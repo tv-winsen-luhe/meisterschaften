@@ -87,7 +87,7 @@ export interface CourtBudgetProjection {
   // Match load at the current active counts, and if every field filled to its capacity.
   load: number
   fullLoad: number
-  // The Damen-Freizeit reservation and the weekend budget, echoed back for the gauge.
+  // The social-mixer reservation and the weekend budget, echoed back for the gauge.
   reserved: number
   budget: number
   // The two pressure totals against the budget: live (load + reserved) and full-fill (fullLoad + reserved).
@@ -104,8 +104,8 @@ export interface CourtBudgetProjection {
  * draws at most `capacity` into its bracket — the cut (ADR-0043) leaves the surplus as reserves, who
  * add no bracket matches — so a field's live load is `matchCount(min(active, capacity))`, never the
  * raw active count. That clamp also keeps every figure within the supported draw sizes (capacity ≤ 16),
- * so an over-subscribed field never reaches an unsupported `matchCount`. `reserved` is the planned
- * Damen-Freizeit block (shares the same budget); `budget` is the weekend's match-slot ceiling (= 72).
+ * so an over-subscribed field never reaches an unsupported `matchCount`. `reserved` is the social-mixer
+ * block (shares the same budget); `budget` is the weekend's match-slot ceiling (= 72).
  */
 export const courtBudgetProjection = (
   fields: readonly CourtBudgetField[],
@@ -178,7 +178,7 @@ export interface BracketStructure {
 // 16-draw places Nr. 3/4 by lot onto lines 5 and 12 (0-indexed 4 and 11). Sizes 4, 8, 16 are defined —
 // bracketStructure throws for anything else. Size 4 (Nr.1 → line 0, Nr.2 → line 3, both fixed, no lot)
 // is our sub-DTB extension: §30.5a's table starts at 8, so a 4-field reuses the 8-field's 2-seed
-// pattern (ADR-0034) — letting tiny fields (e.g. a 4-player Damen draw) be cast at all.
+// pattern (ADR-0034) — letting tiny fields (e.g. a 4-player women's draw) be cast at all.
 const SEED_GROUPS: Record<number, SeedGroup[]> = {
   4: [
     { seeds: [1], lines: [0] },

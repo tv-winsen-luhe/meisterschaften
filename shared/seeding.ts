@@ -27,10 +27,25 @@ const isLkTooStrongForChallenger = (lk: string | null, threshold: number): boole
 
 // Which competitions are protected Challenger fields. Owned once (ADR-0011) so the confirm-time hint,
 // the seeding affordance, and the draw cap guard never drift on "is this a Challenger field?". Matches
-// the `-challenger` family by slug, so a second recreational field (the planned „Damen Freizeit",
-// `womens-challenger`) is cap-gated the moment it becomes registerable — fail-closed for a protected
-// field, rather than silently bypassing the cap until someone remembers to add it here.
+// the `-challenger` family by slug, so any future recreational field is cap-gated the moment it becomes
+// registerable — fail-closed for a protected field, rather than silently bypassing the cap until
+// someone remembers to add it here.
 export const isChallengerField = (competition: string): boolean => competition.endsWith('-challenger')
+
+// Which competitions are unseeded — the Social mixer (CONTEXT: Social mixer, ADR-0051). Matches the
+// `-social` family by slug, mirroring isChallengerField's `-challenger`, so a second social field is
+// recognised the moment it exists. An unseeded field carries no LK and is never seeded, cut by
+// strength, or drawn: seedability is a property of the competition, not of every registration. The
+// confirm relaxation (canConfirmEntry), the cut order below, the seed-rank suppression on the public
+// list, and the draw guard all read this one predicate.
+export const isUnseededCompetition = (competition: string): boolean => competition.endsWith('-social')
+
+// Whether a field admits by **strength** (a championship field: womens, mens) rather than first-come.
+// A protected Challenger field and an unseeded Social mixer both admit **first-come by registration
+// order** — strength must not decide a protected field (ADR-0043), and an unseeded field has no
+// strength to decide by (ADR-0051). Owned once so the cut comparator and its `provisional` flag agree.
+export const cutsByStrength = (competition: string): boolean =>
+  !isChallengerField(competition) && !isUnseededCompetition(competition)
 
 // The Challenger-LK judgment at confirm time, owned once in shared/ (ADR-0011) so the registration
 // notifier, the domain, and the admin affordance all read the same rule — no duplicated threshold.
@@ -89,9 +104,9 @@ export interface FieldCutEntry {
 export const compareForCut =
   (competition: string) =>
   (a: FieldCutEntry, b: FieldCutEntry): number =>
-    isChallengerField(competition)
-      ? a.createdAt.localeCompare(b.createdAt)
-      : seedingValue(a.lk) - seedingValue(b.lk) || a.createdAt.localeCompare(b.createdAt)
+    cutsByStrength(competition)
+      ? seedingValue(a.lk) - seedingValue(b.lk) || a.createdAt.localeCompare(b.createdAt)
+      : a.createdAt.localeCompare(b.createdAt)
 
 // ── Seed order (CONTEXT: Seeding, ADR-0043, ADR-0047) ────────────────────────────────────────────
 // Distinct from the cut order above: the **cut** decides *who is in* (Challenger by registration), the
@@ -129,7 +144,8 @@ export interface RankedCutEntry<E> {
 // The result of cutting a field: the active entries in cut order with their reserve flag, the counts
 // either side of the line, and whether the cut is provisional. A **championship** cut is provisional —
 // it acts on LKs that drift until the seeding freeze (ADR-0024), so the line moves as LKs sync. A
-// **Challenger** cut is stable — its key (`createdAt`) never drifts, so a spot is secure once taken.
+// **Challenger** or **Social mixer** cut is stable — its key (`createdAt`) never drifts, so a spot is
+// secure once taken (first-come; cutsByStrength is false).
 export interface FieldCutResult<E> {
   ranked: RankedCutEntry<E>[]
   inField: number
@@ -150,5 +166,5 @@ export const fieldCut = <E extends FieldCutEntry>(
     .sort(compareForCut(competition))
     .map((entry, i) => ({ entry, position: i + 1, reserve: i >= capacity }))
   const inField = Math.min(ranked.length, capacity)
-  return { ranked, inField, reserves: ranked.length - inField, provisional: !isChallengerField(competition) }
+  return { ranked, inField, reserves: ranked.length - inField, provisional: cutsByStrength(competition) }
 }

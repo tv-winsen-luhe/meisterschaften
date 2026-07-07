@@ -16,7 +16,8 @@ interface Accent {
 const COMPETITION_ACCENT: Record<CompetitionSlug, Accent> = {
   mens: { border: 'border-l-blue-500', text: 'text-blue-600' },
   'mens-challenger': { border: 'border-l-cyan-500', text: 'text-cyan-600' },
-  womens: { border: 'border-l-rose-500', text: 'text-rose-600' }
+  womens: { border: 'border-l-rose-500', text: 'text-rose-600' },
+  'womens-social': { border: 'border-l-violet-500', text: 'text-violet-600' }
 }
 
 // The neutral fallback for an unknown slug — visible as an accent, but plainly not one of the competitions.

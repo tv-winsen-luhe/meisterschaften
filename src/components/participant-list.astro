@@ -1,12 +1,11 @@
 ---
-import { competitions, contactEmail, signupDeadline } from '@/data/tournament'
+import { competitions, signupDeadline } from '@/data/tournament'
+import { isUnseededCompetition } from '../../shared'
 import tvLogo from '@/assets/logo.svg'
 import tsvLogo from '@/assets/tsv-winsen.png'
 
 // Open competitions only; championship field (mens/womens) = seeding board, Challenger = friendly list.
 const openCompetitions = competitions.filter(c => c.status === 'open')
-// Planned competitions get a quiet "in Planung" tile so the field is hinted at, not listed.
-const plannedCompetitions = competitions.filter(c => c.status === 'planned')
 const layoutFor = (slug: string) => (slug === 'mens' || slug === 'womens' ? 'board' : 'list')
 ---
 
@@ -18,7 +17,7 @@ const layoutFor = (slug: string) => (slug === 'mens' || slug === 'womens' ? 'boa
           class="pl-group bg-surface-alt p-6 md:p-7"
           data-group={c.slug}
           data-layout={layoutFor(c.slug)}
-          data-capacity={c.capacity}
+          data-capacity={isUnseededCompetition(c.slug) ? undefined : c.capacity}
         >
           <div class="pl-group__top">
             <header class="pl-group__head">
@@ -26,7 +25,8 @@ const layoutFor = (slug: string) => (slug === 'mens' || slug === 'womens' ? 'boa
               <span class="pl-free" data-free-label />
             </header>
             {c.tagline && <p class="pl-group__tagline">{c.tagline}</p>}
-            {c.capacity && (
+            {/* Scarcity meter only for competitive fields; the social mixer shows momentum, not "Plätze frei" (ADR-0051 §4). */}
+            {c.capacity && !isUnseededCompetition(c.slug) && (
               <div class="pl-meter" data-meter aria-hidden="true">
                 {Array.from({ length: c.capacity }).map(() => (
                   <span class="pl-meter__seg" />
@@ -47,25 +47,6 @@ const layoutFor = (slug: string) => (slug === 'mens' || slug === 'womens' ? 'boa
               Jetzt anmelden <span aria-hidden="true">→</span>
             </button>
           </div>
-        </section>
-      ))
-    }
-    {
-      plannedCompetitions.map(c => (
-        <section class="pl-group pl-group--planned bg-surface-alt p-6 md:p-7">
-          <div class="pl-group__top">
-            <header class="pl-group__head">
-              <h3 class="pl-group__title">{c.label}</h3>
-              <span class="pl-tag-planned">In Planung</span>
-            </header>
-          </div>
-          <p class="pl-planned__note">
-            Ein geselliges Feld zum Mitspielen — das Format stimmen wir gerade mit den Spielerinnen ab. Magst du dabei
-            sein oder es mitgestalten? Schreib uns an
-            <a href={`mailto:${contactEmail}`} class="font-semibold underline underline-offset-2">
-              {contactEmail}
-            </a>
-          </p>
         </section>
       ))
     }
@@ -105,29 +86,6 @@ const layoutFor = (slug: string) => (slug === 'mens' || slug === 'womens' ? 'boa
     margin: 7px 0 0;
     font-size: 12.5px;
     line-height: 1.4;
-    font-weight: 600;
-    color: rgba(12, 30, 58, 0.6);
-  }
-
-  /* Planned field: a quiet teaser tile, not a live list */
-  .pl-group--planned .pl-group__title {
-    opacity: 0.5;
-  }
-  .pl-tag-planned {
-    flex-shrink: 0;
-    padding: 5px 10px;
-    border: 1.5px dashed rgba(12, 30, 58, 0.4);
-    font-size: 11px;
-    font-weight: 800;
-    letter-spacing: 0.12em;
-    text-transform: uppercase;
-    white-space: nowrap;
-    color: rgba(12, 30, 58, 0.55);
-  }
-  .pl-planned__note {
-    margin: 16px 0 0;
-    font-size: 14px;
-    line-height: 1.55;
     font-weight: 600;
     color: rgba(12, 30, 58, 0.6);
   }
@@ -338,7 +296,7 @@ const layoutFor = (slug: string) => (slug === 'mens' || slug === 'womens' ? 'boa
 
 <script>
   import { hc } from 'hono/client'
-  import { displaySeedCount, MIN_DRAW_ENTRIES } from '../../shared'
+  import { displaySeedCount, isUnseededCompetition, MIN_DRAW_ENTRIES } from '../../shared'
   import type { AppType } from '../../worker/app'
   import type { Participant, ParticipantsResponse, Phase } from '../../shared'
 
@@ -370,7 +328,7 @@ const layoutFor = (slug: string) => (slug === 'mens' || slug === 'womens' ? 'boa
     return li
   }
 
-  const row = (entry: Entry, layout: string, rank: number, isSeed: boolean): HTMLLIElement => {
+  const row = (entry: Entry, layout: string, rank: number, isSeed: boolean, unseeded: boolean): HTMLLIElement => {
     const li = document.createElement('li')
     li.className = isSeed ? 'pl-row pl-row--seed' : 'pl-row'
 
@@ -401,7 +359,8 @@ const layoutFor = (slug: string) => (slug === 'mens' || slug === 'womens' ? 'boa
     // the LK entirely — neither „LK x" nor „LK folgt" — while a non-redacted `lk: null` is a genuine
     // not-yet-synced rating that shows „LK folgt". The client renders the flag; it no longer knows which
     // fields are protected. The admin still shows the LK (it needs it to bind the cap at the draw, ADR-0024).
-    if (!entry.redacted) {
+    // An unseeded field (the social mixer) has no LK concept at all, so it never shows an LK column.
+    if (!unseeded && !entry.redacted) {
       const lk = document.createElement('span')
       lk.className = entry.lk ? 'pl-lk' : 'pl-lk pl-lk--pending'
       lk.textContent = entry.lk ? `LK ${entry.lk}` : 'LK folgt'
@@ -443,6 +402,7 @@ const layoutFor = (slug: string) => (slug === 'mens' || slug === 'womens' ? 'boa
     root.querySelectorAll<HTMLElement>('[data-group]').forEach(group => {
       const slug = group.dataset.group!
       const layout = group.dataset.layout || 'list'
+      const unseeded = isUnseededCompetition(slug)
       const entries = byComp.get(slug) ?? []
       const list = group.querySelector<HTMLElement>('[data-list]')!
       const empty = group.querySelector<HTMLElement>('[data-empty]')!
@@ -465,7 +425,8 @@ const layoutFor = (slug: string) => (slug === 'mens' || slug === 'womens' ? 'boa
         }
         segs.forEach((s, i) => s.classList.toggle('pl-meter__seg--filled', i < entries.length))
       } else if (freeLabel) {
-        freeLabel.textContent = entries.length ? `${entries.length} gemeldet` : ''
+        // No capacity meter (the social mixer): momentum, not scarcity — „wer schon dabei ist" (ADR-0051 §4).
+        freeLabel.textContent = entries.length ? `${entries.length} schon dabei` : ''
       }
 
       list.innerHTML = ''
@@ -482,7 +443,7 @@ const layoutFor = (slug: string) => (slug === 'mens' || slug === 'womens' ? 'boa
         const rank = i + 1
         // Separate the seeded players from the rest, which get drawn at the draw.
         if (seeds > 0 && rank === seeds + 1) list.appendChild(divider())
-        list.appendChild(row(e, layout, rank, seeds > 0 && rank <= seeds))
+        list.appendChild(row(e, layout, rank, seeds > 0 && rank <= seeds, unseeded))
       })
     })
   }

@@ -19,13 +19,13 @@ const catBadgeInvClass =
 const mens = competitions.find(c => c.id === 'mens')!
 const challenger = competitions.find(c => c.id === 'mens-challenger')!
 const womens = competitions.find(c => c.id === 'womens')!
-const womensFreizeit = competitions.find(c => c.id === 'womens-challenger')!
+const womensSocial = competitions.find(c => c.id === 'womens-social')!
 
 const reglement: { label: string; value: string; link?: { href: string; label: string } }[] = [
   { label: 'Modus', value: 'K.O. mit Nebenrunde — mind. 2 Matches' },
   { label: 'Zählweise', value: '2 Gewinnsätze, bei 1:1 Match-Tie-Break bis 10' },
   { label: 'Pro Tag', value: 'Höchstens 2 Einzel' },
-  { label: 'Konkurrenz', value: 'Einzel — Damen, Herren & Challenger' },
+  { label: 'Konkurrenz', value: 'Einzel (Damen, Herren, Challenger) · dazu Damen Doppel (gesellig)' },
   { label: 'Setzung', value: 'Nach Leistungsklasse' },
   {
     label: 'Wertung',
@@ -53,7 +53,7 @@ const saturday = [
   ]
 ]
 const sunday = [
-  ['Vormittag', 'Halbfinals in allen Feldern.'],
+  ['Vormittag', 'Halbfinals bei Damen, Herren & Challenger.'],
   ['Mittag', 'Spiele um Platz 3.'],
   ['Nachmittag', 'Finals & Siegerehrung — die Winsener Meister stehen fest.'],
   ['Für Familie & Kids', 'Auch am Sonntag Programm für Familien und Kinder neben dem Platz.']
@@ -144,7 +144,8 @@ const sunday = [
             Ehrgeizig<br />oder locker
           </h3>
           <p class="m-0 max-w-[40ch] text-[14px] leading-[1.6] text-white/75">
-            Hauptfeld für die Ambitionierten, geschütztes Challenger-Feld für alle anderen — alle finden ihr Match.
+            Vom Hauptfeld um den Titel bis zum geselligen Doppel — vier Felder für jede Spielstärke und jeden Anspruch.
+            Alle finden ihr Match.
           </p>
         </div>
 
@@ -178,10 +179,10 @@ const sunday = [
       <SectionHeader
         eyebrow="Konkurrenzen"
         headline={['Wähl dein', 'Feld.']}
-        note={`Zwei Spielarten: das Hauptfeld um den Titel — offen für alle — und daneben ein lockeres Feld. Bei den Herren ist das ein geschütztes Feld für Freizeit & Einsteiger (heißt „Challenger“). Bei den Damen steht das Hauptfeld; ein geselliges Damen-Feld ist zusätzlich in Planung. Dein Feld wählst du bei der Anmeldung selbst, deine Leistungsklasse musst du dafür nicht kennen. Startgeld: ${entryFee} € pro Person, bar vor Ort beim Check-in.`}
+        note={`Vier Felder, zwei je Seite: bei den Damen das Hauptfeld um die Winsener Meisterin und das gesellige Damen Doppel zum Kennenlernen; bei den Herren das Hauptfeld und das geschützte Challenger-Feld für Freizeit & Einsteiger. Dein Feld wählst du bei der Anmeldung selbst, deine Leistungsklasse musst du dafür nicht kennen. Startgeld: ${entryFee} € pro Person, bar vor Ort beim Check-in.`}
       />
 
-      <div class="cat-grid grid grid-cols-3 gap-0.5 bg-navy p-0.5 max-[900px]:grid-cols-1">
+      <div class="cat-grid grid grid-cols-2 gap-0.5 bg-navy p-0.5 max-[900px]:grid-cols-1">
         <Card variant="dark" stagger={0}>
           <span class={catBadgeInvClass}>Hauptfeld</span>
           <div class="my-5 flex flex-col gap-1 uppercase">
@@ -218,7 +219,26 @@ const sunday = [
             Anmelden
           </button>
         </Card>
-        <Card variant="blue" stagger={2}>
+        <Card variant="clay" stagger={2}>
+          <span class={catBadgeInvClass}>Gesellig</span>
+          <div class="my-5 flex flex-col gap-1 uppercase">
+            <span class="text-[clamp(11px,2.8cqw,15px)] font-bold tracking-[0.18em] text-white/85">Doppel</span>
+            <span class="text-[clamp(30px,11cqw,52px)] leading-[0.85] font-black tracking-[-0.04em] text-white"
+              >{womensSocial.label}</span
+            >
+          </div>
+          <p class="m-0 text-[13px] leading-[1.6] font-semibold text-white">{womensSocial.audience}</p>
+          <p class="mt-2 mb-7 text-[13px] leading-[1.6] text-white/80">{womensSocial.blurb}</p>
+          <button
+            type="button"
+            class="cta-primary mt-auto w-full text-center"
+            data-signup-open
+            data-signup-competition={womensSocial.slug}
+          >
+            Anmelden
+          </button>
+        </Card>
+        <Card variant="blue" stagger={3}>
           <span class={catBadgeInvClass}>Freizeit & Einsteiger</span>
           <div class="my-5 flex flex-col gap-1 uppercase">
             <span class="text-[clamp(11px,2.8cqw,15px)] font-bold tracking-[0.18em] opacity-85">Einzel</span>
@@ -236,30 +256,6 @@ const sunday = [
           >
             Anmelden
           </button>
-        </Card>
-        <Card variant="light" stagger={3} class="col-span-full">
-          <div class="flex flex-col gap-5 md:flex-row md:items-center md:justify-between md:gap-12">
-            <div class="flex flex-col gap-3">
-              <span
-                class="self-start border-[1.5px] border-dashed border-navy/45 px-2.5 py-1 text-[11px] font-black tracking-[0.15em] text-navy/55 uppercase"
-                >In Planung</span
-              >
-              <span
-                class="text-[clamp(28px,9cqw,46px)] leading-[0.85] font-black tracking-[-0.04em] uppercase opacity-75"
-                >{womensFreizeit.label}</span
-              >
-            </div>
-            <div class="md:max-w-[48ch]">
-              <p class="m-0 text-[14px] leading-[1.6] font-semibold opacity-80">
-                Ein lockeres, geselliges Damen-Feld zum Mitspielen — ohne Titeldruck, der Spaß steht im Vordergrund.
-              </p>
-              <p class="mt-2 text-[13px] leading-[1.6] opacity-60">
-                Wie das Format genau aussieht, stimmen wir gerade mit den Spielerinnen ab. Magst du dabei sein oder es
-                mitgestalten? Schreib uns an
-                <a href={`mailto:${contactEmail}`} class="font-semibold text-navy underline-offset-2">{contactEmail}</a>
-              </p>
-            </div>
-          </div>
         </Card>
       </div>
     </section>
@@ -412,8 +408,9 @@ const sunday = [
         <FaqItem question="Wer darf mitmachen?">
           Alle Mitglieder des TV Winsen ab 15 Jahren; Mitglieder des TSV Winsen können ebenfalls teilnehmen. Jüngere
           spielen bei der Jugend-Clubmeisterschaft — wer 15 oder älter ist und sich Matches zutraut, ist hier genau
-          richtig. Die Damen spielen in einem eigenen Hauptfeld um die Winsener Meisterin. Die Herren-Konkurrenz ist
-          offen für alle, das Challenger-Feld für Freizeit-/Einsteiger und Spielende ab LK 20.
+          richtig. Bei den Damen gibt es zwei Felder: das Hauptfeld um die Winsener Meisterin und das gesellige Damen
+          Doppel zum Kennenlernen. Bei den Herren ist das Hauptfeld offen für alle, das Challenger-Feld für
+          Freizeit-/Einsteiger und Spielende ab LK 20.
         </FaqItem>
         <FaqItem question="Brauche ich eine Spieler-ID oder muss ich meine LK kennen?">
           Nein. Du gibst nur Namen, Verein und Konkurrenz an. Die Leistungsklasse ergänzen wir für die Setzung intern
@@ -424,8 +421,9 @@ const sunday = [
           Für die Setzung ziehen wir sie aus nuLiga, ohne Eintrag zählst du als LK 25.
         </FaqItem>
         <FaqItem question="Einzel oder Doppel?">
-          Dieses Jahr spielen wir nur Einzel — bei den Damen, im Herren-Hauptfeld und im Challenger. Ein Doppel kann in
-          den kommenden Jahren dazukommen, gehört diesmal aber noch nicht zum Programm.
+          Die drei Meisterschaftsfelder — Damen, Herren-Hauptfeld und Challenger — spielen Einzel. Dazu gibt es mit dem
+          Damen Doppel ein geselliges Doppelfeld: Du meldest dich allein an, die Partnerinnen wechseln reihum, gespielt
+          wird ohne Wertung. Ein Meisterschafts-Doppel kann in den kommenden Jahren dazukommen.
         </FaqItem>
         <FaqItem question="Was ist die Nebenrunde?">
           Wer in der ersten Runde verliert, ist nicht raus, sondern spielt in der Nebenrunde weiter — so sind dir

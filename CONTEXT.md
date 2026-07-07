@@ -70,8 +70,10 @@ concept here drifts or a new one appears, update this file rather than inventing
 
 - **Competition** (de: Konkurrenz; code: `competition`) — a single field a member registers for.
   Identified by a `slug`. Three are registerable today (`COMPETITION_SLUGS`): Damen (`womens`), Herren
-  (`mens`), Herren Challenger (`mens-challenger`). Damen Freizeit — the planned **Social mixer** field
-  (see below) — is not yet a registerable competition.
+  (`mens`), Herren Challenger (`mens-challenger`). The **Social mixer** (`womens-social`, see below) is
+  **Damen's second field** and is decided to join them as a fourth registerable competition (ADR-0051) —
+  pending the build. The line-up is deliberately **asymmetric by type**: Herren carry two _competitive_
+  fields, Damen one _competitive_ + one _social_ — offered as equals, not mirrored (ADR-0051).
 - **Championship field** (de: Hauptfeld) — an open championship field where the Winsener
   Meister/Meisterin title is decided (Damen, Herren).
 - **Challenger / recreational field** (de: Freizeit) — a protected field for recreational/returning
@@ -112,16 +114,21 @@ concept here drifts or a new one appears, update this file rather than inventing
 cancelled`, duplicate check, capacity, first-come cut) **unchanged**, with one relaxation — being
   unseeded, an entry carries **no LK** and `confirm` needs **no seeding basis** (seedability is a property
   of the competition, not of every registration). The partner rotation and any on-court scoring run
-  **offline** on the day (a Spielleiterin with a printed plan), never in the system. It runs on **one day
-  of the championship weekend**, sharing the court budget (`freizeitReservedSlots`). The **one-active-entry**
-  invariant is scoped to **seeded** competitions, so a member may hold a seeded entry **and** the mixer —
-  the invariant guards the schedule validator, which sees no mixer matches, so its guarantee holds exactly.
+  **offline** on the day (a Spielleiterin with a printed plan), never in the system. It runs **Sunday
+  (Finaltag) midday on reserved side courts**, inside the busy day rather than a dead evening slot — the
+  one slot that is both full/festive and has court slack (ADR-0051) — sharing the court budget
+  (`socialMixerReservedSlots`). The duplicate-entry guard matches on **person + competition**, so a member
+  may hold a championship entry **and** the mixer — because they are distinct competitions, not because the
+  mixer is specially exempt. And since the mixer runs no bracket, the schedule validator sees no mixer
+  matches, so its per-player no-double-booking guarantee is unaffected.
   **It is not a „Challenger":** not LK-capped, not singles, not competitive — „Freizeit"/„Challenger" stays
-  reserved for the protected LK-capped singles field, and the code slug is to be renamed `womens-challenger`
-  → `womens-social`. **Provisional:** the format rests on 5 self-admittedly non-representative conversations
-  (Damen 50); whether it runs, and whether it **replaces or sits beside** the competitive Damen
-  championship, is unresolved pending more conversations — nothing here is built yet. _(See Competition,
-  Registration, Court budget, Active entry.)_
+  reserved for the protected LK-capped singles field, and the code slug is `womens-social` (renamed from the
+  misleading `womens-challenger`). **Scope is settled: it sits _beside_ the competitive Damen championship, not
+  replacing it (ADR-0051)** — Damen are offered **both** as equals, and the field is open to **all women**
+  (ages ≥15, like the event), not just Damen 50. What stays **provisional** is the **format**: it rests on
+  5 self-admittedly non-representative conversations (Damen 50) and is being validated by putting a
+  **concrete** proposal in front of the Damen-50 core — nothing here is built yet. _(See Competition,
+  Registration, Court budget, Active entry, ADR-0051.)_
 - **Registration** (de: Anmeldung; D1 table `registrations`) — one member's entry into one competition.
   Status flow: `new` → `confirmed` → `cancelled`. **`cancelled`** is the single "no longer participating,
   keep the record" state, reached either by the member's self-service withdrawal (`/api/cancel`, by person)

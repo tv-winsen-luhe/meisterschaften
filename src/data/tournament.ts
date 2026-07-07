@@ -59,13 +59,13 @@ export const courtSchedule = {
 export const matchSlotsPerWeekend = courtSchedule.courts * courtSchedule.matchesPerCourtPerDay * courtSchedule.days
 
 /**
- * Provisional court-slot reservation for the planned Damen-Freizeit field, which shares the event
- * weekend's courts (ADR-0023). A placeholder until the format is settled: the talks pointed toward a
- * social doubles mixer (see CONTEXT.md → Social mixer), still being validated with more players — set
- * the real figure once format, size and session length are known. Shown as its own segment in the
- * total-utilization gauge so the championship load and this reservation read against the same 72-slot budget.
+ * Court-slot reservation for the women's social mixer, which shares the event weekend's courts
+ * (ADR-0023, ADR-0051). It runs Sunday midday on ~3 side courts inside the finals day; ~6 = 3 courts ×
+ * a two-slot midday block. Shown as its own segment in the total-utilization gauge so the championship
+ * load and this reservation read against the same 72-slot budget. Revisable once the soft-launch
+ * feedback gives real size numbers.
  */
-export const freizeitReservedSlots = 10
+export const socialMixerReservedSlots = 6
 
 /** Default LK for participants without a nuLiga entry (set in admin). Single source: shared/. */
 export const defaultLk = DEFAULT_LK
@@ -113,14 +113,19 @@ export const competitions: readonly Competition[] = [
     status: 'open'
   },
   {
-    id: 'womens-challenger',
-    slug: 'womens-challenger',
-    label: 'Damen Freizeit',
-    audience: 'Du spielst vor allem zum Spaß und fürs Miteinander — Wettkampf muss nicht im Vordergrund stehen.',
+    id: 'womens-social',
+    slug: 'womens-social',
+    label: 'Damen Doppel',
+    tagline: 'Geselliger Spieltag zum Kennenlernen — allein anmelden, Partnerinnen wechseln reihum.',
+    audience:
+      'Du spielst vor allem fürs Miteinander — Kennenlernen und gemeinsames Spiel stehen im Vordergrund, nicht der Wettkampf.',
+    // Concrete-format copy for the soft-launch (ADR-0051); the homepage presentation (equal-weight
+    // cards, Damen first, momentum framing instead of „Plätze frei") is a follow-up design pass.
     blurb:
-      'Ein lockeres, geselliges Damen-Feld ohne Titeldruck. Das Format stimmen wir gerade mit den Spielerinnen ab.',
+      'Du meldest dich allein an. Wir spielen Doppel, die Partnerinnen wechseln reihum — so spielst du im Lauf des Nachmittags mit und gegen viele verschiedene. Kein Turnierbaum, kein Ergebnis, kein Titel — ein geselliger Sonntag zum Kennenlernen.',
     title: '',
-    status: 'planned'
+    capacity: 16,
+    status: 'open'
   }
 ] as const
 
@@ -128,7 +133,8 @@ export const competitions: readonly Competition[] = [
  * Competitions offered in the signup form — exactly the registerable competitions, i.e. those whose
  * slug is in the contract (`COMPETITION_SLUGS`). Derived, not a separate flag: the form provably
  * cannot offer a value `registerRequestSchema` would reject, and opening a field for registration is
- * a single edit to the contract. "Planned" competitions (e.g. Damen Freizeit) are absent until then.
+ * a single edit to the contract. A `status: 'planned'` competition (none at present) is absent until
+ * its slug joins the contract.
  */
 export const signupCompetitions = competitions.filter(c => (COMPETITION_SLUGS as readonly string[]).includes(c.slug))
 

@@ -1,5 +1,5 @@
 import {
-  canConfirm,
+  canConfirmEntry,
   DEFAULT_LK,
   isCompletePlayerId,
   isTooStrongForChallenger,
@@ -12,7 +12,7 @@ import {
 // edits, what would a confirm result in? Kept a pure function separate from the surface so the
 // derivation is tested in isolation, not through rendered React — the same discipline as
 // auto-advance / registration-sort. It composes the shared seeding primitives (resolveSeedingBasis,
-// canConfirm, isTooStrongForChallenger) so the card and the domain authority read one rule.
+// canConfirmEntry, isTooStrongForChallenger) so the card and the domain authority read one rule.
 //
 // It is a PREDICTION, not the server contract: the LK is server-authored (the edge fetches it from
 // nuLiga after confirm), so this only forecasts the badge the operator is about to get. The badge
@@ -46,7 +46,7 @@ export interface ChallengerJudgment {
 export interface ConfirmPreview {
   lk: LkPreview
   // The shared confirmability authority, surfaced so the panel makes one call. The domain enforces
-  // the same canConfirm independently (it is the authority); this only mirrors it for affordance.
+  // the same canConfirmEntry independently (it is the authority); this only mirrors it for affordance.
   confirmable: true | string
   challenger: ChallengerJudgment
   // The id the confirm payload sends (trimmed; '' under no-id) — so the panel does not re-derive it.
@@ -63,7 +63,7 @@ export const confirmPreview = (reg: AdminRegistration, draft: ConfirmDraft): Con
 
   return {
     lk,
-    confirmable: canConfirm(basis),
+    confirmable: canConfirmEntry(basis, draft.competition),
     // isTooStrongForChallenger returns false for a null lk, so no separate null guard is needed.
     challenger: { judgedLk, tooStrong: isTooStrongForChallenger(draft.competition, judgedLk) },
     playerId: id
