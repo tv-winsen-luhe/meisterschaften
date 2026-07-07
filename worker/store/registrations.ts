@@ -7,6 +7,7 @@ import {
   displaySeedCount,
   type DrawPlayer,
   isChallengerField,
+  isUnseededCompetition,
   MIN_DRAW_ENTRIES,
   provisionalSeedRanks,
   seedingValue,
@@ -85,8 +86,11 @@ export const toPublicParticipants = (rows: readonly ConfirmedRow[]): ConfirmedPa
     byCompetition.set(r.competition, group)
   }
   const seedRankOf = new Map<ConfirmedRow, number>()
-  for (const group of byCompetition.values()) {
-    const seedCount = group.length >= MIN_DRAW_ENTRIES ? displaySeedCount(group.length) : 0
+  for (const [competition, group] of byCompetition) {
+    // An unseeded field (Social mixer, ADR-0051) is never seeded — no seed markers on the public list,
+    // regardless of how many have signed up. Every other field seeds from the draw floor up.
+    const seedCount =
+      isUnseededCompetition(competition) || group.length < MIN_DRAW_ENTRIES ? 0 : displaySeedCount(group.length)
     for (const [row, rank] of provisionalSeedRanks(group, seedCount)) seedRankOf.set(row, rank)
   }
   return [...rows].sort(byListOrder).map(r => ({ ...toConfirmedParticipant(r), seedRank: seedRankOf.get(r) ?? null }))

@@ -16,6 +16,7 @@ import {
   hasConsolationBracket,
   isDrawStageLocked,
   isFullyRevealed,
+  isUnseededCompetition,
   type Match,
   type Phase,
   roundLabel
@@ -121,7 +122,9 @@ export const CompetitionsSurface = ({
     )
   }
 
-  const rows = COMPETITION_SLUGS.map(slug => {
+  // An unseeded field (Social mixer, ADR-0051) is never drawn — signup-only, no bracket — so it is
+  // absent from the draw cockpit (the worker's `Unseeded` guard is the fail-closed backstop below it).
+  const rows = COMPETITION_SLUGS.filter(slug => !isUnseededCompetition(slug)).map(slug => {
     const confirmed = registrations.filter(r => r.competition === slug && r.status === 'confirmed').length
     const size = drawSize(confirmed)
     const byes = byeCount(confirmed)

@@ -19,7 +19,7 @@ const catBadgeInvClass =
 const mens = competitions.find(c => c.id === 'mens')!
 const challenger = competitions.find(c => c.id === 'mens-challenger')!
 const womens = competitions.find(c => c.id === 'womens')!
-const womensFreizeit = competitions.find(c => c.id === 'womens-challenger')!
+const womensSocial = competitions.find(c => c.id === 'womens-social')!
 
 const reglement: { label: string; value: string; link?: { href: string; label: string } }[] = [
   { label: 'Modus', value: 'K.O. mit Nebenrunde — mind. 2 Matches' },
@@ -246,7 +246,7 @@ const sunday = [
               >
               <span
                 class="text-[clamp(28px,9cqw,46px)] leading-[0.85] font-black tracking-[-0.04em] uppercase opacity-75"
-                >{womensFreizeit.label}</span
+                >{womensSocial.label}</span
               >
             </div>
             <div class="md:max-w-[48ch]">

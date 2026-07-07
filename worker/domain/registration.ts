@@ -1,4 +1,4 @@
-import { canConfirm, resolveSeedingBasis } from '../../shared'
+import { canConfirmEntry, resolveSeedingBasis } from '../../shared'
 import type { RegistrationRow } from '../db/schema'
 import type { EditableFields, Person, RegistrationsStore } from '../store/registrations'
 
@@ -131,8 +131,9 @@ export const createRegistrationDomain = (store: RegistrationsStore): Registratio
       if (basis.lk !== null) fields.lk = basis.lk
 
       // The authoritative guard: a confirm with neither a linked id nor the no-id choice is
-      // rejected with the same reason the admin renders.
-      const guard = canConfirm(basis)
+      // rejected with the same reason the admin renders — except an unseeded field (Social mixer),
+      // which needs no seeding basis and is always confirmable (canConfirmEntry, ADR-0051).
+      const guard = canConfirmEntry(basis, edits.competition)
       if (guard !== true) return { ok: false, error: 'NotConfirmable', reason: guard }
 
       await store.setFields(id, fields)

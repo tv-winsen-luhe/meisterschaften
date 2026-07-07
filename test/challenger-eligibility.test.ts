@@ -2,10 +2,10 @@ import { describe, expect, it } from 'vitest'
 import { CHALLENGER_MIN_LK, challengerEligibility, isChallengerField, isTooStrongForChallenger } from '../shared'
 
 // isChallengerField is the single gate for "is this a protected Challenger field?" (ADR-0011: owned
-// once). It matches the `-challenger` slug family, so both the live `mens-challenger` and the planned
-// `womens-challenger` (Damen Freizeit) are covered with no list edit — fail-closed for a protected
-// field. The public surfaces read it to omit the LK and seed numbers (CONTEXT: Challenger); the admin
-// reads it to bind the cap at the draw (ADR-0024). Championship fields (mens/womens) are not protected.
+// once). It matches the `-challenger` slug family, so the live `mens-challenger` and any hypothetical
+// future `-challenger` field are covered with no list edit — fail-closed for a protected field. The
+// public surfaces read it to omit the LK and seed numbers (CONTEXT: Challenger); the admin reads it to
+// bind the cap at the draw (ADR-0024). Championship fields (mens/womens) are not protected.
 describe('isChallengerField', () => {
   it.each([
     ['mens-challenger', true],
@@ -83,7 +83,7 @@ describe('isTooStrongForChallenger', () => {
     ['mens-challenger', '25.0', false],
     ['mens-challenger', null, false],
     ['mens-challenger', 'abc', false],
-    // The whole `-challenger` family is judged (fail-closed): the planned Damen Freizeit field is
+    // The whole `-challenger` family is judged (fail-closed): any future `-challenger` field is
     // cap-gated the moment it goes live, not silently exempt.
     ['womens-challenger', '15.0', true],
     // Championship fields are never judged — the cap is the Challenger family's alone.

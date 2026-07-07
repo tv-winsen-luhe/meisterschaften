@@ -2,6 +2,7 @@ import { z } from 'zod'
 import { CLUBS } from './club'
 import { COMPETITION_SLUGS } from './competition'
 import { DEFAULT_LK } from './constants'
+import { isUnseededCompetition } from './seeding'
 
 // The registration write contract — the single source of truth for the POST /api/register
 // JSON shape, shared by the worker (server validation) and the client form. camelCase on
@@ -131,3 +132,12 @@ export const canConfirm = (reg: ConfirmableFields): true | string => {
   if (!hasPlayerId && !hasLk) return 'Zum Bestätigen bitte Spieler-ID eintragen oder „keine ID" (LK 25.0) setzen.'
   return true
 }
+
+// The confirmation precondition that accounts for the field type (ADR-0011, ADR-0051). An **unseeded**
+// competition (the Social mixer) carries no seeding basis — seedability is a property of the
+// competition, not of every registration — so it is **always confirmable**; the operator confirms a
+// mixer entry without a nuLiga id or the no-id choice. A seeded competition delegates to canConfirm.
+// The single authority the domain enforces and the admin card renders its reason from — so both agree
+// on which fields need a basis and which do not.
+export const canConfirmEntry = (reg: ConfirmableFields, competition: string): true | string =>
+  isUnseededCompetition(competition) ? true : canConfirm(reg)

@@ -11,6 +11,7 @@ import {
   isActive,
   isChallengerField,
   isSupportedDrawSize,
+  isUnseededCompetition,
   provisionalSeedRanks
 } from '../../../shared'
 import { cn } from '@/admin/lib/utils'
@@ -50,7 +51,9 @@ interface SeedingRow {
 // auslosen; authority stays in the domain (the draw enforces the cut at the freeze, Schicht 2).
 export const SeedingSurface = ({ registrations }: SeedingSurfaceProps) => {
   const fields = useMemo(() => {
-    return COMPETITION_SLUGS.map(slug => {
+    // An unseeded field (Social mixer, ADR-0051) has no Setzliste — it is never seeded or drawn — so it
+    // is absent from the seeding preview entirely, matching the public list (which suppresses its seeds).
+    return COMPETITION_SLUGS.filter(slug => !isUnseededCompetition(slug)).map(slug => {
       const isChallenger = isChallengerField(slug)
       // The cut ranks the active field (new + confirmed); a `new` row already carries a derived LK.
       const active = registrations.filter(r => r.competition === slug && isActive(r.status))

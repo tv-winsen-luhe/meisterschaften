@@ -79,4 +79,17 @@ describe('listConfirmed · provisional seedRank (ADR-0047)', () => {
     const list = await store.listConfirmed()
     expect(list.every(p => p.seedRank === null)).toBe(true)
   })
+
+  it('never marks seeds for an unseeded Social mixer, however many sign up (ADR-0051)', async () => {
+    // Four confirmed — above the draw floor — so a seeded field would carry seeds; the mixer never does.
+    const store = createInMemoryRegistrationsStore([
+      reg({ competition: 'womens-social', firstName: 'A', createdAt: '2026-06-24T11:00:00.000Z' }),
+      reg({ competition: 'womens-social', firstName: 'B', createdAt: '2026-06-24T12:00:00.000Z' }),
+      reg({ competition: 'womens-social', firstName: 'C', createdAt: '2026-06-24T13:00:00.000Z' }),
+      reg({ competition: 'womens-social', firstName: 'D', createdAt: '2026-06-24T14:00:00.000Z' })
+    ])
+
+    const list = await store.listConfirmed()
+    expect(list.every(p => p.seedRank === null)).toBe(true)
+  })
 })

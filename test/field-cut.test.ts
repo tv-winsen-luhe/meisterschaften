@@ -33,6 +33,13 @@ describe('compareForCut', () => {
     const strongLate = entry('2.0', '2026-01-09')
     expect([strongLate, second, first].sort(compareForCut('mens-challenger'))).toEqual([first, second, strongLate])
   })
+
+  it('orders an unseeded Social mixer by registration order too — it has no strength to decide by (ADR-0051)', () => {
+    const first = entry(null, '2026-01-01')
+    const second = entry(null, '2026-01-02')
+    const strongLate = entry('2.0', '2026-01-09')
+    expect([strongLate, second, first].sort(compareForCut('womens-social'))).toEqual([first, second, strongLate])
+  })
 })
 
 describe('fieldCut', () => {
@@ -64,6 +71,16 @@ describe('fieldCut', () => {
     expect(result.inField).toBe(2)
     expect(result.reserves).toBe(1)
     // Registration order decides: the first two are in, regardless of strength.
+    expect(result.ranked.map(r => r.entry.createdAt)).toEqual(['2026-01-01', '2026-01-02', '2026-01-03'])
+    expect(result.ranked.map(r => r.reserve)).toEqual([false, false, true])
+  })
+
+  it('cuts an unseeded Social mixer first-come and reports it stable (not provisional) (ADR-0051)', () => {
+    const entries = [entry(null, '2026-01-02'), entry(null, '2026-01-01'), entry('2.0', '2026-01-03')]
+    const result = fieldCut(entries, 'womens-social', 2)
+    expect(result.provisional).toBe(false)
+    expect(result.inField).toBe(2)
+    // First-come: the two earliest are in; a strong late entry is the reserve, LK never decides it.
     expect(result.ranked.map(r => r.entry.createdAt)).toEqual(['2026-01-01', '2026-01-02', '2026-01-03'])
     expect(result.ranked.map(r => r.reserve)).toEqual([false, false, true])
   })

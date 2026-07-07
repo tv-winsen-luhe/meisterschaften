@@ -14,6 +14,7 @@ import {
   type DrawPlayer,
   drawSize,
   isChallengerField,
+  isUnseededCompetition,
   materializeMatches,
   type Phase,
   type RandomSource
@@ -30,13 +31,16 @@ import type { RegistrationsStore } from './store/registrations'
 // Why a draw could not start. The pure preconditions are the shared DrawBlocker (so the client's
 // affordance reads the same rule, ADR-0011); `AlreadyDrawn` needs the store; `ChallengerTooStrong`
 // is the hard Challenger cap binding on the frozen LKs (ADR-0024). Each maps to an operator-facing
-// reason and an HTTP status at the route.
-export type DrawError = DrawBlocker | 'AlreadyDrawn' | 'ChallengerTooStrong'
+// reason and an HTTP status at the route. `Unseeded` fail-closes a field that must never be drawn
+// (the Social mixer — signup-only, no bracket; ADR-0051): a defensive guard beneath the admin UI,
+// which does not offer the draw for it.
+export type DrawError = DrawBlocker | 'AlreadyDrawn' | 'ChallengerTooStrong' | 'Unseeded'
 
 // A rules-compliant draw is final (ADR-0026) — a re-run is refused, not silently re-drawn.
 const ALREADY_DRAWN_REASON = 'Diese Konkurrenz ist bereits ausgelost.'
-const reasonFor = (error: DrawBlocker | 'AlreadyDrawn'): string =>
-  error === 'AlreadyDrawn' ? ALREADY_DRAWN_REASON : DRAW_BLOCKER_REASON[error]
+const UNSEEDED_REASON = 'Diese Konkurrenz wird nicht ausgelost (geselliges Feld ohne Auslosung).'
+const reasonFor = (error: DrawBlocker | 'AlreadyDrawn' | 'Unseeded'): string =>
+  error === 'AlreadyDrawn' ? ALREADY_DRAWN_REASON : error === 'Unseeded' ? UNSEEDED_REASON : DRAW_BLOCKER_REASON[error]
 
 // The Challenger block reason — names the threshold and the offender count so the toast alone tells
 // the operator what to fix; the levers are the field-wide threshold or removing the entry (ADR-0024).
@@ -96,7 +100,11 @@ export interface DrawParams {
 export const createDrawService = (deps: DrawServiceDeps) => {
   const { registrationsStore, drawStore, randomSource } = deps
 
-  const fail = (error: DrawBlocker | 'AlreadyDrawn'): DrawOutcome => ({ ok: false, error, reason: reasonFor(error) })
+  const fail = (error: DrawBlocker | 'AlreadyDrawn' | 'Unseeded'): DrawOutcome => ({
+    ok: false,
+    error,
+    reason: reasonFor(error)
+  })
 
   const failTooStrong = (tooStrong: DrawPlayer[], threshold: number): DrawOutcome => ({
     ok: false,
@@ -112,6 +120,10 @@ export const createDrawService = (deps: DrawServiceDeps) => {
      * draw record are persisted atomically and the assembled CompetitionDraw is returned.
      */
     async draw({ competition, phase, challengerMinLk, now }: DrawParams): Promise<DrawOutcome> {
+      // An unseeded field (Social mixer) is never drawn — signup-only, no bracket (ADR-0051). Refuse
+      // before reading the field, so a stray call can never produce a bracket from LK-less entries.
+      if (isUnseededCompetition(competition)) return fail('Unseeded')
+
       const players = await registrationsStore.confirmedForDraw(competition)
       const blocker = drawBlocker(phase, players.length)
       if (blocker) return fail(blocker)

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { courtBudgetProjection, matchCount } from '../shared'
 
 // courtBudgetProjection is the planning cockpit's court-budget math (CONTEXT: Court budget, ADR-0043):
-// given each field's active and capacity counts, the Damen-Freizeit reservation and the weekend budget,
+// given each field's active and capacity counts, the social-mixer reservation and the weekend budget,
 // it sums the match load now and at full fill against the one shared 72-slot budget, and flags whether
 // a full field would overbook it. Pure, built on matchCount (the one draw-math source), so the cockpit
 // can never disagree with the draw on how many matches a field of N runs.
