@@ -1,0 +1,310 @@
+---
+import SectionHeader from '@/components/section-header.astro'
+import CompetitionCard from '@/components/competition-card.astro'
+import FaqItem from '@/components/faq-item.astro'
+import ExplainerDamen from '@/components/explainer-damen.astro'
+import PorchDamenPresence from '@/components/porch-damen-presence.astro'
+import ScrollMotion from '@/components/scroll-motion.astro'
+import { cardStyleFor } from '@/data/competition-cards'
+import { sideFields, type Side } from '@/data/sides'
+import { contactEmail, entryFee, signupDeadline, tournament } from '@/data/tournament'
+
+// The Damen porch body — a validation probe, not a conversion porch (ADR-0054). Unlike the thin Herren
+// conversion porch, the Damen social field's format is still open, so this page is an instrument to
+// validate and iterate a concrete guess with a small, warm, hand-picked group; a low signup count is
+// expected and is not failure. It is a deliberately *rich, disposable* standalone page (ADR-0054
+// amendment): once the format and Ansprache are validated, the learnings move into the real front door
+// and only *then* get communicated broadly — so a second, temporary copy of some evergreen sections is
+// acceptable here (the content-drift worry ADR-0052 guards against is for a *permanent* surface).
+//
+// It leads with the social field, splits the two fields by *motive* (never skill), dissolves the „nicht
+// gut genug" barrier through self-choice, and shows presence only above a floor — never a lonely count
+// for the fragile Meisterin field. Copy follows the 02.07 Sag/Vermeide guide: no „Challenger", no LK
+// number/„Setzung", no title/Wettkampf vocabulary in the social field. The „reply channel" is the
+// personal conversation around the shared link, not an element on the page.
+//
+// The shared Layout shell, phase redirect and signup modal live in [side].astro; this renders the body
+// and its own motion system (the thin Herren porch and the front door don't need `<ScrollMotion />`).
+interface Props {
+  side: Side
+}
+
+const { side } = Astro.props as Props
+const fields = sideFields(side)
+const social = fields[0] // womens-social — the probe leads with it
+const championship = fields[1] // womens — the fragile Meisterin field
+
+// The probe consistently names the social field „Damen Doppel-Mixer" (ADR-0054 working name). The shared
+// competition label in tournament.ts stays „Damen Doppel" for the front door (untouched until the format
+// is validated), so we override just this porch's card label rather than drift the shared data.
+const socialCard = { ...social, label: 'Damen Doppel-Mixer' }
+
+const sectClass = 'sect border-t border-navy py-20 focus:outline-none md:py-[120px]'
+
+// Damen-tuned weekend flow (Gesprächsleitfaden 02.07): the social mixer is the Sunday block (fixed);
+// the Hauptfeld is played over Saturday and Sunday *depending on how many sign up*, then the shared
+// Siegerehrungen. Kept open on the Meisterin outcome — if the field doesn't come together, naming a
+// winner would read oddly, so the ceremony copy stays general (Herren are there too).
+const saturday: [string, string][] = [
+  [
+    'Damen Hauptfeld',
+    'Je nach Teilnehmerinnenzahl starten am Samstag die Matches um die Winsener Meisterin. Deine Spielzeit kennst du vorab aus dem Spielplan — du musst nicht den ganzen Tag da sein.'
+  ],
+  ['Drumherum', 'Zeit auf der Terrasse, Zuschauen ausdrücklich erwünscht.']
+]
+const sunday: [string, string][] = [
+  [
+    'Damen Doppel-Mixer',
+    'Der gesellige Block: allein anmelden, die Partnerinnen wechseln reihum, jede spielt mehrfach — Kennenlernen statt Wettkampf.'
+  ],
+  ['Damen Hauptfeld', 'Kommt das Feld zusammen, gehen die Matches um die Winsener Meisterin auch am Sonntag weiter.'],
+  ['Siegerehrungen', 'Zum Abschluss die gemeinsamen Siegerehrungen — Damen und Herren zusammen.']
+]
+---
+
+<!-- Hero — the front door's hero language: hollow display type + neon dot, stacked date block -->
+<section class="flex min-h-dvh flex-col justify-center pt-16 pb-[72px] md:pt-24 md:pb-[104px]">
+  <div class="hero-head">
+    <h1 class="hero__title m-0 text-[clamp(40px,8.5vw,104px)] leading-[0.86] font-black tracking-[-0.05em] uppercase">
+      <span class="enter enter--2">{side.headline[0]}</span>
+      <span class="enter enter--3 text-surface-alt text-stroke-ink max-md:[-webkit-text-stroke-width:1.5px]"
+        >{side.headline[1]}<span class="inline text-neon text-stroke-volt max-md:[-webkit-text-stroke-width:1.5px]"
+          >.</span
+        ></span
+      >
+    </h1>
+    <div class="hero-date enter enter--3">
+      <span class="hero-date__wd">Sa &amp; So</span>
+      <span class="hero-date__big">{tournament.shortRangeNumeric}</span>
+      <span class="hero-date__big text-surface-alt text-stroke-ink-sm">{tournament.year}</span>
+    </div>
+  </div>
+
+  <div class="mt-16 ml-auto max-w-[48ch] max-[700px]:ml-0">
+    <span
+      class="enter enter--4 mb-5 inline-block bg-navy px-2.5 py-1 text-[11px] font-black tracking-[0.15em] text-white uppercase"
+    >
+      {side.eyebrow}
+    </span>
+    <p class="enter enter--5 m-0 text-[17px] leading-[1.6] font-medium">{side.lead}</p>
+    <p class="enter enter--6 mt-3 text-[13px] leading-[1.6] opacity-70">{side.leadSub}</p>
+
+    <div class="enter enter--7 mt-8">
+      <span class="mb-3 block text-[11px] font-bold tracking-[0.18em] uppercase opacity-65">
+        Anmeldung bis {signupDeadline.short}
+      </span>
+      <div class="flex flex-wrap items-center gap-6">
+        <button type="button" class="cta-primary" data-signup-open data-signup-competition={social.slug}>
+          Jetzt anmelden
+        </button>
+        <a href="#felder" class="cta-secondary">Wähl dein Feld <span aria-hidden="true">&darr;</span></a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Das Event — what this weekend is, Damen-framed -->
+<section id="event" class:list={[sectClass]} tabindex="-1">
+  <SectionHeader
+    eyebrow="Das Event"
+    headline={['Der ganze', 'Verein spielt.']}
+    note="Zwei Tage trägt der ganze TV Winsen seine Vereinsmeisterschaft aus — Damen und Herren, alle Felder parallel, die Anlage voll und die Stimmung auch. Mittendrin deine zwei Damen-Felder: ein geselliger Spieltag zum Kennenlernen und das Hauptfeld um die Winsener Meisterin."
+  />
+
+  <div class="grid grid-cols-1 gap-y-8 md:grid-cols-[1.25fr_1fr] md:gap-x-12 md:gap-y-0">
+    <div class="reveal flex flex-col justify-center gap-3.5 bg-navy p-8 text-white md:p-10">
+      <span class="text-[11px] font-bold tracking-[0.2em] text-neon uppercase">Für dich gemacht</span>
+      <h3 class="text-[clamp(30px,4.6vw,46px)] leading-[0.95] font-black tracking-[-0.03em] uppercase">
+        Gesellig<br />oder ehrgeizig
+      </h3>
+      <p class="m-0 max-w-[40ch] text-[14px] leading-[1.6] text-white/75">
+        Zwei Felder für die Damen — komm allein, spiel mit, und wähl selbst, worauf du Lust hast. Es gibt eins für alle,
+        egal wie du spielst.
+      </p>
+    </div>
+
+    <div class="flex flex-col">
+      <div class="reveal border-t-2 border-navy py-6 md:py-7">
+        <span class="text-[11px] font-bold tracking-[0.18em] uppercase opacity-50">Dabei sein</span>
+        <h4 class="mt-3 mb-2 text-[clamp(18px,2.2vw,22px)] leading-[1.1] font-black tracking-[-0.02em]">
+          Allein anmelden reicht
+        </h4>
+        <p class="m-0 text-[13px] leading-[1.6] opacity-70">
+          Keine Partnerin, keine Mannschaft nötig. Du meldest dich allein an — den Rest lernst du vor Ort kennen.
+        </p>
+      </div>
+      <div class="reveal border-t-2 border-navy py-6 md:py-7">
+        <span class="text-[11px] font-bold tracking-[0.18em] uppercase opacity-50">Volle Anlage</span>
+        <h4 class="mt-3 mb-2 text-[clamp(18px,2.2vw,22px)] leading-[1.1] font-black tracking-[-0.02em]">
+          Alle spielen parallel
+        </h4>
+        <p class="m-0 text-[13px] leading-[1.6] opacity-70">
+          Damen und Herren spielen das ganze Wochenende gleichzeitig — die Anlage ist voll, du bist mittendrin und nie
+          allein unterwegs.
+        </p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Deine Felder — self-choice by motive; the social field leads, the Hauptfeld is the honest second option -->
+<section id="felder" class:list={[sectClass]} tabindex="-1">
+  <SectionHeader
+    eyebrow="Deine Felder"
+    headline={['Zwei Felder,', 'deine Wahl.']}
+    note="Ein geselliger Tag zum Kennenlernen — oder richtige Matches, wenn dir danach ist. Du entscheidest, in welchem Feld du spielst; es gibt ein Feld für alle, egal wie du spielst, und deine Leistungsklasse musst du für keins der beiden kennen."
+  />
+
+  <div class="grid gap-3">
+    <ExplainerDamen />
+  </div>
+</section>
+
+<!-- Schon dabei — Damen-safe, gated presence (never a lonely count for the Meisterin field) -->
+<PorchDamenPresence side={side} />
+
+<!-- Der Ablauf — how the weekend runs for the Damen -->
+<section id="ablauf" class:list={[sectClass]} tabindex="-1">
+  <SectionHeader
+    eyebrow="Der Ablauf"
+    headline={['Das', 'Wochenende.']}
+    note="Der gesellige Damen Doppel-Mixer findet am Sonntag statt; das Damen Hauptfeld spielt — je nach Teilnehmerinnenzahl — am Samstag und Sonntag. Deine genauen Spielzeiten stehen vorab im Spielplan (ab 19.08. hier, am Wochenende mit Live-Ergebnissen), du musst also nicht den ganzen Tag auf der Anlage sein."
+  />
+
+  <div class="grid grid-cols-1 gap-0.5 bg-navy p-0.5 md:grid-cols-2">
+    <div class="bg-surface-alt p-6 md:p-8">
+      <span class="block text-[clamp(28px,7vw,44px)] leading-[0.9] font-black tracking-[-0.04em] uppercase"
+        >Samstag</span
+      >
+      <span class="mb-6 block text-[11px] font-bold tracking-[0.18em] uppercase opacity-45">
+        {tournament.saturday.short}
+      </span>
+      {
+        saturday.map(([label, text]) => (
+          <div class="reveal border-t border-navy/15 py-4">
+            <span class="block text-[13px] font-black tracking-[0.04em] uppercase">{label}</span>
+            <p class="m-0 mt-1.5 text-sm leading-[1.6] opacity-70">{text}</p>
+          </div>
+        ))
+      }
+    </div>
+    <div class="bg-surface-alt p-6 md:p-8">
+      <span class="block text-[clamp(28px,7vw,44px)] leading-[0.9] font-black tracking-[-0.04em] uppercase"
+        >Sonntag</span
+      >
+      <span class="mb-6 block text-[11px] font-bold tracking-[0.18em] uppercase opacity-45">
+        {tournament.sunday.short}
+      </span>
+      {
+        sunday.map(([label, text]) => (
+          <div class="reveal border-t border-navy/15 py-4">
+            <span class="block text-[13px] font-black tracking-[0.04em] uppercase">{label}</span>
+            <p class="m-0 mt-1.5 text-sm leading-[1.6] opacity-70">{text}</p>
+          </div>
+        ))
+      }
+    </div>
+  </div>
+</section>
+
+<!-- Drumherum — reasons to stay; reinforces the social pitch -->
+<section id="drumherum" class:list={[sectClass]} tabindex="-1">
+  <SectionHeader
+    eyebrow="Drumherum"
+    headline={['Mehr als', 'Tennis.']}
+    note="Gründe zu bleiben, auch wenn du gerade nicht selbst auf dem Platz stehst — damit aus zwei Spieltagen ein Wochenende wird."
+  />
+
+  <div class="grid grid-cols-1 gap-0.5 bg-navy p-0.5 md:grid-cols-3">
+    <div class="reveal bg-surface-alt p-6 md:p-8">
+      <span class="text-[11px] font-bold tracking-[0.18em] uppercase opacity-45">Gastronomie</span>
+      <h3 class="mt-3 mb-2 text-[clamp(18px,2.2vw,22px)] leading-[1.1] font-black tracking-[-0.02em]">
+        Terrasse &amp; Verpflegung
+      </h3>
+      <p class="m-0 text-[13px] leading-[1.6] opacity-70">
+        Essen und Trinken über beide Tage. Platz, um zwischen den Matches zu sitzen, zuzuschauen und sich neben dem
+        Platz zu sehen.
+      </p>
+    </div>
+    <div class="reveal bg-surface-alt p-6 md:p-8">
+      <span class="text-[11px] font-bold tracking-[0.18em] uppercase opacity-45">Für Familien</span>
+      <h3 class="mt-3 mb-2 text-[clamp(18px,2.2vw,22px)] leading-[1.1] font-black tracking-[-0.02em]">
+        Kinderprogramm
+      </h3>
+      <p class="m-0 text-[13px] leading-[1.6] opacity-70">
+        Etwas für den Nachwuchs, damit auch die Familie einen Grund hat mitzukommen — und das Wochenende für alle
+        funktioniert.
+      </p>
+    </div>
+    <div class="reveal bg-navy p-6 text-white md:p-8">
+      <span class="text-[11px] font-bold tracking-[0.18em] text-neon uppercase">Sonntag</span>
+      <h3 class="mt-3 mb-2 text-[clamp(18px,2.2vw,22px)] leading-[1.1] font-black tracking-[-0.02em]">
+        Gemeinsame Siegerehrungen
+      </h3>
+      <p class="m-0 text-[13px] leading-[1.6] text-white/80">
+        Alle Titel zum Abschluss zusammen — Damen und Herren feiern ihre Siegerinnen und Sieger gemeinsam, statt dass
+        jede einzeln nach Hause fährt.
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- FAQ — Damen-relevant only; drops the competitive/protected-field and LK-number questions per the Sag/Vermeide guide -->
+<section id="faq" class:list={[sectClass]} tabindex="-1">
+  <SectionHeader eyebrow="FAQ" headline={['Gut zu', 'wissen.']} />
+
+  <div class="reveal max-w-[720px]">
+    <FaqItem question="Wer darf mitmachen?">
+      Alle Mitglieder des TV Winsen ab 15 Jahren; Mitglieder des TSV Winsen können ebenfalls teilnehmen. Bei den Damen
+      gibt es zwei Felder: den geselligen Damen Doppel-Mixer zum Kennenlernen und das Hauptfeld um die Winsener
+      Meisterin — du wählst selbst, egal wie du spielst.
+    </FaqItem>
+    <FaqItem question="Brauche ich eine Partnerin?">
+      Nein. Für den Damen Doppel-Mixer meldest du dich allein an — die Partnerinnen wechseln reihum, du lernst sie beim
+      Spielen kennen. Auch fürs Hauptfeld brauchst du niemanden mitzubringen.
+    </FaqItem>
+    <FaqItem question="Muss ich meine Leistungsklasse kennen oder ein nuLiga-Konto haben?">
+      Nein. Du gibst nur Namen und Verein an — für keins der beiden Damen-Felder musst du deine Leistungsklasse kennen,
+      und ein nuLiga-Konto brauchst du nicht.
+    </FaqItem>
+    <FaqItem question="Einzel oder Doppel?">
+      Das Hauptfeld um die Winsener Meisterin spielt Einzel. Der Damen Doppel-Mixer ist ein geselliges Doppelfeld:
+      allein anmelden, die Partnerinnen wechseln reihum, gespielt wird ohne Wertung — auch ohne Doppel-Erfahrung.
+    </FaqItem>
+    <FaqItem question="Was kostet die Teilnahme?">
+      {entryFee} € Startgeld pro Person, bar vor Ort beim Check-in. Spielbälle werden gestellt.
+    </FaqItem>
+    <FaqItem question="Wann steht der Spielplan?">
+      Nach Anmeldeschluss ({signupDeadline.long}) wird geplant. Deine Spielzeiten erscheinen danach hier — am
+      Turnierwochenende mit Live-Ergebnissen.
+    </FaqItem>
+    <FaqItem question="Wie melde ich mich wieder ab?">
+      Pläne geändert? Über die{' '}
+      <a href="/abmelden" class="font-semibold text-navy underline-offset-2">Abmelde-Seite</a> ziehst du deine Anmeldung mit
+      E-Mail und Nachname selbst zurück. Alternativ genügt eine kurze Nachricht an uns.
+    </FaqItem>
+    <FaqItem question="Ich habe noch Fragen.">
+      Schreib uns an
+      <a href={`mailto:${contactEmail}`} class="font-semibold text-navy underline-offset-2">{contactEmail}</a>.
+    </FaqItem>
+  </div>
+</section>
+
+<!-- Anmeldung — the summary + CTA, the page's closing action -->
+<section id="anmeldung" class:list={[sectClass]} tabindex="-1">
+  <SectionHeader
+    eyebrow="Anmeldung"
+    headline={['Bereit?', 'Wähl dein Feld.']}
+    note={`Dein Feld wählst du bei der Anmeldung selbst — allein, ohne Partnerin, ohne dass du deine Leistungsklasse kennen musst. Startgeld: ${entryFee} € pro Person, bar vor Ort beim Check-in.`}
+  />
+
+  <div class="cat-grid grid grid-cols-2 gap-0.5 bg-navy p-0.5 max-[720px]:grid-cols-1">
+    {
+      [socialCard, championship].map((field, i) => (
+        <CompetitionCard competition={field} style={cardStyleFor(field.id)} stagger={i} />
+      ))
+    }
+  </div>
+</section>
+
+<ScrollMotion />

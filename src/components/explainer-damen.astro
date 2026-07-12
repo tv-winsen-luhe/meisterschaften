@@ -1,0 +1,55 @@
+---
+import FieldExplainer from './field-explainer.astro'
+
+// The Damen probe's two field explainers (ADR-0054). The porch is a validation probe, so these encode
+// its decisions in copy and order:
+//   - The *social field leads* and takes the anchor (thesis) surface — it is the genuine first choice,
+//     not a consolation. Its concrete job: the Damen <50 have no teams, barely know each other and run
+//     out of Spielpartnerinnen (Judica Klages) — the rotating-partner mixer fixes exactly that.
+//   - The *Hauptfeld is the honest second option*, a plain block. It is framed by *motive* („du willst
+//     dich im Match messen"), never by skill, and never with a defensive „doch, du bist gut genug" — the
+//     „nicht gut genug" barrier is dissolved by self-choice into the desirable social field, not by
+//     reassuring people into the competition (reverses ADR-0053's „wir teilen die Felder ein").
+// Copy follows the 02.07 Sag/Vermeide guide: never „Challenger", never an LK number or „Setzung", and no
+// title/Wettkampf vocabulary in the social field. Targeted, per-side content with no front-door equivalent.
+---
+
+<FieldExplainer
+  type="Doppel"
+  badge="Gesellig"
+  variant="anchor"
+  heading="Komm allein — hier findest du neue Spielpartnerinnen."
+  chips={['Allein anmelden', 'Partnerinnen wechseln reihum', 'Auch ohne Doppel-Erfahrung', 'Keine fliegt raus']}
+>
+  <p>
+    Viele Damen spielen vor allem in ihrer eigenen Trainingsgruppe und kommen selten mit anderen aus dem Verein
+    zusammen. Der <strong>Damen Doppel-Mixer</strong> ändert das: neue Gesichter, neue Spielpartnerinnen.
+  </p>
+  <p>
+    Du kannst dich <strong>allein</strong> anmelden — eine Partnerin brauchst du nicht, und du musst auch{' '}
+    <strong>noch nie Doppel gespielt haben</strong>. Genauso gut kommst du zu zweit: die Partnerinnen wechseln reihum,
+    du spielst mit vielen verschiedenen und lernst sie kennen. Wie es läuft, erklären wir vor Ort — jede spielt
+    mehrfach, keine fliegt raus.
+  </p>
+  <p>
+    Kein Turnierbaum, kein Ergebnis, kein Titel — dafür ein <strong>schöner Tag zusammen</strong> und neue Spielpartnerinnen
+    für die Zeit danach.
+  </p>
+</FieldExplainer>
+
+<FieldExplainer
+  type="Einzel"
+  badge="Hauptfeld"
+  variant="plain"
+  heading="Du willst dich im Match messen? Dann ist das dein Feld."
+  chips={['Richtige Matches', 'K.-o.-System', 'Titel: Winsener Meisterin']}
+>
+  <p>
+    Hier wird die <strong>Winsener Meisterin</strong> ausgespielt — richtige Matches im K.-o.-System, wenn du Lust hast, dich
+    zu messen. Es geht ums Mitspielen und Sich-Messen, nicht ums Gewinnen-Müssen.
+  </p>
+  <p>
+    Du musst dafür in keiner Mannschaft spielen und deine Leistungsklasse nicht kennen — <strong>anmelden reicht</strong
+    >. Ob dich das reizt oder du lieber gesellig spielst, entscheidest du selbst.
+  </p>
+</FieldExplainer>

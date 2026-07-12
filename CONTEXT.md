@@ -104,11 +104,16 @@ concept here drifts or a new one appears, update this file rather than inventing
   the field's identity — so turning it on for a new protected field (Damen Freizeit) is a single change, and
   a not-yet-synced rating („LK folgt") can never be confused with a withheld one. The gated admin reads the
   un-redacted strength it needs to bind the cap and run the draw (ADR-0024). _(See ADR-0044, ADR-0047, ADR-0048.)_
-- **Social mixer** (de: Schleifchenturnier; planned field, user label „Damen-Doppel zum Kennenlernen") —
+- **Social mixer** (de: Schleifchenturnier; planned field, working name „Damen Doppel-Mixer" — itself
+  provisional, part of what the Damen validation probe tests) —
   the real shape of the planned **Damen Freizeit** field, and a **third field type** beside Championship
   field and Challenger / recreational field: the first **unseeded** competition. A rotating-partner social
   **doubles** event — each member registers **alone**, partners rotate over the day to maximise mixing; the
-  point is _Kennenlernen_, not a result. It produces **no system result**: no draw, no seeding, no bracket,
+  point is _Kennenlernen_, not a result. The concrete driver: the Damen <50 have **no teams**, so most
+  only know their own training group and are **running out of Spielpartnerinnen** (an undocumented
+  Matchday conversation with Judica Klages) — the mixer is the format that fixes exactly that (find new
+  partners, meet the others), which is how the Damen validation probe pitches it (ADR-0054), not as
+  generic „Geselligkeit". It produces **no system result**: no draw, no seeding, no bracket,
   no consolation / third-place, no champion, no live board — the tournament engine never touches it. The
   app's only job is the **signup surface**: it reuses the Registration lifecycle (`new → confirmed →
 cancelled`, duplicate check, capacity, first-come cut) **unchanged**, with one relaxation — being
@@ -427,19 +432,35 @@ reveal sequence }`. Randomness enters through an injected **`RandomSource`** por
 
 ## System
 
-- **Outreach porch** (de: gezielte Anmelde-Seite) — a thin, **signup-era** landing page for **one
-  side** of the event (`/damen`, `/herren`), handed out by **link only** (WhatsApp) to convert a
-  targeted audience. It is **not** the phase-projected front door (`index.astro`, ADR-0042) and not a
-  full composition: it carries a bespoke targeted lead, the side's **two** field cards as equals
-  (Damen: Hauptfeld + Doppel; Herren: Hauptfeld + Challenger — ADR-0051), a signup CTA, and a
-  „→ Das ganze Wochenende" hand-off to `/` — everything evergreen (Event, Modus, Ablauf, FAQ) stays
-  on the front door and is linked, never restated. The **route earns its keep at the preview layer**:
-  a per-URL `ogTitle`/`ogDescription` makes the WhatsApp preview card itself the pitch — the one
-  thing a query param on the front door cannot do (its OG is the homepage's). It reads `GET /api/phase`
-  once on load and **redirects to `/` once phase ≠ `signup`** (the ADR-0042 client-side pattern), so it
-  never becomes a results surface. Reachable **only** by the shared link — stripped chrome, not linked
-  from the site, `noindex` site-wide (ADR-0017). _Avoid_: "landing page" (too generic), "competition
-  page" (it is per-**side**, two fields, not per-competition). _(See ADR-0052, ADR-0042.)_
+- **Outreach porch** (de: gezielte Anmelde-Seite) — a **signup-era** landing page for **one side** of
+  the event (`/damen`, `/herren`), handed out by **link only** (WhatsApp) to a **warm, hand-picked**
+  audience — club members reached personally (soft-committed Hauptfeld players, a named Challenger
+  candidate list, Damen via Botschafterinnen), **never a cold mass send** (Durchführungsplan). It is
+  **not** the phase-projected front door (`index.astro`, ADR-0042). The **route earns its keep at the
+  preview layer**: a per-URL `ogTitle`/`ogDescription` makes the WhatsApp preview card itself the pitch —
+  the one thing a query param on the front door cannot do (its OG is the homepage's). It reads
+  `GET /api/phase` on load and **redirects to `/` once phase ≠ `signup`** (the ADR-0042 client-side
+  pattern), so it never becomes a results surface. Everything **evergreen** (Event, Modus, Ablauf, FAQ)
+  stays on the front door and is linked, **never restated**. Reachable **only** by the shared link — not
+  linked from the site, `noindex` site-wide (ADR-0017). Because the audience is **warm**, the porch's job
+  is **not** to orient a cold visitor (ADR-0053's premise, rejected by ADR-0054) but to flip one specific
+  objection and make signup frictionless — and that job differs by side, giving **two realizations**
+  (ADR-0054):
+  - **Conversion porch (Herren)** — the concept is **validated** (interviews first, then the page), the
+    audience already convinced, so the page **converts**. **Thin suffices**: the live thin version
+    (ADR-0052) drew **12 Hauptfeld + 4 Challenger**. The ADR-0053 widening (live momentum band, long
+    explainers) was never validated and is **not shipped**.
+  - **Validation probe (Damen)** — the B-field **format is open**, so the page is an **instrument to
+    validate and iterate** a concrete format guess with the small warm group, **success measured as
+    signal, not raw signups**. It **leads with the social B-field** („Damen Doppel-Mixer", working name),
+    presents the **fragile** A-field (Meisterin; hoped-for 4, unvalidated demand) honestly as the
+    ambitious second option, **splits the two fields by _motive_ (social vs competitive), never by
+    skill** — a strong player who wants the social field is normal — dissolves the „nicht gut genug"
+    barrier by **self-choice into a desirable field, never Orga assignment** (Track C, reversing
+    ADR-0053's „wir teilen ein"), **never shows a lonely count** for the fragile A-field, and carries
+    **one low-friction reply channel** so reactions feed iteration.
+    _Avoid_: "landing page" (too generic), "competition page" (it is per-**side**, two fields, not
+    per-competition). _(See ADR-0054, ADR-0052, ADR-0042.)_
 - **Source of truth** — the site (Astro + Cloudflare Worker + D1) owns the tournament data end to
   end: registrations, the draw, and live results all live in D1. No external tournament tool.
   _(See ADR-0001.)_

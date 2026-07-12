@@ -1,0 +1,182 @@
+---
+// Shared motion system for the public marketing surfaces. The front door (index.astro) keeps its own
+// inline copy of these styles; this component exists so the Damen validation-probe porch
+// (porch-damen.astro) can reuse the front door's section rhythm — `SectionHeader`, `.reveal`, `.sect`
+// headline clip-reveals — without re-declaring them. Drop `<ScrollMotion />` into the porch and use
+// `.enter`/`.enter--N`, `.reveal`, `.sect` + `.sect__headline-clip`, `.stagger`, and the `.hero__title`
+// / `.hero-date` hero devices. It is porch-only: the thin Herren porch and the front door do not need it.
+---
+
+<style is:global>
+  /* Hero head: date stacked above title on mobile, top-right on desktop */
+  .hero-head {
+    display: flex;
+    flex-direction: column-reverse;
+    align-items: flex-start;
+    gap: 14px;
+  }
+  @media (min-width: 768px) {
+    .hero-head {
+      display: block;
+      position: relative;
+    }
+  }
+  .hero-date {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    line-height: 0.9;
+  }
+  @media (min-width: 768px) {
+    .hero-date {
+      position: absolute;
+      top: 0;
+      right: 0;
+      align-items: flex-end;
+    }
+  }
+  .hero-date__wd {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    opacity: 0.7;
+    margin-bottom: 2px;
+  }
+  .hero-date__big {
+    font-size: clamp(34px, 5.5vw, 60px);
+    line-height: 0.86;
+    font-weight: 900;
+    letter-spacing: -0.04em;
+  }
+
+  .hero__title > span {
+    display: block;
+    will-change: clip-path;
+  }
+  .hero__title .enter {
+    animation-name: clipReveal;
+    animation-duration: 0.7s;
+  }
+
+  /* Section headline clip reveal */
+  .sect__headline-clip {
+    opacity: 0;
+    clip-path: inset(100% 0 0 0);
+    transition:
+      opacity 0.7s cubic-bezier(0.16, 1, 0.3, 1),
+      clip-path 0.7s cubic-bezier(0.16, 1, 0.3, 1);
+    transition-delay: calc(var(--i) * 0.12s);
+  }
+  .sect.is-visible .sect__headline-clip {
+    opacity: 1;
+    /* negative top inset so umlaut dots (Ä/Ö/Ü) aren't sheared by the clip box */
+    clip-path: inset(-0.22em 0 0 0);
+  }
+
+  /* Scroll reveal */
+  .reveal {
+    opacity: 0;
+    transform: translateY(1.5rem);
+    transition:
+      opacity 0.7s cubic-bezier(0.16, 1, 0.3, 1),
+      transform 0.7s cubic-bezier(0.16, 1, 0.3, 1);
+    transition-delay: var(--reveal-delay, 0s);
+  }
+  .reveal.is-visible {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  /* Hero entrance */
+  .enter {
+    animation: enterUp 0.8s cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+  .enter--1 {
+    animation-delay: 0.1s;
+  }
+  .enter--2 {
+    animation-delay: 0.2s;
+  }
+  .enter--3 {
+    animation-delay: 0.35s;
+  }
+  .enter--4 {
+    animation-delay: 0.55s;
+  }
+  .enter--5 {
+    animation-delay: 0.7s;
+  }
+  .enter--6 {
+    animation-delay: 0.85s;
+  }
+  .enter--7 {
+    animation-delay: 1s;
+  }
+
+  @keyframes enterUp {
+    from {
+      opacity: 0;
+      transform: translateY(2rem);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+  @keyframes clipReveal {
+    from {
+      clip-path: inset(100% 0 0 0);
+      opacity: 0;
+    }
+    to {
+      clip-path: inset(-0.2em -0.2em 0 0);
+      opacity: 1;
+    }
+  }
+
+  /* Card stagger for .cat-grid */
+  .stagger {
+    opacity: 0;
+    transform: translateY(1.5rem);
+    transition:
+      opacity 0.7s cubic-bezier(0.16, 1, 0.3, 1),
+      transform 0.7s cubic-bezier(0.16, 1, 0.3, 1);
+    transition-delay: calc(var(--i) * 0.08s);
+  }
+  .cat-grid.is-visible .stagger {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .enter {
+      animation: none;
+    }
+    .reveal,
+    .sect__headline-clip,
+    .stagger {
+      opacity: 1;
+      transform: none;
+      clip-path: none;
+      transition: none;
+    }
+  }
+</style>
+
+<script>
+  if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    const observer = new IntersectionObserver(
+      entries => {
+        entries.forEach(entry => {
+          if (entry.isIntersecting) {
+            entry.target.classList.add('is-visible')
+            observer.unobserve(entry.target)
+          }
+        })
+      },
+      { threshold: 0.15 }
+    )
+    document.querySelectorAll('.reveal, .sect, .cat-grid').forEach(el => observer.observe(el))
+  }
+</script>
