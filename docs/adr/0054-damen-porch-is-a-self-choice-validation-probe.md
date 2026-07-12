@@ -116,3 +116,33 @@ resolution refines (not reverses) the decision above:
   competitive Hauptfeld group **only once it too clears the floor** — never a lonely count. This is the
   concrete form of „the Damen momentum treatment is invitation-only, never scarcity" above.
 - **The reply channel stays the personal conversation** around the shared link, not an element on the page.
+
+## Amendment (2026-07-12): the probe invites _both_ fields, not one
+
+The probe frames its two fields as a self-choice (above), and the copy reads as an either/or. The
+registration guard, however, is **per person + competition** (`personWhere`, `worker/store/registrations.ts`),
+so a member may hold the championship **and** the mixer at once — and the first live send-wave produced
+exactly that: a woman signed up for both. We make that explicit rather than accidental:
+
+- **The porch invites „both".** The FAQ becomes „Einzel, Doppel — oder beides?" and answers that the two
+  fields go together (one added sentence, **FAQ-only**, nothing else on the page touched). The rationale is
+  the probe's own economics: the competitive Meisterin A-field is the **fragile** one (hoped-for 4), and a
+  woman who comes for the social field and _also_ takes the championship is exactly the A-field entry the
+  field needs to come together. „Both" is a **conversion lever for the fragile field**.
+- **It stays a postscript, never the headline.** The hero, the „Deine Felder" section and the closing
+  section keep the „self-choice by motive" story; only the FAQ carries „both". This protects the core
+  narrative _and_ the probe signal (see the caveat).
+- **Caveat — signal dilution.** The probe measures **signal**, and a „both" signup inflates the A-field
+  count without evidencing a pure competitive motive. Accepted knowingly: at small N the count is read by
+  eye (the operator sees who holds both in the admin), and the conversion value for the fragile field
+  outweighs a slightly noisier count. No instrumentation is built.
+- **Operator consequence — the Sunday clash the validator cannot see.** The mixer runs Sunday midday,
+  **offline**, invisible to the schedule validator; the A-field also plays Sunday. A „both" player can
+  therefore be scheduled for a championship match _during_ the mixer block with **no validator warning**.
+  We build nothing (ADR-0021, small N): the desk hand-places a „both" player's championship match
+  **outside the Sunday mixer block**, and the mixer's rotating, informal format absorbs the rest. Recorded
+  as operator knowledge, not a system guard.
+- **What did not change.** No registration-guard change. The guard's real scope — per person+competition,
+  which also admits `mens` + `mens-challenger` — and the fact that the cross-field „no two matches at once"
+  guarantee rests on the schedule validator, not this guard, are corrected in **CONTEXT.md's Registration
+  entry** (the invariant's home) and filed as a separate guard-scope issue; left as-is under small-N.

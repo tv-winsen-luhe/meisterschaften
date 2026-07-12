@@ -125,7 +125,11 @@ cancelled`, duplicate check, capacity, first-come cut) **unchanged**, with one r
   (`socialMixerReservedSlots`). The duplicate-entry guard matches on **person + competition**, so a member
   may hold a championship entry **and** the mixer — because they are distinct competitions, not because the
   mixer is specially exempt. And since the mixer runs no bracket, the schedule validator sees no mixer
-  matches, so its per-player no-double-booking guarantee is unaffected.
+  matches, so its per-player no-double-booking guarantee is unaffected. The Damen porch **actively invites**
+  holding both (the „Einzel, Doppel — oder beides?" FAQ), because a „both" entry converts the fragile
+  Meisterin field (ADR-0054 amendment 2026-07-12). One operator consequence follows: the mixer is offline
+  and invisible to the validator, so a „both" player's championship match must be **hand-placed outside the
+  Sunday mixer block** — the validator cannot flag that clash.
   **It is not a „Challenger":** not LK-capped, not singles, not competitive — „Freizeit"/„Challenger" stays
   reserved for the protected LK-capped singles field, and the code slug is `womens-social` (renamed from the
   misleading `womens-challenger`). **Scope is settled: it sits _beside_ the competitive Damen championship, not
@@ -140,14 +144,19 @@ cancelled`, duplicate check, capacity, first-come cut) **unchanged**, with one r
   or by the operator marking a drop-out (`/api/admin/cancel`, by id) — the row does not record which.
   Reviving a `cancelled` entry is the member's act alone: re-registering revives the row (`revive`); the
   admin cannot un-cancel, only hard-delete. (`hidden` was retired — it overlapped `cancelled`; see
-  ADR-0018.) **A member may hold only one active entry**
-  (matched by name / email / player_id) — one competition per person, enforced at registration. This is
-  a load-bearing invariant: it guarantees no person is ever in two matches at once, which is what keeps
-  the schedule validator free of cross-field player clashes (ADR-0005).
+  ADR-0018.) **A member may hold only one active entry _per competition_** — the duplicate guard
+  (`findActiveRegistration` → `personWhere`, `worker/store/registrations.ts`) matches on **email + last
+  name + `competition`**, so re-registering for the _same_ field revives or is blocked, but a member may
+  hold active entries in _several_ competitions at once. That is the **intended, invited** case for
+  championship + mixer (Social mixer, Outreach porch): they are distinct competitions, the mixer runs no
+  bracket. The cross-field "no person in two matches at once" guarantee therefore rests on the **schedule
+  validator** — its hard block on a player in two time-overlapping matches — **not** on this
+  registration-time guard, which, being per-competition, would also admit `mens` + `mens-challenger`
+  (kept as-is under small-N; tracked as a separate guard-scope issue). _(See ADR-0005.)_
 - **Active entry** — a registration still participating: status `new` or `confirmed` (i.e. not yet
   `cancelled`). Defined positively over exactly those two states — the set, not the absence of
   `cancelled` — so adding a future status leaves an entry inactive until it is explicitly classed active.
-  The "one active entry per member" invariant above is the rule over this set.
+  The "one active entry per competition" invariant above is the rule over this set.
 - **Registration domain** — the module that owns the registration lifecycle: the transitions
   (`register`, `revive`, `confirm`, self-service `cancel` (by person), operator `cancel` (by id), admin
   `setPlayerId`/`setLk`) each return a typed Result; the Store and `seedingLk` are injected; it persists through the Store, never raw SQL. The
@@ -457,8 +466,10 @@ reveal sequence }`. Randomness enters through an injected **`RandomSource`** por
     ambitious second option, **splits the two fields by _motive_ (social vs competitive), never by
     skill** — a strong player who wants the social field is normal — dissolves the „nicht gut genug"
     barrier by **self-choice into a desirable field, never Orga assignment** (Track C, reversing
-    ADR-0053's „wir teilen ein"), **never shows a lonely count** for the fragile A-field, and carries
-    **one low-friction reply channel** so reactions feed iteration.
+    ADR-0053's „wir teilen ein"), **never shows a lonely count** for the fragile A-field, carries
+    **one low-friction reply channel** so reactions feed iteration, and **actively invites holding both
+    fields** (the „Einzel, Doppel — oder beides?" FAQ) since a „both" entry converts the fragile A-field —
+    kept FAQ-only so self-choice-by-motive stays the headline (ADR-0054 amendment 2026-07-12).
     _Avoid_: "landing page" (too generic), "competition page" (it is per-**side**, two fields, not
     per-competition). _(See ADR-0054, ADR-0052, ADR-0042.)_
 - **Source of truth** — the site (Astro + Cloudflare Worker + D1) owns the tournament data end to
