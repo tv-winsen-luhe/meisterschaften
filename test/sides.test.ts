@@ -12,7 +12,9 @@ describe('outreach porch sides', () => {
   })
 
   it('map each side to its two fields, in display order', () => {
-    expect(sideFields(getSide('damen')!).map(c => c.id)).toEqual(['womens', 'womens-social'])
+    // Herren leads with the championship Hauptfeld (conversion porch); the Damen probe leads with the
+    // social field, which is the genuine first choice it sells (ADR-0054).
+    expect(sideFields(getSide('damen')!).map(c => c.id)).toEqual(['womens-social', 'womens'])
     expect(sideFields(getSide('herren')!).map(c => c.id)).toEqual(['mens', 'mens-challenger'])
   })
 

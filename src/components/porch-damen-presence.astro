@@ -1,0 +1,194 @@
+---
+import SectionHeader from '@/components/section-header.astro'
+import { sideFields, type Side } from '@/data/sides'
+import tvLogo from '@/assets/logo.svg'
+import tsvLogo from '@/assets/tsv-winsen.png'
+
+// „Schon dabei" for the Damen validation probe (ADR-0054) — a deliberately Damen-*safe* presence
+// section, NOT the front door's ParticipantList. It reuses the front door's *row look* (a club-logo
+// avatar + name, like the men's list panels) so it reads as the same site, but it is NOT the seeding
+// board: the front door renders the championship field with seed-position ranks, an LK column,
+// „vorläufige Setzung nach Leistungsklasse" and a „Plätze frei" meter — all of which the probe's copy
+// discipline forbids (no LK, no Setzung, no scarcity), and which would lonely-count the fragile
+// Meisterin field („1" on a board = maximal self-image reinforcer). So this section instead:
+//   - stays hidden entirely until a healthy number have signed up (FLOOR) — „show the list once a few
+//     are in"; below the floor there is no section at all, so nothing ever reads as empty or lonely,
+//   - shows avatar+name rows (no LK, no seed ranks, no capacity/„Plätze frei"), the social field leading,
+//   - surfaces the competitive Hauptfeld group only once it too clears the floor — never a lonely count.
+// It reads the same public `/api/participants` the front door uses; this is presence within signup, not
+// a step toward phase projection (the porch still redirects away once phase ≠ signup).
+const FLOOR = 3
+
+interface Props {
+  side: Side
+}
+
+const { side } = Astro.props as Props
+const fields = sideFields(side)
+const social = fields[0] // womens-social — leads
+const championship = fields[1] // womens — the fragile Meisterin field
+---
+
+<section
+  class="sect border-t border-navy py-20 focus:outline-none md:py-[120px]"
+  data-damen-presence
+  data-social-slug={social.slug}
+  data-championship-slug={championship.slug}
+  data-floor={FLOOR}
+  data-logo-tv={tvLogo.src}
+  data-logo-tsv={tsvLogo.src}
+  tabindex="-1"
+  hidden
+>
+  <SectionHeader
+    eyebrow="Schon dabei"
+    headline={['Wer schon', 'dabei ist.']}
+    note="Die Anmeldungen laufen — schau, wer aus dem Verein sich schon angemeldet hat."
+  />
+
+  <div class="grid grid-cols-1 gap-0.5 bg-navy p-0.5 md:grid-cols-2">
+    <div class="bg-surface-alt p-6 md:p-8" data-group="social" hidden>
+      <div class="flex items-baseline justify-between gap-4 border-b border-navy/15 pb-4">
+        <h3 class="m-0 text-[clamp(20px,3.4vw,28px)] leading-[0.95] font-black tracking-[-0.03em] uppercase">
+          Damen Doppel-Mixer
+        </h3>
+        <span class="shrink-0 text-[11px] font-black tracking-[0.12em] whitespace-nowrap text-clay uppercase" data-count
+        ></span>
+      </div>
+      <ul class="dp-list mt-4" data-names></ul>
+    </div>
+
+    <div class="bg-surface-alt p-6 md:p-8" data-group="championship" hidden>
+      <div class="flex items-baseline justify-between gap-4 border-b border-navy/15 pb-4">
+        <h3 class="m-0 text-[clamp(20px,3.4vw,28px)] leading-[0.95] font-black tracking-[-0.03em] uppercase">
+          Hauptfeld
+        </h3>
+        <span class="shrink-0 text-[11px] font-black tracking-[0.12em] whitespace-nowrap text-blue uppercase" data-count
+        ></span>
+      </div>
+      <ul class="dp-list mt-4" data-names></ul>
+    </div>
+  </div>
+</section>
+
+<style is:global>
+  /* Row look borrowed from the front door's ParticipantList (.pl-row/.pl-avatar/.pl-name), minus the LK
+     column and the seeding-board rank — so the Damen presence reads as the same site but stays a plain,
+     non-competitive list (ADR-0054). Distinct `.dp-` prefix so it can never collide with the front
+     door's `.pl-` rules (the two never render on the same page, but the separation keeps it honest). */
+  .dp-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+  .dp-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 0;
+    border-bottom: 1px solid rgba(12, 30, 58, 0.1);
+    color: var(--color-navy);
+  }
+  .dp-row:last-child {
+    border-bottom: none;
+  }
+  .dp-avatar {
+    flex-shrink: 0;
+    width: 34px;
+    height: 34px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    background: #fff;
+    border: 1px solid rgba(12, 30, 58, 0.12);
+    overflow: hidden;
+  }
+  .dp-avatar img {
+    width: 72%;
+    height: 72%;
+    object-fit: contain;
+  }
+  .dp-name {
+    font-size: 15px;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+  }
+</style>
+
+<script>
+  // Damen-safe presence (ADR-0054): the whole section stays hidden until FLOOR total signups; the
+  // competitive Hauptfeld group appears only once it clears the floor on its own, so the fragile field
+  // is never lonely-counted. No LK, no seeding — the public list is filtered to the two Damen fields.
+  interface Participant {
+    firstName: string
+    lastName: string
+    competition: string
+    club: string
+  }
+
+  const section = document.querySelector<HTMLElement>('[data-damen-presence]')
+  if (section) {
+    const socialSlug = section.dataset.socialSlug ?? ''
+    const championshipSlug = section.dataset.championshipSlug ?? ''
+    const floor = Number(section.dataset.floor ?? 3)
+    const logoTv = section.dataset.logoTv ?? ''
+    const logoTsv = section.dataset.logoTsv ?? ''
+
+    // A club-logo avatar + name, mirroring the front door's row — but no LK and no seed rank.
+    const row = (p: Participant): HTMLLIElement => {
+      const li = document.createElement('li')
+      li.className = 'dp-row'
+
+      const avatar = document.createElement('span')
+      avatar.className = 'dp-avatar'
+      const isTsv = (p.club ?? '').includes('TSV')
+      const img = document.createElement('img')
+      img.src = isTsv ? logoTsv : logoTv
+      img.alt = isTsv ? 'TSV Winsen' : 'TV Winsen'
+      img.loading = 'lazy'
+      avatar.appendChild(img)
+      li.appendChild(avatar)
+
+      const name = document.createElement('span')
+      name.className = 'dp-name'
+      name.textContent = `${p.firstName} ${p.lastName}`.trim()
+      li.appendChild(name)
+
+      return li
+    }
+
+    const fillGroup = (name: 'social' | 'championship', people: Participant[], countText: string) => {
+      const group = section.querySelector<HTMLElement>(`[data-group="${name}"]`)
+      if (!group || people.length === 0) return
+      group.querySelector<HTMLElement>('[data-count]')!.textContent = countText
+      const names = group.querySelector<HTMLElement>('[data-names]')!
+      for (const p of people) names.appendChild(row(p))
+      group.hidden = false
+    }
+
+    fetch('/api/participants', { headers: { accept: 'application/json' } })
+      .then(res => (res.ok ? res.json() : null))
+      .then((data: { enabled?: boolean; participants?: Participant[] } | null) => {
+        if (!data?.enabled || !data.participants) return // list off → no section
+
+        const social = data.participants.filter(p => p.competition === socialSlug)
+        const championship = data.participants.filter(p => p.competition === championshipSlug)
+        if (social.length + championship.length < floor) return // too early → stay hidden
+        // The social field leads „Schon dabei" (ADR-0054): never front the section with the fragile
+        // Meisterin field standing alone. If no one is in the social field yet, keep it hidden entirely.
+        if (social.length === 0) return
+
+        fillGroup('social', social, `${social.length} schon dabei`)
+        // Never a lonely count for the fragile Meisterin field: only surface it once it clears the floor.
+        if (championship.length >= floor) fillGroup('championship', championship, `${championship.length} im Feld`)
+
+        section.hidden = false
+        // Reveal the section's motion elements directly: it was `hidden` at load, so the shared
+        // IntersectionObserver never latched onto it or its `.reveal` children (headline clip, eyebrow).
+        section.classList.add('is-visible')
+        section.querySelectorAll('.reveal').forEach(el => el.classList.add('is-visible'))
+      })
+      .catch(() => {})
+  }
+</script>

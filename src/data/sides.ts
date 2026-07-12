@@ -1,18 +1,28 @@
 import { competitions, type Competition } from './tournament'
 
-// The two outreach porches — /damen and /herren (CONTEXT.md: Outreach porch, ADR-0052). A porch is a
-// thin, signup-era landing page for one side of the event, handed out by link (WhatsApp) to convert a
-// targeted audience. This module is the porch's only bespoke content: the German route slug, the two
-// fields it shows „als Gleiche" (ADR-0051), the per-URL WhatsApp preview card (the reason a route beats
-// an anchor — ADR-0052), and the targeted lead copy. Everything evergreen stays on the front door and
-// is linked, never restated here.
+// The two outreach porches — /damen and /herren (CONTEXT.md: Outreach porch, ADR-0052, ADR-0054). A
+// porch is a signup-era landing page for one side of the event, handed out by link (WhatsApp) to a
+// warm, hand-picked audience. This module is the porch's only bespoke content: the German route slug,
+// the two fields it shows (ADR-0051), the per-URL WhatsApp preview card (the reason a route beats an
+// anchor — ADR-0052), and the targeted lead copy. Everything evergreen stays on the front door and is
+// linked, never restated here.
+//
+// The two porches are not one symmetric object (ADR-0054): Herren is a thin *conversion porch* (a
+// validated concept, warm pre-briefed audience — the page just converts), Damen is a *validation
+// probe* (the social field's format is open — the page leads with the social B-field, presents the
+// competitive A-field as the honest second option, and lets the group self-choose by motive). That
+// asymmetry lives in the porch templates and the field order below, not in a flag on this data.
 
 export interface Side {
   /** German route slug (ADR-0028) — the porch URL and the getStaticPaths param. */
   slug: 'damen' | 'herren'
   /** Display name of the side (page title, meta). Data-driven so a future side isn't a special case. */
   name: string
-  /** The side's fields (competition ids), in display order. Two per side (ADR-0051). */
+  /**
+   * The side's fields (competition ids), in the porch's display order. Two per side (ADR-0051). Herren
+   * leads with the championship Hauptfeld; Damen leads with the social field (`womens-social`), because
+   * the probe makes the social B-field the genuine first choice (ADR-0054).
+   */
   fieldIds: readonly string[]
   /** WhatsApp/OG preview card — per-URL, which is what an anchor on the front door cannot carry. */
   ogTitle: string
@@ -30,14 +40,20 @@ export const SIDES: readonly Side[] = [
   {
     slug: 'damen',
     name: 'Damen',
-    fieldIds: ['womens', 'womens-social'],
+    // Social field first: the probe leads with the Damen Doppel-Mixer (ADR-0054).
+    fieldIds: ['womens-social', 'womens'],
     ogTitle: 'Damen — spiel mit bei den Winsener Meisterschaften',
+    // B-field first, self-choice, no LK numbers, never „Challenger" (Sag/Vermeide guide, 02.07).
     ogDescription:
-      'Zwei Felder für Damen: das Hauptfeld um die Winsener Meisterin und das gesellige Damen Doppel zum Kennenlernen — du meldest dich allein an, keine LK nötig. 22.–23.08.',
-    eyebrow: 'Für die Damen',
-    headline: ['Dein Wochenende,', 'dein Feld.'],
-    lead: 'Ob ehrgeizig um den Titel oder gesellig zum Kennenlernen — bei den Damen gibt es beides, und beides zählt gleich.',
-    leadSub: 'Du meldest dich allein an, deine Leistungsklasse musst du dafür nicht kennen.'
+      'Zwei Felder, du wählst selbst: der gesellige Damen Doppel-Mixer zum Kennenlernen — allein anmelden, Partnerinnen wechseln reihum — oder das Hauptfeld um die Winsener Meisterin. Für jede was dabei, egal wie du spielst. 22.–23.08.',
+    // Short phrase first: the hero's date block sits absolutely top-right on desktop, so a long first
+    // line collides with it (the front door avoids this with a short „Winsener" first line). „Spiel mit"
+    // sits beside the date; „zwei Tage Tennis" drops below it.
+    eyebrow: 'Winsener Meisterschaften',
+    headline: ['Spiel mit —', 'zwei Tage Tennis'],
+    lead: 'Ein geselliger Spieltag zum Kennenlernen — oder richtige Matches, wenn dir danach ist. Du wählst selbst, in welchem Feld du spielst; für jede ist was dabei, egal wie du spielst.',
+    leadSub:
+      'Du kannst allein kommen oder zu zweit — eine Partnerin brauchst du nicht, deine Leistungsklasse auch nicht.'
   },
   {
     slug: 'herren',

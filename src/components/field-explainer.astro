@@ -1,0 +1,76 @@
+---
+// Presentational primitive for one field's large format explainer on the Damen validation probe
+// (ADR-0054). The *content* — the heading and prose — lives in the explainer partial
+// (explainer-damen.astro); this owns only the *look*, so a restyle stays in one place. Body prose is
+// the default slot.
+//
+// Two surfaces, borrowed from the front door's rhythm (index.astro): the leading field is an `anchor` —
+// a navy block with a neon eyebrow, the page's „thesis" (on the Damen probe that is the social field) —
+// and the second field is a `plain` cream block with a coloured accent that matches its competition
+// card. Two contrasting doors.
+interface Props {
+  /** „Einzel" / „Doppel" descriptor. */
+  type: string
+  /** Category badge („Hauptfeld", „Gesellig"). */
+  badge: string
+  /** The heading — names the field's motive in the reader's own words. */
+  heading: string
+  /** Short fact chips summarising the format. */
+  chips: readonly string[]
+  /** Surface treatment: `anchor` = navy thesis block, `plain` = cream block with a blue accent. */
+  variant?: 'anchor' | 'plain'
+}
+
+const { type, badge, heading, chips, variant = 'plain' } = Astro.props as Props
+
+const isAnchor = variant === 'anchor'
+const container = isAnchor
+  ? 'bg-navy text-white'
+  : 'bg-surface border-t-[3px] border-t-blue shadow-[0_1px_0_rgba(12,30,58,0.08)]'
+const typeClass = isAnchor ? 'text-neon' : 'text-blue'
+const badgeClass = isAnchor
+  ? 'border-[1.5px] border-neon/50 px-2.5 py-1 text-neon'
+  : 'border-[1.5px] border-blue/50 px-2.5 py-1 text-blue'
+const chipClass = isAnchor ? 'border border-white/30 text-white/90' : 'bg-navy/[0.06] text-navy/80'
+---
+
+<article class="field-explainer p-8 md:p-11" class:list={[container]}>
+  <div class="mb-5 flex flex-wrap items-center gap-3 text-[11px] font-black tracking-[0.15em] uppercase">
+    <span class:list={['tracking-[0.18em]', typeClass]}>{type}</span>
+    <span class={badgeClass}>{badge}</span>
+  </div>
+  <h3
+    class="m-0 mb-5 max-w-[20ch] text-[clamp(26px,4.4vw,44px)] leading-[0.95] font-black tracking-[-0.03em]"
+    class:list={[{ 'text-white': isAnchor }]}
+  >
+    {heading}
+  </h3>
+  <div
+    class="field-explainer__body max-w-[56ch] text-[16px] leading-[1.65]"
+    class:list={[isAnchor ? 'text-white/85' : 'opacity-90']}
+  >
+    <slot />
+  </div>
+  <ul class="mt-7 flex flex-wrap gap-2">
+    {
+      chips.map(chip => (
+        <li class="px-3 py-1.5 text-[12px] font-bold tracking-[0.02em] uppercase" class:list={[chipClass]}>
+          {chip}
+        </li>
+      ))
+    }
+  </ul>
+</article>
+
+<style>
+  /* Space stacked paragraphs in the slotted prose without a wrapper class per paragraph. */
+  .field-explainer__body :global(p) {
+    margin: 0;
+  }
+  .field-explainer__body :global(p + p) {
+    margin-top: 1rem;
+  }
+  .field-explainer__body :global(strong) {
+    font-weight: 800;
+  }
+</style>
