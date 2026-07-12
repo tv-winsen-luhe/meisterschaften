@@ -45,6 +45,12 @@ describe('formatRegistrationMessage', () => {
     expect(text).toContain('<b>Anmerkung:</b> Hallo')
   })
 
+  it('translates every competition slug to its German label (regression: womens-social)', () => {
+    expect(formatRegistrationMessage(notice({ competition: 'womens-social' }))).toContain(
+      '<b>Konkurrenz:</b> Damen Doppel-Mixer'
+    )
+  })
+
   it('adds the Challenger warning when a Challenger entry is too strong', () => {
     const text = formatRegistrationMessage(notice({ competition: 'mens-challenger', lk: '12.0' }))
     expect(text).toContain('⚠️ <b>LK 12.0 &lt; 20</b> — evtl. Hauptfeld statt Challenger.')
