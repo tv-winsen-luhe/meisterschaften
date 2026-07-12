@@ -156,10 +156,13 @@ export const createSeedingLk = (deps: SeedingLkDeps): SeedingLk => {
 }
 
 // ── nuLiga roster source (production) ──────────────────────────────────────────────────
-// nuLiga LK club rankings (TNB) — one page per club, listing player id + LK + name. The
-// single source of truth for the endpoint + club→nuLiga-id map; internal to this module now
-// that the cron and admin LK paths go through createSeedingLk (no more legacy importers).
-const NULIGA_BASE = 'https://tnb.liga.nu/cgi-bin/WebObjects/nuLigaTENDE.woa/wa/clubRankinglistLK?federation=TNB&club='
+// nuLiga LK club rankings (TNB) — the single source of truth for the endpoint + club→nuLiga-id
+// map; internal to this module now that the cron and admin LK paths go through createSeedingLk
+// (no more legacy importers). nuLiga serves ONE ranking page PER GENDER, and omitting the
+// gender param defaults to the men's list — so a club's women were never in the fetched roster
+// and every Damen registration silently failed to match. We fetch both pages and merge them.
+const NULIGA_BASE = 'https://tnb.liga.nu/cgi-bin/WebObjects/nuLigaTENDE.woa/wa/clubRankinglistLK'
+const NULIGA_GENDERS = ['0', '1'] as const // 0 = women, 1 = men
 const CLUB_TO_NULIGA: Record<string, string> = {
   'TV Winsen': '303160',
   'TSV Winsen': '303251'
@@ -169,15 +172,23 @@ export const createNuligaRosterSource = (): RosterSource => ({
   async rosterFor(club) {
     const clubId = CLUB_TO_NULIGA[club]
     if (!clubId) return []
-    try {
-      const res = await fetch(NULIGA_BASE + clubId, {
-        headers: { 'user-agent': 'winsener-meisterschaften/1.0 (+vereins-tool)' }
+    // Fetch each gender's page independently: a failure on one still yields the other's roster
+    // rather than dropping the whole club.
+    const pages = await Promise.all(
+      NULIGA_GENDERS.map(async gender => {
+        try {
+          const url = `${NULIGA_BASE}?gender=${gender}&federation=TNB&club=${clubId}`
+          const res = await fetch(url, {
+            headers: { 'user-agent': 'winsener-meisterschaften/1.0 (+vereins-tool)' }
+          })
+          if (!res.ok) return []
+          return parseClubRoster(await res.text())
+        } catch {
+          return []
+        }
       })
-      if (!res.ok) return []
-      return parseClubRoster(await res.text())
-    } catch {
-      return []
-    }
+    )
+    return pages.flat()
   }
 })
 

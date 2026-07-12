@@ -1,6 +1,7 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   createInMemoryRosterSource,
+  createNuligaRosterSource,
   createSeedingLk,
   findRosterMatch,
   parseClubRoster,
@@ -43,6 +44,54 @@ describe('parseClubRoster', () => {
       <tr><td>12345678</td><td>no lk here</td><td><a id="e_1">Muster, Max</a></td></tr>
       <tr><td>87654321</td><td>LK 9,0</td><td>no anchor</td></tr>`
     expect(parseClubRoster(html)).toEqual([])
+  })
+})
+
+describe('createNuligaRosterSource', () => {
+  afterEach(() => vi.unstubAllGlobals())
+
+  const rosterRow = (id: string, name: string) =>
+    `<tr><td>${id}</td><td>LK 10,0</td><td><a id="e_${id}">${name}</a></td></tr>`
+
+  it('fetches BOTH gender pages and merges them, so women are matched too', async () => {
+    // Regression: nuLiga serves one page per gender and defaults to men; fetching only the
+    // default dropped every woman (e.g. Iris Falkenberg / all Damen) from the roster.
+    const requested: string[] = []
+    vi.stubGlobal('fetch', (url: string) => {
+      requested.push(url)
+      const gender = new URL(url).searchParams.get('gender')
+      const body =
+        gender === '0'
+          ? rosterRow('26303034', 'Falkenberg, Iris') // women
+          : rosterRow('10105485', 'Falkenberg, Henry') // men
+      return Promise.resolve(new Response(body, { status: 200 }))
+    })
+
+    const roster = await createNuligaRosterSource().rosterFor('TV Winsen')
+
+    expect(requested.some(u => u.includes('gender=0'))).toBe(true)
+    expect(requested.some(u => u.includes('gender=1'))).toBe(true)
+    expect(findRosterMatch(roster, 'Iris', 'Falkenberg')?.playerId).toBe('26303034')
+    expect(findRosterMatch(roster, 'Henry', 'Falkenberg')?.playerId).toBe('10105485')
+  })
+
+  it('still returns one gender when the other page fails', async () => {
+    vi.stubGlobal('fetch', (url: string) => {
+      const gender = new URL(url).searchParams.get('gender')
+      return gender === '0'
+        ? Promise.resolve(new Response(rosterRow('26303034', 'Falkenberg, Iris'), { status: 200 }))
+        : Promise.resolve(new Response('nope', { status: 500 }))
+    })
+
+    const roster = await createNuligaRosterSource().rosterFor('TV Winsen')
+    expect(findRosterMatch(roster, 'Iris', 'Falkenberg')?.playerId).toBe('26303034')
+  })
+
+  it('returns [] for a club with no nuLiga id, without fetching', async () => {
+    const fetchSpy = vi.fn()
+    vi.stubGlobal('fetch', fetchSpy)
+    expect(await createNuligaRosterSource().rosterFor('Unknown Club')).toEqual([])
+    expect(fetchSpy).not.toHaveBeenCalled()
   })
 })
 
