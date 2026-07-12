@@ -50,8 +50,13 @@ migrations_dir = "worker/migrations"
 # Wöchentlicher LK-Sync aus nuLiga: Montag 10:00 UTC (12:00 CEST). Bewusst nicht
 # früher: nuLiga veröffentlicht die wöchentliche LK-Neuberechnung erst im Laufe des
 # Montagvormittags — ein 05:00-UTC-Lauf fand nur die Vorwochen-Werte (0 Änderungen).
+#
+# Wochentag als "MON" (nicht "1")! Cloudflare zählt den Wochentag ABWEICHEND von Unix-cron:
+# 1 = Sonntag, 2 = Montag, … 7 = Samstag. Das frühere "0 10 * * 1" meinte Montag, feuerte
+# aber jeden Sonntag — also einen Tag VOR nuLigas Montags-Update, damit dauerhaft veraltet.
+# Die Drei-Buchstaben-Form ist eindeutig und von Cloudflare genau dafür empfohlen.
 [triggers]
-crons = ["0 10 * * 1"]
+crons = ["0 10 * * MON"]
 
 [observability]
 enabled = true
