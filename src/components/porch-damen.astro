@@ -23,6 +23,13 @@ import { contactEmail, entryFee, signupDeadline, tournament } from '@/data/tourn
 // number/„Setzung", no title/Wettkampf vocabulary in the social field. The „reply channel" is the
 // personal conversation around the shared link, not an element on the page.
 //
+// The FAQ „Einzel, Doppel — oder beides?" deliberately *invites* holding both fields at once: the
+// registration guard is one entry per person+competition, so championship + mixer is allowed and safe
+// (the mixer runs no bracket, so the schedule validator never sees it). Kept FAQ-only so the „self-choice
+// by motive" narrative stays primary — the invitation is a postscript, not the headline. The rationale
+// (it converts the fragile Meisterin field) and the operator consequence live in the ADR, not restated
+// here. _(See ADR-0054 amendment 2026-07-12.)_
+//
 // The shared Layout shell, phase redirect and signup modal live in [side].astro; this renders the body
 // and its own motion system (the thin Herren porch and the front door don't need `<ScrollMotion />`).
 interface Props {
@@ -267,9 +274,10 @@ const sunday: [string, string][] = [
       Nein. Du gibst nur Namen und Verein an — für keins der beiden Damen-Felder musst du deine Leistungsklasse kennen,
       und ein nuLiga-Konto brauchst du nicht.
     </FaqItem>
-    <FaqItem question="Einzel oder Doppel?">
+    <FaqItem question="Einzel, Doppel — oder beides?">
       Das Hauptfeld um die Winsener Meisterin spielt Einzel. Der Damen Doppel-Mixer ist ein geselliges Doppelfeld:
-      allein anmelden, die Partnerinnen wechseln reihum, gespielt wird ohne Wertung — auch ohne Doppel-Erfahrung.
+      allein anmelden, die Partnerinnen wechseln reihum, gespielt wird ohne Wertung — auch ohne Doppel-Erfahrung. Und du
+      musst dich nicht entscheiden: Beide Felder gehen zusammen — meld dich einfach für beide an.
     </FaqItem>
     <FaqItem question="Was kostet die Teilnahme?">
       {entryFee} € Startgeld pro Person, bar vor Ort beim Check-in. Spielbälle werden gestellt.
