@@ -10,7 +10,8 @@ import { isTooStrongForChallenger } from './domain/registration'
 const COMPETITION_LABELS: Record<string, string> = {
   mens: 'Herren',
   'mens-challenger': 'Herren Challenger',
-  womens: 'Damen'
+  womens: 'Damen',
+  'womens-social': 'Damen Doppel-Mixer'
 }
 
 const ADMIN_URL = 'https://meisterschaften.tennisverein-winsen.de/admin'
