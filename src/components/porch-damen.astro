@@ -162,8 +162,44 @@ const sunday: [string, string][] = [
     note="Ein geselliger Tag zum Kennenlernen — oder richtige Matches, wenn dir danach ist. Du entscheidest, in welchem Feld du spielst; es gibt ein Feld für alle, egal wie du spielst, und deine Leistungsklasse musst du für keins der beiden kennen."
   />
 
+  <!-- Guided chooser (ADR-0054 amendment 2026-07-13): the self-choice-by-motive story stalled a real
+       beginner who „didn't know what the choice meant". This routes the unsure player to the Mixer before
+       the two explainers. It leads the beginner in by motive (neu/unsicher/gesellig), never frames the
+       championship as the „good players' field", and points into the desirable social field — self-choice
+       with a signpost, not Orga assignment. -->
+  <div class="reveal mb-3 grid grid-cols-1 gap-0.5 bg-navy p-0.5 md:grid-cols-2">
+    <button
+      type="button"
+      class="block w-full bg-navy p-6 text-left text-white md:p-8"
+      data-signup-open
+      data-signup-competition={social.slug}
+    >
+      <span class="text-[11px] font-bold tracking-[0.18em] text-neon uppercase">Das klingt nach mir</span>
+      <span class="mt-3 mb-4 block text-[clamp(17px,2.2vw,21px)] leading-[1.25] font-black tracking-[-0.01em]">
+        „Ich bin neu, unsicher oder will einfach nur gesellig mitspielen."
+      </span>
+      <span class="inline-flex items-center gap-2 text-[13px] font-black tracking-[0.04em] text-neon uppercase">
+        &rarr; Damen Doppel-Mixer
+      </span>
+    </button>
+    <button
+      type="button"
+      class="block w-full bg-surface-alt p-6 text-left md:p-8"
+      data-signup-open
+      data-signup-competition={championship.slug}
+    >
+      <span class="text-[11px] font-bold tracking-[0.18em] uppercase opacity-45">Oder das</span>
+      <span class="mt-3 mb-4 block text-[clamp(17px,2.2vw,21px)] leading-[1.25] font-black tracking-[-0.01em]">
+        „Ich spiele regelmäßig und will mich im richtigen Match messen."
+      </span>
+      <span class="inline-flex items-center gap-2 text-[13px] font-black tracking-[0.04em] text-blue uppercase">
+        &rarr; Hauptfeld um die Meisterin
+      </span>
+    </button>
+  </div>
+
   <div class="grid gap-3">
-    <ExplainerDamen />
+    <ExplainerDamen socialSlug={social.slug} championshipSlug={championship.slug} />
   </div>
 </section>
 
@@ -266,6 +302,11 @@ const sunday: [string, string][] = [
       gibt es zwei Felder: den geselligen Damen Doppel-Mixer zum Kennenlernen und das Hauptfeld um die Winsener
       Meisterin — du wählst selbst, egal wie du spielst.
     </FaqItem>
+    <FaqItem question="Ich bin Anfängerin — kann ich beim Doppel-Mixer mitspielen?">
+      Ja, ausdrücklich. Du musst nicht zählen können, keinen sicheren Aufschlag haben und keine langen Ballwechsel
+      spielen — von unten aufschlagen ist völlig okay. Wie es läuft, erklären wir vor Ort. Für viele ist es das erste
+      Mal.
+    </FaqItem>
     <FaqItem question="Brauche ich eine Partnerin?">
       Nein. Für den Damen Doppel-Mixer meldest du dich allein an — die Partnerinnen wechseln reihum, du lernst sie beim
       Spielen kennen. Auch fürs Hauptfeld brauchst du niemanden mitzubringen.
@@ -292,7 +333,7 @@ const sunday: [string, string][] = [
       E-Mail und Nachname selbst zurück. Alternativ genügt eine kurze Nachricht an uns.
     </FaqItem>
     <FaqItem question="Ich habe noch Fragen.">
-      Schreib uns an
+      Schreib uns an{' '}
       <a href={`mailto:${contactEmail}`} class="font-semibold text-navy underline-offset-2">{contactEmail}</a>.
     </FaqItem>
   </div>
