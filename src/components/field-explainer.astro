@@ -8,6 +8,10 @@
 // a navy block with a neon eyebrow, the page's „thesis" (on the Damen probe that is the social field) —
 // and the second field is a `plain` cream block with a coloured accent that matches its competition
 // card. Two contrasting doors.
+//
+// An optional `aside` slot turns the block into a two-column editorial layout on desktop (narrative left,
+// aside right) — used by the social field to give the „Das brauchst du hier nicht" panel its own column
+// instead of a dead right margin. Without it the block stays single-column (the front-door rhythm).
 interface Props {
   /** „Einzel" / „Doppel" descriptor. */
   type: string
@@ -19,9 +23,21 @@ interface Props {
   chips: readonly string[]
   /** Surface treatment: `anchor` = navy thesis block, `plain` = cream block with a blue accent. */
   variant?: 'anchor' | 'plain'
+  /** When set, render a „Jetzt anmelden" CTA that opens the signup modal for this competition slug. */
+  signupSlug?: string
+  /** CTA label; defaults to „Jetzt anmelden". */
+  signupLabel?: string
 }
 
-const { type, badge, heading, chips, variant = 'plain' } = Astro.props as Props
+const {
+  type,
+  badge,
+  heading,
+  chips,
+  variant = 'plain',
+  signupSlug,
+  signupLabel = 'Jetzt anmelden'
+} = Astro.props as Props
 
 const isAnchor = variant === 'anchor'
 const container = isAnchor
@@ -32,6 +48,8 @@ const badgeClass = isAnchor
   ? 'border-[1.5px] border-neon/50 px-2.5 py-1 text-neon'
   : 'border-[1.5px] border-blue/50 px-2.5 py-1 text-blue'
 const chipClass = isAnchor ? 'border border-white/30 text-white/90' : 'bg-navy/[0.06] text-navy/80'
+
+const hasAside = Astro.slots.has('aside')
 ---
 
 <article class="field-explainer p-8 md:p-11" class:list={[container]}>
@@ -39,17 +57,28 @@ const chipClass = isAnchor ? 'border border-white/30 text-white/90' : 'bg-navy/[
     <span class:list={['tracking-[0.18em]', typeClass]}>{type}</span>
     <span class={badgeClass}>{badge}</span>
   </div>
-  <h3
-    class="m-0 mb-5 max-w-[20ch] text-[clamp(26px,4.4vw,44px)] leading-[0.95] font-black tracking-[-0.03em]"
-    class:list={[{ 'text-white': isAnchor }]}
-  >
-    {heading}
-  </h3>
-  <div
-    class="field-explainer__body max-w-[56ch] text-[16px] leading-[1.65]"
-    class:list={[isAnchor ? 'text-white/85' : 'opacity-90']}
-  >
-    <slot />
+  <div class:list={[{ 'md:grid md:grid-cols-[1.15fr_1fr] md:items-start md:gap-12': hasAside }]}>
+    <div>
+      <h3
+        class="m-0 mb-5 max-w-[20ch] text-[clamp(26px,4.4vw,44px)] leading-[0.95] font-black tracking-[-0.03em]"
+        class:list={[{ 'text-white': isAnchor }]}
+      >
+        {heading}
+      </h3>
+      <div
+        class="field-explainer__body max-w-[56ch] text-[16px] leading-[1.65]"
+        class:list={[isAnchor ? 'text-white/85' : 'opacity-90']}
+      >
+        <slot />
+      </div>
+    </div>
+    {
+      hasAside && (
+        <div class="mt-8 md:mt-0">
+          <slot name="aside" />
+        </div>
+      )
+    }
   </div>
   <ul class="mt-7 flex flex-wrap gap-2">
     {
@@ -60,6 +89,13 @@ const chipClass = isAnchor ? 'border border-white/30 text-white/90' : 'bg-navy/[
       ))
     }
   </ul>
+  {
+    signupSlug && (
+      <button type="button" class="cta-primary mt-8" data-signup-open data-signup-competition={signupSlug}>
+        {signupLabel}
+      </button>
+    )
+  }
 </article>
 
 <style>
