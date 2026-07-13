@@ -146,3 +146,35 @@ exactly that: a woman signed up for both. We make that explicit rather than acci
   which also admits `mens` + `mens-challenger` — and the fact that the cross-field „no two matches at once"
   guarantee rests on the schedule validator, not this guard, are corrected in **CONTEXT.md's Registration
   entry** (the invariant's home) and filed as a separate guard-scope issue; left as-is under small-N.
+
+## Amendment (2026-07-13): remove the bar explicitly for absolute beginners; signpost the choice
+
+First live send-wave feedback (WhatsApp, via a Botschafter): a beginner Damen player and several of her
+teammates _want in_ but stall at the very „nicht gut genug" barrier this probe was built to dissolve —
+and two things the page didn't do surfaced:
+
+- **The barrier is concrete, and the abstraction missed it.** The fears are specific — „weiß nicht, wie
+  man zählt", „Probleme mit dem Aufschlag", can't sustain a rally — and „egal wie du spielst" / „auf
+  jedem Niveau" never reached them; one „war nicht bewusst, dass das Doppel-Mixer-Format auch für
+  Anfängerinnen geeignet ist" (the message didn't land).
+- **Self-choice itself confused the beginner.** The probe rests its whole persuasion weight on „wähl
+  selbst dein Feld" (above), but the exact player it wants „wusste nicht ganz genau, was damit gemeint
+  ist".
+
+This **refines, does not reverse** the decision above. The two moves:
+
+- **Name the fears and _remove the bar_ — which is not the forbidden reassurance.** The rule „never
+  reassure `du bist gut genug`" forbids conceding a bar and arguing you clear it (a skill frame). It does
+  **not** forbid stating that _there is no bar_: the social field has no scoring, serve, or rally
+  standard to meet. The social explainer gains a „**Das brauchst du hier nicht**" block (zählen,
+  Aufschlag, lange Ballwechsel, Turniererfahrung — each named and struck through) and a beginner FAQ; a
+  quiet „Anfängerinnen willkommen" chip replaces the loud hero badge a rejected variant tried (that badge
+  risked reframing the Mixer as „the beginners' field" — the skill split this ADR forbids).
+- **Signpost the self-choice, don't abolish it.** A guided chooser leads the „neu / unsicher / gesellig"
+  player to the Mixer before the two explainers. It routes _into_ the desirable field and never frames the
+  championship as „the good players' field" (its option is motive — „will mich messen"), so it stays
+  self-choice with a signpost, not the Orga assignment this ADR rejected.
+- **Validated by prototype** (`/damen-proto`, three strategies A/B/C, since deleted): the „remove the bar"
+  explainer + „signpost the choice" chooser won; the „name beginners loudly in the hero" variant was
+  rejected for drifting toward the skill frame.
+- **Scope.** Probe-only, per the amendments above; folds into the front door only once validated (ADR-0042).

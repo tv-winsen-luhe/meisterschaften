@@ -12,6 +12,38 @@ import FieldExplainer from './field-explainer.astro'
 //     reassuring people into the competition (reverses ADR-0053's „wir teilen die Felder ein").
 // Copy follows the 02.07 Sag/Vermeide guide: never „Challenger", never an LK number or „Setzung", and no
 // title/Wettkampf vocabulary in the social field. Targeted, per-side content with no front-door equivalent.
+//
+// The social explainer carries a „Das brauchst du hier nicht" block (ADR-0054 amendment 2026-07-13):
+// field feedback showed absolute-beginner Damen stalling on concrete fears — can't rally, can't score,
+// shaky serve — that the abstract „egal wie du spielst" never reached. The block names each fear and
+// *removes the bar* (there is no scoring/serve/rally standard here), which is distinct from the forbidden
+// reassurance „du bist gut genug" (that concedes a bar and argues you clear it). Removing the standard,
+// not clearing it.
+const notNeeded: [string, string][] = [
+  ['Zählen können', 'Wir sagen dir, wo ihr steht — Punkte zählt hier niemand nach.'],
+  ['Einen sicheren Aufschlag', 'Von unten aufschlagen ist völlig okay. Hauptsache, der Ball ist im Spiel.'],
+  ['Lange Ballwechsel', 'Zwei, drei Bälle übers Netz sind schon ein schöner Ballwechsel.'],
+  ['Turniererfahrung', 'Für viele hier ist es das erste Mal. Genau dafür ist dieser Tag gemacht.']
+]
+
+// The Hauptfeld's parallel aside — the low-barrier facts made scannable (all already true in the prose),
+// so both explainer blocks share the two-column rhythm. Framed positively (not „das brauchst du nicht")
+// so it reads distinct from the social block, and reinforces that even the competitive field is easy to
+// enter.
+const goodToKnow: [string, string][] = [
+  ['Ohne Mannschaft', 'Du meldest dich allein an.'],
+  ['Ohne Leistungsklasse', 'Die musst du nicht kennen.'],
+  ['Ohne Gewinnzwang', 'Es geht ums Mitspielen und Sich-Messen.']
+]
+
+interface Props {
+  /** Signup slug for the leading social field (womens-social). */
+  socialSlug: string
+  /** Signup slug for the second championship field (womens). */
+  championshipSlug: string
+}
+
+const { socialSlug, championshipSlug } = Astro.props as Props
 ---
 
 <FieldExplainer
@@ -22,10 +54,13 @@ import FieldExplainer from './field-explainer.astro'
   chips={[
     'Am Sonntag',
     'Allein anmelden',
+    'Anfängerinnen willkommen',
     'Partnerinnen wechseln reihum',
     'Auch ohne Doppel-Erfahrung',
     'Keine fliegt raus'
   ]}
+  signupSlug={socialSlug}
+  signupLabel="Zum Doppel-Mixer anmelden"
 >
   <p>
     Viele Damen spielen vor allem in ihrer eigenen Trainingsgruppe und kommen selten mit anderen aus dem Verein
@@ -41,6 +76,26 @@ import FieldExplainer from './field-explainer.astro'
     Kein Turnierbaum, kein Ergebnis, kein Titel — dafür ein <strong>schöner Tag zusammen</strong> und neue Spielpartnerinnen
     für die Zeit danach. Gespielt wird am <strong>Sonntag</strong> — mehr als diesen einen Tag musst du dir nicht freihalten.
   </p>
+  <div slot="aside" class="border border-white/25 p-6">
+    <span class="mb-4 block text-[12px] font-black tracking-[0.14em] text-neon uppercase"
+      >Das brauchst du hier nicht</span
+    >
+    <ul class="flex flex-col gap-3.5">
+      {
+        notNeeded.map(([what, why]) => (
+          <li class="flex gap-3 text-[15px] leading-[1.5]">
+            <span aria-hidden="true" class="mt-0.5 font-black text-neon">
+              ✗
+            </span>
+            <span>
+              <strong class="line-through decoration-white/40 decoration-2">{what}</strong>{' '}
+              <span class="text-white/75">— {why}</span>
+            </span>
+          </li>
+        ))
+      }
+    </ul>
+  </div>
 </FieldExplainer>
 
 <FieldExplainer
@@ -49,14 +104,32 @@ import FieldExplainer from './field-explainer.astro'
   variant="plain"
   heading="Du willst dich im Match messen? Dann ist das dein Feld."
   chips={['Am Samstag', 'Richtige Matches', 'K.-o.-System', 'Titel: Winsener Meisterin']}
+  signupSlug={championshipSlug}
+  signupLabel="Fürs Hauptfeld anmelden"
 >
   <p>
     Hier wird die <strong>Winsener Meisterin</strong> ausgespielt — richtige Matches im K.-o.-System, wenn du Lust hast, dich
-    zu messen. Es geht ums Mitspielen und Sich-Messen, nicht ums Gewinnen-Müssen. Gespielt wird am
+    zu messen. Es geht ums Mitspielen und Sich-Messen, nicht ums Gewinnen-Müssen. Gespielt wird am{' '}
     <strong>Samstag</strong>, die Finalrunden je nach Meldezahl am Sonntag — plan am besten das Wochenende ein.
   </p>
   <p>
-    Du musst dafür in keiner Mannschaft spielen und deine Leistungsklasse nicht kennen — <strong>anmelden reicht</strong
-    >. Ob dich das reizt oder du lieber gesellig spielst, entscheidest du selbst.
+    <strong>Anmelden reicht</strong> — ob dich das reizt oder du lieber gesellig spielst, entscheidest du selbst.
   </p>
+  <div slot="aside" class="border border-navy/15 p-6">
+    <span class="mb-4 block text-[12px] font-black tracking-[0.14em] text-blue uppercase">Gut zu wissen</span>
+    <ul class="flex flex-col gap-3.5">
+      {
+        goodToKnow.map(([what, why]) => (
+          <li class="flex gap-3 text-[15px] leading-[1.5]">
+            <span aria-hidden="true" class="mt-0.5 font-black text-blue">
+              →
+            </span>
+            <span>
+              <strong>{what}</strong> <span class="text-navy/70">— {why}</span>
+            </span>
+          </li>
+        ))
+      }
+    </ul>
+  </div>
 </FieldExplainer>
