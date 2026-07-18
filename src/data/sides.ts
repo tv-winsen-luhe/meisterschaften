@@ -20,7 +20,7 @@ export interface Side {
   name: string
   /**
    * The side's fields (competition ids), in the porch's display order. Two per side (ADR-0051). Herren
-   * leads with the championship Hauptfeld; Damen leads with the social field (`womens-social`), because
+   * leads with the championship field; Damen leads with the social field (`womens-social`), because
    * the probe makes the social B-field the genuine first choice (ADR-0054).
    */
   fieldIds: readonly string[]
@@ -45,7 +45,7 @@ export const SIDES: readonly Side[] = [
     ogTitle: 'Damen — spiel mit bei den Winsener Meisterschaften',
     // B-field first, self-choice, no LK numbers, never „Challenger" (Sag/Vermeide guide, 02.07).
     ogDescription:
-      'Zwei Felder, du wählst selbst: der gesellige Damen Doppel-Mixer zum Kennenlernen — allein anmelden, Partnerinnen wechseln reihum — oder das Hauptfeld um die Winsener Meisterin. Für jede was dabei, egal wie du spielst. 22.–23.08.',
+      'Zwei Felder, du wählst selbst: der gesellige Damen Doppel-Mixer zum Kennenlernen — allein anmelden, Partnerinnen wechseln reihum — oder das Einzel um die Winsener Meisterin. Für jede was dabei, egal wie du spielst. 22.–23.08.',
     // Short phrase first: the hero's date block sits absolutely top-right on desktop, so a long first
     // line collides with it (the front door avoids this with a short „Winsener" first line). „Spiel mit"
     // sits beside the date; „zwei Tage Tennis" drops below it.

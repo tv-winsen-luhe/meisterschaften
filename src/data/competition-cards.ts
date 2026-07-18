@@ -17,7 +17,7 @@ export interface CardStyle {
 }
 
 export const CARD_STYLES: Record<string, CardStyle> = {
-  womens: { variant: 'dark', badge: 'Hauptfeld', type: 'Einzel' },
+  womens: { variant: 'dark', badge: 'Winsener Meisterin', type: 'Einzel' },
   mens: { variant: 'light', badge: 'Hauptfeld', type: 'Einzel' },
   'womens-social': { variant: 'clay', badge: 'Gesellig', type: 'Doppel', compact: true },
   'mens-challenger': { variant: 'blue', badge: 'Freizeit & Einsteiger', type: 'Einzel', compact: true, marker: true }
