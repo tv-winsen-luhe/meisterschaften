@@ -14,7 +14,7 @@ import tsvLogo from '@/assets/tsv-winsen.png'
 //     if the social field is empty the whole section stays hidden — the fragile Meisterin field never
 //     fronts „Schon dabei" alone (ADR-0054 amendment 2026-07-18),
 //   - shows avatar+name rows (no LK, no seed ranks, no capacity/„Plätze frei"), the social field leading,
-//   - surfaces the competitive Hauptfeld group as soon as one name is in it — *named* presence, but
+//   - surfaces the competitive championship group as soon as one name is in it — *named* presence, but
 //     never a count: „a named face is invitation, not scoreboard". The number is the harm, not the
 //     person, so the Meisterin group carries names with no count badge.
 // This replaces the earlier total-signup floor (a single cancellation could tip the whole section away);
@@ -63,7 +63,7 @@ const championship = fields[1] // womens — the fragile Meisterin field
     <div class="bg-surface-alt p-6 md:p-8" data-group="championship" hidden>
       <div class="flex items-baseline justify-between gap-4 border-b border-navy/15 pb-4">
         <h3 class="m-0 text-[clamp(20px,3.4vw,28px)] leading-[0.95] font-black tracking-[-0.03em] uppercase">
-          Hauptfeld
+          Damen Einzel
         </h3>
         {/* No count badge — the Meisterin field surfaces named presence but never a number (ADR-0054). */}
       </div>
@@ -120,7 +120,7 @@ const championship = fields[1] // womens — the fragile Meisterin field
 <script>
   // Damen-safe presence (ADR-0054): the section is anchored on the social field — it shows once one
   // member is in the social field and stays hidden while that field is empty, so the fragile Meisterin
-  // field never fronts alone. The Hauptfeld group appears as soon as one name is in it, with names but
+  // field never fronts alone. The championship group appears as soon as one name is in it, with names but
   // no count („a named face is invitation, not scoreboard" — the number is the harm, not the person).
   // No LK, no seeding — the public list is filtered to the two Damen fields.
   interface Participant {

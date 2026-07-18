@@ -78,11 +78,11 @@ export const competitions: readonly Competition[] = [
     id: 'womens',
     slug: 'womens',
     label: 'Damen',
-    tagline: 'Hauptfeld — offen für alle. Hier wird die Winsener Meisterin ausgespielt.',
+    tagline: 'Das Einzel um die Winsener Meisterin — offen für alle.',
     audience:
       'Du hast Lust, dich im Match zu messen und um den Titel mitzuspielen — egal, wie gut du dich gerade selbst einschätzt.',
     blurb:
-      'Das Hauptfeld — offen für alle. Hier wird die Winsener Meisterin ausgespielt. Du musst dafür weder in einer Mannschaft spielen noch deine Leistungsklasse kennen.',
+      'Das Einzel um die Winsener Meisterin — offen für alle. Du musst dafür weder in einer Mannschaft spielen noch deine Leistungsklasse kennen.',
     title: 'Winsener Meisterin',
     capacity: 8,
     status: 'open'
