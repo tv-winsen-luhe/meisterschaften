@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { FIELD_EXPLAINERS, fieldExplainerFor } from '../src/data/field-explainers'
+import { FIELD_EXPLAINERS, fieldChipsFor, fieldExplainerFor } from '../src/data/field-explainers'
 
 // FIELD_EXPLAINERS is the single source for the soft-field objection-flips and chips shared by the
 // Damen porch (explainer-damen.astro) and the front-door self-selection grid (#223). The whole point
@@ -50,5 +50,13 @@ describe('field explainers', () => {
     // it must throw with the slug rather than return undefined into a template.
     expect(FIELD_EXPLAINERS.mens).toBeUndefined()
     expect(() => fieldExplainerFor('mens')).toThrow('mens')
+  })
+
+  it('returns chips softly — the front-door grid renders chips per field, and mens has none (#229)', () => {
+    // The self-selection grid asks every card for its chips; `mens` (Hauptfeld) legitimately has no
+    // explainer, so the chip lookup must degrade to an empty list rather than throw like fieldExplainerFor.
+    expect(fieldChipsFor('mens')).toEqual([])
+    expect(fieldChipsFor('mens-challenger')).toEqual(['Ab LK 20 · geschützt'])
+    expect(fieldChipsFor('womens')).toEqual(fieldExplainerFor('womens').chips)
   })
 })

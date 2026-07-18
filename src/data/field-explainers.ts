@@ -79,3 +79,10 @@ export const fieldExplainerFor = (slug: CompetitionSlug): FieldExplainer => {
   if (!explainer) throw new Error(`No FieldExplainer for competition "${slug}"`)
   return explainer
 }
+
+/**
+ * A field's format chips, or an empty list when it has no explainer. Unlike `fieldExplainerFor`, this is
+ * deliberately soft: the front-door self-selection grid (#229) asks *every* card for its chips, and the
+ * Herren Hauptfeld (`mens`) legitimately carries none — a missing explainer there is data, not a bug.
+ */
+export const fieldChipsFor = (slug: CompetitionSlug): readonly string[] => FIELD_EXPLAINERS[slug]?.chips ?? []
