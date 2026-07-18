@@ -1,6 +1,6 @@
 # ADR-0042: The homepage is a phase-projected front door, swapped client-side
 
-- Status: accepted
+- Status: accepted (§4 revised 2026-07-19 — see Revisions)
 - Date: 2026-06-29
 - Extends: ADR-0006/ADR-0027 (the phase model), ADR-0008 (static Astro + client-side polling)
 
@@ -55,6 +55,8 @@ The homepage becomes a **phase-projected front door**, resolved **client-side**.
      phase without swapping.
    - **Self-adapting live sections** — `#participants`, `#draw`. **Unchanged**; they are already
      phase-derived client-side and are precisely the surfaces that carry the derived middle.
+     _(§4 revised 2026-07-19: `#draw` is no longer in this category — it is now hidden during signup;
+     see Revisions. `#participants` stays self-adapting.)_
 
 ## Considered and rejected
 
@@ -83,3 +85,27 @@ The homepage becomes a **phase-projected front door**, resolved **client-side**.
 - The completed model: **three states, lenient (any-to-any) operator transitions with externally
   anchored guards (the seeding freeze rides the immutable draw snapshots, the cron self-gates), and
   a homepage that is a pure read of the current value.**
+
+## Revisions
+
+### 2026-07-19 — `#draw` is hidden during signup, not self-adapting
+
+§4 originally placed `#draw` among the **self-adapting live sections** kept visible in every phase.
+In practice, during signup that section is not a live surface at all: nothing is drawn yet, so it
+shows only a **provisional preview** (seed heads + „?" lines, or the „Auslosung ab vier"-Countdown
+below the draw floor). We decided that preview does not earn its place on the front door during
+signup — the provisional seeding it hints at is already shown, in full, on the `#participants`
+seeding board („Das Feld"), so `#draw` during signup is redundant anticipation rather than
+information.
+
+**Revision:** `#draw` moves from the _self-adapting_ category into the same **hidden-until-revealed**
+mechanism §3 already defines for stale signup affordances — but mirrored in time. Where a signup
+affordance ships visible and is hidden once phase ≠ signup, `#draw` (and its header nav link) now
+**ships hidden and is revealed once phase ≠ signup**. The reveal is the same single client-side phase
+read (`GET /api/phase`, once on load); any failure keeps the signup default (hidden). Implemented as
+a `[data-phase-gate]` attribute the phase read removes. `#participants` is unaffected — it stays a
+genuine self-adapting live section (its list and seeding board are meaningful in every phase).
+
+One copy consequence follows the §4 evergreen principle: the `#draw` section header, now shown only
+from `tournament` onward, was reworded phase-neutral (dropping the signup-tense „…werden bei der
+Auslosung nach Meldeschluss gelost").
