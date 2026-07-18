@@ -113,9 +113,16 @@ const sunday = [
         </p>
 
         <div class="enter enter--7 mt-8">
-          <span class="mb-3 block text-[11px] font-bold tracking-[0.18em] uppercase opacity-65">
-            Anmeldung bis {signupDeadline.short}
-          </span>
+          {/* Deadline + live momentum sit together directly above the CTA, the decision point (#228). */}
+          <div class="hero-urgency mb-5">
+            <span class="hero-urgency__deadline">Anmeldung bis {signupDeadline.short}</span>
+            {
+              /* Starts hidden; the momentum script reveals it only when totalConfirmed(...) > 0 — no „0 dabei" flash. */
+            }
+            <p class="hero-urgency__momentum" data-momentum hidden>
+              Schon <strong data-momentum-count></strong> dabei — sei die/der Nächste.
+            </p>
+          </div>
           <div class="flex flex-wrap items-center gap-6">
             <button type="button" class="cta-primary" data-signup-open>Jetzt anmelden</button>
             <a href="#participants" class="cta-secondary">Wer ist dabei? <span aria-hidden="true">&darr;</span></a>
@@ -411,6 +418,10 @@ const sunday = [
         <p class="final-cta__sub mb-8 text-[15px] leading-[1.6] opacity-70">
           Fehlt nur noch dein Name. {entryFee} € Startgeld pro Person, bar vor Ort. Anmeldung bis {signupDeadline.long}.
         </p>
+        {/* Mirror of the hero momentum line — hidden until totalConfirmed(...) > 0 (#228). */}
+        <p class="final-cta__momentum" data-momentum hidden>
+          Schon <strong data-momentum-count></strong> dabei — sei die/der Nächste.
+        </p>
         <button type="button" class="cta-primary" data-signup-open>Jetzt anmelden</button>
       </div>
     </section>
@@ -460,6 +471,53 @@ const sunday = [
     line-height: 0.86;
     font-weight: 900;
     letter-spacing: -0.04em;
+  }
+
+  /* Hero decision block: deadline + live momentum grouped above the CTA, led by a neon accent so the
+     pairing reads as the urgency cue at the decision point (#228). */
+  .hero-urgency {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    border-left: 3px solid var(--color-neon);
+    padding-left: 14px;
+  }
+  .hero-urgency__deadline {
+    font-size: 12px;
+    font-weight: 800;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    opacity: 0.85;
+  }
+  .hero-urgency__momentum {
+    margin: 0;
+    font-size: 15px;
+    font-weight: 700;
+    line-height: 1.4;
+    letter-spacing: -0.01em;
+  }
+  .hero-urgency__momentum[hidden] {
+    display: none;
+  }
+  .hero-urgency__momentum strong {
+    font-weight: 900;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Final-CTA momentum mirror — clay section, so white text; hidden until the count is > 0 (#228). */
+  .final-cta__momentum {
+    margin: 0 0 32px;
+    font-size: 15px;
+    font-weight: 800;
+    line-height: 1.4;
+    letter-spacing: -0.01em;
+  }
+  .final-cta__momentum[hidden] {
+    display: none;
+  }
+  .final-cta__momentum strong {
+    font-weight: 900;
+    font-variant-numeric: tabular-nums;
   }
 
   .hero__title > span {
@@ -680,4 +738,46 @@ const sunday = [
     )
     document.querySelectorAll('.reveal, .sect, .cat-grid').forEach(el => observer.observe(el))
   }
+</script>
+
+<script>
+  // Front-door momentum line (#228). Fetches the public participant list via the same typed Hono client
+  // the ParticipantList uses, computes the aggregate total with totalConfirmed (#224 — the one place that
+  // defines „what N counts"), and reveals the hero + final-CTA lines only when N > 0. It never surfaces a
+  // per-field count (honours #210): totalConfirmed is an aggregate across all fields. On fetch failure or
+  // the PUBLIC_LIST_ENABLED kill-switch (totalConfirmed → 0) the lines stay hidden — no „0 dabei" or broken
+  // state. Re-fetches on visibilitychange, mirroring the ParticipantList pattern.
+  import { hc } from 'hono/client'
+  import { totalConfirmed } from '../../shared'
+  import type { AppType } from '../../worker/app'
+
+  const client = hc<AppType>(location.origin)
+  const lines = document.querySelectorAll<HTMLElement>('[data-momentum]')
+
+  const apply = (total: number) => {
+    lines.forEach(line => {
+      if (total > 0) {
+        const count = line.querySelector<HTMLElement>('[data-momentum-count]')
+        if (count) count.textContent = String(total)
+      }
+      // Hide again if a later fetch reports 0 (e.g. kill-switch flipped) — never leave a stale number up.
+      line.hidden = total <= 0
+    })
+  }
+
+  const load = async () => {
+    if (lines.length === 0) return
+    try {
+      const res = await client.api.participants.$get()
+      if (!res.ok) return // transient failure: keep the current state, never break to „0 dabei"
+      apply(totalConfirmed(await res.json()))
+    } catch {
+      // Network error: graceful-degrade to nothing — the lines simply stay as they are (hidden at load).
+    }
+  }
+
+  load()
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') load()
+  })
 </script>
