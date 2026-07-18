@@ -1,6 +1,9 @@
 # ADR-0054: The Damen porch is a self-choice validation probe; the porch is not one symmetric object
 
-- Status: accepted
+- Status: accepted; **the Damen "validation probe" job is superseded by ADR-0055** (the Damen porch
+  became a broad conversion surface). The content protections below (named-face-not-count,
+  motive-not-skill, no-Challenger/LK-in-B, beginner-welcome, invites-both) and the Herren realization
+  survive that change — see ADR-0055.
 - Date: 2026-07-11
 - Supersedes: ADR-0053 for the Damen side; **abandons** ADR-0053's Herren widening (it never shipped)
 - Builds on: ADR-0052 (per-side outreach porch), ADR-0051 (four fields, two per side), the discovery

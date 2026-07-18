@@ -442,9 +442,11 @@ reveal sequence }`. Randomness enters through an injected **`RandomSource`** por
 ## System
 
 - **Outreach porch** (de: gezielte Anmelde-Seite) — a **signup-era** landing page for **one side** of
-  the event (`/damen`, `/herren`), handed out by **link only** (WhatsApp) to a **warm, hand-picked**
-  audience — club members reached personally (soft-committed Hauptfeld players, a named Challenger
-  candidate list, Damen via Botschafterinnen), **never a cold mass send** (Durchführungsplan). It is
+  the event (`/damen`, `/herren`), handed out by **link only** — originally to a **warm, hand-picked**
+  audience reached personally (soft-committed Hauptfeld players, a named Challenger candidate list,
+  Damen via Botschafterinnen; Durchführungsplan), and now also as the **broad** landing target of the
+  official segmented Vereins-Rundmail (all members, split by gender; ADR-0055). Still members-only and
+  `noindex` (ADR-0017) either way. It is
   **not** the phase-projected front door (`index.astro`, ADR-0042). The **route earns its keep at the
   preview layer**: a per-URL `ogTitle`/`ogDescription` makes the WhatsApp preview card itself the pitch —
   the one thing a query param on the front door cannot do (its OG is the homepage's). It reads
@@ -459,19 +461,22 @@ reveal sequence }`. Randomness enters through an injected **`RandomSource`** por
     audience already convinced, so the page **converts**. **Thin suffices**: the live thin version
     (ADR-0052) drew **12 Hauptfeld + 4 Challenger**. The ADR-0053 widening (live momentum band, long
     explainers) was never validated and is **not shipped**.
-  - **Validation probe (Damen)** — the B-field **format is open**, so the page is an **instrument to
-    validate and iterate** a concrete format guess with the small warm group, **success measured as
-    signal, not raw signups**. It **leads with the social B-field** („Damen Doppel-Mixer", working name),
-    presents the **fragile** A-field (Meisterin; hoped-for 4, unvalidated demand) honestly as the
-    ambitious second option, **splits the two fields by _motive_ (social vs competitive), never by
-    skill** — a strong player who wants the social field is normal — dissolves the „nicht gut genug"
-    barrier by **self-choice into a desirable field, never Orga assignment** (Track C, reversing
-    ADR-0053's „wir teilen ein"), **never shows a lonely count** for the fragile A-field, carries
-    **one low-friction reply channel** so reactions feed iteration, and **actively invites holding both
-    fields** (the „Einzel, Doppel — oder beides?" FAQ) since a „both" entry converts the fragile A-field —
-    kept FAQ-only so self-choice-by-motive stays the headline (ADR-0054 amendment 2026-07-12).
+  - **Broad conversion surface (Damen)** — the Damen porch's **current** job. It **converts a broad,
+    segmented member audience** — the whole Damen membership, landed via the official Rundmail (#215) —
+    with success measured as **signup volume** (ADR-0055). It began as a **validation probe** (its
+    earlier ADR-0054 realization: an instrument to validate and iterate the open social B-field format
+    with a small warm group, success measured as signal not volume, format now settled); the **content
+    discipline built there survives the role change verbatim, and matters more under the broader
+    audience**. It **leads with the social B-field** („Damen Doppel-Mixer"), presents the **fragile**
+    A-field (Meisterin) honestly as the ambitious second option, **splits the two fields by _motive_
+    (social vs competitive), never by skill** — a strong player who wants the social field is normal —
+    dissolves the „nicht gut genug" barrier by **self-choice into a desirable field, never Orga
+    assignment** (Track C), shows the fragile A-field as **named presence, never a lonely count**
+    (#210), welcomes **absolute beginners** explicitly (the „Das brauchst du hier nicht" block, #204),
+    and **actively invites holding both fields** (the „Einzel, Doppel — oder beides?" FAQ) since a
+    „both" entry converts the fragile A-field. Still members-only, `noindex` (ADR-0017).
     _Avoid_: "landing page" (too generic), "competition page" (it is per-**side**, two fields, not
-    per-competition). _(See ADR-0054, ADR-0052, ADR-0042.)_
+    per-competition). _(See ADR-0055, ADR-0054, ADR-0052, ADR-0042.)_
 - **Source of truth** — the site (Astro + Cloudflare Worker + D1) owns the tournament data end to
   end: registrations, the draw, and live results all live in D1. No external tournament tool.
   _(See ADR-0001.)_
