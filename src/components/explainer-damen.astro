@@ -6,7 +6,7 @@ import FieldExplainer from './field-explainer.astro'
 //   - The *social field leads* and takes the anchor (thesis) surface — it is the genuine first choice,
 //     not a consolation. Its concrete job: the Damen <50 have no teams, barely know each other and run
 //     out of Spielpartnerinnen (Judica Klages) — the rotating-partner mixer fixes exactly that.
-//   - The *Hauptfeld is the honest second option*, a plain block. It is framed by *motive* („du willst
+//   - The *championship field is the honest second option*, a plain block. It is framed by *motive* („du willst
 //     dich im Match messen"), never by skill, and never with a defensive „doch, du bist gut genug" — the
 //     „nicht gut genug" barrier is dissolved by self-choice into the desirable social field, not by
 //     reassuring people into the competition (reverses ADR-0053's „wir teilen die Felder ein").
@@ -26,7 +26,7 @@ const notNeeded: [string, string][] = [
   ['Turniererfahrung', 'Für viele hier ist es das erste Mal. Genau dafür ist dieser Tag gemacht.']
 ]
 
-// The Hauptfeld's parallel aside — the low-barrier facts made scannable (all already true in the prose),
+// The championship field's parallel aside — the low-barrier facts made scannable (all already true in the prose),
 // so both explainer blocks share the two-column rhythm. Framed positively (not „das brauchst du nicht")
 // so it reads distinct from the social block, and reinforces that even the competitive field is easy to
 // enter.
@@ -100,12 +100,12 @@ const { socialSlug, championshipSlug } = Astro.props as Props
 
 <FieldExplainer
   type="Einzel"
-  badge="Hauptfeld"
+  badge="Winsener Meisterin"
   variant="plain"
   heading="Du willst dich im Match messen? Dann ist das dein Feld."
   chips={['Am Samstag', 'Um den Titel', 'K.-o.-System', 'Titel: Winsener Meisterin']}
   signupSlug={championshipSlug}
-  signupLabel="Fürs Hauptfeld anmelden"
+  signupLabel="Zum Einzel anmelden"
 >
   <p>
     Hier wird die <strong>Winsener Meisterin</strong> ausgespielt — Matches im K.-o.-System, wenn du Lust hast, dich zu messen.
