@@ -8,11 +8,21 @@ interface Props {
   competition: Competition
   style: CardStyle
   stagger?: number
+  /**
+   * Optional format chips (from field-explainers.ts). Rendered between blurb and CTA when present. The
+   * front-door self-selection grid (#229) passes them; the outreach porches omit them, so the shared
+   * card (ADR-0052) stays unchanged there.
+   */
+  chips?: readonly string[]
 }
 
-const { competition, style, stagger } = Astro.props
+const { competition, style, stagger, chips } = Astro.props
 const { variant } = style
 const isLight = variant === 'light'
+const hasChips = chips !== undefined && chips.length > 0
+// Match the field-explainer chip look, keyed off the card variant's background so pills stay legible.
+const chipClass =
+  variant === 'dark' || variant === 'clay' ? 'border border-white/30 text-white/90' : 'bg-navy/[0.06] text-navy/80'
 
 // Per-variant class fragments, faithful to the four hand-written cards the front door used to carry.
 // Kept here so both the front door and the outreach porches render identical cards (ADR-0052).
@@ -36,7 +46,18 @@ const blurbColor = { light: 'opacity-65', dark: 'text-white/80', clay: 'text-whi
     </span>
   </div>
   <p class:list={['m-0 text-[13px] leading-[1.6] font-semibold', audienceColor]}>{competition.audience}</p>
-  <p class:list={['mt-2 mb-7 text-[13px] leading-[1.6]', blurbColor]}>{competition.blurb}</p>
+  <p class:list={['mt-2 text-[13px] leading-[1.6]', blurbColor, hasChips ? 'mb-5' : 'mb-7']}>{competition.blurb}</p>
+  {
+    hasChips && (
+      <ul class="mb-7 flex flex-wrap gap-2">
+        {chips!.map(chip => (
+          <li class="px-3 py-1.5 text-[11px] font-bold tracking-[0.02em] uppercase" class:list={[chipClass]}>
+            {chip}
+          </li>
+        ))}
+      </ul>
+    )
+  }
   <button
     type="button"
     class="cta-primary mt-auto w-full text-center"

@@ -2,6 +2,7 @@
 import Layout from '@/layouts/default.astro'
 import SectionHeader from '@/components/section-header.astro'
 import CompetitionCard from '@/components/competition-card.astro'
+import FieldFlip from '@/components/field-flip.astro'
 import FaqItem from '@/components/faq-item.astro'
 import SignupModal from '@/components/signup-modal.astro'
 import TournamentBracket from '@/components/tournament-bracket.astro'
@@ -9,6 +10,7 @@ import TournamentDraw from '@/components/tournament-draw.astro'
 import ParticipantList from '@/components/participant-list.astro'
 import { competitions, contactEmail, entryFee, signupDeadline, tournament } from '@/data/tournament'
 import { cardStyleFor } from '@/data/competition-cards'
+import { fieldChipsFor } from '@/data/field-explainers'
 
 const sectClass = 'sect border-t border-navy py-20 focus:outline-none md:py-[120px]'
 
@@ -16,6 +18,12 @@ const mens = competitions.find(c => c.id === 'mens')!
 const challenger = competitions.find(c => c.id === 'mens-challenger')!
 const womens = competitions.find(c => c.id === 'womens')!
 const womensSocial = competitions.find(c => c.id === 'womens-social')!
+
+// The Damen „hold both fields" cross-sell — the invitation line from porch-damen.astro's cross-sell FAQ.
+// Only the Damen pair carries it: Einzel + geselliges Doppel can be held together, and a „both" entry
+// converts the fragile championship field (the invites-both protection ADR-0055 keeps). The two Herren
+// fields are a choice between (the Challenger is LK-protected against stronger players), so no such line.
+const damenCrossSell = 'Beide Felder gehen zusammen — meld dich einfach für beide an.'
 
 const reglement: { label: string; value: string; link?: { href: string; label: string } }[] = [
   { label: 'Modus', value: 'K.O. mit Nebenrunde — mind. 2 Matches' },
@@ -185,11 +193,50 @@ const sunday = [
         note={`Vier Felder, zwei je Seite: bei den Damen das Hauptfeld um die Winsener Meisterin und das gesellige Damen Doppel zum Kennenlernen; bei den Herren das Hauptfeld und das geschützte Challenger-Feld für Freizeit & Einsteiger. Dein Feld wählst du bei der Anmeldung selbst, deine Leistungsklasse musst du dafür nicht kennen. Startgeld: ${entryFee} € pro Person, bar vor Ort beim Check-in.`}
       />
 
-      <div class="cat-grid grid grid-cols-2 gap-0.5 bg-navy p-0.5 max-[900px]:grid-cols-1">
-        <CompetitionCard competition={womens} style={cardStyleFor(womens.id)} stagger={0} />
-        <CompetitionCard competition={mens} style={cardStyleFor(mens.id)} stagger={1} />
-        <CompetitionCard competition={womensSocial} style={cardStyleFor(womensSocial.id)} stagger={2} />
-        <CompetitionCard competition={challenger} style={cardStyleFor(challenger.id)} stagger={3} />
+      {
+        /* Two gender pairs, Damen first (ADR-0051). Each pair leads with its Hauptfeld, then the soft
+          field, whose objection-flip block sits directly beneath. The „hold both" cross-sell follows the
+          Damen pair only — the Herren fields are LK-exclusive, so a „beide" invite there would mislead. */
+      }
+      <div class="grid gap-12 md:gap-16">
+        <div>
+          <span class="mb-4 block text-[11px] font-bold tracking-[0.18em] uppercase opacity-45">Damen</span>
+          <div class="cat-grid grid grid-cols-2 gap-0.5 bg-navy p-0.5 max-[900px]:grid-cols-1">
+            <CompetitionCard
+              competition={womens}
+              style={cardStyleFor(womens.id)}
+              chips={fieldChipsFor('womens')}
+              stagger={0}
+            />
+            <CompetitionCard
+              competition={womensSocial}
+              style={cardStyleFor(womensSocial.id)}
+              chips={fieldChipsFor('womens-social')}
+              stagger={1}
+            />
+          </div>
+          <div class="reveal mt-0.5"><FieldFlip slug="womens-social" /></div>
+          <p class="reveal mt-5 text-[13px] leading-[1.6] font-semibold opacity-70">{damenCrossSell}</p>
+        </div>
+
+        <div>
+          <span class="mb-4 block text-[11px] font-bold tracking-[0.18em] uppercase opacity-45">Herren</span>
+          <div class="cat-grid grid grid-cols-2 gap-0.5 bg-navy p-0.5 max-[900px]:grid-cols-1">
+            <CompetitionCard
+              competition={mens}
+              style={cardStyleFor(mens.id)}
+              chips={fieldChipsFor('mens')}
+              stagger={0}
+            />
+            <CompetitionCard
+              competition={challenger}
+              style={cardStyleFor(challenger.id)}
+              chips={fieldChipsFor('mens-challenger')}
+              stagger={1}
+            />
+          </div>
+          <div class="reveal mt-0.5"><FieldFlip slug="mens-challenger" /></div>
+        </div>
       </div>
     </section>
 
