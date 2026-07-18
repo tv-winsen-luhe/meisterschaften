@@ -178,3 +178,38 @@ This **refines, does not reverse** the decision above. The two moves:
   explainer + „signpost the choice" chooser won; the „name beginners loudly in the hero" variant was
   rejected for drifting toward the skill frame.
 - **Scope.** Probe-only, per the amendments above; folds into the front door only once validated (ADR-0042).
+
+## Amendment (2026-07-18): a named face is invitation, not scoreboard
+
+The first send-waves gave the „lonely count" rule a concrete case to answer, not a hypothetical: three
+active across both Damen fields — Doppel-Mixer 2, Meisterin **1** — flat since 12.07 (the „1 für die
+Meisterin" this ADR named). Under the gated-presence amendment's floor the „Schon dabei" section rendered
+the mixer group but **hid the single Meisterin entry**, and the whole section sat one cancellation from
+vanishing (mixer 2 + Meisterin 1 = exactly the floor of 3). So the fragile field the probe most wants to
+fill was invisible, and the section was on a knife's edge.
+
+This **refines, does not reverse** „Never a lonely count for the fragile A-field." The rule pinned the
+harm to _a bare „1 für die Meisterin"_ — the **number**. The discovery is that presence ≠ count:
+
+- **The harm is the number, not the person.** A **named face** is the opposite psychological object for
+  this warm, hand-picked audience — „Anna ist dabei" reads as an invitation to join someone recognized,
+  not a scoreboard of scarcity. The corollary that sharpens the rule: **a named face is invitation, not
+  scoreboard.** Continuous with the „both" amendment (2026-07-12), which already reframed the fragile
+  field's presence as a **conversion lever**, not a learning-only measurement.
+- **So the Meisterin field surfaces named presence but never a count.** It shows at ≥ 1 name; its count
+  badge is dropped entirely. The social field keeps its „N schon dabei" badge — it is the desirable,
+  counted field, and a count there is proof, not scarcity.
+- **The social field stays the anchor; the fragile total floor is dropped.** If the social field is empty
+  the whole section stays hidden — the Meisterin field never fronts „Schon dabei" alone (protects the
+  „lead with the desirable field" narrative). The gated-presence amendment's _total_ floor is replaced by
+  a **social-only floor of 1**: the section's appearance tracks the healthy social field, so a single
+  cancellation can no longer tip the whole section away (the knife's edge is gone).
+- **Validated by prototype** (`/damen-proto`, three framings A/B/C of the count-less Meisterin name,
+  against frozen thin data, since deleted): **Variant A won** — the current symmetric two-column layout,
+  Meisterin keeping an equal-weight „Hauptfeld" card with the count badge removed. A badge-less card with
+  one name reads as the same list minus a number, not a re-introduced scoreboard; it keeps the least
+  structural change from today's component. **Copy unchanged** — no LK, no Setzung, no „Plätze frei", no
+  count on the Meisterin field.
+- **No glossary change.** „Never a lonely count" survives with a sharper edge; „conversion porch" /
+  „validation probe" are untouched.
+- **Scope.** Probe-only, per the amendments above; folds into the front door only once validated (ADR-0042).
