@@ -1,5 +1,6 @@
 ---
 import FieldExplainer from './field-explainer.astro'
+import { fieldExplainerFor } from '../data/field-explainers'
 
 // The Damen probe's two field explainers (ADR-0054). The porch is a validation probe, so these encode
 // its decisions in copy and order:
@@ -13,28 +14,12 @@ import FieldExplainer from './field-explainer.astro'
 // Copy follows the 02.07 Sag/Vermeide guide: never „Challenger", never an LK number or „Setzung", and no
 // title/Wettkampf vocabulary in the social field. Targeted, per-side content with no front-door equivalent.
 //
-// The social explainer carries a „Das brauchst du hier nicht" block (ADR-0054 amendment 2026-07-13):
-// field feedback showed absolute-beginner Damen stalling on concrete fears — can't rally, can't score,
-// shaky serve — that the abstract „egal wie du spielst" never reached. The block names each fear and
-// *removes the bar* (there is no scoring/serve/rally standard here), which is distinct from the forbidden
-// reassurance „du bist gut genug" (that concedes a bar and argues you clear it). Removing the standard,
-// not clearing it.
-const notNeeded: [string, string][] = [
-  ['Zählen können', 'Wir sagen dir, wo ihr steht — Punkte zählt hier niemand nach.'],
-  ['Einen sicheren Aufschlag', 'Von unten aufschlagen ist völlig okay. Hauptsache, der Ball ist im Spiel.'],
-  ['Lange Ballwechsel', 'Zwei, drei Bälle übers Netz sind schon ein schöner Ballwechsel.'],
-  ['Turniererfahrung', 'Für viele hier ist es das erste Mal. Genau dafür ist dieser Tag gemacht.']
-]
-
-// The championship field's parallel aside — the low-barrier facts made scannable (all already true in the prose),
-// so both explainer blocks share the two-column rhythm. Framed positively (not „das brauchst du nicht")
-// so it reads distinct from the social block, and reinforces that even the competitive field is easy to
-// enter.
-const goodToKnow: [string, string][] = [
-  ['Ohne Mannschaft', 'Du meldest dich allein an.'],
-  ['Ohne Leistungsklasse', 'Die musst du nicht kennen.'],
-  ['Ohne Gewinnzwang', 'Es geht ums Mitspielen und Sich-Messen.']
-]
+// The flip pairs and chips live in the shared field-explainers module (#225), so this porch and the
+// front-door grid (#223) cannot drift. The social explainer's „Das brauchst du hier nicht" block
+// (ADR-0054 amendment 2026-07-13) names each concrete beginner fear and *removes the bar* — distinct
+// from the forbidden reassurance „du bist gut genug" (that concedes a bar and argues you clear it).
+const social = fieldExplainerFor('womens-social')
+const championship = fieldExplainerFor('womens')
 
 interface Props {
   /** Signup slug for the leading social field (womens-social). */
@@ -51,14 +36,7 @@ const { socialSlug, championshipSlug } = Astro.props as Props
   badge="Gesellig"
   variant="anchor"
   heading="Komm allein — hier findest du neue Spielpartnerinnen."
-  chips={[
-    'Am Sonntag',
-    'Allein anmelden',
-    'Anfängerinnen willkommen',
-    'Partnerinnen wechseln reihum',
-    'Auch ohne Doppel-Erfahrung',
-    'Keine fliegt raus'
-  ]}
+  chips={social.chips}
   signupSlug={socialSlug}
   signupLabel="Zum Doppel-Mixer anmelden"
 >
@@ -82,7 +60,7 @@ const { socialSlug, championshipSlug } = Astro.props as Props
     >
     <ul class="flex flex-col gap-3.5">
       {
-        notNeeded.map(([what, why]) => (
+        social.notNeeded?.map(([what, why]) => (
           <li class="flex gap-3 text-[15px] leading-[1.5]">
             <span aria-hidden="true" class="mt-0.5 font-black text-neon">
               ✗
@@ -103,7 +81,7 @@ const { socialSlug, championshipSlug } = Astro.props as Props
   badge="Winsener Meisterin"
   variant="plain"
   heading="Du willst dich im Match messen? Dann ist das dein Feld."
-  chips={['Am Samstag', 'Um den Titel', 'K.-o.-System', 'Titel: Winsener Meisterin']}
+  chips={championship.chips}
   signupSlug={championshipSlug}
   signupLabel="Zum Einzel anmelden"
 >
@@ -119,7 +97,7 @@ const { socialSlug, championshipSlug } = Astro.props as Props
     <span class="mb-4 block text-[12px] font-black tracking-[0.14em] text-blue uppercase">Gut zu wissen</span>
     <ul class="flex flex-col gap-3.5">
       {
-        goodToKnow.map(([what, why]) => (
+        championship.goodToKnow?.map(([what, why]) => (
           <li class="flex gap-3 text-[15px] leading-[1.5]">
             <span aria-hidden="true" class="mt-0.5 font-black text-blue">
               →
