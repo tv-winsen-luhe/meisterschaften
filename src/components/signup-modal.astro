@@ -134,11 +134,9 @@ const clubLogos = { 'TV Winsen': tvLogo, 'TSV Winsen': tsvLogo } satisfies Recor
       <label class="signup-consent">
         <input type="checkbox" name="consent" value="yes" required />
         <span>
-          Ich bin einverstanden, dass mein <strong>Name, mein Verein, meine Konkurrenz und meine Leistungsklasse</strong
-          > auf dieser Turnier-Website öffentlich angezeigt werden. Meine Kontaktdaten nutzt die Turnierleitung nur zur Organisation.{
-            ' '
-          }
-          <a href="/datenschutz" class="signup-consent__link">Datenschutz</a>
+          Ich bin einverstanden, dass Name, Verein, Konkurrenz und LK öffentlich auf der Turnier-Seite gezeigt werden.
+          Kontaktdaten nur zur Organisation.{' '}
+          <a href="/datenschutz" class="signup-consent__link">→ Datenschutz</a>
         </span>
       </label>
 
@@ -468,21 +466,19 @@ const clubLogos = { 'TV Winsen': tvLogo, 'TSV Winsen': tsvLogo } satisfies Recor
     display: flex;
     gap: 12px;
     align-items: flex-start;
-    font-size: 13px;
-    line-height: 1.55;
-    color: rgba(255, 255, 255, 0.75);
+    font-size: 12px;
+    line-height: 1.5;
+    /* Softened from the old bold-emphasis wall (dropped <strong>, one line, smaller), but kept
+       legible — this is legally material consent copy, so it stays above a dim secondary-text tint. */
+    color: rgba(255, 255, 255, 0.72);
     cursor: pointer;
   }
   .signup-consent input {
-    margin-top: 3px;
+    margin-top: 2px;
     width: 18px;
     height: 18px;
     flex-shrink: 0;
     accent-color: var(--color-neon);
-  }
-  .signup-consent strong {
-    color: #fff;
-    font-weight: 700;
   }
   .signup-consent__link {
     color: var(--color-neon);
