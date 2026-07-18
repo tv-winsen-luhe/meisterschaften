@@ -33,3 +33,10 @@ export const participantsResponseSchema = z.object({
 
 export type Participant = z.infer<typeof participantSchema>
 export type ParticipantsResponse = z.infer<typeof participantsResponseSchema>
+
+// The one place that answers "what N counts" for the front-door momentum line: the number of
+// confirmed entries across all fields. Honours the PUBLIC_LIST_ENABLED kill-switch — when the list
+// is disabled the response carries no participants and the count is 0, so callers never surface a
+// stale or partial number while the switch is off.
+export const totalConfirmed = (response: ParticipantsResponse): number =>
+  response.enabled ? response.participants.length : 0
