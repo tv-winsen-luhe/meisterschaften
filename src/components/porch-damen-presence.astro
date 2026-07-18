@@ -9,15 +9,18 @@ import tsvLogo from '@/assets/tsv-winsen.png'
 // avatar + name, like the men's list panels) so it reads as the same site, but it is NOT the seeding
 // board: the front door renders the championship field with seed-position ranks, an LK column,
 // „vorläufige Setzung nach Leistungsklasse" and a „Plätze frei" meter — all of which the probe's copy
-// discipline forbids (no LK, no Setzung, no scarcity), and which would lonely-count the fragile
-// Meisterin field („1" on a board = maximal self-image reinforcer). So this section instead:
-//   - stays hidden entirely until a healthy number have signed up (FLOOR) — „show the list once a few
-//     are in"; below the floor there is no section at all, so nothing ever reads as empty or lonely,
+// discipline forbids (no LK, no Setzung, no scarcity). So this section instead:
+//   - is anchored on the *social* field: it shows once at least one member is in the social field, and
+//     if the social field is empty the whole section stays hidden — the fragile Meisterin field never
+//     fronts „Schon dabei" alone (ADR-0054 amendment 2026-07-18),
 //   - shows avatar+name rows (no LK, no seed ranks, no capacity/„Plätze frei"), the social field leading,
-//   - surfaces the competitive Hauptfeld group only once it too clears the floor — never a lonely count.
-// It reads the same public `/api/participants` the front door uses; this is presence within signup, not
-// a step toward phase projection (the porch still redirects away once phase ≠ signup).
-const FLOOR = 3
+//   - surfaces the competitive Hauptfeld group as soon as one name is in it — *named* presence, but
+//     never a count: „a named face is invitation, not scoreboard". The number is the harm, not the
+//     person, so the Meisterin group carries names with no count badge.
+// This replaces the earlier total-signup floor (a single cancellation could tip the whole section away);
+// the section now tracks the healthy social field alone. It reads the same public `/api/participants` the
+// front door uses; this is presence within signup, not a step toward phase projection (the porch still
+// redirects away once phase ≠ signup).
 
 interface Props {
   side: Side
@@ -34,7 +37,6 @@ const championship = fields[1] // womens — the fragile Meisterin field
   data-damen-presence
   data-social-slug={social.slug}
   data-championship-slug={championship.slug}
-  data-floor={FLOOR}
   data-logo-tv={tvLogo.src}
   data-logo-tsv={tsvLogo.src}
   tabindex="-1"
@@ -63,8 +65,7 @@ const championship = fields[1] // womens — the fragile Meisterin field
         <h3 class="m-0 text-[clamp(20px,3.4vw,28px)] leading-[0.95] font-black tracking-[-0.03em] uppercase">
           Hauptfeld
         </h3>
-        <span class="shrink-0 text-[11px] font-black tracking-[0.12em] whitespace-nowrap text-blue uppercase" data-count
-        ></span>
+        {/* No count badge — the Meisterin field surfaces named presence but never a number (ADR-0054). */}
       </div>
       <ul class="dp-list mt-4" data-names></ul>
     </div>
@@ -117,9 +118,11 @@ const championship = fields[1] // womens — the fragile Meisterin field
 </style>
 
 <script>
-  // Damen-safe presence (ADR-0054): the whole section stays hidden until FLOOR total signups; the
-  // competitive Hauptfeld group appears only once it clears the floor on its own, so the fragile field
-  // is never lonely-counted. No LK, no seeding — the public list is filtered to the two Damen fields.
+  // Damen-safe presence (ADR-0054): the section is anchored on the social field — it shows once one
+  // member is in the social field and stays hidden while that field is empty, so the fragile Meisterin
+  // field never fronts alone. The Hauptfeld group appears as soon as one name is in it, with names but
+  // no count („a named face is invitation, not scoreboard" — the number is the harm, not the person).
+  // No LK, no seeding — the public list is filtered to the two Damen fields.
   interface Participant {
     firstName: string
     lastName: string
@@ -131,7 +134,6 @@ const championship = fields[1] // womens — the fragile Meisterin field
   if (section) {
     const socialSlug = section.dataset.socialSlug ?? ''
     const championshipSlug = section.dataset.championshipSlug ?? ''
-    const floor = Number(section.dataset.floor ?? 3)
     const logoTv = section.dataset.logoTv ?? ''
     const logoTsv = section.dataset.logoTsv ?? ''
 
@@ -158,10 +160,12 @@ const championship = fields[1] // womens — the fragile Meisterin field
       return li
     }
 
-    const fillGroup = (name: 'social' | 'championship', people: Participant[], countText: string) => {
+    // countText is set only when the group has a count badge — the Meisterin group deliberately has none.
+    const fillGroup = (name: 'social' | 'championship', people: Participant[], countText?: string) => {
       const group = section.querySelector<HTMLElement>(`[data-group="${name}"]`)
       if (!group || people.length === 0) return
-      group.querySelector<HTMLElement>('[data-count]')!.textContent = countText
+      const count = group.querySelector<HTMLElement>('[data-count]')
+      if (count && countText) count.textContent = countText
       const names = group.querySelector<HTMLElement>('[data-names]')!
       for (const p of people) names.appendChild(row(p))
       group.hidden = false
@@ -174,14 +178,14 @@ const championship = fields[1] // womens — the fragile Meisterin field
 
         const social = data.participants.filter(p => p.competition === socialSlug)
         const championship = data.participants.filter(p => p.competition === championshipSlug)
-        if (social.length + championship.length < floor) return // too early → stay hidden
-        // The social field leads „Schon dabei" (ADR-0054): never front the section with the fragile
+        // The social field anchors „Schon dabei" (ADR-0054): never front the section with the fragile
         // Meisterin field standing alone. If no one is in the social field yet, keep it hidden entirely.
         if (social.length === 0) return
 
         fillGroup('social', social, `${social.length} schon dabei`)
-        // Never a lonely count for the fragile Meisterin field: only surface it once it clears the floor.
-        if (championship.length >= floor) fillGroup('championship', championship, `${championship.length} im Feld`)
+        // Named presence for the Meisterin field the moment one name is in it — but never a count
+        // („a named face is invitation, not scoreboard"). No countText → the group renders names only.
+        fillGroup('championship', championship)
 
         section.hidden = false
         // Reveal the section's motion elements directly: it was `hidden` at load, so the shared
