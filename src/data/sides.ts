@@ -51,7 +51,7 @@ export const SIDES: readonly Side[] = [
     // sits beside the date; „zwei Tage Tennis" drops below it.
     eyebrow: 'Winsener Meisterschaften',
     headline: ['Spiel mit —', 'zwei Tage Tennis'],
-    lead: 'Ein geselliger Spieltag zum Kennenlernen — oder richtige Matches, wenn dir danach ist. Du wählst selbst, in welchem Feld du spielst; für jede ist was dabei, egal wie du spielst.',
+    lead: 'Ein geselliger Spieltag zum Kennenlernen — oder Matches um den Titel, wenn dir danach ist. Du wählst selbst, in welchem Feld du spielst; für jede ist was dabei, egal wie du spielst.',
     leadSub:
       'Du kannst allein kommen oder zu zweit — eine Partnerin brauchst du nicht, deine Leistungsklasse auch nicht.'
   },
