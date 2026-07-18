@@ -78,9 +78,9 @@ const clubLogos = { 'TV Winsen': tvLogo, 'TSV Winsen': tsvLogo } satisfies Recor
         <legend class="signup-label">Verein</legend>
         <div class="signup-grid-2">
           {
-            CLUBS.map((club, i) => (
+            CLUBS.map(club => (
               <label class="competition-option">
-                <input type="radio" name="club" value={club} required checked={i === 0} />
+                <input type="radio" name="club" value={club} required />
                 <span class="club-logo">
                   <img src={clubLogos[club].src} alt="" width="28" height="28" loading="lazy" />
                 </span>
