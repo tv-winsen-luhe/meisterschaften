@@ -43,7 +43,7 @@ const clubLogos = { 'TV Winsen': tvLogo, 'TSV Winsen': tsvLogo } satisfies Recor
           }
         </div>
         <p class="signup-hint">
-          Unsicher? Challenger ist das geschützte Feld für Freizeit-/Einsteiger und alle ab LK 20.
+          Unsicher? Challenger ist das geschützte Feld ab LK 20 (oder ohne LK) — Wettkampf auf Augenhöhe.
         </p>
       </fieldset>
 
@@ -676,15 +676,11 @@ const clubLogos = { 'TV Winsen': tvLogo, 'TSV Winsen': tsvLogo } satisfies Recor
     if (errorEl) errorEl.hidden = true
   }
 
-  // `competition` = a slug preselects that field; `null` = open with no field preselected (the Herren
-  // porch's equal doors, ADR-0056) — clear the HTML default so the visitor must pick; `undefined` keeps
-  // whatever the form defaults to.
-  const openDialog = (competition?: string | null) => {
+  // `competition` = a slug preselects that field; `undefined` keeps whatever the form defaults to.
+  const openDialog = (competition?: string) => {
     if (!dialog) return
     resetForm()
-    if (competition === null) {
-      form?.querySelectorAll<HTMLInputElement>('input[name="competition"]').forEach(radio => (radio.checked = false))
-    } else if (competition) {
+    if (competition) {
       const radio = form?.querySelector<HTMLInputElement>(`input[name="competition"][value="${competition}"]`)
       if (radio) radio.checked = true
     }
@@ -712,9 +708,7 @@ const clubLogos = { 'TV Winsen': tvLogo, 'TSV Winsen': tsvLogo } satisfies Recor
     document.querySelectorAll<HTMLElement>('[data-signup-open]').forEach(trigger => {
       trigger.addEventListener('click', e => {
         e.preventDefault()
-        // `data-signup-no-preselect` → open with nothing checked; otherwise preselect the given slug.
-        if (trigger.hasAttribute('data-signup-no-preselect')) openDialog(null)
-        else openDialog(trigger.dataset.signupCompetition || undefined)
+        openDialog(trigger.dataset.signupCompetition || undefined)
       })
     })
     dialog.querySelectorAll<HTMLElement>('[data-signup-close]').forEach(btn => {

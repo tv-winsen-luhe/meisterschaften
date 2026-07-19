@@ -14,9 +14,8 @@ interface Anchor {
 interface Props {
   variant?: 'event' | 'legal'
   anchors?: Anchor[]
-  // `noPreselect` opens the signup modal with no field preselected (the Herren porch's equal doors,
-  // ADR-0056); otherwise `competition` preselects that field.
-  cta?: { href: string; label: string; competition?: string; noPreselect?: boolean }
+  // `competition` preselects that field in the signup modal; omit it to open with the form default.
+  cta?: { href: string; label: string; competition?: string }
 }
 
 const { variant = 'event', anchors = [], cta } = Astro.props
@@ -68,8 +67,7 @@ const home = import.meta.env.BASE_URL || '/'
               href={cta.href}
               class="cta-primary cta-primary--sm site-header__cta"
               data-signup-open
-              data-signup-competition={cta.noPreselect ? undefined : cta.competition}
-              data-signup-no-preselect={cta.noPreselect ? '' : undefined}
+              data-signup-competition={cta.competition}
             >
               {cta.label}
             </a>

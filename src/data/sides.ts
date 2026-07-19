@@ -1,28 +1,27 @@
 import { competitions, type Competition } from './tournament'
 
-// The two outreach porches — /damen and /herren (CONTEXT.md: Outreach porch, ADR-0052, ADR-0054). A
-// porch is a signup-era landing page for one side of the event, handed out by link (WhatsApp) to a
-// warm, hand-picked audience. This module is the porch's only bespoke content: the German route slug,
-// the two fields it shows (ADR-0051), the per-URL WhatsApp preview card (the reason a route beats an
-// anchor — ADR-0052), and the targeted lead copy. Everything evergreen stays on the front door and is
+// The Damen outreach porch — /damen (CONTEXT.md: Outreach porch, ADR-0052, ADR-0055). A porch is a
+// signup-era landing page for one side of the event, handed out by link to its audience. This module is
+// the porch's only bespoke content: the German route slug, the two fields it shows (ADR-0051), the
+// per-URL preview card, and the targeted lead copy. Everything evergreen stays on the front door and is
 // linked, never restated here.
 //
-// The two porches are not one symmetric object (ADR-0054/0056): Damen is a *validation probe* (the
-// social field's format is open — the page leads with the social B-field, presents the competitive
-// A-field as the honest second option, and lets the group self-choose by motive). Herren is now a
-// *broad conversion surface* at the same structural richness (ADR-0056): two equal competitive doors
-// (Hauptfeld + Challenger), belonging-first, with the Challenger framed as fairness — never
-// beginner-reassurance. That difference lives in the porch templates and the copy below, not in a flag.
+// The Herren porch was retired (ADR-0057): the segmented Rundmail is email, so its per-URL OG card is
+// inert, and the front door already explains the two competitive Herren fields — so the broad Herren
+// send lands on the front door, not a porch. Only the Damen porch survives, because it does work the
+// front door structurally cannot (the „nicht gut genug" barrier, the motive split, beginner-welcome —
+// all Damen-specific; ADR-0055). SIDES is therefore a single-entry list, kept as a list so a future
+// side is data, not a special case.
 
 export interface Side {
-  /** German route slug (ADR-0028) — the porch URL and the getStaticPaths param. */
-  slug: 'damen' | 'herren'
+  /** German route slug (ADR-0028) — the porch URL. */
+  slug: 'damen'
   /** Display name of the side (page title, meta). Data-driven so a future side isn't a special case. */
   name: string
   /**
-   * The side's fields (competition ids), in the porch's display order. Two per side (ADR-0051). Herren
-   * leads with the championship field; Damen leads with the social field (`womens-social`), because
-   * the probe makes the social B-field the genuine first choice (ADR-0054).
+   * The side's fields (competition ids), in the porch's display order. Two per side (ADR-0051). Damen
+   * leads with the social field (`womens-social`), because the probe makes the social B-field the
+   * genuine first choice (ADR-0054).
    */
   fieldIds: readonly string[]
   /** WhatsApp/OG preview card — per-URL, which is what an anchor on the front door cannot carry. */
@@ -54,23 +53,6 @@ export const SIDES: readonly Side[] = [
     headline: ['Spiel mit —', 'zwei Tage Tennis'],
     lead: 'Ein geselliger Spieltag zum Kennenlernen — oder Matches um den Titel, wenn dir danach ist. Du wählst selbst, in welchem Feld du spielst; für jede ist was dabei, egal wie du spielst.',
     leadSub: 'Du kannst allein kommen oder zu zweit — eine Partnerin brauchst du nicht, Vorkenntnisse auch nicht.'
-  },
-  {
-    slug: 'herren',
-    name: 'Herren',
-    fieldIds: ['mens', 'mens-challenger'],
-    ogTitle: 'Herren — spiel mit bei den Winsener Meisterschaften',
-    // Two equal competitive doors, Challenger as fairness (not beginner-reassurance) — the #239 framing
-    // (ADR-0056). No „Doppel / ohne Partner" register (Herren has no Doppel); the low-barrier facts are
-    // „ohne Mannschaft" and „LK musst du nicht kennen".
-    ogDescription:
-      'Zwei Felder, beide um einen Titel: das Hauptfeld gegen die Stärksten im Verein und das Challenger-Feld auf Augenhöhe (ab LK 20), vor stärkeren Gegnern geschützt. Ohne Mannschaft, ohne dass du deine LK kennst. 22.–23.08.',
-    // Belonging first, then the two equal doors (Herren Rundmail voice, #216). Short first line keeps
-    // clear of the hero's absolutely-positioned date block (same reason the Damen headline is short).
-    eyebrow: 'Winsener Meisterschaften',
-    headline: ['Ein Wochenende,', 'voller Tennis.'],
-    lead: 'Der ganze TV Winsen trägt zwei Tage seine Vereinsmeisterschaft aus — volle Anlage, echtes Turnierfeeling. Zwei Felder, beide um einen Titel: das Hauptfeld gegen die Stärksten im Verein, das Challenger-Feld auf Augenhöhe und vor stärkeren Gegnern geschützt.',
-    leadSub: 'Ohne Mannschaft, ohne dass du deine Leistungsklasse kennen musst — anmelden reicht.'
   }
 ] as const
 

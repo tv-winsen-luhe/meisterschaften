@@ -1,0 +1,46 @@
+---
+import Layout from '@/layouts/default.astro'
+import PorchDamen from '@/components/porch-damen.astro'
+import SignupModal from '@/components/signup-modal.astro'
+import { getSide, sideFields } from '@/data/sides'
+
+// The Damen outreach porch — /damen (CONTEXT.md: Outreach porch, ADR-0052, ADR-0055). A porch is a
+// signup-era front porch handed out by link to its audience; its per-URL OG card is the whole reason it
+// is a route and not an anchor on the front door. Everything evergreen stays on the front door (`/`) and
+// is linked below. The Herren porch was retired (ADR-0057): the broad Herren send lands on the front
+// door, so this is now a single static route, not the `[side]` dynamic route it once shared with Herren.
+const side = getSide('damen')!
+const fields = sideFields(side)
+const primary = fields[0]
+
+// The Damen porch preselects its leading (social) field for the header CTA.
+const headerCta = { href: '#', label: 'Anmelden', competition: primary.slug }
+---
+
+<Layout
+  title={`${side.name} — Winsener Meisterschaften 2026`}
+  description={side.ogDescription}
+  ogTitle={side.ogTitle}
+  ogDescription={side.ogDescription}
+  bodyClass="bg-surface-alt"
+  chrome="event"
+  headerCta={headerCta}
+>
+  <div class="mx-auto max-w-[1280px] px-5 pt-6 text-navy md:px-10 md:pt-8">
+    <PorchDamen side={side} />
+  </div>
+
+  <SignupModal />
+</Layout>
+
+<script>
+  // Signup-era front porch (ADR-0052): read the current phase once on load — no poll, the phase
+  // changes ~twice in the event's life (ADR-0042). Once registration has closed (phase ≠ signup) a
+  // porch has no job, so hand off to the front door, which projects tournament/post-event correctly.
+  fetch('/api/phase', { headers: { accept: 'application/json' } })
+    .then(res => (res.ok ? res.json() : null))
+    .then((data: { phase?: string } | null) => {
+      if (data?.phase && data.phase !== 'signup') window.location.replace('/')
+    })
+    .catch(() => {})
+</script>
