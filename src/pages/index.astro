@@ -11,7 +11,7 @@ import ParticipantList from '@/components/participant-list.astro'
 import { competitions, contactEmail, entryFee, signupDeadline, tournament } from '@/data/tournament'
 import { cardStyleFor } from '@/data/competition-cards'
 import { fieldChipsFor } from '@/data/field-explainers'
-import { reglement, reglementLink } from '@/data/reglement'
+import { reglement } from '@/data/reglement'
 
 const sectClass = 'sect border-t border-navy py-20 focus:outline-none md:py-[120px]'
 
@@ -26,8 +26,8 @@ const womensSocial = competitions.find(c => c.id === 'womens-social')!
 // fields are a choice between (the Challenger is LK-protected against stronger players), so no such line.
 const damenCrossSell = 'Beide Felder gehen zusammen — meld dich einfach für beide an.'
 
-// `reglement` and `reglementLink` live in `@/data/reglement` as the single source for the Modus rows,
-// so this table cannot drift from any other surface that needs the scoring facts.
+// `reglement` lives in `@/data/reglement` as the single source for the Modus rows, so this table
+// cannot drift from any other surface that needs the scoring facts.
 
 const saturday = [
   [
@@ -272,16 +272,6 @@ const sunday = [
           ))
         }
       </dl>
-      {
-        reglementLink && (
-          <a
-            href={reglementLink.href}
-            class="reveal mt-5 inline-block text-[13px] font-medium text-navy/60 underline underline-offset-2 transition-colors hover:text-navy"
-          >
-            {reglementLink.label}
-          </a>
-        )
-      }
     </section>
 
     <!-- Der Ablauf -->
