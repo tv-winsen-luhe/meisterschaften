@@ -62,6 +62,18 @@ export const FIELD_EXPLAINERS: Partial<Record<CompetitionSlug, FieldExplainer>> 
       ['Ohne Gewinnzwang', 'Es geht ums Mitspielen und Sich-Messen.']
     ]
   },
+  // Herren Hauptfeld — the open championship field (ADR-0056). Chips + „Gut zu wissen" pairs are the
+  // shared source the Herren porch and the front-door grid both read; the front-door `mens` card gains
+  // these chips (it carried none before), which brings it in line with its three siblings. The
+  // Challenger's fairness-flip prose stays porch-local (see `mens-challenger` below).
+  mens: {
+    chips: ['K.-o.-System', 'Titel: Winsener Meister', 'Offen für alle'],
+    goodToKnow: [
+      ['Offen für alle', 'Egal welche LK — oder gar keine.'],
+      ['Ohne Mannschaft', 'Punktspiele sind keine Voraussetzung.'],
+      ['Mindestens zwei Matches', 'Erstrundenverlierer spielen in der Nebenrunde weiter.']
+    ]
+  },
   // Herren Challenger — the protected Freizeit/Einsteiger field (#220 copy, consumed verbatim).
   'mens-challenger': {
     chips: ['Ab LK 20 · geschützt'],
