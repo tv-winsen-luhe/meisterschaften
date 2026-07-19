@@ -8,6 +8,7 @@ import ScrollMotion from '@/components/scroll-motion.astro'
 import { cardStyleFor } from '@/data/competition-cards'
 import { sideFields, type Side } from '@/data/sides'
 import { contactEmail, entryFee, signupDeadline, tournament } from '@/data/tournament'
+import { reglementRow } from '@/data/reglement'
 
 // The Herren porch body — a broad conversion surface at Damen-parity, Herren-calibrated (ADR-0056). It
 // mirrors `porch-damen.astro` for *depth* (the same eight-section rhythm and shared primitives), but its
@@ -50,6 +51,16 @@ const saturday: [string, string][] = [
 const sunday: [string, string][] = [
   ['Finalrunden', 'Je nach Meldezahl bis zu den Endspielen um beide Titel.'],
   ['Siegerehrungen', 'Zum Abschluss die gemeinsamen Siegerehrungen — Damen und Herren zusammen.']
+]
+
+// The two match rules the front-door Modus states exactly but the porch otherwise leaves out. The
+// K.-o.+Nebenrunde *structure* is already carried by the field chips, the explainers and the Ablauf
+// grid above; what was missing is *how a match is scored*. Both Herren fields play the identical mode,
+// so this is one shared strip, not two — the per-field difference is eligibility, covered in „Deine
+// Felder". Read from `@/data/reglement` so it cannot drift from the front-door table (#241 follow-up).
+const scoringRules: [string, string][] = [
+  [reglementRow('scoring').label, reglementRow('scoring').value],
+  [reglementRow('perDay').label, reglementRow('perDay').value]
 ]
 ---
 
@@ -194,6 +205,24 @@ const sunday: [string, string][] = [
         ))
       }
     </div>
+  </div>
+
+  <!-- So wird gewertet — the exact match rules (shared with the front-door Modus table); one strip for
+       both fields, since the Herren mode is identical and only the field/eligibility differs. -->
+  <div class="reveal mt-8 border-t border-navy/15 pt-6">
+    <span class="mb-4 block text-[11px] font-bold tracking-[0.2em] uppercase opacity-45">So wird gewertet</span>
+    <dl class="grid grid-cols-1 gap-x-12 sm:grid-cols-2">
+      {
+        scoringRules.map(([label, value]) => (
+          <div class="flex flex-col gap-1 border-t border-navy/15 py-3 sm:flex-row sm:gap-6">
+            <dt class="text-[11px] font-bold tracking-[0.18em] uppercase opacity-45 sm:w-[92px] sm:shrink-0 sm:pt-0.5">
+              {label}
+            </dt>
+            <dd class="m-0 text-[14px] leading-[1.5] font-semibold">{value}</dd>
+          </div>
+        ))
+      }
+    </dl>
   </div>
 </section>
 
