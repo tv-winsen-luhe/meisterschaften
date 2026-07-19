@@ -20,8 +20,11 @@ import { contactEmail, entryFee, signupDeadline, tournament } from '@/data/tourn
 // It leads with the social field, splits the two fields by *motive* (never skill), dissolves the „nicht
 // gut genug" barrier through self-choice, and shows presence only above a floor — never a lonely count
 // for the fragile Meisterin field. Copy follows the 02.07 Sag/Vermeide guide: no „Challenger", no LK
-// number/„Setzung", no title/Wettkampf vocabulary in the social field. The „reply channel" is the
-// personal conversation around the shared link, not an element on the page.
+// number/„Setzung", no title/Wettkampf vocabulary in the social field. The term „Leistungsklasse" itself
+// stays out of the body copy too (ADR-0054 amendment 2026-07-19): naming a rating most Damen don't know —
+// even only to wave it away — plants an intimidating bar from nothing; the single „Muss ich meine
+// Leistungsklasse kennen?" FAQ is the deliberate exception, kept as a lookup anchor for those who do know
+// it. The „reply channel" is the personal conversation around the shared link, not an element on the page.
 //
 // The FAQ „Einzel, Doppel — oder beides?" deliberately *invites* holding both fields at once: the
 // registration guard is one entry per person+competition, so championship + mixer is allowed and safe
@@ -159,7 +162,7 @@ const sunday: [string, string][] = [
   <SectionHeader
     eyebrow="Deine Felder"
     headline={['Zwei Felder,', 'deine Wahl.']}
-    note="Ein geselliger Tag zum Kennenlernen — oder Matches um den Titel, wenn dir danach ist. Du entscheidest, in welchem Feld du spielst; es gibt ein Feld für alle, egal wie du spielst, und deine Leistungsklasse musst du für keins der beiden kennen."
+    note="Ein geselliger Tag zum Kennenlernen — oder Matches um den Titel, wenn dir danach ist. Du entscheidest, in welchem Feld du spielst; es gibt ein Feld für alle, egal wie du spielst."
   />
 
   <!-- Guided chooser (ADR-0054 amendment 2026-07-13): the self-choice-by-motive story stalled a real
@@ -344,7 +347,7 @@ const sunday: [string, string][] = [
   <SectionHeader
     eyebrow="Anmeldung"
     headline={['Bereit?', 'Wähl dein Feld.']}
-    note={`Dein Feld wählst du bei der Anmeldung selbst — allein, ohne Partnerin, ohne dass du deine Leistungsklasse kennen musst. Startgeld: ${entryFee} € pro Person, bar vor Ort beim Check-in.`}
+    note={`Dein Feld wählst du bei der Anmeldung selbst — allein, ohne Partnerin, ganz egal wie du spielst. Startgeld: ${entryFee} € pro Person, bar vor Ort beim Check-in.`}
   />
 
   <div class="cat-grid grid grid-cols-2 gap-0.5 bg-navy p-0.5 max-[720px]:grid-cols-1">
