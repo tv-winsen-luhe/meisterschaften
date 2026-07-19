@@ -453,14 +453,26 @@ reveal sequence }`. Randomness enters through an injected **`RandomSource`** por
   `GET /api/phase` on load and **redirects to `/` once phase ≠ `signup`** (the ADR-0042 client-side
   pattern), so it never becomes a results surface. Everything **evergreen** (Event, Modus, Ablauf, FAQ)
   stays on the front door and is linked, **never restated**. Reachable **only** by the shared link — not
-  linked from the site, `noindex` site-wide (ADR-0017). Because the audience is **warm**, the porch's job
-  is **not** to orient a cold visitor (ADR-0053's premise, rejected by ADR-0054) but to flip one specific
-  objection and make signup frictionless — and that job differs by side, giving **two realizations**
-  (ADR-0054):
-  - **Conversion porch (Herren)** — the concept is **validated** (interviews first, then the page), the
-    audience already convinced, so the page **converts**. **Thin suffices**: the live thin version
-    (ADR-0052) drew **12 Hauptfeld + 4 Challenger**. The ADR-0053 widening (live momentum band, long
-    explainers) was never validated and is **not shipped**.
+  linked from the site, `noindex` site-wide (ADR-0017). Both sides are now **broad conversion surfaces**
+  landed via the official segmented Rundmail (#215), rich enough to orient a member who meets the event
+  here for the first time; they share the mechanics above but differ by **register** — the one objection
+  each side must flip. The two historical **realizations** (ADR-0054) have both been superseded (Damen by
+  ADR-0055, Herren by ADR-0056):
+  - **Broad conversion surface at richness (Herren)** — the Herren porch's **current** job (ADR-0056). It
+    **converts the broad Herren membership**, landed via the segmented Rundmail (#215), at the **same
+    structural richness as the Damen porch but Herren-calibrated**. It began as a **thin conversion porch**
+    (ADR-0054: a validated concept sent privately to ~15 warm, pre-briefed players; the thin ADR-0052 page
+    drew **12 Hauptfeld + 4 Challenger**, so the ADR-0053 widening was abandoned) — but the broad send made
+    thin insufficient, so it moves **thin → rich**. Unlike Damen it has **no „nicht gut genug" barrier to
+    dissolve** (that self-image scar is Damen's): **both Herren fields are competitive**, split by
+    **strength / fairness (Cap LK 20), never motive and never team-membership** — Hauptfeld = the
+    strongest, Challenger = serious-but-capped competition. So **two equal-weight competitive cards, no
+    guided chooser**; the Challenger objection-flip is a **fairness flip** („werde ich abgeschossen?" → auf
+    Augenhöhe, real Wettkampf, wertiger Titel), **never a shame/beginner flip**; the hero **leads with
+    belonging** (#216) then two equal doors. Strength redaction holds — **no LK/seed on the protected
+    Challenger** (ADR-0048). Copy discipline: „egal wie gut du spielst" / keine Turniererfahrung language
+    stays on the **Damen** side; here protection = **fairness and ambition, never reassurance**. Still
+    members-only, `noindex` (ADR-0017). _(See ADR-0056.)_
   - **Broad conversion surface (Damen)** — the Damen porch's **current** job. It **converts a broad,
     segmented member audience** — the whole Damen membership, landed via the official Rundmail (#215) —
     with success measured as **signup volume** (ADR-0055). It began as a **validation probe** (its
