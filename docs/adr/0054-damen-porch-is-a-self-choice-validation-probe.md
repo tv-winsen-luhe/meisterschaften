@@ -216,3 +216,30 @@ harm to _a bare „1 für die Meisterin"_ — the **number**. The discovery is t
 - **No glossary change.** „Never a lonely count" survives with a sharper edge; „conversion porch" /
   „validation probe" are untouched.
 - **Scope.** Probe-only, per the amendments above; folds into the front door only once validated (ADR-0042).
+
+## Amendment (2026-07-19): drop the term „Leistungsklasse" from the porch body copy
+
+The original copy discipline banned an **LK number** and „Setzung" (the mechanic, the seed board) but let the
+**word** „Leistungsklasse" survive in a reassurance pattern — „deine Leistungsklasse musst du nicht kennen"
+— across six Damen surfaces (the hero `leadSub`, two porch section notes, the „Anmeldung" card blurb, the
+shared `womens` „Gut zu wissen" chip, and the FAQ). The insight: **most Damen don't know the term at all**,
+so naming a rating that measures you — even only to wave it away — plants an intimidating bar from nothing.
+That is a milder form of the very move this ADR already forbids for the A-field (the defensive „du bist gut
+genug"): it concedes a bar in order to argue you clear it.
+
+This **sharpens, does not reverse** the Sag/Vermeide discipline — the ban was on the LK _mechanic_; it now
+also covers the _term_ in body copy:
+
+- **Strip „Leistungsklasse" from the body copy.** The reassurance stays where the sentence wants it, but in
+  everyday words („Vorkenntnisse", „egal wie du spielst") that carry the „no bar" signal without naming the
+  rating. Where the clause was pure redundancy (a note already saying „egal wie du spielst"), it is dropped.
+- **Keep exactly one FAQ as a lookup anchor.** „Muss ich meine Leistungsklasse kennen oder ein nuLiga-Konto
+  haben? → Nein." stays: the reader who _does_ know the term may search for it, and a plain „Nein" there is a
+  direct answer, not an unprompted bar. This is the single deliberate exception.
+- **The shared front-door surfaces come along.** The `womens` chip and card blurb live in
+  `field-explainers.ts` / `tournament.ts` and also render on the front-door self-selection grid (ADR-0055,
+  #229); they are cleaned at the source, so the two surfaces cannot drift. Out of scope: the Herren porch and
+  the front door's own LK copy, where LK is a **load-bearing mechanic** (Challenger „ab LK 20", the dedicated
+  „Was ist die LK?" FAQ) that the audience there needs named.
+- **No glossary change.** „LK" / „Leistungsklasse" stay in CONTEXT.md as the domain term; this is a copy rule
+  for the Damen porch, not a vocabulary change.
