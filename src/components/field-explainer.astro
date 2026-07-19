@@ -6,13 +6,9 @@
 //
 // Two surfaces, borrowed from the front door's rhythm (index.astro): the leading field is an `anchor` —
 // a navy block with a neon eyebrow, the page's „thesis" (on the Damen probe that is the social field) —
-// and the second field is a `plain` cream block with a coloured accent that matches its competition
-// card. Two contrasting doors.
-//
-// The Herren porch (ADR-0056) presents *two equal* competitive doors, so neither may be the navy anchor.
-// For that, both blocks use `plain` with a distinct `accent` (Hauptfeld navy, Challenger blue) — same
-// cream surface, same weight, different coloured accent. `accent` defaults to `blue`, so the Damen
-// probe's single `plain` block is unchanged.
+// and the second field is a `plain` cream block with a blue accent that matches its competition card.
+// Two contrasting doors. (ADR-0056 briefly added a `navy` accent for the Herren porch's two equal doors;
+// that porch was retired in ADR-0057, so the accent is back to blue-only — the Damen probe's shape.)
 //
 // An optional `aside` slot turns the block into a two-column editorial layout on desktop (narrative left,
 // aside right) — used by the social field to give the „Das brauchst du hier nicht" panel its own column
@@ -26,14 +22,8 @@ interface Props {
   heading: string
   /** Short fact chips summarising the format. */
   chips: readonly string[]
-  /** Surface treatment: `anchor` = navy thesis block, `plain` = cream block with a coloured accent. */
+  /** Surface treatment: `anchor` = navy thesis block, `plain` = cream block with a blue accent. */
   variant?: 'anchor' | 'plain'
-  /**
-   * Accent colour for the `plain` variant (top border, type + badge). `blue` (default) keeps the Damen
-   * probe unchanged; `navy` gives the Herren porch a second, equal-weight cream door (ADR-0056). Ignored
-   * for `anchor`, which is always neon-on-navy.
-   */
-  accent?: 'blue' | 'navy'
   /** When set, render a „Jetzt anmelden" CTA that opens the signup modal for this competition slug. */
   signupSlug?: string
   /** CTA label; defaults to „Jetzt anmelden". */
@@ -46,25 +36,18 @@ const {
   heading,
   chips,
   variant = 'plain',
-  accent = 'blue',
   signupSlug,
   signupLabel = 'Jetzt anmelden'
 } = Astro.props as Props
 
 const isAnchor = variant === 'anchor'
-// Static class fragments per accent (Tailwind can't resolve a class name built from a variable).
-const accents = {
-  blue: { border: 'border-t-blue', type: 'text-blue', badge: 'border-blue/50 text-blue' },
-  navy: { border: 'border-t-navy', type: 'text-navy', badge: 'border-navy/50 text-navy' }
-} as const
-const a = accents[accent]
 const container = isAnchor
   ? 'bg-navy text-white'
-  : `bg-surface border-t-[3px] ${a.border} shadow-[0_1px_0_rgba(12,30,58,0.08)]`
-const typeClass = isAnchor ? 'text-neon' : a.type
+  : 'bg-surface border-t-[3px] border-t-blue shadow-[0_1px_0_rgba(12,30,58,0.08)]'
+const typeClass = isAnchor ? 'text-neon' : 'text-blue'
 const badgeClass = isAnchor
   ? 'border-[1.5px] border-neon/50 px-2.5 py-1 text-neon'
-  : `border-[1.5px] px-2.5 py-1 ${a.badge}`
+  : 'border-[1.5px] px-2.5 py-1 border-blue/50 text-blue'
 const chipClass = isAnchor ? 'border border-white/30 text-white/90' : 'bg-navy/[0.06] text-navy/80'
 
 const hasAside = Astro.slots.has('aside')

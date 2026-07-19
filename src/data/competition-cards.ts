@@ -1,7 +1,7 @@
 // Presentation metadata for a competition card, keyed by competition id. The card's *content*
 // (label, audience, blurb) lives on the Competition itself (tournament.ts); this is only the *look*
 // — the colour variant, the category badge, the field type. It lives in one place so the front door
-// and the outreach porches (ADR-0052) render identical cards from the same source, and so a restyle
+// and the Damen outreach porch (ADR-0052) render identical cards from the same source, and so a restyle
 // can never drift between the two surfaces.
 
 export interface CardStyle {
@@ -20,7 +20,7 @@ export const CARD_STYLES: Record<string, CardStyle> = {
   womens: { variant: 'dark', badge: 'Winsener Meisterin', type: 'Einzel' },
   mens: { variant: 'light', badge: 'Hauptfeld', type: 'Einzel' },
   'womens-social': { variant: 'clay', badge: 'Gesellig', type: 'Doppel', compact: true },
-  'mens-challenger': { variant: 'blue', badge: 'Freizeit & Einsteiger', type: 'Einzel', compact: true, marker: true }
+  'mens-challenger': { variant: 'blue', badge: 'Auf Augenhöhe', type: 'Einzel', compact: true, marker: true }
 }
 
 /**

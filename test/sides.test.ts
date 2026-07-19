@@ -2,20 +2,19 @@ import { describe, expect, it } from 'vitest'
 import { getSide, sideFields, SIDES } from '../src/data/sides'
 import { competitions, signupCompetitions } from '../src/data/tournament'
 
-// SIDES is the data behind the two outreach porches (/damen, /herren; CONTEXT.md: Outreach porch,
-// ADR-0052). The porch template is presentation; these invariants are what actually protect the
-// campaign: a field silently dropping off outreach, or a card deep-linking to a signup radio that
-// doesn't exist, would be invisible in a screenshot but caught here.
+// SIDES is the data behind the Damen outreach porch (/damen; CONTEXT.md: Outreach porch, ADR-0052).
+// The Herren porch was retired (ADR-0057): the broad Herren send lands on the front door, so the Herren
+// fields are no longer on any porch. The porch template is presentation; these invariants are what
+// actually protect the campaign: a field silently dropping off Damen outreach, or a card deep-linking to
+// a signup radio that doesn't exist, would be invisible in a screenshot but caught here.
 describe('outreach porch sides', () => {
-  it('are exactly the two German-slugged sides (ADR-0028, ADR-0051 „zwei je Seite")', () => {
-    expect(SIDES.map(s => s.slug)).toEqual(['damen', 'herren'])
+  it('is the single German-slugged Damen side — Herren moved to the front door (ADR-0057)', () => {
+    expect(SIDES.map(s => s.slug)).toEqual(['damen'])
   })
 
-  it('map each side to its two fields, in display order', () => {
-    // Herren leads with the championship Hauptfeld (conversion porch); the Damen probe leads with the
-    // social field, which is the genuine first choice it sells (ADR-0054).
+  it('maps the Damen side to its two fields, in display order', () => {
+    // The Damen porch leads with the social field, which is the genuine first choice it sells (ADR-0054).
     expect(sideFields(getSide('damen')!).map(c => c.id)).toEqual(['womens-social', 'womens'])
-    expect(sideFields(getSide('herren')!).map(c => c.id)).toEqual(['mens', 'mens-challenger'])
   })
 
   it('reference only real competitions', () => {
@@ -25,10 +24,17 @@ describe('outreach porch sides', () => {
     }
   })
 
-  it('cover every registerable field exactly once between them (nothing dropped from outreach)', () => {
+  it('covers the Damen fields only — the Herren fields live on the front door now (ADR-0057)', () => {
+    // Before ADR-0057 the two porches covered every registerable field between them. That invariant is
+    // deliberately broken here: the broad Herren send lands on the front door, so the Herren fields are
+    // covered there, not on any porch.
     const covered = SIDES.flatMap(s => s.fieldIds).sort()
-    const registerable = signupCompetitions.map(c => c.id).sort()
-    expect(covered).toEqual(registerable)
+    expect(covered).toEqual(['womens', 'womens-social'])
+    const registerable = signupCompetitions.map(c => c.id)
+    expect(registerable).toContain('mens')
+    expect(registerable).toContain('mens-challenger')
+    expect(covered).not.toContain('mens')
+    expect(covered).not.toContain('mens-challenger')
   })
 
   it('deep-link only to slugs the signup modal offers', () => {
@@ -45,8 +51,9 @@ describe('outreach porch sides', () => {
     }
   })
 
-  it('resolve a known slug and reject an unknown one', () => {
+  it('resolve the Damen slug and reject everything else, Herren included (ADR-0057)', () => {
     expect(getSide('damen')?.slug).toBe('damen')
+    expect(getSide('herren')).toBeUndefined()
     expect(getSide('mens')).toBeUndefined()
     expect(getSide('')).toBeUndefined()
   })

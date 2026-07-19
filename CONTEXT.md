@@ -442,53 +442,47 @@ reveal sequence }`. Randomness enters through an injected **`RandomSource`** por
 ## System
 
 - **Outreach porch** (de: gezielte Anmelde-Seite) — a **signup-era** landing page for **one side** of
-  the event (`/damen`, `/herren`), handed out by **link only** — originally to a **warm, hand-picked**
-  audience reached personally (soft-committed Hauptfeld players, a named Challenger candidate list,
-  Damen via Botschafterinnen; Durchführungsplan), and now also as the **broad** landing target of the
-  official segmented Vereins-Rundmail (all members, split by gender; ADR-0055). Still members-only and
-  `noindex` (ADR-0017) either way. It is
-  **not** the phase-projected front door (`index.astro`, ADR-0042). The **route earns its keep at the
-  preview layer**: a per-URL `ogTitle`/`ogDescription` makes the WhatsApp preview card itself the pitch —
-  the one thing a query param on the front door cannot do (its OG is the homepage's). It reads
-  `GET /api/phase` on load and **redirects to `/` once phase ≠ `signup`** (the ADR-0042 client-side
-  pattern), so it never becomes a results surface. Everything **evergreen** (Event, Modus, Ablauf, FAQ)
-  stays on the front door and is linked, **never restated**. Reachable **only** by the shared link — not
-  linked from the site, `noindex` site-wide (ADR-0017). Both sides are now **broad conversion surfaces**
-  landed via the official segmented Rundmail (#215), rich enough to orient a member who meets the event
-  here for the first time; they share the mechanics above but differ by **register** — the one objection
-  each side must flip. The two historical **realizations** (ADR-0054) have both been superseded (Damen by
-  ADR-0055, Herren by ADR-0056):
-  - **Broad conversion surface at richness (Herren)** — the Herren porch's **current** job (ADR-0056). It
-    **converts the broad Herren membership**, landed via the segmented Rundmail (#215), at the **same
-    structural richness as the Damen porch but Herren-calibrated**. It began as a **thin conversion porch**
-    (ADR-0054: a validated concept sent privately to ~15 warm, pre-briefed players; the thin ADR-0052 page
-    drew **12 Hauptfeld + 4 Challenger**, so the ADR-0053 widening was abandoned) — but the broad send made
-    thin insufficient, so it moves **thin → rich**. Unlike Damen it has **no „nicht gut genug" barrier to
-    dissolve** (that self-image scar is Damen's): **both Herren fields are competitive**, split by
-    **strength / fairness (Cap LK 20), never motive and never team-membership** — Hauptfeld = the
-    strongest, Challenger = serious-but-capped competition. So **two equal-weight competitive cards, no
-    guided chooser**; the Challenger objection-flip is a **fairness flip** („werde ich abgeschossen?" → auf
-    Augenhöhe, real Wettkampf, wertiger Titel), **never a shame/beginner flip**; the hero **leads with
-    belonging** (#216) then two equal doors. Strength redaction holds — **no LK/seed on the protected
-    Challenger** (ADR-0048). Copy discipline: „egal wie gut du spielst" / keine Turniererfahrung language
-    stays on the **Damen** side; here protection = **fairness and ambition, never reassurance**. Still
-    members-only, `noindex` (ADR-0017). _(See ADR-0056.)_
-  - **Broad conversion surface (Damen)** — the Damen porch's **current** job. It **converts a broad,
-    segmented member audience** — the whole Damen membership, landed via the official Rundmail (#215) —
-    with success measured as **signup volume** (ADR-0055). It began as a **validation probe** (its
-    earlier ADR-0054 realization: an instrument to validate and iterate the open social B-field format
-    with a small warm group, success measured as signal not volume, format now settled); the **content
-    discipline built there survives the role change verbatim, and matters more under the broader
-    audience**. It **leads with the social B-field** („Damen Doppel-Mixer"), presents the **fragile**
-    A-field (Meisterin) honestly as the ambitious second option, **splits the two fields by _motive_
-    (social vs competitive), never by skill** — a strong player who wants the social field is normal —
-    dissolves the „nicht gut genug" barrier by **self-choice into a desirable field, never Orga
-    assignment** (Track C), shows the fragile A-field as **named presence, never a lonely count**
-    (#210), welcomes **absolute beginners** explicitly (the „Das brauchst du hier nicht" block, #204),
-    and **actively invites holding both fields** (the „Einzel, Doppel — oder beides?" FAQ) since a
-    „both" entry converts the fragile A-field. Still members-only, `noindex` (ADR-0017).
-    _Avoid_: "landing page" (too generic), "competition page" (it is per-**side**, two fields, not
-    per-competition). _(See ADR-0055, ADR-0054, ADR-0052, ADR-0042.)_
+  the event, handed out by **link only**, now the **broad** landing target of the official segmented
+  Vereins-Rundmail (all members, split by gender; ADR-0055). Since **ADR-0057 the only live porch is
+  Damen** (`/damen`); the Herren send lands on the **front door** instead (see below). Still members-only
+  and `noindex` (ADR-0017). It is **not** the phase-projected front door (`index.astro`, ADR-0042). The
+  **route earns its keep at the preview layer**: a per-URL `ogTitle`/`ogDescription` makes the WhatsApp
+  preview card itself the pitch — the one thing a query param on the front door cannot do (its OG is the
+  homepage's). It reads `GET /api/phase` on load and **redirects to `/` once phase ≠ `signup`** (the
+  ADR-0042 client-side pattern), so it never becomes a results surface. Everything **evergreen** (Event,
+  Modus, Ablauf, FAQ) stays on the front door and is linked, **never restated**. Reachable **only** by the
+  shared link — not linked from the site, `noindex` site-wide (ADR-0017).
+  - **Broad conversion surface (Damen)** — the Damen porch's **current** job, and since ADR-0057 the
+    **only** porch. It **converts a broad, segmented member audience** — the whole Damen membership,
+    landed via the official Rundmail (#215) — with success measured as **signup volume** (ADR-0055). It
+    began as a **validation probe** (its earlier ADR-0054 realization: an instrument to validate and
+    iterate the open social B-field format with a small warm group, success measured as signal not volume,
+    format now settled); the **content discipline built there survives the role change verbatim, and
+    matters more under the broader audience**. It **leads with the social B-field** („Damen
+    Doppel-Mixer"), presents the **fragile** A-field (Meisterin) honestly as the ambitious second option,
+    **splits the two fields by _motive_ (social vs competitive), never by skill** — a strong player who
+    wants the social field is normal — dissolves the „nicht gut genug" barrier by **self-choice into a
+    desirable field, never Orga assignment** (Track C), shows the fragile A-field as **named presence,
+    never a lonely count** (#210), welcomes **absolute beginners** explicitly (the „Das brauchst du hier
+    nicht" block, #204), and **actively invites holding both fields** (the „Einzel, Doppel — oder
+    beides?" FAQ) since a „both" entry converts the fragile A-field. Still members-only, `noindex`
+    (ADR-0017).
+  - **Herren send → front door (no porch)** — since **ADR-0057** there is **no Herren porch**. The
+    segmented Rundmail's Herren link targets the **front door** (`/`): the Rundmail is **email**, so the
+    porch's per-URL OG card (its raison d'être) is inert, and the front door already presents the two
+    competitive Herren fields (the `#competitions` cards + `FieldFlip` + the Hauptfeld/Challenger FAQ).
+    The **Herren field-framing survives as content on the front door** (ADR-0056/0057, #239): both fields
+    competitive, split by **strength / fairness (Cap LK 20), never motive and never team-membership** —
+    Hauptfeld = the strongest, Challenger = serious-but-capped competition; the Challenger objection-flip
+    is a **fairness flip** („werde ich abgeschossen?" → auf Augenhöhe, real Wettkampf, wertiger Titel),
+    **never a shame/beginner flip**. Because the front door is also the **cold, gender-unknown walk-up**,
+    its Challenger copy keeps a **factual** low-barrier welcome (#220) but drops the field-devaluing
+    „erstes Turnier / keine Turniererfahrung nötig" register. Strength redaction holds — **no LK/seed on
+    the protected Challenger** (ADR-0048). The earlier porch realizations are now fully historical: the
+    ADR-0054 **conversion porch (Herren)** / **validation probe (Damen)** pair, and the ADR-0056 **rich
+    Herren porch** (reversed by ADR-0057).
+    _Avoid_: "landing page" (too generic), "competition page" (the Damen porch is per-**side**, two fields,
+    not per-competition). _(See ADR-0057, ADR-0055, ADR-0056, ADR-0052, ADR-0042.)_
 - **Source of truth** — the site (Astro + Cloudflare Worker + D1) owns the tournament data end to
   end: registrations, the draw, and live results all live in D1. No external tournament tool.
   _(See ADR-0001.)_

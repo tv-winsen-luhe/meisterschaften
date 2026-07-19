@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import { FIELD_EXPLAINERS, fieldChipsFor, fieldExplainerFor } from '../src/data/field-explainers'
 
-// FIELD_EXPLAINERS is the single source for the field objection-flips and chips shared by the porches
-// (explainer-damen.astro, explainer-herren.astro) and the front-door self-selection grid (#223). The
+// FIELD_EXPLAINERS is the single source for the field objection-flips and chips shared by the Damen
+// porch (explainer-damen.astro) and the front-door self-selection grid (#223). The
 // whole point of the module is that the surfaces cannot silently drift — so these tests pin the exact
 // copy. A screenshot would not catch a flipped word or a dropped fear; this does.
 describe('field explainers', () => {
@@ -34,14 +34,17 @@ describe('field explainers', () => {
     ])
   })
 
-  it('carries the Herren Challenger flip + chip, keyed under mens-challenger (#220 copy)', () => {
+  it('carries the Herren Challenger fairness flip + chip, keyed under mens-challenger (ADR-0057)', () => {
     const challenger = fieldExplainerFor('mens-challenger')
-    // Single warm line, not a fear-removal list — the chip carries the protection rule.
+    // Fairness-led, not beginner-reassurance (ADR-0056/0057): the field now lands the broad Herren send
+    // on the front door, so it is framed by mechanism + promise (geschützt, Augenhöhe, eigener Titel),
+    // never by a „Freizeit/Einsteiger" deficit identity. A factual low-barrier welcome stays for the
+    // cold walk-up (#220), but the rejected „erstes Turnier / keine Turniererfahrung nötig" is gone.
     expect(challenger.flip).toBe(
-      'Du spielst zum Spaß, vielleicht sogar dein erstes Turnier? Genau dafür ist das Feld da. Keine LK, keine Turniererfahrung nötig — einfach mitspielen.'
+      'Der Challenger ist das geschützte Feld — nur bis LK 20, Stärkere spielen im Hauptfeld. Also ausgeglichene Matches statt Kanonenfutter, echter Wettkampf und ein eigener Titel. Offen für alle bis LK 20, auch ganz ohne LK — egal ob du regelmäßig spielst oder erst wieder anfängst.'
     )
     expect(challenger.chips).toEqual(['Ab LK 20 · geschützt'])
-    // The protection rule is „Ab LK 20 · geschützt"; the flip only invites and never leads with LK.
+    // The protection rule is „Ab LK 20 · geschützt"; the flip invites and never leads with LK.
     expect(challenger.notNeeded).toBeUndefined()
   })
 
