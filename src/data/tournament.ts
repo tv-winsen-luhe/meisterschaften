@@ -82,7 +82,7 @@ export const competitions: readonly Competition[] = [
     audience:
       'Du hast Lust, dich im Match zu messen und um den Titel mitzuspielen — egal, wie gut du dich gerade selbst einschätzt.',
     blurb:
-      'Das Einzel um die Winsener Meisterin — offen für alle. Du musst dafür weder in einer Mannschaft spielen noch deine Leistungsklasse kennen.',
+      'Das Einzel um die Winsener Meisterin — offen für alle. Du musst dafür weder in einer Mannschaft spielen noch besondere Vorkenntnisse mitbringen.',
     title: 'Winsener Meisterin',
     capacity: 8,
     status: 'open'

@@ -58,7 +58,7 @@ export const FIELD_EXPLAINERS: Partial<Record<CompetitionSlug, FieldExplainer>> 
     chips: ['Am Samstag', 'Um den Titel', 'K.-o.-System', 'Titel: Winsener Meisterin'],
     goodToKnow: [
       ['Ohne Mannschaft', 'Du meldest dich allein an.'],
-      ['Ohne Leistungsklasse', 'Die musst du nicht kennen.'],
+      ['Ohne Vorkenntnisse', 'Egal wie du spielst, anmelden reicht.'],
       ['Ohne Gewinnzwang', 'Es geht ums Mitspielen und Sich-Messen.']
     ]
   },

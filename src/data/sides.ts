@@ -53,8 +53,7 @@ export const SIDES: readonly Side[] = [
     eyebrow: 'Winsener Meisterschaften',
     headline: ['Spiel mit —', 'zwei Tage Tennis'],
     lead: 'Ein geselliger Spieltag zum Kennenlernen — oder Matches um den Titel, wenn dir danach ist. Du wählst selbst, in welchem Feld du spielst; für jede ist was dabei, egal wie du spielst.',
-    leadSub:
-      'Du kannst allein kommen oder zu zweit — eine Partnerin brauchst du nicht, deine Leistungsklasse auch nicht.'
+    leadSub: 'Du kannst allein kommen oder zu zweit — eine Partnerin brauchst du nicht, Vorkenntnisse auch nicht.'
   },
   {
     slug: 'herren',
