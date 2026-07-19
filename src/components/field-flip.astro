@@ -17,8 +17,9 @@ interface Props {
 
 const { slug } = Astro.props as Props
 const explainer = fieldExplainerFor(slug)
-// Name the field in the notNeeded header — on the front door this block sits under *both* cards of a
-// pair, so a bare „Das brauchst du hier nicht" reads ambiguously; the label ties it to the right field.
+// Name the field in every block header. On the front door each flip sits at half width directly beneath
+// its own (soft) card (index.astro), so the label plus that placement tie it unambiguously to the right
+// field — a bare header used to read as belonging to *both* cards of the pair.
 const fieldLabel = competitions.find(c => c.slug === slug)?.label
 ---
 
@@ -29,7 +30,7 @@ const fieldLabel = competitions.find(c => c.slug === slug)?.label
         <span class="mb-4 block text-[12px] font-black tracking-[0.14em] text-blue uppercase">
           {fieldLabel} — Das brauchst du hier nicht
         </span>
-        <ul class="grid gap-3.5 sm:grid-cols-2 sm:gap-x-10">
+        <ul class="grid gap-3.5">
           {explainer.notNeeded.map(([what, why]) => (
             <li class="flex gap-3 text-[15px] leading-[1.5]">
               <span aria-hidden="true" class="mt-0.5 font-black text-blue">
@@ -45,5 +46,14 @@ const fieldLabel = competitions.find(c => c.slug === slug)?.label
       </>
     )
   }
-  {explainer.flip && <p class="m-0 max-w-[60ch] text-[15px] leading-[1.65] text-navy/80">{explainer.flip}</p>}
+  {
+    explainer.flip && (
+      <>
+        <span class="mb-4 block text-[12px] font-black tracking-[0.14em] text-blue uppercase">
+          {fieldLabel} — Für wen ist das?
+        </span>
+        <p class="m-0 max-w-[60ch] text-[15px] leading-[1.65] text-navy/80">{explainer.flip}</p>
+      </>
+    )
+  }
 </div>

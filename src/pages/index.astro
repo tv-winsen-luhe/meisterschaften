@@ -184,8 +184,10 @@ const sunday = [
 
       {
         /* Two gender pairs, Damen first (ADR-0051). Each pair leads with its Hauptfeld, then the soft
-          field, whose objection-flip block sits directly beneath. The „hold both" cross-sell follows the
-          Damen pair only — the Herren fields are LK-exclusive, so a „beide" invite there would mislead. */
+          field, whose objection-flip block sits at half width directly beneath *that* card (right-aligned
+          above 900px, full width once the pair stacks) so it reads as belonging to the soft field, not the
+          whole pair. The „hold both" cross-sell follows the Damen pair only — the Herren fields are
+          LK-exclusive, so a „beide" invite there would mislead. */
       }
       <div class="grid gap-12 md:gap-16">
         <div>
@@ -204,7 +206,9 @@ const sunday = [
               stagger={1}
             />
           </div>
-          <div class="reveal mt-0.5"><FieldFlip slug="womens-social" /></div>
+          <div class="reveal mt-0.5 min-[901px]:ml-auto min-[901px]:w-[calc(50%-1px)]">
+            <FieldFlip slug="womens-social" />
+          </div>
           <p class="reveal mt-5 text-[13px] leading-[1.6] font-semibold opacity-70">{damenCrossSell}</p>
         </div>
 
@@ -224,7 +228,9 @@ const sunday = [
               stagger={1}
             />
           </div>
-          <div class="reveal mt-0.5"><FieldFlip slug="mens-challenger" /></div>
+          <div class="reveal mt-0.5 min-[901px]:ml-auto min-[901px]:w-[calc(50%-1px)]">
+            <FieldFlip slug="mens-challenger" />
+          </div>
         </div>
       </div>
     </section>
