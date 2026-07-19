@@ -11,6 +11,7 @@ import ParticipantList from '@/components/participant-list.astro'
 import { competitions, contactEmail, entryFee, signupDeadline, tournament } from '@/data/tournament'
 import { cardStyleFor } from '@/data/competition-cards'
 import { fieldChipsFor } from '@/data/field-explainers'
+import { reglement, reglementLink } from '@/data/reglement'
 
 const sectClass = 'sect border-t border-navy py-20 focus:outline-none md:py-[120px]'
 
@@ -25,20 +26,8 @@ const womensSocial = competitions.find(c => c.id === 'womens-social')!
 // fields are a choice between (the Challenger is LK-protected against stronger players), so no such line.
 const damenCrossSell = 'Beide Felder gehen zusammen — meld dich einfach für beide an.'
 
-const reglement: { label: string; value: string; link?: { href: string; label: string } }[] = [
-  { label: 'Modus', value: 'K.O. mit Nebenrunde — mind. 2 Matches' },
-  { label: 'Zählweise', value: '2 Gewinnsätze, bei 1:1 Match-Tie-Break bis 10' },
-  { label: 'Pro Tag', value: 'Höchstens 2 Einzel' },
-  { label: 'Konkurrenz', value: 'Einzel (Damen, Herren, Challenger) · dazu Damen Doppel (gesellig)' },
-  { label: 'Setzung', value: 'Nach Leistungsklasse' },
-  {
-    label: 'Wertung',
-    value: 'Vereinsintern, keine LK-Wertung',
-    link: { href: 'https://matchday.tennisverein-winsen.de', label: 'Um LK-Punkte spielen? → Matchday Winsen' }
-  }
-]
-// Pulled out of the table so all six rows stay single-line and the two columns end evenly.
-const reglementLink = reglement.find(r => r.link)?.link
+// `reglement` and `reglementLink` now live in `@/data/reglement` so the Herren porch's scoring strip
+// reads the same rows and cannot drift from this table.
 
 const saturday = [
   [
