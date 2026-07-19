@@ -7,6 +7,8 @@ import SiteFooter from '@/components/site-footer.astro'
 interface Anchor {
   href: string
   label: string
+  // Phase-gated anchor (ADR-0042 revised) — hidden during signup, revealed once phase ≠ signup.
+  gated?: boolean
 }
 
 interface Props {

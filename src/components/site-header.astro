@@ -5,6 +5,10 @@ import signetSvg from '@/assets/signet.svg'
 interface Anchor {
   href: string
   label: string
+  // Phase-gated anchor (ADR-0042 revised): hidden during signup via [data-phase-gate], revealed
+  // client-side by the front door's phase read once phase ≠ signup. Used for the „Draw" link, whose
+  // target section is hidden during signup.
+  gated?: boolean
 }
 
 interface Props {
@@ -48,7 +52,7 @@ const home = import.meta.env.BASE_URL || '/'
           {anchors.length > 0 && (
             <nav class="site-header__nav" aria-label="Seitenabschnitte">
               {anchors.map(a => (
-                <a href={a.href} class="site-header__nav-link">
+                <a href={a.href} class="site-header__nav-link" data-phase-gate={a.gated ? '' : undefined}>
                   {a.label}
                 </a>
               ))}

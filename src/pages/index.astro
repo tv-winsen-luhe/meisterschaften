@@ -75,7 +75,7 @@ const sunday = [
     { href: '#event', label: 'Event' },
     { href: '#competitions', label: 'Konkurrenzen' },
     { href: '#participants', label: 'Wer ist dabei' },
-    { href: '#draw', label: 'Draw' },
+    { href: '#draw', label: 'Draw', gated: true },
     { href: '#format', label: 'Modus' },
     { href: '#weekend', label: 'Ablauf' },
     { href: '#drumherum', label: 'Drumherum' },
@@ -250,12 +250,13 @@ const sunday = [
       <ParticipantList />
     </section>
 
-    <!-- Der Draw -->
-    <section id="draw" class:list={[sectClass]} tabindex="-1">
+    <!-- Der Draw — hidden during signup, revealed once phase ≠ signup (ADR-0042 revised). During
+         signup nothing is drawn yet; the provisional seeding still shows on „Das Feld". -->
+    <section id="draw" class:list={[sectClass]} tabindex="-1" data-phase-gate>
       <SectionHeader
         eyebrow="Auslosung"
         headline={['Der', 'Draw.']}
-        note="Die Setzköpfe stehen schon fest und füllen sich aus dem Feld. Alle weiteren Plätze sind offen — sie werden bei der Auslosung nach Meldeschluss gelost."
+        note="Setzköpfe nach Leistungsklasse, alle weiteren Plätze per Los — hier siehst du, wer gegen wen spielt."
       />
       <TournamentDraw />
     </section>
@@ -478,6 +479,14 @@ const sunday = [
 </Layout>
 
 <style is:global>
+  /* Phase gate (ADR-0042 revised): elements marked [data-phase-gate] are hidden during signup and
+     revealed by the phase read below only once phase ≠ signup. Default-hidden is the signup common
+     case, so there is no flash and a failed/absent phase read keeps them hidden. Reveal is a plain
+     attribute removal, restoring each element's natural display (the #draw section and its nav link). */
+  [data-phase-gate] {
+    display: none;
+  }
+
   /* Hero head: date stacked above title on mobile, top-right on desktop */
   .hero-head {
     display: flex;
@@ -817,4 +826,32 @@ const sunday = [
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible') load()
   })
+</script>
+
+<script>
+  // Phase gate for „Der Draw" (ADR-0042 revised 2026-07-19). ADR-0042 §4 originally kept #draw as a
+  // self-adapting live section visible in every phase; during signup that meant an empty preview
+  // (seed heads + „?" + „Auslosung ab vier"-Countdown) since nothing is drawn yet. We now hide the
+  // whole Der-Draw section AND its nav link during signup, revealing both only once the phase leaves
+  // signup — mirroring the ADR-0042 §3 mechanism (ship hidden, reveal on phase ≠ signup) it already
+  // uses for stale signup affordances. The provisional seeding still shows on „Das Feld".
+  // Best-effort, read once on load (the phase changes ~twice in the event's life): any failure keeps
+  // the signup default (hidden), consistent with the statically-rendered signup lead.
+  import { hc } from 'hono/client'
+  import type { AppType } from '../../worker/app'
+
+  const revealDraw = () => {
+    document.querySelectorAll('[data-phase-gate]').forEach(el => el.removeAttribute('data-phase-gate'))
+  }
+
+  ;(async () => {
+    try {
+      const res = await hc<AppType>(location.origin).api.phase.$get()
+      if (!res.ok) return
+      const { phase } = await res.json()
+      if (phase !== 'signup') revealDraw()
+    } catch {
+      // Network error: stay hidden — the signup default.
+    }
+  })()
 </script>
