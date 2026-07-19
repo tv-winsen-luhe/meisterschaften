@@ -1,11 +1,9 @@
 ---
 import Layout from '@/layouts/default.astro'
-import CompetitionCard from '@/components/competition-card.astro'
 import PorchDamen from '@/components/porch-damen.astro'
+import PorchHerren from '@/components/porch-herren.astro'
 import SignupModal from '@/components/signup-modal.astro'
-import { cardStyleFor } from '@/data/competition-cards'
 import { SIDES, sideFields, type Side } from '@/data/sides'
-import { entryFee, signupDeadline } from '@/data/tournament'
 
 // The two outreach porches — /damen and /herren (CONTEXT.md: Outreach porch, ADR-0052, ADR-0054). One
 // route, two params: getStaticPaths emits exactly the two sides, so no other path resolves here. A porch
@@ -13,10 +11,10 @@ import { entryFee, signupDeadline } from '@/data/tournament'
 // OG card is the whole reason it is a route and not an anchor. Everything evergreen stays on the front
 // door (`/`) and is linked below.
 //
-// The two porches are two realizations, not one symmetric object (ADR-0054). Herren is the thin
-// *conversion porch* — the validated ADR-0052 form, kept verbatim below. Damen is a *validation probe*
-// with a bespoke body (`porch-damen.astro`) that leads with the social field. This file holds only what
-// they share: the Layout shell, the signup-phase redirect, and the „Das ganze Wochenende" hand-off.
+// The two porches are two realizations, not one symmetric object (ADR-0054/0056), each with its own
+// bespoke body: Damen is a *validation probe* (`porch-damen.astro`) that leads with the social field;
+// Herren is now a *broad conversion surface* (`porch-herren.astro`) with two equal competitive doors
+// (ADR-0056). This file holds only what they share: the Layout shell and the signup-phase redirect.
 export function getStaticPaths() {
   return SIDES.map(side => ({ params: { side: side.slug }, props: { side } }))
 }
@@ -24,6 +22,13 @@ export function getStaticPaths() {
 const { side } = Astro.props as { side: Side }
 const fields = sideFields(side)
 const primary = fields[0]
+
+// The Herren porch opens the modal with no field preselected — the two doors are equal (ADR-0056). The
+// Damen probe preselects its leading (social) field. That difference drives the header CTA.
+const headerCta =
+  side.slug === 'herren'
+    ? { href: '#', label: 'Anmelden', noPreselect: true }
+    : { href: '#', label: 'Anmelden', competition: primary.slug }
 ---
 
 <Layout
@@ -33,87 +38,10 @@ const primary = fields[0]
   ogDescription={side.ogDescription}
   bodyClass="bg-surface-alt"
   chrome="event"
-  headerCta={{ href: '#', label: 'Anmelden', competition: primary.slug }}
+  headerCta={headerCta}
 >
   <div class="mx-auto max-w-[1280px] px-5 pt-6 text-navy md:px-10 md:pt-8">
-    {
-      side.slug === 'damen' ? (
-        <PorchDamen side={side} />
-      ) : (
-        <>
-          {/* Hero */}
-          <section class="flex min-h-[80dvh] flex-col justify-center pt-16 pb-[72px] md:pt-24 md:pb-[104px]">
-            <span class="mb-6 self-start bg-navy px-2.5 py-1 text-[11px] font-black tracking-[0.15em] text-white uppercase">
-              {side.eyebrow}
-            </span>
-            <h1 class="m-0 text-[clamp(40px,8.5vw,104px)] leading-[0.86] font-black tracking-[-0.05em] uppercase">
-              <span class="block">{side.headline[0]}</span>
-              <span class="block text-surface-alt text-stroke-ink max-md:[-webkit-text-stroke-width:1.5px]">
-                {side.headline[1]}
-              </span>
-            </h1>
-
-            <div class="mt-12 max-w-[52ch]">
-              <p class="m-0 text-[19px] leading-[1.55] font-medium">{side.lead}</p>
-              <p class="mt-3 text-[14px] leading-[1.6] opacity-70">{side.leadSub}</p>
-
-              <div class="mt-8">
-                <span class="mb-3 block text-[11px] font-bold tracking-[0.18em] uppercase opacity-65">
-                  Anmeldung bis {signupDeadline.short}
-                </span>
-                <div class="flex flex-wrap items-center gap-6">
-                  <button type="button" class="cta-primary" data-signup-open data-signup-competition={primary.slug}>
-                    Jetzt anmelden
-                  </button>
-                  <a href="#felder" class="cta-secondary">
-                    Wähl dein Feld <span aria-hidden="true">&darr;</span>
-                  </a>
-                </div>
-              </div>
-            </div>
-          </section>
-
-          {/* Deine Felder */}
-          <section id="felder" tabindex="-1" class="border-t border-navy py-16 focus:outline-none md:py-24">
-            <span class="mb-4 block text-[11px] font-bold tracking-[0.2em] uppercase opacity-45">Deine Felder</span>
-            <h2 class="m-0 mb-6 text-[clamp(30px,6vw,56px)] leading-[0.9] font-black tracking-[-0.04em] uppercase">
-              Zwei Felder, beide für dich.
-            </h2>
-            <p class="mb-12 max-w-[52ch] text-[15px] leading-[1.6] opacity-70">
-              Dein Feld wählst du bei der Anmeldung selbst, deine Leistungsklasse musst du dafür nicht kennen.
-              Startgeld: {entryFee} € pro Person, bar vor Ort beim Check-in.
-            </p>
-
-            <div class="grid grid-cols-2 gap-0.5 bg-navy p-0.5 max-[720px]:grid-cols-1">
-              {fields.map(field => (
-                <CompetitionCard competition={field} style={cardStyleFor(field.id)} />
-              ))}
-            </div>
-          </section>
-
-          {/* Hand-off zum ganzen Wochenende — der dünne Herren-Porch verlinkt das Evergreen, statt es zu
-              wiederholen (ADR-0052). Die Damen-Probe ist selbst eine reiche Seite und braucht den Hand-off nicht. */}
-          <section class="border-t border-navy py-16 md:py-24">
-            <div class="flex flex-col gap-6 md:flex-row md:items-end md:justify-between">
-              <div class="max-w-[46ch]">
-                <span class="mb-4 block text-[11px] font-bold tracking-[0.2em] uppercase opacity-45">
-                  Mehr zum Event
-                </span>
-                <h2 class="m-0 mb-3 text-[clamp(26px,4.6vw,42px)] leading-[0.95] font-black tracking-[-0.03em] uppercase">
-                  Das ganze Wochenende.
-                </h2>
-                <p class="m-0 text-[14px] leading-[1.6] opacity-70">
-                  Modus, Ablauf über beide Tage, Drumherum und alle Antworten auf einen Blick — auf der Startseite.
-                </p>
-              </div>
-              <a href="/" class="cta-primary shrink-0">
-                Zum ganzen Wochenende &rarr;
-              </a>
-            </div>
-          </section>
-        </>
-      )
-    }
+    {side.slug === 'damen' ? <PorchDamen side={side} /> : <PorchHerren side={side} />}
   </div>
 
   <SignupModal />

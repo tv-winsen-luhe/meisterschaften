@@ -676,10 +676,15 @@ const clubLogos = { 'TV Winsen': tvLogo, 'TSV Winsen': tsvLogo } satisfies Recor
     if (errorEl) errorEl.hidden = true
   }
 
-  const openDialog = (competition?: string) => {
+  // `competition` = a slug preselects that field; `null` = open with no field preselected (the Herren
+  // porch's equal doors, ADR-0056) — clear the HTML default so the visitor must pick; `undefined` keeps
+  // whatever the form defaults to.
+  const openDialog = (competition?: string | null) => {
     if (!dialog) return
     resetForm()
-    if (competition) {
+    if (competition === null) {
+      form?.querySelectorAll<HTMLInputElement>('input[name="competition"]').forEach(radio => (radio.checked = false))
+    } else if (competition) {
       const radio = form?.querySelector<HTMLInputElement>(`input[name="competition"][value="${competition}"]`)
       if (radio) radio.checked = true
     }
@@ -707,7 +712,9 @@ const clubLogos = { 'TV Winsen': tvLogo, 'TSV Winsen': tsvLogo } satisfies Recor
     document.querySelectorAll<HTMLElement>('[data-signup-open]').forEach(trigger => {
       trigger.addEventListener('click', e => {
         e.preventDefault()
-        openDialog(trigger.dataset.signupCompetition || undefined)
+        // `data-signup-no-preselect` → open with nothing checked; otherwise preselect the given slug.
+        if (trigger.hasAttribute('data-signup-no-preselect')) openDialog(null)
+        else openDialog(trigger.dataset.signupCompetition || undefined)
       })
     })
     dialog.querySelectorAll<HTMLElement>('[data-signup-close]').forEach(btn => {

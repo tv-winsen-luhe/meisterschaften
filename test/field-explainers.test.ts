@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import { FIELD_EXPLAINERS, fieldChipsFor, fieldExplainerFor } from '../src/data/field-explainers'
 
-// FIELD_EXPLAINERS is the single source for the soft-field objection-flips and chips shared by the
-// Damen porch (explainer-damen.astro) and the front-door self-selection grid (#223). The whole point
-// of the module is that the two surfaces cannot silently drift — so these tests pin the exact copy.
-// A screenshot would not catch a flipped word or a dropped fear; this does.
+// FIELD_EXPLAINERS is the single source for the field objection-flips and chips shared by the porches
+// (explainer-damen.astro, explainer-herren.astro) and the front-door self-selection grid (#223). The
+// whole point of the module is that the surfaces cannot silently drift — so these tests pin the exact
+// copy. A screenshot would not catch a flipped word or a dropped fear; this does.
 describe('field explainers', () => {
   it('pins the Damen Doppel „Das brauchst du hier nicht" set exactly (drift guard)', () => {
     // The four concrete beginner fears + their bar-removals (ADR-0054 amendment). Exact-match, in
@@ -45,18 +45,33 @@ describe('field explainers', () => {
     expect(challenger.notNeeded).toBeUndefined()
   })
 
-  it('fails loud for a competition without an explainer', () => {
-    // `mens` (Hauptfeld) has no objection-flip on any surface — it is not in the map, and asking for
-    // it must throw with the slug rather than return undefined into a template.
-    expect(FIELD_EXPLAINERS.mens).toBeUndefined()
-    expect(() => fieldExplainerFor('mens')).toThrow('mens')
+  it('pins the Herren Hauptfeld chips + „Gut zu wissen" set exactly (ADR-0056)', () => {
+    // The Hauptfeld gained an explainer when the Herren porch became a rich conversion surface. Its
+    // chips + „Gut zu wissen" pairs are the shared source the porch and the front-door grid both read.
+    const hauptfeld = fieldExplainerFor('mens')
+    expect(hauptfeld.chips).toEqual(['K.-o.-System', 'Titel: Winsener Meister', 'Offen für alle'])
+    expect(hauptfeld.goodToKnow).toEqual([
+      ['Offen für alle', 'Egal welche LK — oder gar keine.'],
+      ['Ohne Mannschaft', 'Punktspiele sind keine Voraussetzung.'],
+      ['Mindestens zwei Matches', 'Erstrundenverlierer spielen in der Nebenrunde weiter.']
+    ])
+    // „Gut zu wissen", not the Damen „Das brauchst du hier nicht" fear-removal list.
+    expect(hauptfeld.notNeeded).toBeUndefined()
   })
 
-  it('returns chips softly — the front-door grid renders chips per field, and mens has none (#229)', () => {
-    // The self-selection grid asks every card for its chips; `mens` (Hauptfeld) legitimately has no
-    // explainer, so the chip lookup must degrade to an empty list rather than throw like fieldExplainerFor.
-    expect(fieldChipsFor('mens')).toEqual([])
+  it('fails loud for a competition slug without an explainer', () => {
+    // Every registerable field now carries an explainer, but the fail-loud contract still holds for any
+    // slug that is not in the map — asking must throw with the slug rather than return undefined.
+    expect(FIELD_EXPLAINERS['nonexistent' as keyof typeof FIELD_EXPLAINERS]).toBeUndefined()
+    expect(() => fieldExplainerFor('nonexistent' as never)).toThrow('nonexistent')
+  })
+
+  it('returns chips per field, softly degrading to [] for a slug with no explainer (#229)', () => {
+    // The self-selection grid asks every card for its chips. Every registerable field has an explainer
+    // now, so each returns its chips; a slug not in the map degrades to [] rather than throwing.
+    expect(fieldChipsFor('mens')).toEqual(['K.-o.-System', 'Titel: Winsener Meister', 'Offen für alle'])
     expect(fieldChipsFor('mens-challenger')).toEqual(['Ab LK 20 · geschützt'])
     expect(fieldChipsFor('womens')).toEqual(fieldExplainerFor('womens').chips)
+    expect(fieldChipsFor('nonexistent' as never)).toEqual([])
   })
 })

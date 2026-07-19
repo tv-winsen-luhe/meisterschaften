@@ -1,0 +1,116 @@
+---
+import FieldExplainer from './field-explainer.astro'
+import { fieldExplainerFor, type FlipPair } from '../data/field-explainers'
+
+// The Herren porch's two field explainers (ADR-0056). Unlike the Damen probe — which splits its two
+// fields by *motive* and makes the social B-field the anchor — the Herren porch presents *two equal
+// competitive doors*: both play a real K.-o. title, the difference is playing strength, not ambition.
+// So both render as equal-weight `plain` blocks (neither is the navy anchor), distinguished only by a
+// coloured accent (Hauptfeld navy, Challenger blue — matching their competition cards).
+//
+// Voice discipline (locked, #239):
+//   - The Challenger is framed as *fairness & ambition* — „auf Augenhöhe", „kein Trostpreis" — and
+//     answers the one real interview blocker („werde ich hier abgeschossen?"). It is NEVER
+//     beginner-reassurance: no „erstes Turnier / keine Turniererfahrung nötig" register lives here.
+//   - Herren has no Doppel, so the Damen „ohne Partner / allein anmelden" framing is dropped entirely.
+//     The real low-barrier facts are „ohne Mannschaft" and „LK musst du nicht kennen".
+//
+// The Hauptfeld's chips + „Gut zu wissen" pairs come from the shared field-explainers module (`mens`),
+// so this porch and the front-door grid cannot drift. The Challenger's porch chips and the fairness-flip
+// prose below are deliberately *porch-local* — the shared `mens-challenger.flip` line is the #220
+// front-door beginner register and stays untouched (the front-door grid keeps consuming it). Same
+// „override locally, don't drift the shared data" pattern the Damen porch uses for its card label.
+const main = fieldExplainerFor('mens')
+
+// Challenger porch-local copy — the fairness register, not the shared #220 beginner line.
+const challengerChips: readonly string[] = ['K.-o.-System', 'Ab LK 20 · geschützt', 'Eigener Titel']
+const challengerFair: readonly FlipPair[] = [
+  ['Die Stärksten sind woanders', 'LK 1–19 spielt im Hauptfeld, nicht hier.'],
+  ['Gegner auf Augenhöhe', 'Cap LK 20 — enge Matches, echte Chance.'],
+  ['Ein Titel, der zählt', 'Eigener Meistertitel, kein Trostpreis.']
+]
+
+interface Props {
+  /** Signup slug for the Hauptfeld (mens). */
+  mainSlug: string
+  /** Signup slug for the Challenger (mens-challenger). */
+  challengerSlug: string
+}
+
+const { mainSlug, challengerSlug } = Astro.props as Props
+---
+
+<FieldExplainer
+  type="Einzel"
+  badge="Winsener Meister"
+  variant="plain"
+  accent="navy"
+  heading="Miss dich mit den Stärksten im Verein."
+  chips={main.chips}
+  signupSlug={mainSlug}
+  signupLabel="Zum Hauptfeld anmelden"
+>
+  <p>
+    Das Hauptfeld ist <strong>offen für alle</strong> — hier treten die stärksten Spieler des Vereins an, und hier wird der
+    <strong>Winsener Meister</strong> ausgespielt. K.-o.-System mit Nebenrunde: Verlierst du dein erstes Match, spielst du
+    in der Nebenrunde weiter — mindestens zwei Matches sind dir sicher.
+  </p>
+  <p>
+    Du musst in keiner Mannschaft spielen und deine Leistungsklasse nicht kennen. Melde dich an und miss dich nach oben.
+  </p>
+  <div slot="aside" class="border border-navy/15 p-6">
+    <span class="mb-4 block text-[12px] font-black tracking-[0.14em] text-navy uppercase">Gut zu wissen</span>
+    <ul class="flex flex-col gap-3.5">
+      {
+        main.goodToKnow?.map(([what, why]) => (
+          <li class="flex gap-3 text-[15px] leading-[1.5]">
+            <span aria-hidden="true" class="mt-0.5 font-black text-navy">
+              →
+            </span>
+            <span>
+              <strong>{what}</strong> <span class="text-navy/70">— {why}</span>
+            </span>
+          </li>
+        ))
+      }
+    </ul>
+  </div>
+</FieldExplainer>
+
+<FieldExplainer
+  type="Einzel"
+  badge="Herren Challenger"
+  variant="plain"
+  accent="blue"
+  heading="Auf Augenhöhe — und vor den Stärksten geschützt."
+  chips={challengerChips}
+  signupSlug={challengerSlug}
+  signupLabel="Zum Challenger anmelden"
+>
+  <p>
+    Ein eigenes Turnier mit eigenem Titel — <strong>Winsener Meister Herren Challenger</strong>. Geschützt heißt: Wer
+    besser als LK 20 ist (LK 1–19), spielt im Hauptfeld und tritt hier nicht an. So triffst du auf Gegner auf deinem
+    Level — enge, echte Matches statt 6:0, 6:0 gegen jemanden zwei Klassen über dir.
+  </p>
+  <p>
+    Ernsthaftes Tennis wird auch hier gespielt, nur eben oben gedeckelt. Wer weit kommt, holt sich einen{' '}
+    <strong>Titel, der zählt</strong>. Keine LK? Dann zählst du als LK 25 und bist genau richtig.
+  </p>
+  <div slot="aside" class="border border-blue/25 p-6">
+    <span class="mb-4 block text-[12px] font-black tracking-[0.14em] text-blue uppercase">So bleibt's fair</span>
+    <ul class="flex flex-col gap-3.5">
+      {
+        challengerFair.map(([what, why]) => (
+          <li class="flex gap-3 text-[15px] leading-[1.5]">
+            <span aria-hidden="true" class="mt-0.5 font-black text-blue">
+              →
+            </span>
+            <span>
+              <strong>{what}</strong> <span class="text-navy/70">— {why}</span>
+            </span>
+          </li>
+        ))
+      }
+    </ul>
+  </div>
+</FieldExplainer>
