@@ -1,9 +1,10 @@
 // The tournament's Reglement rows — the exact "so wird gespielt" facts. Kept here as *one* source so
-// the front-door Modus section (`index.astro`) and the Herren porch's compact scoring strip
-// (`porch-herren.astro`) cannot silently drift, the same single-source pattern `field-explainers.ts`
-// established for the field flips. Before this module the rows were a local const in `index.astro`, so
-// the moment the porch needed the scoring rule it would have carried a second, independently-edited
-// copy. English identifiers, German user-facing strings (ADR-0028).
+// the front-door Modus section (`index.astro`) cannot drift from any other surface that needs the
+// scoring rule, the same single-source pattern `field-explainers.ts` established for the field flips.
+// Before this module the rows were a local const in `index.astro`. (The Herren porch was the second
+// reader that motivated extracting them; it was retired in ADR-0057, leaving the front door as the sole
+// consumer, but the single source stays — it is the right shape for the next one.) English identifiers,
+// German user-facing strings (ADR-0028).
 
 /** A follow-up link shown after a rule's value (currently only the LK-ranking row). */
 export interface ReglementLink {

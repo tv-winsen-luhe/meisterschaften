@@ -62,10 +62,11 @@ export const FIELD_EXPLAINERS: Partial<Record<CompetitionSlug, FieldExplainer>> 
       ['Ohne Gewinnzwang', 'Es geht ums Mitspielen und Sich-Messen.']
     ]
   },
-  // Herren Hauptfeld — the open championship field (ADR-0056). Chips + „Gut zu wissen" pairs are the
-  // shared source the Herren porch and the front-door grid both read; the front-door `mens` card gains
-  // these chips (it carried none before), which brings it in line with its three siblings. The
-  // Challenger's fairness-flip prose stays porch-local (see `mens-challenger` below).
+  // Herren Hauptfeld — the open championship field. Its chips + „Gut zu wissen" pairs feed the
+  // front-door self-selection grid; the `mens` card carries these chips (it had none before ADR-0056),
+  // which brings it in line with its three siblings. (The Herren porch also read this source until
+  // ADR-0057 retired it; the front door is now the only reader, and the Challenger's fairness flip lives
+  // here too — see `mens-challenger` below.)
   mens: {
     chips: ['K.-o.-System', 'Titel: Winsener Meister', 'Offen für alle'],
     goodToKnow: [
@@ -74,10 +75,14 @@ export const FIELD_EXPLAINERS: Partial<Record<CompetitionSlug, FieldExplainer>> 
       ['Mindestens zwei Matches', 'Erstrundenverlierer spielen in der Nebenrunde weiter.']
     ]
   },
-  // Herren Challenger — the protected Freizeit/Einsteiger field (#220 copy, consumed verbatim).
+  // Herren Challenger — the protected field, framed by fairness not beginner-reassurance (ADR-0056/0057).
+  // It now lands the broad Herren send on the front door, so the line leads with the mechanism + promise
+  // (geschützt, Augenhöhe, eigener Titel) and never a „Freizeit/Einsteiger" deficit identity. A factual
+  // low-barrier welcome stays for the cold walk-up (#220), but the rejected „erstes Turnier / keine
+  // Turniererfahrung nötig" register is gone. The chip carries the protection rule; the line invites.
   'mens-challenger': {
     chips: ['Ab LK 20 · geschützt'],
-    flip: 'Du spielst zum Spaß, vielleicht sogar dein erstes Turnier? Genau dafür ist das Feld da. Keine LK, keine Turniererfahrung nötig — einfach mitspielen.'
+    flip: 'Der Challenger ist das geschützte Feld — nur bis LK 20, Stärkere spielen im Hauptfeld. Also ausgeglichene Matches statt Kanonenfutter, echter Wettkampf und ein eigener Titel. Offen für alle bis LK 20, auch ganz ohne LK — egal ob du regelmäßig spielst oder erst wieder anfängst.'
   }
 }
 

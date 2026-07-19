@@ -26,8 +26,8 @@ const womensSocial = competitions.find(c => c.id === 'womens-social')!
 // fields are a choice between (the Challenger is LK-protected against stronger players), so no such line.
 const damenCrossSell = 'Beide Felder gehen zusammen — meld dich einfach für beide an.'
 
-// `reglement` and `reglementLink` now live in `@/data/reglement` so the Herren porch's scoring strip
-// reads the same rows and cannot drift from this table.
+// `reglement` and `reglementLink` live in `@/data/reglement` as the single source for the Modus rows,
+// so this table cannot drift from any other surface that needs the scoring facts.
 
 const saturday = [
   [
@@ -179,7 +179,7 @@ const sunday = [
       <SectionHeader
         eyebrow="Konkurrenzen"
         headline={['Wähl dein', 'Feld.']}
-        note={`Vier Felder, zwei je Seite: bei den Damen das Hauptfeld um die Winsener Meisterin und das gesellige Damen Doppel zum Kennenlernen; bei den Herren das Hauptfeld und das geschützte Challenger-Feld für Freizeit & Einsteiger. Dein Feld wählst du bei der Anmeldung selbst, deine Leistungsklasse musst du dafür nicht kennen. Startgeld: ${entryFee} € pro Person, bar vor Ort beim Check-in.`}
+        note={`Vier Felder, zwei je Seite: bei den Damen das Hauptfeld um die Winsener Meisterin und das gesellige Damen Doppel zum Kennenlernen; bei den Herren das Hauptfeld und das geschützte Challenger-Feld auf Augenhöhe (ab LK 20). Dein Feld wählst du bei der Anmeldung selbst, deine Leistungsklasse musst du dafür nicht kennen. Startgeld: ${entryFee} € pro Person, bar vor Ort beim Check-in.`}
       />
 
       {
@@ -379,8 +379,8 @@ const sunday = [
           Alle Mitglieder des TV Winsen ab 15 Jahren; Mitglieder des TSV Winsen können ebenfalls teilnehmen. Jüngere
           spielen bei der Jugend-Clubmeisterschaft — wer 15 oder älter ist und sich Matches zutraut, ist hier genau
           richtig. Bei den Damen gibt es zwei Felder: das Hauptfeld um die Winsener Meisterin und das gesellige Damen
-          Doppel zum Kennenlernen. Bei den Herren ist das Hauptfeld offen für alle, das Challenger-Feld für
-          Freizeit-/Einsteiger und Spielende ab LK 20.
+          Doppel zum Kennenlernen. Bei den Herren ist das Hauptfeld offen für alle, das Challenger-Feld geschützt für
+          alle ab LK 20 — Wettkampf auf Augenhöhe.
         </FaqItem>
         <FaqItem question="Brauche ich eine Spieler-ID oder muss ich meine LK kennen?">
           Nein. Du gibst nur Namen, Verein und Konkurrenz an. Die Leistungsklasse ergänzen wir für die Setzung intern
@@ -400,9 +400,9 @@ const sunday = [
           mindestens zwei Matches sicher. Mehr als zwei Einzel pro Tag spielt aber niemand.
         </FaqItem>
         <FaqItem question="Was ist das Challenger-Feld?">
-          Das geschützte Feld für Freizeit- und Einsteiger sowie alle ab LK 20. Wer besser als LK 20 ist (also LK 1–19),
-          spielt im Hauptfeld und darf hier nicht antreten — so bleiben die Matches ausgeglichen. Gewonnen wird der
-          Titel Winsener Meister Herren Challenger.
+          Das geschützte Feld für alle ab LK 20 (oder ganz ohne LK). Wer besser als LK 20 ist (also LK 1–19), spielt im
+          Hauptfeld und darf hier nicht antreten — so bleiben die Matches ausgeglichen und du spielst auf Augenhöhe um
+          einen eigenen Titel: den Winsener Meister Herren Challenger.
         </FaqItem>
         <FaqItem question="Darf ich mit hoher LK oder ganz ohne LK im Herren-Hauptfeld mitspielen?">
           Ja, jederzeit. Das Herren-Hauptfeld ist offen für alle — egal welche LK du hast oder ob du gar keine hast.
