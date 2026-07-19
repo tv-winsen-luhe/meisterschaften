@@ -1,5 +1,6 @@
 ---
 import { fieldExplainerFor } from '../data/field-explainers'
+import { competitions } from '../data/tournament'
 import type { CompetitionSlug } from '../../shared/competition'
 
 // The objection-flip block for a *soft* field on the front-door self-selection grid (#229). It borrows
@@ -16,6 +17,9 @@ interface Props {
 
 const { slug } = Astro.props as Props
 const explainer = fieldExplainerFor(slug)
+// Name the field in the notNeeded header — on the front door this block sits under *both* cards of a
+// pair, so a bare „Das brauchst du hier nicht" reads ambiguously; the label ties it to the right field.
+const fieldLabel = competitions.find(c => c.slug === slug)?.label
 ---
 
 <div class="border-t-[3px] border-t-blue bg-surface p-6 shadow-[0_1px_0_rgba(12,30,58,0.08)] md:p-8">
@@ -23,7 +27,7 @@ const explainer = fieldExplainerFor(slug)
     explainer.notNeeded && (
       <>
         <span class="mb-4 block text-[12px] font-black tracking-[0.14em] text-blue uppercase">
-          Das brauchst du hier nicht
+          {fieldLabel} — Das brauchst du hier nicht
         </span>
         <ul class="grid gap-3.5 sm:grid-cols-2 sm:gap-x-10">
           {explainer.notNeeded.map(([what, why]) => (
