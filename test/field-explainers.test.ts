@@ -41,7 +41,7 @@ describe('field explainers', () => {
     // never by a „Freizeit/Einsteiger" deficit identity. A factual low-barrier welcome stays for the
     // cold walk-up (#220), but the rejected „erstes Turnier / keine Turniererfahrung nötig" is gone.
     expect(challenger.flip).toBe(
-      'Der Challenger ist das geschützte Feld — nur bis LK 20, Stärkere spielen im Hauptfeld. Also ausgeglichene Matches statt Kanonenfutter, echter Wettkampf und ein eigener Titel. Offen für alle bis LK 20, auch ganz ohne LK — egal ob du regelmäßig spielst oder erst wieder anfängst.'
+      'Der Challenger ist das geschützte Feld — nur ab LK 20, Stärkere spielen im Hauptfeld. Also ausgeglichene Matches statt Kanonenfutter, echter Wettkampf und ein eigener Titel. Offen für alle ab LK 20, auch ganz ohne LK — egal ob du regelmäßig spielst oder erst wieder anfängst.'
     )
     expect(challenger.chips).toEqual(['Ab LK 20 · geschützt'])
     // The protection rule is „Ab LK 20 · geschützt"; the flip invites and never leads with LK.
