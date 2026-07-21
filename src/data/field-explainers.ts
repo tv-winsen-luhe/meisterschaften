@@ -82,7 +82,7 @@ export const FIELD_EXPLAINERS: Partial<Record<CompetitionSlug, FieldExplainer>> 
   // Turniererfahrung nötig" register is gone. The chip carries the protection rule; the line invites.
   'mens-challenger': {
     chips: ['Ab LK 20 · geschützt'],
-    flip: 'Der Challenger ist das geschützte Feld — nur bis LK 20, Stärkere spielen im Hauptfeld. Also ausgeglichene Matches statt Kanonenfutter, echter Wettkampf und ein eigener Titel. Offen für alle bis LK 20, auch ganz ohne LK — egal ob du regelmäßig spielst oder erst wieder anfängst.'
+    flip: 'Der Challenger ist das geschützte Feld — nur ab LK 20, Stärkere spielen im Hauptfeld. Also ausgeglichene Matches statt Kanonenfutter, echter Wettkampf und ein eigener Titel. Offen für alle ab LK 20, auch ganz ohne LK — egal ob du regelmäßig spielst oder erst wieder anfängst.'
   }
 }
 
