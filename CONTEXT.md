@@ -69,11 +69,11 @@ concept here drifts or a new one appears, update this file rather than inventing
 ## Participants & fields
 
 - **Competition** (de: Konkurrenz; code: `competition`) — a single field a member registers for.
-  Identified by a `slug`. Three are registerable today (`COMPETITION_SLUGS`): Damen (`womens`), Herren
-  (`mens`), Herren Challenger (`mens-challenger`). The **Social mixer** (`womens-social`, see below) is
-  **Damen's second field** and is decided to join them as a fourth registerable competition (ADR-0051) —
-  pending the build. The line-up is deliberately **asymmetric by type**: Herren carry two _competitive_
-  fields, Damen one _competitive_ + one _social_ — offered as equals, not mirrored (ADR-0051).
+  Identified by a `slug`. Four are registerable (`COMPETITION_SLUGS`): Damen (`womens`), Herren
+  (`mens`), Herren Challenger (`mens-challenger`) and the **Social mixer** (`womens-social`, see below),
+  which is **Damen's second field**. The line-up is deliberately **asymmetric by type**: Herren carry two
+  _competitive_ fields, Damen one _competitive_ + one _social_ — offered as equals, not mirrored
+  (ADR-0051).
 - **Championship field** (de: Hauptfeld) — an open championship field where the Winsener
   Meister/Meisterin title is decided (Damen, Herren).
 - **Challenger / recreational field** (de: Freizeit) — a protected field for recreational/returning
@@ -104,10 +104,9 @@ concept here drifts or a new one appears, update this file rather than inventing
   the field's identity — so turning it on for a new protected field (Damen Freizeit) is a single change, and
   a not-yet-synced rating („LK folgt") can never be confused with a withheld one. The gated admin reads the
   un-redacted strength it needs to bind the cap and run the draw (ADR-0024). _(See ADR-0044, ADR-0047, ADR-0048.)_
-- **Social mixer** (de: Schleifchenturnier; planned field, working name „Damen Doppel-Mixer" — itself
-  provisional, part of what the Damen validation probe tests) —
-  the real shape of the planned **Damen Freizeit** field, and a **third field type** beside Championship
-  field and Challenger / recreational field: the first **unseeded** competition. A rotating-partner social
+- **Social mixer** (de: Schleifchenturnier; user-facing label „Damen Doppel") — the real shape of what
+  was once called the **Damen Freizeit** field, and a **third field type** beside Championship field and
+  Challenger / recreational field: the first **unseeded** competition. A rotating-partner social
   **doubles** event — each member registers **alone**, partners rotate over the day to maximise mixing; the
   point is _Kennenlernen_, not a result. The concrete driver: the Damen <50 have **no teams**, so most
   only know their own training group and are **running out of Spielpartnerinnen** (an undocumented
@@ -134,10 +133,22 @@ cancelled`, duplicate check, capacity, first-come cut) **unchanged**, with one r
   reserved for the protected LK-capped singles field, and the code slug is `womens-social` (renamed from the
   misleading `womens-challenger`). **Scope is settled: it sits _beside_ the competitive Damen championship, not
   replacing it (ADR-0051)** — Damen are offered **both** as equals, and the field is open to **all women**
-  (ages ≥15, like the event), not just Damen 50. What stays **provisional** is the **format**: it rests on
-  5 self-admittedly non-representative conversations (Damen 50) and is being validated by putting a
-  **concrete** proposal in front of the Damen-50 core — nothing here is built yet. _(See Competition,
-  Registration, Court budget, Active entry, ADR-0051.)_
+  (ages ≥15, like the event), not just Damen 50. The **format is frozen for the 2026 edition** — not
+  because the evidence grew (it is still the same 5 self-admittedly non-representative Damen-50
+  conversations), but because the signup deadline closed the window in which it could have changed. For
+  **2027 it is genuinely open again**: the concrete-proposal probe returned a strong _behavioural_ signal
+  (the field filled) but no confirmation of the rotation format itself. _(See Competition, Registration,
+  Court budget, Active entry, Unseeded competition, ADR-0051, ADR-0058.)_
+- **Unseeded competition** (code: `isUnseededCompetition`) — a competition that has **no strength
+  dimension at all**: entries carry no LK, nothing is seeded, cut by strength, or drawn. Seedability is a
+  property of the **competition**, not of every registration — the trait's whole point. It is carried by
+  the **`-social` slug suffix**, mirroring `isChallengerField`'s `-challenger`, so a future social field
+  is recognised the moment it exists rather than when someone remembers a list. Five surfaces read the one
+  predicate: `confirm`/`canConfirmEntry` (no seeding basis required), the field cut (`cutsByStrength` →
+  first-come), the public list (no seed ranks, no scarcity meter — momentum instead), the draw guard (a
+  draw is refused outright), and the admin's court-load gauge (excluded from the KO math, since its court
+  use is the separate reservation). The Social mixer is the only one today. _(See Social mixer, Field cut,
+  Court budget, ADR-0051, ADR-0058.)_
 - **Registration** (de: Anmeldung; D1 table `registrations`) — one member's entry into one competition.
   Status flow: `new` → `confirmed` → `cancelled`. **`cancelled`** is the single "no longer participating,
   keep the record" state, reached either by the member's self-service withdrawal (`/api/cancel`, by person)
@@ -213,13 +224,16 @@ cancelled`, duplicate check, capacity, first-come cut) **unchanged**, with one r
   follows the confirmed field (Draw size, ADR-0034). Kept in code, not admin-editable: a soft number
   changed a handful of times over one event does not justify a config surface (ADR-0021/0023). _(See ADR-0043.)_
 - **Field cut** (de: Schnitt / Schnittlinie) — when a competition's confirmed field exceeds its capacity,
-  the surplus become reserves; **the criterion depends on the field type** (`isChallengerField`). A
-  **championship field** (Herren, Damen) takes the **top-N by LK** — the cut binds on the **frozen** LK at
-  the draw, so during signup it is only a provisional preview that drifts as LKs sync, and a late, stronger
-  entry slots in by LK. A **Challenger / recreational field** takes the **first N by registration order**
-  (`createdAt`) — strength must not decide a protected field, so it is plain first-come-first-served; the
-  ordering key never drifts, so a spot is **secure once taken** (no bumping). Either way the drawn field is
-  still **seeded by LK** in the bracket — the cut decides _who is in_, the seeding decides _where_. _(See ADR-0043.)_
+  the surplus become reserves; **the criterion depends on the field type**, owned by one predicate
+  (`cutsByStrength`). A **championship field** (Herren, Damen) takes the **top-N by LK** — the cut binds
+  on the **frozen** LK at the draw, so during signup it is only a provisional preview that drifts as LKs
+  sync, and a late, stronger entry slots in by LK. A **Challenger / recreational field** and the
+  **Social mixer** both take the **first N by registration order** (`createdAt`) — for the Challenger
+  because strength must not decide a protected field (ADR-0043), for the mixer because an unseeded field
+  has **no strength to decide by** (ADR-0051); the ordering key never drifts, so a spot is **secure once
+  taken** (no bumping). For the two drawn field types the bracket is still **seeded by LK** — the cut
+  decides _who is in_, the seeding decides _where_; the mixer is cut but never drawn or seeded. _(See
+  ADR-0043, ADR-0051.)_
 - **Reserve** (de: Nachrücker) — a `confirmed` entry **below the field cut**: still confirmed, simply not
   drawn into the bracket, and first to step in if a drawn player drops before the draw locks. Not a separate
   status — the lifecycle stays `new → confirmed → cancelled` (ADR-0018). _(See ADR-0043.)_
