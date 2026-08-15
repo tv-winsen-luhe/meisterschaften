@@ -2,6 +2,8 @@
 
 - Status: accepted
 - Date: 2026-07-07
+- Amended: 2026-08-15 (see Amendment below — the bet resolved: the mixer filled, the Meisterin field did
+  not clear the draw floor, and the invitation was not as equally billed as §2 assumed)
 - Builds on: the `CONTEXT.md` „Social mixer" entry (scope was left provisional there; this ADR settles it)
 - Relates to: ADR-0034 (≥4 draw floor), ADR-0040 (Finaltag / court windows), ADR-0043 (capacity / field cut)
 
@@ -92,3 +94,43 @@ letting the organiser decide top-down that „women don't compete".
   competition trait (no LK, `confirm` without a seeding basis) — modeling detailed in `CONTEXT.md` →
   Social mixer, its own ADR deferred to when it is built; the momentum-framing homepage reframe with
   Damen ordered first; set `freizeitReservedSlots` 10 → **6** (3 side courts × a midday block).
+
+## Amendment (2026-08-15): the bet resolved — the mixer filled, the Meisterin field did not, and the instrument was flawed
+
+Four days before the signup deadline (19.08.), with the field state effectively final, the outcome this
+ADR's §2 pre-authorised has arrived. Recorded here because the _result_ of a bet belongs with the bet.
+
+**The numbers** (production, 15.08.2026, all `confirmed`): Herren 13/16 · Herren Challenger 8/16 ·
+**Damen Meisterin 1/8** · **Social mixer 9/16**. The mixer accumulated steadily from the soft launch
+(12.07.) through 12.08. and never stalled. The Meisterin field took its single entry on 12.07. and has
+had **no new entry in 34 days**. It is three short of the ≥4 draw floor (ADR-0034), so it will not run.
+
+**The decision stands: the field is not rescued.** No targeted recruitment ask to the mixer's nine, no
+lowering of the draw floor. §2 said the championship not running is a defensible outcome, and it is being
+honoured rather than quietly reversed under pressure.
+
+**But §2's precondition was not fully met, and that is recorded rather than argued away.** §2 conditions
+the outcome on „an honest, seeded, **equally-billed** invitation". The billing was not equal: the public
+participant list rendered the competitive-field scarcity meter unconditionally, so for the whole signup
+period the Meisterin field publicly read **„Noch 7 Plätze frei"** (1 of 8 segments lit) directly beside
+the mixer's **„9 schon dabei"** — the empty-field deterrence this ADR's §3 explicitly named as hitting
+the socially-motivated audience hardest, running against the one field that needed recruiting. That is
+fixed as of this amendment (the meter is now suppressed below the draw floor, where there is no real
+field yet), but it cannot be fixed retroactively.
+
+**Consequence for the evidence, which is the point of writing this down:**
+
+- **The mixer's 9 is strong evidence.** It converted from a clean surface with honest momentum framing.
+  The format hypothesis (rotating doubles, register alone, no result) is **behaviourally validated** —
+  women signed up for it. What is _not_ validated is the rotation format itself; no one has played it yet.
+- **The Meisterin field's 1 is weak evidence.** It converted from a surface carrying a visible
+  empty-field signal for 34 days. It is **not** clean evidence that „the women chose" against competitive
+  play, and must not be cited that way in the 2027 planning.
+
+The honest summary is therefore narrower than §2's clean formulation: _the mixer clearly works; the
+Damen championship's demand remains genuinely unknown, and 2026 did not measure it fairly._ Re-running
+the Damen championship in 2027 on a correct surface is the open question this edition failed to close.
+
+**Also settled by the calendar:** the format, which this ADR left provisional pending feedback, is
+**frozen for 2026** — the deadline closed the window, not new evidence. 2027 is open again. The
+`/to-prd` escape hatch in the Consequences above expired unused.
