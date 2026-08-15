@@ -88,6 +88,24 @@ html {
   clip-path: inset(0 -100vmax);
 }
 
+/* Phase gate (ADR-0042 revised). Two attributes, one rule, both hiding by presence:
+   - [data-phase-gate] ships on what is hidden during signup and revealed once phase ≠ signup
+     (the „Der Draw" section and its nav link). The client-side phase read also *adds* it to the
+     signup affordances it hides, so reveal and hide are the same attribute-toggle in both
+     directions.
+   - [data-phase-lead="<phase>"] ships on the per-phase alternatives (hero lead, header CTA); the
+     phase read removes it from the one matching element only.
+   Default-hidden is the months-long signup common case, so there is no flash, and a failed or
+   absent phase read degrades to the statically rendered signup page.
+
+   `!important` because this is a hard gate, not a style: the elements it hides carry their own
+   display rules (`.cta-primary`, section layout, Tailwind utilities) at equal specificity, which
+   would otherwise win on source order alone and leave a stale „Anmelden" button on the page. */
+[data-phase-gate],
+[data-phase-lead] {
+  display: none !important;
+}
+
 /* Shared CTA buttons — used by the front door, the competition cards, the signup modal and the
    header, so they live here rather than in any one page (the cards render on the outreach porches
    too — ADR-0052). */

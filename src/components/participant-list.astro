@@ -1,5 +1,5 @@
 ---
-import { competitions, signupDeadline } from '@/data/tournament'
+import { competitions } from '@/data/tournament'
 import { isUnseededCompetition } from '../../shared'
 import tvLogo from '@/assets/logo.svg'
 import tsvLogo from '@/assets/tsv-winsen.png'
@@ -54,7 +54,7 @@ const layoutFor = (slug: string) => (slug === 'mens' || slug === 'womens' ? 'boa
   <p class="pl-status reveal mt-4 text-[13px] leading-[1.6] opacity-60" data-status>
     Alle bestätigten Anmeldungen, laufend aktualisiert. Im Hauptfeld zeigen die markierten Plätze die <strong
       >vorläufige Setzung</strong
-    > nach Leistungsklasse — endgültige Setzung und Auslosung nach Meldeschluss am {signupDeadline.short}
+    > nach Leistungsklasse — endgültige Setzung und Auslosung nach dem Meldeschluss
   </p>
 </div>
 

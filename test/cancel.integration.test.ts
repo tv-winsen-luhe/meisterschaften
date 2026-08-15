@@ -91,4 +91,23 @@ describe('POST /api/cancel (integration)', () => {
     expect(res.status).toBe(200)
     expect(await res.json()).toEqual({ ok: true, cancelled: 0 })
   })
+
+  it('refuses to withdraw once the phase has left signup (withdrawal closes with signup)', async () => {
+    // ADR-0059: the cut is the phase, not "is this entry already in a draw" — the field cut rides
+    // the seeding freeze (ADR-0043), so a withdrawal after the close would change exactly the field
+    // that was frozen. The entry must survive untouched. Default app-state is `signup`, so the
+    // phase is seeded here and cleared again for the surrounding cases.
+    await insertActive('frozen@example.com', 'Frozen', 'mens', 'confirmed')
+    await env.DB.prepare("INSERT INTO app_state (id, phase) VALUES (1, 'tournament')").run()
+    try {
+      const res = await post({ email: 'frozen@example.com', lastName: 'Frozen' })
+      expect(res.status).toBe(409)
+      expect(await res.json()).toEqual({
+        error: 'Die Anmeldung ist geschlossen. Für eine Abmeldung schreib uns bitte kurz an.'
+      })
+      expect(await statusOf('frozen@example.com')).toEqual(['confirmed'])
+    } finally {
+      await env.DB.exec('DELETE FROM app_state')
+    }
+  })
 })

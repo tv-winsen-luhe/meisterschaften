@@ -1,6 +1,6 @@
 # ADR-0042: The homepage is a phase-projected front door, swapped client-side
 
-- Status: accepted (§4 revised 2026-07-19 — see Revisions)
+- Status: accepted (§4 revised 2026-07-19 and 2026-08-15 — see Revisions)
 - Date: 2026-06-29
 - Extends: ADR-0006/ADR-0027 (the phase model), ADR-0008 (static Astro + client-side polling)
 
@@ -77,7 +77,9 @@ The homepage becomes a **phase-projected front door**, resolved **client-side**.
 - A no-JS visitor **during the event window** sees the `signup` lead (a misleading „anmelden").
   This is bounded (a weekend, a small audience), consistent with the site already requiring JS for
   all live content, and harmless to action: the signup endpoint is server-side phase-gated, so only
-  the optics mislead, nothing breaks.
+  the optics mislead, nothing breaks. _(Correction 2026-08-15: this was **not** true when written —
+  neither `POST /api/register` nor `POST /api/cancel` read the phase. The guard this bullet assumed
+  was added by ADR-0059, which is what makes the accepted cost genuinely bounded to optics.)_
 - The client-side swap stays small and auditable — one phase read toggling a known element list, not
   per-line phase logic scattered through the page.
 - Tail copy must be scrubbed of signup-tense wording to be phase-true while static.
@@ -109,3 +111,31 @@ genuine self-adapting live section (its list and seeding board are meaningful in
 One copy consequence follows the §4 evergreen principle: the `#draw` section header, now shown only
 from `tournament` onward, was reworded phase-neutral (dropping the signup-tense „…werden bei der
 Auslosung nach Meldeschluss gelost").
+
+### 2026-08-15 — the swap set is a selector, not a list; and it is finally built
+
+§4 called the signup affordances „an auditable, fixed list of elements toggled by the one phase read",
+and §3 described the swap as shipping the small `tournament` / `post-event` leads hidden. Only the
+mirrored half was ever implemented: the phase read revealed `#draw` (the 2026-07-19 revision above) and
+hid nothing. Every „Anmelden" button stayed on the page for the whole event.
+
+Two changes on building it out:
+
+**The swap set is selected generically, not enumerated.** There is no signup-button component — every
+trigger is an element carrying `data-signup-open`, the attribute that already wires it to the signup
+modal. The phase read hides that selector wholesale, plus `[data-signup-lead]` for the two signup-only
+blocks (the hero lead and the closing CTA section). An enumerated list would have to be maintained in a
+second place and would silently go stale the first time a seventh button was added; the selector is just
+as auditable — it is one selector — and is complete by construction. The mechanism is unchanged: the same
+`[data-phase-gate]` attribute the reveal _removes_, the hide now _adds_, against one `display: none` rule.
+
+**The header CTA is swapped, not removed.** Below the nav breakpoint the header hides its anchor nav, so
+the CTA is the header's only control; emptying it would leave a bare logo for the whole event. It now has
+a per-phase variant beside it (`tournament` → „Spielplan", `post-event` → „Tableau"), shipped hidden under
+`[data-phase-lead="<phase>"]` and revealed for the matching phase only — the same treatment as the hero
+lead. This makes the front door's swap set three categories, not two: removed (signup affordances),
+replaced (hero lead, header CTA), and revealed (`#draw`).
+
+The projection is shared with `/abmelden`, which needs the same removed/revealed halves for its withdrawal
+form. What makes any of this safe to be best-effort is ADR-0059: register and cancel enforce the closed
+window server-side, so a failed phase read is optics, exactly as this ADR's Consequences claim.

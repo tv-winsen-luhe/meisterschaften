@@ -14,12 +14,35 @@ const labelClass = 'mb-2 block text-[11px] font-bold tracking-[0.16em] uppercase
 >
   <div class="mx-auto max-w-[560px] px-5 pt-12 pb-20 text-navy md:px-10 md:pt-16 md:pb-[120px]">
     <h1 class="mt-0 mb-4 text-[clamp(36px,6vw,56px)] font-black tracking-[-0.04em] uppercase">Abmelden</h1>
-    <p class="mb-10 text-[15px] leading-[1.6] opacity-70">
+    {
+      /* Self-service withdrawal closes with the signup window (ADR-0059). The form is the signup-era
+         affordance and goes away with it; the panel below takes its place. Both are toggled by the
+         shared phase projection — the /api/cancel guard is what actually enforces it. */
+    }
+    <p class="mb-10 text-[15px] leading-[1.6] opacity-70" data-signup-lead>
       Pläne geändert? Trag die E-Mail-Adresse und den Nachnamen deiner Anmeldung ein, dann nehmen wir dich aus dem Feld.
       Hast du dich für mehrere Konkurrenzen gemeldet, werden alle zurückgezogen.
     </p>
 
-    <form id="cancel-form" class="flex flex-col gap-5" novalidate>
+    <div data-phase-gate>
+      {
+        /* One panel for both later phases, so the wording carries no „wird ausgelost" — that would be
+           false in Post-Event, where the tournament is long played (ADR-0042 §4 evergreen rule). */
+      }
+      <p class="mb-6 text-[15px] leading-[1.6] opacity-70">
+        Die Anmeldung ist geschlossen — das Feld steht fest. Selbst abmelden geht deshalb nicht mehr.
+      </p>
+      <p class="m-0 text-[15px] leading-[1.6] opacity-70">
+        Du kannst nicht antreten? Schreib uns bitte kurz, dann klären wir das direkt.
+      </p>
+      <a
+        href={`mailto:${contactEmail}`}
+        class="mt-6 inline-block bg-navy px-7 py-3.5 text-sm font-extrabold tracking-[0.02em] text-white uppercase"
+        >Schreib uns</a
+      >
+    </div>
+
+    <form id="cancel-form" class="flex flex-col gap-5" novalidate data-signup-lead>
       <div>
         <label class={labelClass} for="email">E-Mail deiner Anmeldung</label>
         <input class={inputClass} type="email" id="email" name="email" maxlength="120" autocomplete="email" required />
@@ -70,7 +93,8 @@ const labelClass = 'mb-2 block text-[11px] font-bold tracking-[0.16em] uppercase
       >
     </div>
 
-    <p class="mt-12 text-[13px] leading-[1.6] opacity-55">
+    {/* Signup-era footnote — the closed panel above carries its own „schreib uns" once signup ends. */}
+    <p class="mt-12 text-[13px] leading-[1.6] opacity-55" data-signup-lead>
       Klappt es nicht oder hast du Fragen? Schreib uns an{' '}
       <a href={`mailto:${contactEmail}`} class="font-semibold text-navy underline-offset-2">{contactEmail}</a>.
     </p>
@@ -78,6 +102,12 @@ const labelClass = 'mb-2 block text-[11px] font-bold tracking-[0.16em] uppercase
 </Layout>
 
 <script>
+  // Swaps the withdrawal form for the „Anmeldung geschlossen" panel once the phase leaves signup
+  // (ADR-0042's mechanism, ADR-0059's rule). Server-side /api/cancel is the actual guard.
+  import { projectPhaseOnLoad } from '@/scripts/phase-projection'
+
+  projectPhaseOnLoad()
+
   const form = document.getElementById('cancel-form') as HTMLFormElement | null
   const successPanel = document.querySelector<HTMLElement>('.cancel-success')
   const errorEl = form?.querySelector<HTMLElement>('.cancel-error') ?? null

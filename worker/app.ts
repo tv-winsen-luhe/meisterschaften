@@ -1,8 +1,6 @@
 import type { D1Database, Fetcher } from '@cloudflare/workers-types'
 import { Hono } from 'hono'
-import type { Context, MiddlewareHandler } from 'hono'
-import { zValidator } from '@hono/zod-validator'
-import type { ZodType } from 'zod'
+import { honeypot, parseGuard, resetGuard, signupOnly, v } from './http'
 import {
   adminListResponseSchema,
   advanceRequestSchema,
@@ -86,65 +84,9 @@ interface AppVariables {
 // Hono's env shape wraps the bindings under `Bindings`. Named so the generic is referenced
 // rather than inlined (`Hono<AppEnv>` not `Hono<{ Bindings: Env }>`) — see the no-inline-object
 // lint rule, which forbids the inline form in type position.
-interface AppEnv {
+export interface AppEnv {
   Bindings: Env
   Variables: AppVariables
-}
-
-// ── The validation seam (ADR-0009) ──────────────────────────────────────────────────────
-// Three small primitives replace the per-route parse/validate/envelope preamble the legacy
-// handlers each repeated. `c.req.valid('json')` is typed from the schema, and AppType now
-// carries the request contract so the typed `hc` client checks bodies at build time.
-//
-// One deliberate behaviour change from the legacy hand-rolled handlers: zValidator reads the
-// body only for an `application/json` Content-Type (otherwise it validates `{}` → 400), where
-// the legacy code parsed any body unconditionally. Every first-party caller — the public forms
-// and the `hc` admin client — sends the header, and requiring it on a JSON API is the standard
-// contract, so this is accepted rather than worked around.
-
-// The single owner of the field-error envelope: validate the body against the schema, and on
-// failure answer with the first issue's message (legacy parity) under the shared { error }
-// shape. Wrapping zValidator preserves its generics, so the route stays typed.
-const v = <T extends ZodType>(schema: T) =>
-  zValidator('json', schema, (result, c) => {
-    if (!result.success) return c.json({ error: result.error.issues[0]?.message ?? 'Ungültige Anfrage.' }, 400)
-  })
-
-// Parse-guard: a malformed (unparseable) body answers with the same { error } envelope the
-// legacy try/catch did — so zValidator never throws an HTTPException into onError (which would
-// surface as a 500). It reads first; v() then re-reads the body from Hono's cache.
-const parseGuard: MiddlewareHandler<AppEnv> = async (c, next) => {
-  try {
-    await c.req.json()
-  } catch {
-    return c.json({ error: 'Ungültige Anfrage.' }, 400)
-  }
-  await next()
-}
-
-// Honeypot = parse-guard + trap check, ordered BEFORE validation so a filled trap always wins
-// over field errors (legacy behaviour). Bots fill the hidden `website` field → silently
-// "succeed"; the success envelope differs per route (register vs cancel), so it is a parameter.
-const honeypot =
-  (trap: (c: Context<AppEnv>) => Response): MiddlewareHandler<AppEnv> =>
-  async (c, next) => {
-    let body: Record<string, unknown>
-    try {
-      body = await c.req.json()
-    } catch {
-      return c.json({ error: 'Ungültige Anfrage.' }, 400)
-    }
-    if (typeof body.website === 'string' && body.website.trim()) return trap(c)
-    await next()
-  }
-
-// Debug-reset gate (ADR-0029): the reset routes exist only when RESET_ENABLED is exactly "true".
-// Absent/anything-else ⇒ 403, so the capability simply does not exist in production. This is the
-// server-side authority; the admin's Debug surface only mirrors the flag for affordance. Ordered
-// before parsing/validation so a disabled environment refuses before reading the body.
-const resetGuard: MiddlewareHandler<AppEnv> = async (c, next) => {
-  if (c.env.RESET_ENABLED !== 'true') return c.json({ error: 'Reset ist in dieser Umgebung deaktiviert.' }, 403)
-  await next()
 }
 
 // The app is built from a factory so its dependencies are injectable (ADR-0030). Production passes the
@@ -215,6 +157,7 @@ export const createApp = (makeDeps: (env: Env) => Deps = createDepsFromEnv) =>
       '/api/register',
       honeypot(c => c.json({ ok: true })),
       v(registerRequestSchema),
+      signupOnly('Die Anmeldung ist geschlossen — der Meldeschluss ist vorbei.'),
       async c => {
         const { registrations, registrationDomain, seedingLk } = c.var.deps
         const ip = c.req.header('cf-connecting-ip') ?? ''
@@ -255,6 +198,11 @@ export const createApp = (makeDeps: (env: Env) => Deps = createDepsFromEnv) =>
       '/api/cancel',
       honeypot(c => c.json({ ok: true, cancelled: 0 })),
       v(cancelRequestSchema),
+      // Withdrawal closes with the signup window. The cut is the phase, not "is this entry already in
+      // a draw": the field cut rides the seeding freeze (ADR-0043), so a withdrawal between the freeze
+      // and the draw would change exactly the field that was frozen. After the close the organiser
+      // handles it by hand.
+      signupOnly('Die Anmeldung ist geschlossen. Für eine Abmeldung schreib uns bitte kurz an.'),
       async c => {
         const { cancelled } = await c.var.deps.registrationDomain.cancel(c.req.valid('json'))
 
