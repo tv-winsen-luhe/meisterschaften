@@ -30,7 +30,9 @@ concept here drifts or a new one appears, update this file rather than inventing
      Registration domain) is the **record** a member creates. Phase ≠ aggregate — the split is
      deliberate, not a synonym slip; keep `signup` for the phase and `registration` for the entry.
   2. **Tournament** (phase value `tournament`, UI: „Turnier") — registration is closed (the freeze
-     fires, the cron stops); the draws and the weekend happen here. What the public sees is **derived**
+     fires, the cron stops); the draws and the weekend happen here. **Closed is server-enforced and
+     cuts both ways:** leaving `signup` refuses new registrations _and_ self-service withdrawals at
+     the write path, so the public site's hidden signup buttons are optics, not the rule (ADR-0059). What the public sees is **derived**
      per competition, not a manual flip: draw-pending (nothing drawn yet) → draw reveal show (a reveal
      cursor is live) → bracket → live board (matches running). Entering this phase is the single global
      act of **closing registration**; the per-competition draws are separate actions within it.

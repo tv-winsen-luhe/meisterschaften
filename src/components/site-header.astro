@@ -11,14 +11,24 @@ interface Anchor {
   gated?: boolean
 }
 
+interface PhaseCta {
+  phase: 'tournament' | 'post-event'
+  href: string
+  label: string
+}
+
 interface Props {
   variant?: 'event' | 'legal'
   anchors?: Anchor[]
   // `competition` preselects that field in the signup modal; omit it to open with the form default.
   cta?: { href: string; label: string; competition?: string }
+  // Per-phase replacements for `cta`, shipped hidden beside it (ADR-0042 revised). Below the nav
+  // breakpoint the CTA is the header's only control, so the slot is refilled rather than emptied
+  // when the signup affordance goes away.
+  phaseCtas?: PhaseCta[]
 }
 
-const { variant = 'event', anchors = [], cta } = Astro.props
+const { variant = 'event', anchors = [], cta, phaseCtas = [] } = Astro.props
 const home = import.meta.env.BASE_URL || '/'
 ---
 
@@ -72,6 +82,12 @@ const home = import.meta.env.BASE_URL || '/'
               {cta.label}
             </a>
           )}
+
+          {phaseCtas.map(p => (
+            <a href={p.href} class="cta-primary cta-primary--sm site-header__cta" data-phase-lead={p.phase}>
+              {p.label}
+            </a>
+          ))}
         </div>
       </header>
     </>

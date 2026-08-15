@@ -53,11 +53,16 @@ const sunday = [
 ]
 ---
 
+{
+  /* The <head> is static markup the client-side phase read cannot reach, so its copy must read true
+    in every phase (ADR-0042 §4 evergreen rule) — hence no „Jetzt anmelden" in the meta description:
+    a link preview shared during the tournament weekend would still carry it. */
+}
 <Layout
   title="Winsener Meisterschaften 2026 — Vereinsmeisterschaft"
-  description="Die Winsener Meisterschaften 2026 — Vereinsmeisterschaft des TV Winsen am 22.-23.08. Damen, Herren und Herren Challenger. Jetzt anmelden."
+  description="Die Winsener Meisterschaften 2026 — Vereinsmeisterschaft des TV Winsen am 22.-23.08. Damen, Herren und Herren Challenger."
   ogTitle="Winsener Meisterschaften 2026 — 22.-23.08."
-  ogDescription="Die Vereinsmeisterschaft des TV Winsen. K.O. mit Nebenrunde, alle Titel an einem Wochenende. Jetzt anmelden."
+  ogDescription="Die Vereinsmeisterschaft des TV Winsen. K.O. mit Nebenrunde, alle Titel an einem Wochenende."
   bodyClass="bg-surface-alt"
   chrome="event"
   headerAnchors={[
@@ -71,6 +76,10 @@ const sunday = [
     { href: '#faq', label: 'FAQ' }
   ]}
   headerCta={{ href: '#', label: 'Anmelden' }}
+  headerPhaseCtas={[
+    { phase: 'tournament', href: '/spielplan', label: 'Spielplan' },
+    { phase: 'post-event', href: '#draw', label: 'Tableau' }
+  ]}
 >
   <div class="mx-auto max-w-[1280px] px-5 pt-6 text-navy md:px-10 md:pt-8">
     <!-- Hero -->
@@ -109,7 +118,13 @@ const sunday = [
           Ob ehrgeizig oder gesellig — offen für alle Mitglieder, mit Zeit auf der Terrasse.
         </p>
 
-        <div class="enter enter--7 mt-8">
+        {
+          /* The hero lead is the swap set's centrepiece (ADR-0042 §4): the signup lead renders
+             statically (the months-long common case, no flash), the two later leads ship hidden
+             beside it and the phase read swaps in the matching one. The statement „signup is over"
+             lives here, once — the stale affordances elsewhere are removed without comment. */
+        }
+        <div class="enter enter--7 mt-8" data-signup-lead>
           {/* Deadline + live momentum sit together directly above the CTA, the decision point (#228). */}
           <div class="hero-urgency mb-5">
             <span class="hero-urgency__deadline">Anmeldung bis {signupDeadline.short}</span>
@@ -123,6 +138,28 @@ const sunday = [
           <div class="flex flex-wrap items-center gap-6">
             <button type="button" class="cta-primary" data-signup-open>Jetzt anmelden</button>
             <a href="#participants" class="cta-secondary">Wer ist dabei? <span aria-hidden="true">&darr;</span></a>
+          </div>
+        </div>
+
+        <div class="enter enter--7 mt-8" data-phase-lead="tournament">
+          <p class="hero-lead__headline">Die Anmeldung ist geschlossen.</p>
+          <p class="hero-lead__sub">
+            Das Feld steht, die Auslosung läuft. Wer wann auf welchem Platz spielt, steht im Spielplan.
+          </p>
+          <div class="flex flex-wrap items-center gap-6">
+            <a href="/spielplan" class="cta-primary">Zum Spielplan</a>
+            <a href="#draw" class="cta-secondary">Zum Tableau <span aria-hidden="true">&darr;</span></a>
+          </div>
+        </div>
+
+        <div class="enter enter--7 mt-8" data-phase-lead="post-event">
+          <p class="hero-lead__headline">Die Meisterschaft ist gespielt.</p>
+          <p class="hero-lead__sub">
+            Alle Titel sind vergeben. Die kompletten Tableaus und Ergebnisse bleiben hier stehen.
+          </p>
+          <div class="flex flex-wrap items-center gap-6">
+            <a href="#draw" class="cta-primary">Zum Tableau</a>
+            <a href="/spielplan" class="cta-secondary">Alle Ergebnisse <span aria-hidden="true">&rarr;</span></a>
           </div>
         </div>
       </div>
@@ -408,9 +445,13 @@ const sunday = [
         <FaqItem question="Was kostet die Teilnahme?">
           {entryFee} € Startgeld pro Person, bar vor Ort beim Check-in. Spielbälle werden gestellt.
         </FaqItem>
+        {
+          /* Evergreen — the FAQ stays visible in every phase, so this answer carries no signup-tense
+             wording and no deadline date (ADR-0042 §4). */
+        }
         <FaqItem question="Wann steht der Spielplan?">
-          Nach Anmeldeschluss ({signupDeadline.long}) wird ausgelost. Der Spielplan mit Gegner, Uhrzeit und Platz
-          erscheint danach hier — am Turnierwochenende mit Live-Ergebnissen.
+          Nach dem Meldeschluss wird ausgelost. Der Spielplan mit Gegner, Uhrzeit und Platz erscheint danach hier — am
+          Turnierwochenende mit Live-Ergebnissen.
         </FaqItem>
         <FaqItem question="Was passiert bei Regen?">
           Das Turnier findet bei fast jedem Wetter statt — Sand verträgt einiges. Bei stärkerem Regen kann das
@@ -428,8 +469,11 @@ const sunday = [
       </div>
     </section>
 
-    <!-- Abschluss-CTA -->
+    <!-- Abschluss-CTA — a pure signup affordance, so the whole section leaves the page once the
+         phase leaves signup (ADR-0042 §4). Removed without replacement: the „Anmeldung ist
+         geschlossen" statement lives in the hero lead alone. -->
     <section
+      data-signup-lead
       class:list={[
         sectClass,
         'sect--clay sect--cta flex flex-col items-center py-40 text-center max-md:py-[120px] md:py-40'
@@ -464,14 +508,6 @@ const sunday = [
 </Layout>
 
 <style is:global>
-  /* Phase gate (ADR-0042 revised): elements marked [data-phase-gate] are hidden during signup and
-     revealed by the phase read below only once phase ≠ signup. Default-hidden is the signup common
-     case, so there is no flash and a failed/absent phase read keeps them hidden. Reveal is a plain
-     attribute removal, restoring each element's natural display (the #draw section and its nav link). */
-  [data-phase-gate] {
-    display: none;
-  }
-
   /* Hero head: date stacked above title on mobile, top-right on desktop */
   .hero-head {
     display: flex;
@@ -529,6 +565,24 @@ const sunday = [
     letter-spacing: 0.16em;
     text-transform: uppercase;
     opacity: 0.85;
+  }
+  /* The two later hero leads (ADR-0042 §4). They carry no live data — they are wayfinding to
+     /spielplan and #draw — so they need only a statement and a subline, borrowing the signup lead's
+     neon rule to sit in the same visual slot. */
+  .hero-lead__headline {
+    margin: 0 0 8px;
+    border-left: 3px solid var(--color-neon);
+    padding-left: 14px;
+    font-size: 17px;
+    font-weight: 800;
+    letter-spacing: -0.01em;
+  }
+  .hero-lead__sub {
+    margin: 0 0 20px;
+    padding-left: 17px;
+    font-size: 15px;
+    line-height: 1.6;
+    opacity: 0.7;
   }
   /* Shared look for both momentum lines (hero + final CTA); each site sets only its own weight/margin.
      The `hidden` attribute stays effective via the UA default — no explicit override needed. */
@@ -814,29 +868,10 @@ const sunday = [
 </script>
 
 <script>
-  // Phase gate for „Der Draw" (ADR-0042 revised 2026-07-19). ADR-0042 §4 originally kept #draw as a
-  // self-adapting live section visible in every phase; during signup that meant an empty preview
-  // (seed heads + „?" + „Auslosung ab vier"-Countdown) since nothing is drawn yet. We now hide the
-  // whole Der-Draw section AND its nav link during signup, revealing both only once the phase leaves
-  // signup — mirroring the ADR-0042 §3 mechanism (ship hidden, reveal on phase ≠ signup) it already
-  // uses for stale signup affordances. The provisional seeding still shows on „Das Feld".
-  // Best-effort, read once on load (the phase changes ~twice in the event's life): any failure keeps
-  // the signup default (hidden), consistent with the statically-rendered signup lead.
-  import { hc } from 'hono/client'
-  import type { AppType } from '../../worker/app'
+  // The front door is a phase-projected door (ADR-0042): the signup lead renders statically, and one
+  // phase read swaps in the „Turnier"/„Post-Event" lead, hides the signup affordances and reveals
+  // „Der Draw". The projection itself is shared with /abmelden.
+  import { projectPhaseOnLoad } from '@/scripts/phase-projection'
 
-  const revealDraw = () => {
-    document.querySelectorAll('[data-phase-gate]').forEach(el => el.removeAttribute('data-phase-gate'))
-  }
-
-  ;(async () => {
-    try {
-      const res = await hc<AppType>(location.origin).api.phase.$get()
-      if (!res.ok) return
-      const { phase } = await res.json()
-      if (phase !== 'signup') revealDraw()
-    } catch {
-      // Network error: stay hidden — the signup default.
-    }
-  })()
+  projectPhaseOnLoad()
 </script>

@@ -23,6 +23,8 @@ interface Props {
   chrome?: 'event' | 'legal' | 'none'
   headerAnchors?: Anchor[]
   headerCta?: { href: string; label: string; competition?: string }
+  // Per-phase replacements for the header CTA, shipped hidden beside it (ADR-0042 revised).
+  headerPhaseCtas?: { phase: 'tournament' | 'post-event'; href: string; label: string }[]
 }
 
 const {
@@ -36,7 +38,8 @@ const {
   bodyClass,
   chrome = 'event',
   headerAnchors,
-  headerCta
+  headerCta,
+  headerPhaseCtas
 } = Astro.props
 
 const canonicalUrl = Astro.site ? new URL(Astro.url.pathname, Astro.site).toString() : Astro.url.toString()
@@ -81,7 +84,11 @@ const ogImageUrl = ogImage && Astro.site ? new URL(ogImage, Astro.site).toString
     <title>{title}</title>
   </head>
   <body class:list={['font-sans text-text antialiased', bodyClass]}>
-    {chrome !== 'none' && <SiteHeader variant={chrome} anchors={headerAnchors} cta={headerCta} />}
+    {
+      chrome !== 'none' && (
+        <SiteHeader variant={chrome} anchors={headerAnchors} cta={headerCta} phaseCtas={headerPhaseCtas} />
+      )
+    }
     <main id="main"><slot /></main>
     {chrome !== 'none' && <SiteFooter />}
   </body>

@@ -164,6 +164,26 @@ describe('POST /api/register (integration)', () => {
     expect(await res.json()).toEqual({ error: 'Du bist für diese Konkurrenz bereits angemeldet.' })
   })
 
+  it('rejects a sign-up once the phase has left signup (the window is server-enforced)', async () => {
+    // ADR-0059: closing the signup window is a real close, not just a hidden button. The homepage
+    // swaps its signup affordances away client-side, but a stale page, a no-JS visitor or a direct
+    // POST all land here. Default app-state is `signup`, so only this test seeds a phase — and
+    // clears it again so the surrounding cases keep the open-window default.
+    await env.DB.prepare("INSERT INTO app_state (id, phase) VALUES (1, 'tournament')").run()
+    try {
+      const res = await post({ ...valid, email: 'closed@example.com' })
+      expect(res.status).toBe(409)
+      expect(await res.json()).toEqual({ error: 'Die Anmeldung ist geschlossen — der Meldeschluss ist vorbei.' })
+
+      const row = await env.DB.prepare('SELECT COUNT(*) AS c FROM registrations WHERE email = ?')
+        .bind('closed@example.com')
+        .first<{ c: number }>()
+      expect(row?.c).toBe(0)
+    } finally {
+      await env.DB.exec('DELETE FROM app_state')
+    }
+  })
+
   it('rejects a 4th sign-up from the same IP within the hour (soft rate limit)', async () => {
     // Three recent rows from one IP put the count at the RATE_LIMIT of 3; the 4th request is
     // rejected with 429 before it reaches the domain. created_at is `now` so the rows fall inside
