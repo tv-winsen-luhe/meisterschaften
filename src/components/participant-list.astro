@@ -415,18 +415,28 @@ const layoutFor = (slug: string) => (slug === 'mens' || slug === 'womens' ? 'boa
       const freeLabel = group.querySelector<HTMLElement>('[data-free-label]')
       const meter = group.querySelector<HTMLElement>('[data-meter]')
       const segs = group.querySelectorAll<HTMLElement>('.pl-meter__seg')
-      if (Number.isFinite(capacity) && capacity > 0) {
+      // The scarcity meter is honest only once there is a field to be scarce in. Below the draw floor
+      // there is none — the competition cannot be played at all (ADR-0034) — so „Noch 7 Plätze frei"
+      // advertises capacity in a field that does not yet exist, and reads as an empty-field signal
+      // exactly where recruiting matters most (ADR-0051 §3: empty-field deterrence hits the
+      // socially-motivated audience hardest; ADR-0051 amendment 2026-08-15, where it cost the Damen
+      // Meisterin field its whole signup period). The floor is already this surface's „no real field
+      // yet" boundary for the seed markers above — the meter now honours the same one, and falls back to
+      // the momentum framing the mixer uses. A field-type rule, never a per-slug exception (ADR-0022).
+      const showMeter = Number.isFinite(capacity) && capacity > 0 && entries.length >= MIN_DRAW_ENTRIES
+      if (showMeter) {
         if (meter) meter.hidden = false
         const free = Math.max(0, capacity - entries.length)
         if (freeLabel) {
           const platz = free === 1 ? 'Platz' : 'Plätze'
-          freeLabel.textContent =
-            free === 0 ? 'Ausgebucht' : free === capacity ? `${free} ${platz} frei` : `Noch ${free} ${platz} frei`
+          freeLabel.textContent = free === 0 ? 'Ausgebucht' : `Noch ${free} ${platz} frei`
         }
         segs.forEach((s, i) => s.classList.toggle('pl-meter__seg--filled', i < entries.length))
-      } else if (freeLabel) {
-        // No capacity meter (the social mixer): momentum, not scarcity — „wer schon dabei ist" (ADR-0051 §4).
-        freeLabel.textContent = entries.length ? `${entries.length} schon dabei` : ''
+      } else {
+        if (meter) meter.hidden = true
+        // No meter — the social mixer (unseeded, never scarce) and any field still below the draw floor:
+        // momentum, not scarcity — „wer schon dabei ist" (ADR-0051 §4).
+        if (freeLabel) freeLabel.textContent = entries.length ? `${entries.length} schon dabei` : ''
       }
 
       list.innerHTML = ''
