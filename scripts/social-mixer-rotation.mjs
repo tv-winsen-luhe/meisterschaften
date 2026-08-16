@@ -15,7 +15,7 @@
 //   node scripts/social-mixer-rotation.mjs --n=9        # just one
 //   node scripts/social-mixer-rotation.mjs --minutes=180 --briefing=15
 //
-// `--minutes` mirrors SOCIAL_MIXER_BLOCK's three hours (shared/schedule.ts). It is a plain argument rather
+// `--minutes` mirrors SOCIAL_MIXER_BLOCK's three hours (shared/social-mixer.ts). It is a plain argument rather
 // than an import because this file is plain Node with no build step; the default is the block's length, and
 // the block is the source of truth if the two ever disagree.
 
