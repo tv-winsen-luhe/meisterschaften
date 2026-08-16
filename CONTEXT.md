@@ -49,6 +49,18 @@ concept here drifts or a new one appears, update this file rather than inventing
   progress the admin **withholds its bracket** (showing „Auslosung läuft" + the _x/y enthüllt_ progress);
   the bracket appears only once the draw reveal show has fully revealed it — so projecting the admin can
   never spoil the draw, consistent with the unriggable-draw stance. _(See ADR-0027, ADR-0025, ADR-0002.)_
+- **Front-door lead** (de: Aufmacher der Startseite) — what the front door (`index.astro`) leads with:
+  its opening statement, its two calls to action, and the header's call to action, which always
+  agree. It follows the phase, and **inside `tournament` it has three stages** — _Feld steht_ (the
+  field is closed, nothing is drawn yet) → _Auslosung_ (a bracket exists, including while its reveal
+  is still running) → _Spielplan_ (the schedule is published). The stages are **derived, not set**:
+  they are the front door's view of whether the two downstream surfaces — the draw and the schedule —
+  have anything to show yet. They are **not phases** and never appear in the operator's vocabulary;
+  the operator's acts stay the two phase transitions plus the per-competition draw and the schedule
+  publish. From `tournament` onward the front door also presents its sections in a **results order**
+  (the draw and the field first) rather than the signup-era **marketing order** — two orders, one
+  page. The front door **points**; the draw, the schedule and the results surfaces own their content.
+  _(See ADR-0060, ADR-0042, ADR-0041.)_
 - **Seeding freeze** (de: Setzungs-Freeze) — before the draw, LKs keep updating and the **provisional
   seeding list** (de: provisorische Setzliste; the seeding preview) reflects them live. At the draw it
   snapshots each player's current LK into its immutable draw record (ADR-0003) — that snapshot _is_ the
