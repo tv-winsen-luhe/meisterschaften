@@ -2,18 +2,20 @@ import {
   bracketDepth,
   type CompetitionDraw,
   type CompetitionSlug,
-  isChallengerField,
   isFullyRevealed,
   type LiveBracket,
   type LiveBracketSlot,
   type Match,
   type PublicCompetitionBracket,
   type PublicDraw,
+  redactLiveBracket,
+  redactRevealDraw,
   type ResolvedMatch,
   resolveBracket,
   type ScheduleMatch,
   type ScheduleSlot,
   type SlotView,
+  strengthRedacted,
   winningSlot
 } from '../shared'
 import type { AppStateStore } from './store/app-state'
@@ -45,33 +47,13 @@ export interface ScheduleFeed {
   matches: ScheduleMatch[]
 }
 
-// Redact a protected Challenger field's strength for the public reveal wire (ADR-0044, ADR-0048): null each
-// step's `seed` and the player's `lk` **and** set `redacted: true`, in one object literal so the withheld
-// values and the decision that withheld them cannot drift (the enforced invariant). The seeded structure
-// (kind, position, names) is kept. A championship field is returned unchanged (its `redacted: false` from
-// buildReveals stands). The operator's beamer reads the un-redacted reveal under Access (operatorDraws), so
-// its draw show keeps the LK + seed it needs to run a Challenger draw (ADR-0024).
-const redactChallenger = (draw: PublicDraw): PublicDraw =>
-  isChallengerField(draw.competition)
-    ? {
-        ...draw,
-        redacted: true,
-        steps: draw.steps.map(s => ({ ...s, seed: null, player: s.player ? { ...s.player, lk: null } : null }))
-      }
-    : draw
-
-// Redact a protected Challenger field's strength on the *resolved* live bracket (ADR-0044, ADR-0048): null
-// each player slot's seed + LK and set `redacted: true` in the same step, keeping the name and the bracket
-// structure. The live-phase analogue of `redactChallenger`'s reveal-step redaction — applied server-side to
-// both the main and consolation brackets before they leave for the public wire (ADR-0022). A non-player slot
-// passes through untouched.
-const redactLiveSlot = (slot: LiveBracketSlot): LiveBracketSlot =>
-  slot.kind === 'player' ? { ...slot, lk: null, seed: null } : slot
-const redactLiveBracket = (bracket: LiveBracket): LiveBracket => ({
-  ...bracket,
-  redacted: true,
-  matches: bracket.matches.map(m => ({ ...m, slot1: redactLiveSlot(m.slot1), slot2: redactLiveSlot(m.slot2) }))
-})
+// Apply strength redaction to a reveal draw when its competition calls for it (CONTEXT: Strength
+// redaction; shared/redaction.ts owns both the predicate and the transform). No field is redacted today
+// (ADR-0061), so this is the identity for every competition — it stays because a future protected field
+// flips one list entry, not four projections. The operator's beamer reads the un-redacted reveal under
+// Access (operatorDraws) either way, so its draw show always keeps the LK + seed it needs (ADR-0024).
+const redactReveal = (draw: PublicDraw): PublicDraw =>
+  strengthRedacted(draw.competition) ? redactRevealDraw(draw) : draw
 
 // Resolve one fully-revealed competition+bracket draw into its live wire shape (ADR-0046): the `matches`
 // aggregate run through the shared `resolveBracket` (the same resolver the schedule feed and admin grid
@@ -220,12 +202,12 @@ export const createProjections = (deps: ProjectionsDeps) => {
         if (!isFullyRevealed(main)) {
           // Revealing: the cursor-sliced, redacted reveal steps — the suspense invariant (ADR-0003).
           const reveal = revealByComp.get(competition)
-          if (reveal) brackets.push({ phase: 'revealing', ...redactChallenger(reveal) })
+          if (reveal) brackets.push({ phase: 'revealing', ...redactReveal(reveal) })
           continue
         }
         // Live: resolve the main bracket (+ third place) and, once drawn, the consolation from the matches
-        // aggregate; redact a protected Challenger field's strength on both (ADR-0044).
-        const redact = isChallengerField(competition)
+        // aggregate; redact a protected field's strength on both (CONTEXT: Strength redaction, ADR-0061).
+        const redact = strengthRedacted(competition)
         const mainBracket = buildLiveBracket(main, players)
         const consolationDraw = consolationByComp.get(competition)
         const consolationBracket = consolationDraw ? buildLiveBracket(consolationDraw, players) : null

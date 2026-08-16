@@ -4,7 +4,8 @@ import type { RegistrationRow } from '../worker/db/schema'
 
 // The public participant list carries a provisional `seedRank` by LK (ADR-0047), so the pre-draw preview
 // can place the LK-strongest on the seed lines — even for a Challenger field, which stays listed by
-// registration date with its LK redacted. Seed rank is LK on every field; the cut/list order never decides it.
+// registration date while showing its LK (ADR-0061). Seed rank is LK on every field; list order never
+// decides it — that separation is exactly what a visible, out-of-order LK column now makes checkable.
 let nextId = 1
 const reg = (overrides: Partial<RegistrationRow>): RegistrationRow => ({
   id: nextId++,
@@ -27,8 +28,8 @@ const reg = (overrides: Partial<RegistrationRow>): RegistrationRow => ({
 describe('listConfirmed · provisional seedRank (ADR-0047)', () => {
   it('marks the LK-strongest as seeds even for a Challenger field listed by registration date', async () => {
     // The exact prod incident. Four Challenger entries in registration order; Steimmig registers last but
-    // is strongest. The public list keeps registration order and the redacted LK, but the seedRank it
-    // carries is by LK — so the preview seeds Steimmig (not the earliest registrants), without the LK value.
+    // is strongest. The public list keeps registration order and now shows the LK, but the seedRank it
+    // carries is by LK — so the preview seeds Steimmig (not the earliest registrants).
     const store = createInMemoryRegistrationsStore([
       reg({
         competition: 'mens-challenger',
@@ -44,7 +45,9 @@ describe('listConfirmed · provisional seedRank (ADR-0047)', () => {
     const list = await store.listConfirmed()
 
     expect(list.map(p => p.firstName)).toEqual(['Kasigkeit', 'Luehr', 'Amtsberg', 'Steimmig']) // registration order
-    expect(list.map(p => p.lk)).toEqual([null, null, null, null]) // Challenger LK never on the public wire
+    // The LK rides along on the public wire (ADR-0061) — in registration order, so it is visibly *not*
+    // the list's ordering key: the seedRank below is what carries the LK ranking.
+    expect(list.map(p => p.lk)).toEqual(['21.9', '24.7', '24.5', '21.5'])
     const seedByName = new Map(list.map(p => [p.firstName, p.seedRank]))
     expect(seedByName.get('Steimmig')).toBe(1) // strongest LK → seed 1, though listed last
     expect(seedByName.get('Kasigkeit')).toBe(2)

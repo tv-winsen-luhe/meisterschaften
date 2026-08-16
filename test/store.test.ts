@@ -78,21 +78,23 @@ describe('in-memory registrations store · listConfirmed', () => {
     expect(drawLks).toEqual(['15.0', '22.0', null]) // strongest LK first (null = weakest)
   })
 
-  it('strips the LK of a Challenger field on the public wire, but the draw input keeps it (CONTEXT: Challenger, ADR-0024)', async () => {
-    // The protected field's strength must not leave the server for a public surface — the public list
-    // projection nulls the LK for an isChallengerField competition, while a championship field keeps it.
-    // The draw still needs the LK to seed the bracket and bind the cap, so confirmedForDraw (the gated
-    // draw input, not this public projection) is unaffected.
+  it('carries the LK of a Challenger field on the public wire like any other field (ADR-0061)', async () => {
+    // Strength redaction is off for every competition (CONTEXT: Strength redaction, ADR-0061): the
+    // Challenger's LK reaches the public list, so a drawn field is verifiable and a player can place an
+    // opponent against their own LK. The list *order* is untouched by this — the Challenger still lists by
+    // registration date (the first-come cut, ADR-0043): showing strength is not admitting by it.
     const store = createInMemoryRegistrationsStore([
       reg({ competition: 'mens', lk: '11.5', firstName: 'Champ' }),
       reg({ competition: 'mens-challenger', lk: '22.0', firstName: 'Chall' })
     ])
 
     const list = await store.listConfirmed()
-    expect(list.find(p => p.firstName === 'Champ')?.lk).toBe('11.5') // championship field keeps its LK
-    expect(list.find(p => p.firstName === 'Chall')?.lk).toBeNull() // Challenger LK never reaches the public wire
+    expect(list.find(p => p.firstName === 'Champ')?.lk).toBe('11.5')
+    expect(list.find(p => p.firstName === 'Chall')?.lk).toBe('22.0')
+    // The flag travels with the (absent) redaction, so a client never has to ask which field is protected.
+    expect(list.every(p => p.redacted === false)).toBe(true)
 
-    // The draw input still reads the real LK — the omission is public-surface only.
+    // The draw input is unaffected either way — it always read the real LK.
     expect((await store.confirmedForDraw('mens-challenger')).map(p => p.lk)).toEqual(['22.0'])
   })
 

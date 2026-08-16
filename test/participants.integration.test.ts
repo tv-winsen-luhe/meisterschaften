@@ -25,7 +25,7 @@ const seed = async () => {
   await env.DB.batch([
     insert('mens', 'MensStrong', 'TV Winsen', '11.5', 'confirmed', '2026-06-01T10:00:00.000Z'),
     insert('mens', 'MensNoLk', 'TSV Winsen', null, 'confirmed', '2026-06-01T11:00:00.000Z'),
-    // A confirmed Challenger entry that *has* an LK: it must come back with lk:null on the public wire.
+    // A confirmed Challenger entry with an LK: it comes back with that LK on the public wire (ADR-0061).
     insert('mens-challenger', 'Chally', 'TV Winsen', '22.0', 'confirmed', '2026-06-01T11:30:00.000Z'),
     insert('womens', 'Wilma', 'TV Winsen', '9.0', 'confirmed', '2026-06-01T12:00:00.000Z'),
     insert('mens', 'Pending', 'TV Winsen', '8.0', 'new', '2026-06-01T13:00:00.000Z'),
@@ -43,7 +43,7 @@ describe('GET /api/participants (integration)', () => {
     const body = (await res.json()) as { enabled: boolean; participants: unknown[] }
     expect(body.enabled).toBe(true)
     // Confirmed only (Pending/Gone excluded), ordered by competition then LK (null = 25.0). The
-    // Challenger entry sorts between the championship fields and womens, and its LK is stripped on the wire.
+    // Challenger entry sorts between the championship fields and womens, and carries its LK (ADR-0061).
     // Every field here is below the four-player draw floor, so no seeds are marked yet (seedRank: null).
     expect(body.participants).toEqual([
       {
@@ -69,8 +69,8 @@ describe('GET /api/participants (integration)', () => {
         lastName: 'Muster',
         club: 'TV Winsen',
         competition: 'mens-challenger',
-        lk: null,
-        redacted: true,
+        lk: '22.0',
+        redacted: false,
         seedRank: null
       },
       {

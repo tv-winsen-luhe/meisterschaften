@@ -6,11 +6,11 @@ import {
   compareForCut,
   displaySeedCount,
   type DrawPlayer,
-  isChallengerField,
   isUnseededCompetition,
   MIN_DRAW_ENTRIES,
   provisionalSeedRanks,
   seedingValue,
+  strengthRedacted,
   type RegistrationStatus
 } from '../../shared'
 import { registrations, type NewRegistrationRow, type RegistrationRow } from '../db/schema'
@@ -37,22 +37,24 @@ export const bySeedingThenTime = (a: SeedingOrdered, b: SeedingOrdered): number 
 // The public participant-list order: by competition, then the **field-type cut order** (ADR-0043, shared
 // compareForCut) — a championship field strongest-first by LK, a Challenger field by registration date.
 // The public list is the visible expression of the admission rule, so it orders by the same key the cut
-// uses (first-come-first-served for the protected field), never by a strength its public surface hides
-// (ADR-0011: that order is owned once, in compareForCut). The draw still seeds by LK — bySeedingThenTime.
+// uses (first-come-first-served for the protected field) — unchanged by the Challenger now showing its LK,
+// because displaying strength is not admitting by it (ADR-0061; ADR-0011: that order is owned once, in
+// compareForCut). The draw still seeds by LK — bySeedingThenTime.
 export const byListOrder = (a: SeedingOrdered, b: SeedingOrdered): number =>
   a.competition.localeCompare(b.competition) || compareForCut(a.competition)(a, b)
 
 // Narrow any confirmed row (a full RegistrationRow or the D1 projection) to the public list shape,
 // in one place so both adapters' listConfirmed project identically — the comparator and the
-// projection are now both shared, so the two adapters can't drift on either. A protected Challenger
-// field's strength is not advertised publicly (CONTEXT: Strength redaction, ADR-0024, ADR-0048): the
-// same call that nulls its LK sets `redacted: true`, so the withheld value and the decision that
+// projection are now both shared, so the two adapters can't drift on either. Whether a field's strength
+// is advertised publicly is the one strengthRedacted decision (CONTEXT: Strength redaction, ADR-0048):
+// the same call that nulls the LK sets `redacted: true`, so the withheld value and the decision that
 // withheld it can never drift, and a public consumer reads the flag rather than re-deriving protection
 // from the competition (`redacted === false` for a not-yet-synced `lk: null`, so „LK folgt" stays
-// distinct). The gated draw input reads the real LK through confirmedForDraw, which is unaffected.
+// distinct). No field is redacted today — the Herren Challenger carries its LK like every other field
+// (ADR-0061). The gated draw input reads the real LK through confirmedForDraw, which is unaffected.
 // `seedRank` is filled by toPublicParticipants (which alone sees the whole field); a lone row carries none.
 export const toConfirmedParticipant = (r: ConfirmedRow): ConfirmedParticipant => {
-  const redacted = isChallengerField(r.competition)
+  const redacted = strengthRedacted(r.competition)
   return {
     firstName: r.firstName,
     lastName: r.lastName,
