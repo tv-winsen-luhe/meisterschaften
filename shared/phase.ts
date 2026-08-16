@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { cancelledCompetitionsSchema } from './cancellation'
 
 // The operator-controlled phase contract (ADR-0006, ADR-0027) — the single source of truth for
 // the phase value and the /api/phase + /api/admin/phase JSON shapes, shared by the worker
@@ -23,8 +24,14 @@ export type Phase = z.infer<typeof phaseSchema>
 // The phase a fresh app-state record carries before the operator ever toggles it.
 export const DEFAULT_PHASE: Phase = 'signup'
 
-// GET /api/phase — the current phase every surface reads at runtime.
-export const phaseResponseSchema = z.object({ phase: phaseSchema })
+// GET /api/phase — the current phase every surface reads at runtime, plus the competitions the operator
+// has cancelled (ADR-0062). The cancelled set rides along here rather than on a second endpoint: this is
+// the one call every public surface already makes, so it is one poll and one signal — and the same Zod
+// schema stays the single source of the wire form (ADR-0048).
+export const phaseResponseSchema = z.object({
+  phase: phaseSchema,
+  cancelledCompetitions: cancelledCompetitionsSchema
+})
 export type PhaseResponse = z.infer<typeof phaseResponseSchema>
 
 // POST /api/admin/phase — the operator sets the phase. The enum rejects anything else.

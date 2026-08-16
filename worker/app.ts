@@ -6,11 +6,13 @@ import {
   advanceRequestSchema,
   cancelRegistrationRequestSchema,
   cancelRequestSchema,
+  CANCEL_DRAWN_REASON,
   confirmRequestSchema,
   consolationDrawRequestSchema,
   deleteRequestSchema,
   drawRequestSchema,
   drawsResponseSchema,
+  isCancelledCompetition,
   matchResultRequestSchema,
   matchSetRequestSchema,
   matchStatusRequestSchema,
@@ -20,6 +22,7 @@ import {
   publicDrawsResponseSchema,
   registerRequestSchema,
   scheduleResponseSchema,
+  setCompetitionCancelledRequestSchema,
   setPhaseRequestSchema,
   undrawRequestSchema,
   validatePlacement,
@@ -42,6 +45,7 @@ import {
   type SchedulePublishResponse,
   type ScheduleResetResponse,
   type ScheduleStateResponse,
+  type SetCompetitionCancelledResponse,
   type SetPhaseResponse,
   type UndrawResponse
 } from '../shared'
@@ -118,7 +122,14 @@ export const createApp = (makeDeps: (env: Env) => Deps = createDepsFromEnv) =>
         })
       }
 
-      const participants = await c.var.deps.registrations.listConfirmed()
+      // A cancelled competition leaves the wire server-side (ADR-0062): the list must not name players
+      // for a field that does not take place. Filtered here rather than in the Store, so the projection
+      // stays the same shape for the admin — the admin is the record, not the stage.
+      const [confirmed, cancelled] = await Promise.all([
+        c.var.deps.registrations.listConfirmed(),
+        c.var.deps.appState.getCancelledCompetitions()
+      ])
+      const participants = confirmed.filter(p => !isCancelledCompetition(cancelled, p.competition))
       return c.json(participantsResponseSchema.parse({ enabled: true, participants }), 200, {
         'cache-control': 'no-store'
       })
@@ -127,8 +138,14 @@ export const createApp = (makeDeps: (env: Env) => Deps = createDepsFromEnv) =>
     // Access: every surface (the public list, later the draw/live views) reads it at runtime.
     // PUBLIC_LIST_ENABLED stays an orthogonal kill-switch — the phase does not gate the list.
     .get('/api/phase', async c => {
-      const phase = await c.var.deps.appState.getPhase()
-      return c.json({ phase } satisfies PhaseResponse, 200, { 'cache-control': 'no-store' })
+      // Two independent reads of the same singleton row, issued together rather than serially. The
+      // cancelled set rides this response rather than a second endpoint (ADR-0062): one poll, one signal
+      // every public surface already makes, so nothing has to re-derive „does this field take place".
+      const [phase, cancelledCompetitions] = await Promise.all([
+        c.var.deps.appState.getPhase(),
+        c.var.deps.appState.getCancelledCompetitions()
+      ])
+      return c.json({ phase, cancelledCompetitions } satisfies PhaseResponse, 200, { 'cache-control': 'no-store' })
     })
     // GET /api/draw — the public two-phase bracket (ADR-0046). Per competition: while its main bracket is
     // still revealing it carries the cursor-sliced reveal steps (the suspense invariant, ADR-0003); once
@@ -267,6 +284,25 @@ export const createApp = (makeDeps: (env: Env) => Deps = createDepsFromEnv) =>
       const { phase } = c.req.valid('json')
       await c.var.deps.appState.setPhase(phase)
       return c.json({ ok: true, phase } satisfies SetPhaseResponse)
+    })
+    // POST /api/admin/competition/cancel — the operator cancels a competition that drew too few entries,
+    // or takes the cancellation back (ADR-0062). Zod validates the slug; the toggle is otherwise plain,
+    // because cancelling materializes nothing — there is nothing to reconcile on the way back.
+    //
+    // The one guard: a **drawn** competition cannot be cancelled. Its `draws` row, materialized `matches`
+    // and schedule placements would linger as phantom load behind a flag; the honest path is draw reset
+    // (ADR-0029), then cancel. The guard binds the cancel only — taking a cancellation back is never
+    // blocked by it. No registration row is touched either way: `cancelled` on a registration says „this
+    // person no longer participates", and here the person's intent is unchanged.
+    .post('/api/admin/competition/cancel', parseGuard, v(setCompetitionCancelledRequestSchema), async c => {
+      const { competition, cancelled } = c.req.valid('json')
+      if (cancelled && (await c.var.deps.draws.findDraw(competition, 'main')))
+        return c.json({ error: CANCEL_DRAWN_REASON }, 409)
+      await c.var.deps.appState.setCompetitionCancelled(competition, cancelled)
+      return c.json({
+        ok: true,
+        cancelledCompetitions: await c.var.deps.appState.getCancelledCompetitions()
+      } satisfies SetCompetitionCancelledResponse)
     })
     // GET /api/admin/draws — every drawn competition (main bracket). The competitions surface (UI: „Konkurrenzen")
     // combines this with the admin list it already holds to derive each field's lifecycle (ADR-0027).

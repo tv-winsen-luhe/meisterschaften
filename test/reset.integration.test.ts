@@ -131,7 +131,7 @@ describe('POST /api/admin/reset/back-to-signup', () => {
     expect(await res.json()).toEqual({ ok: true, phase: 'signup', undrawn: 2 })
 
     expect(await drawCount()).toBe(0)
-    expect(await (await reqOn('/api/phase')).json()).toEqual({ phase: 'signup' })
+    expect(await (await reqOn('/api/phase')).json()).toEqual({ phase: 'signup', cancelledCompetitions: [] })
     // Registration status is deliberately left alone — confirmed entries are valid during signup.
     const confirmed = await env.DB.prepare("SELECT COUNT(*) AS c FROM registrations WHERE status = 'confirmed'").first<{
       c: number

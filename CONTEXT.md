@@ -48,7 +48,10 @@ concept here drifts or a new one appears, update this file rather than inventing
   That action is a per-competition action, never a phase transition. While a field's reveal is in
   progress the admin **withholds its bracket** (showing „Auslosung läuft" + the _x/y enthüllt_ progress);
   the bracket appears only once the draw reveal show has fully revealed it — so projecting the admin can
-  never spoil the draw, consistent with the unriggable-draw stance. _(See ADR-0027, ADR-0025, ADR-0002.)_
+  never spoil the draw, consistent with the unriggable-draw stance. A competition may also leave this
+  lifecycle altogether before it starts: one that drew too few entries is **cancelled** by the operator
+  after signup and disappears from the public site (Competition cancellation, ADR-0062) — cancelling is
+  refused once a draw exists, so the two never overlap. _(See ADR-0027, ADR-0025, ADR-0002.)_
 - **Front-door lead** (de: Aufmacher der Startseite) — what the front door (`index.astro`) leads with:
   its opening statement, its two calls to action, and the header's call to action, which always
   agree. It follows the phase, and **inside `tournament` it has three stages** — _Feld steht_ (the
@@ -173,7 +176,9 @@ cancelled`, duplicate check, capacity, first-come cut) **unchanged**, with one r
 - **Registration** (de: Anmeldung; D1 table `registrations`) — one member's entry into one competition.
   Status flow: `new` → `confirmed` → `cancelled`. **`cancelled`** is the single "no longer participating,
   keep the record" state, reached either by the member's self-service withdrawal (`/api/cancel`, by person)
-  or by the operator marking a drop-out (`/api/admin/cancel`, by id) — the row does not record which.
+  or by the operator marking a drop-out (`/api/admin/cancel`, by id) — the row does not record which. It
+  is a statement about **this person**, and is never used to express that a whole competition fell away:
+  cancelling a competition leaves its rows untouched (Competition cancellation, ADR-0062).
   Reviving a `cancelled` entry is the member's act alone: re-registering revives the row (`revive`); the
   admin cannot un-cancel, only hard-delete. (`hidden` was retired — it overlapped `cancelled`; see
   ADR-0018.) **A member may hold only one active entry _per competition_** — the duplicate guard
@@ -240,7 +245,10 @@ cancelled`, duplicate check, capacity, first-come cut) **unchanged**, with one r
   draw preview sizes its bracket from the confirmed count clamped to the supported sizes (4/8/16), not
   from capacity. Below the draw floor (fewer than 4 confirmed) it shows no bracket at all but a **„ab 4"
   notice** („N / 4 — noch X bis zur Auslosung"), and the participant board drops its seed markers — so no
-  public surface implies a castable field where the gate would refuse one. _(See ADR-0034.)_
+  public surface implies a castable field where the gate would refuse one. That notice is
+  **signup-only**: it is a recruiting call („noch 1 bis zur Auslosung"), and once the signup window is
+  shut nobody can answer it, so from `tournament` on an under-filled field is handled by **Competition
+  cancellation** instead, not shown short. _(See ADR-0034, ADR-0062.)_
 - **Capacity** (de: Maximalgröße; code: `capacity`) — the operator-set **soft limit** on a competition's
   field size, a constant in `tournament.ts`, never above the structural draw ceiling of **16** (the seed
   table supports only 4/8/16). It is a planning and affordance number — it drives „Plätze frei" and the
@@ -261,6 +269,38 @@ cancelled`, duplicate check, capacity, first-come cut) **unchanged**, with one r
 - **Reserve** (de: Nachrücker) — a `confirmed` entry **below the field cut**: still confirmed, simply not
   drawn into the bracket, and first to step in if a drawn player drops before the draw locks. Not a separate
   status — the lifecycle stays `new → confirmed → cancelled` (ADR-0018). _(See ADR-0043.)_
+- **Competition cancellation** (de: Konkurrenz-Absage; code: `cancelledCompetitions`, predicate
+  `isCancelledCompetition(slug)`) — a competition that drew **too few entries** does not take place, and is
+  **removed from every public surface**. It is the terminal answer to an under-filled field, and it belongs
+  to the phases **after signup**: the same under-strength state is shown as a **recruiting call** during
+  `signup` (the „ab 4" notice, see Draw size) and treated as an **absence** from `tournament` on, because
+  nobody can answer the call once the window is server-enforced shut (ADR-0059). Same pivot as the front
+  door's marketing-order → results-order flip: the facts stay, the imperative goes (ADR-0060).
+  - **Threshold**: **4 confirmed** for the drawn fields — reusing the structural draw floor rather than
+    inventing a second number that could disagree with it (ADR-0034) — and **6** for the Social mixer,
+    which is never drawn and so needs its own explicit minimum (Unseeded competition).
+  - **Authority is the operator, never the count.** Cancelling is an explicit per-competition act, stored
+    as a slug set on the `app_state` singleton row; the count only advises (the „Anmeldung schließen"
+    confirm dialog **lists** the fields under their threshold and links to the action, it never fires it).
+    A derived rule would re-show a field the moment a late entry is confirmed — after everyone in it was
+    telephoned. It is a plain, reversible toggle; the confirm sits on the cancel, because the expensive
+    half of the act is social, not technical. **A drawn competition cannot be cancelled** (draw reset
+    first, ADR-0029) — a `draws` row, its `matches` and its schedule placements would otherwise linger as
+    phantom load.
+  - **The registrations are untouched.** Not to be confused with the Registration status `cancelled`: that
+    one says _this person_ no longer participates; this one says _this competition_ does not happen. The
+    rows stay as they are — the honest count of who wanted it, which is what next year's planning needs.
+  - **Removal is a wire decision** (the ADR-0048 stance): the public API projections omit the field and the
+    Astro surfaces render what they are served, held by one cross-projection invariant — not client-side
+    hiding, which is how a surface gets forgotten. It is total: cards, participant list, draw, schedule,
+    live board, and the **post-event archive** (which records what happened — no match, no result, no
+    champion, nothing to archive; ADR-0007). Exactly one factual line survives, in the FAQ, **derived from
+    the flag** so it cannot drift the way hand-written copy can. The **admin never hides**: the competition
+    and its registrations stay, visibly marked „abgesagt" — it is the record, not the stage. The **draw
+    guard** refuses a cancelled field (a second reason at the same seam as the ≥4 check) and the admin's
+    **court-load gauge** excludes it. If a whole side falls away the site simply degrades — it reads as a
+    Herren-only event, because it is one; a competition filter left with a single option does not render.
+    _(See ADR-0062, ADR-0034, ADR-0048, ADR-0007.)_
 
 ## Tournament structure
 
