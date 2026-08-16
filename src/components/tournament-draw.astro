@@ -369,6 +369,36 @@ const drawCompetitions = competitions
     color: rgba(12, 30, 58, 0.5);
   }
 
+  /* A lot-group line of the pre-draw preview (§30.5b): the line is prescribed, which of Nr. 3/4 lands
+     on it is not — so it carries both names, dashed like the other undecided lines but still inked,
+     because the players on it are settled. */
+  .dm-slot--lot {
+    border-style: dashed;
+    border-color: var(--color-navy);
+  }
+  .dm-lotno {
+    flex-shrink: 0;
+    height: 22px;
+    padding: 0 7px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: transparent;
+    border: 1.5px solid var(--color-navy);
+    color: var(--color-navy);
+    font-size: 12px;
+    font-weight: 800;
+    font-variant-numeric: tabular-nums;
+    border-radius: 11px;
+  }
+  .dm-lot {
+    flex-shrink: 0;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    color: rgba(12, 30, 58, 0.5);
+  }
+
   /* A not-yet-decided later-round line in the live bracket (ADR-0046): „Sieger M3" / „Verlierer M2" /
      „offen" (ADR-0035). Dashed + muted like the „?" line, but carrying the feeder label. */
   .dm-slot--feeder {
