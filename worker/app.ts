@@ -275,11 +275,10 @@ export const createApp = (makeDeps: (env: Env) => Deps = createDepsFromEnv) =>
       return c.json(drawsResponseSchema.parse({ draws }), 200, { 'cache-control': 'no-store' })
     })
     // GET /api/admin/draw/reveal — the operator's full main-bracket reveal (ADR-0044). Same cursor-sliced
-    // shape as the public GET /api/draw, but **un-redacted**: a protected Challenger field keeps its LK +
-    // seed here, so the beamer draw show can run a Challenger draw (ADR-0024). It lives under
-    // /api/admin/* on purpose — the full reveal carries protected-field strength, so it is operator data and
-    // must sit behind Access (a route outside /api/admin/* is born public, CONTEXT „Admin"). The public wire
-    // never carries it.
+    // shape as the public GET /api/draw, but **never redacted**: the beamer draw show always keeps the LK +
+    // seed it needs to run a draw (ADR-0024), whatever the public wire decides. With no field redacted today
+    // the two agree step for step (ADR-0061); the route stays as the seam that would diverge, and it belongs
+    // under /api/admin/* either way — a route outside it is born public (CONTEXT „Admin").
     .get('/api/admin/draw/reveal', async c => {
       const draws = await c.var.deps.projections.operatorDraws()
       return c.json(publicDrawsResponseSchema.parse({ draws }), 200, { 'cache-control': 'no-store' })

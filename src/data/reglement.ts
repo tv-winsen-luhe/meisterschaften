@@ -22,7 +22,9 @@ export const reglement: readonly ReglementRow[] = [
     label: 'Konkurrenz',
     value: 'Einzel (Damen, Herren, Challenger) · dazu Damen Doppel (gesellig)'
   },
-  { key: 'seeding', label: 'Setzung', value: 'Nach Leistungsklasse' },
+  // The factual statement of ADR-0061: the seeding is by LK *and* checkable, in every field. This is the
+  // only surface that says so — the competition cards sell the format, not the data policy (ADR-0061 §3).
+  { key: 'seeding', label: 'Setzung', value: 'Nach Leistungsklasse — LK und Setzung sind öffentlich einsehbar' },
   { key: 'ranking', label: 'Wertung', value: 'Vereinsintern, keine LK-Wertung' }
 ]
 

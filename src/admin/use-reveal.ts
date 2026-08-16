@@ -10,9 +10,9 @@ import { errorMessage, isAuthRedirect } from './lib/api'
 // the read never sees past the cursor (the server slices it), the advance never re-rolls.
 //
 // The read goes through the admin-only GET /api/admin/draw/reveal (under Access), not the public GET
-// /api/draw: the beamer needs the **full** reveal (a Challenger field keeps its LK + seed to run the
-// draw, ADR-0024), while the public wire redacts that protected strength (ADR-0044). Same cursor-
-// sliced shape, so this is the un-redacted sibling of the off-site bracket's feed.
+// /api/draw: the beamer needs the **full** reveal — LK + seed, always, to run the draw (ADR-0024) —
+// whereas the public wire ships whatever strength redaction leaves it (ADR-0044). No field is redacted
+// today, so the two agree (ADR-0061); same cursor-sliced shape either way.
 
 type Client = ReturnType<typeof hc<AppType>>
 
@@ -31,8 +31,8 @@ interface RevealApi {
 }
 
 export const useReveal = (client: Client): RevealApi => {
-  // The show reads the operator's full reveal (GET /api/admin/draw/reveal, the un-redacted sibling of the
-  // off-site bracket's feed — already cursor-sliced server-side) and picks out this competition. Because
+  // The show reads the operator's full reveal (GET /api/admin/draw/reveal, the never-redacted sibling of
+  // the off-site bracket's feed — already cursor-sliced server-side) and picks out this competition. Because
   // this read is now behind Access (unlike the public /api/draw it used to poll), an expired session must
   // be regated like advanceReveal — reload to re-auth rather than swallow the opaque redirect as a
   // retryable `error`, which would freeze the beamer on a stale frame. A non-OK/thrown read is `error`

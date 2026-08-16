@@ -104,24 +104,27 @@ concept here drifts or a new one appears, update this file rather than inventing
   standing DB preference. One pure predicate `challengerEligibility(entries, threshold)` in `shared/seeding.ts` is
   both the draw's hard guard (a too-strong entry blocks the field's draw) and the provisional seeding
   list's affordance — authority in the draw, affordance in the client, definition once (ADR-0011).
-  Because the field is **protected, its strength is not advertised publicly**: the public surfaces
-  (participant list, draw bracket) **omit the LK and the seed numbers** for it **on the wire** — a single
-  **Strength redaction** decision the server makes and every public surface reads, not a rule each surface
-  re-derives from the field's identity (ADR-0048) — and the public list
-  **orders it by registration date, not strength** — the visible expression of its first-come-first-served
-  admission (Field cut, ADR-0043). The pre-draw seeding preview still places players on their **LK seed
-  lines** (as far as the table fixes them — a **lot group** stays undecided, see Seeding → Placement) —
-  _which_ players are seeded is the accepted relative-rank signal (ADR-0044/0047); only the LK
-  value and the seed number are withheld. Only the admin, which needs the LK to bind the cap and the seed to
-  run the draw, reads the full, un-redacted reveal. _(See ADR-0024, ADR-0044, ADR-0047, ADR-0048.)_
-- **Strength redaction** — how a **protected** field's strength is kept off the public surfaces: its
-  **absolute** strength (the LK value and the seed number) is dropped wherever the public can read it, while
-  its **relative rank** — which players sit on the seed lines, the provisional seed rank — stays, because the
-  protection is against an absolute-weakness broadcast, not against relative rank (ADR-0044 §2, ADR-0047). It
-  is **one decision every public surface reads as a single signal**, not a rule each surface re-derives from
-  the field's identity — so turning it on for a new protected field (Damen Freizeit) is a single change, and
-  a not-yet-synced rating („LK folgt") can never be confused with a withheld one. The gated admin reads the
-  un-redacted strength it needs to bind the cap and run the draw (ADR-0024). _(See ADR-0044, ADR-0047, ADR-0048.)_
+  „Protected" means **capped**, not silent: the field's strength **is** shown publicly — LK values and seed
+  numbers on the participant list and the bracket, like any other field — because a draw must be checkable
+  and a player must be able to place an opponent against their own LK, and because an LK is a public nuLiga
+  rating anyway (ADR-0061). What the protection _does_ buy stays untouched: the cap above, and a spot that
+  is **secure once taken** — the public list **orders the field by registration date, not strength**, the
+  visible expression of its first-come-first-served admission (Field cut, ADR-0043). **Showing strength is
+  not admitting by it**; the two axes stay separate. The pre-draw seeding preview places players on their
+  **LK seed lines** (as far as the table fixes them — a **lot group** stays undecided, see Seeding →
+  Placement). _(See ADR-0024, ADR-0043, ADR-0047, ADR-0061.)_
+- **Strength redaction** — the mechanism for keeping a field's **absolute** strength (the LK value and the
+  seed number) off the public surfaces, while its **relative rank** — which players sit on the seed lines,
+  the provisional seed rank — stays, because the concern is an absolute-weakness broadcast, not relative
+  rank (ADR-0044 §2, ADR-0047). **No competition is redacted today, and none is planned** (ADR-0061): it is
+  a **dormant seam**, kept for a field whose audience should not see ratings, should one ever exist. Which
+  fields are redacted is an explicit list (`strengthRedacted`), deliberately _not_ a rule derived from the
+  field type — the Herren Challenger is capped _and_ public, so redaction is an editorial choice per field. It stays **one
+  decision every public surface reads as a single signal** rather than re-deriving: turning it on for a field
+  is a one-line change with no client edits, a not-yet-synced rating („LK folgt") can never be confused with
+  a withheld one, and one cross-projection invariant enforces that every public wire agrees with the
+  predicate. The gated admin reads the un-redacted strength either way (ADR-0024). _(See ADR-0044, ADR-0047,
+  ADR-0048, ADR-0061.)_
 - **Social mixer** (de: Schleifchenturnier; user-facing label „Damen Doppel") — the real shape of what
   was once called the **Damen Freizeit** field, and a **third field type** beside Championship field and
   Challenger / recreational field: the first **unseeded** competition. A rotating-partner social
@@ -299,9 +302,9 @@ byeWinners }` in `shared/reveal.ts`. It is **not** the whole story of the public
   champion. Gated on full reveal **only** — never the schedule publish flag, because a result is reality
   (ADR-0032), not the plan (ADR-0041). Shows the full field per competition — main knockout + the „Spiel um
   Platz 3" + the **Consolation bracket** (public the moment it is drawn, since it has no reveal show) — as a
-  **„Hauptrunde / Nebenrunde" segmented view** (the Nebenrunde tab present only at draw size ≥ 8). A
-  protected Challenger field stays LK/seed-redacted on the wire in **both** phases (ADR-0044). _(See
-  ADR-0046.)_
+  **„Hauptrunde / Nebenrunde" segmented view** (the Nebenrunde tab present only at draw size ≥ 8). Both
+  phases carry LK and seed for every field, the Challenger included (Strength redaction is dormant,
+  ADR-0061). _(See ADR-0046.)_
 - **Draw reveal show** (de: Auslosungs-Show; operator UI label: „Auslosung") — the **operator-paced**
   beamer projection in the **gated admin** that plays the reveal sequence back on a large screen during
   the live draw event. It is **not** a public self-serve URL: the operator drives it (projecting onto
@@ -311,8 +314,8 @@ byeWinners }` in `shared/reveal.ts`. It is **not** the whole story of the public
   no stepping back (the public live bracket mirrors the cursor; a back-step would un-reveal a lot there
   too). Once it has fully revealed (cursor === total) it is done, not a replayable show. The off-site
   audience follows a separate **public live bracket** (`tournament-draw.astro`) that mirrors the same
-  revealed prefix by polling (~1–2s) — but **redacted** for protected fields: a Challenger field's LK and
-  seed are dropped on the public wire, while the operator's show reads the full reveal (ADR-0044). The operator client drives playback through a **forward-only state
+  revealed prefix by polling (~1–2s), carrying LK and seed like the operator's show — the two reveals agree
+  today, and the separate operator route stays as the seam a redacted field would need (ADR-0044, ADR-0061). The operator client drives playback through a **forward-only state
   machine** (the reveal controller, `src/admin/reveal-controller.ts`) sitting over the two server seams:
   it owns the retry-on-blip read, the double-fire guard (a held presenter key may not reveal two lots),
   and the `loading → ready → absent/error/stale` reducer. It keeps a genuinely **not-yet-drawn** field
@@ -512,8 +515,9 @@ reveal sequence }`. Randomness enters through an injected **`RandomSource`** por
     is a **fairness flip** („werde ich abgeschossen?" → auf Augenhöhe, real Wettkampf, wertiger Titel),
     **never a shame/beginner flip**. Because the front door is also the **cold, gender-unknown walk-up**,
     its Challenger copy keeps a **factual** low-barrier welcome (#220) but drops the field-devaluing
-    „erstes Turnier / keine Turniererfahrung nötig" register. Strength redaction holds — **no LK/seed on
-    the protected Challenger** (ADR-0048). The earlier porch realizations are now fully historical: the
+    „erstes Turnier / keine Turniererfahrung nötig" register. The **cap** is what the copy sells; the
+    Challenger's LK and seed are public like every field's, and the porch copy stays silent about that —
+    the data policy belongs in the Reglement, not on a conversion surface (ADR-0061). The earlier porch realizations are now fully historical: the
     ADR-0054 **conversion porch (Herren)** / **validation probe (Damen)** pair, and the ADR-0056 **rich
     Herren porch** (reversed by ADR-0057).
     _Avoid_: "landing page" (too generic), "competition page" (the Damen porch is per-**side**, two fields,
