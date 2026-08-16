@@ -59,8 +59,11 @@ concept here drifts or a new one appears, update this file rather than inventing
   the operator's acts stay the two phase transitions plus the per-competition draw and the schedule
   publish. From `tournament` onward the front door also presents its sections in a **results order**
   (the draw and the field first) rather than the signup-era **marketing order** — two orders, one
-  page. The front door **points**; the draw, the schedule and the results surfaces own their content.
-  _(See ADR-0060, ADR-0042, ADR-0041.)_
+  page. The sections that survive the reorder keep their **content** but not their **imperative**: a
+  section that told a visitor to act („Wähl dein Feld") describes instead once nobody can act on it,
+  while the blocks that exist purely to convert (the objection flips, the „meld dich für beide an"
+  cross-sell) leave with the signup buttons. The front door **points**; the draw, the schedule and the
+  results surfaces own their content. _(See ADR-0060, ADR-0042, ADR-0041.)_
 - **Seeding freeze** (de: Setzungs-Freeze) — before the draw, LKs keep updating and the **provisional
   seeding list** (de: provisorische Setzliste; the seeding preview) reflects them live. At the draw it
   snapshots each player's current LK into its immutable draw record (ADR-0003) — that snapshot _is_ the

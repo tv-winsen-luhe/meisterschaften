@@ -24,6 +24,8 @@ const womensSocial = competitions.find(c => c.id === 'womens-social')!
 // Only the Damen pair carries it: Einzel + geselliges Doppel can be held together, and a „both" entry
 // converts the fragile championship field (the invites-both protection ADR-0055 keeps). The two Herren
 // fields are a choice between (the Challenger is LK-protected against stronger players), so no such line.
+// It is a pure signup affordance („meld dich an"), so it carries [data-signup-lead] and leaves the page
+// with the other signup blocks once the phase leaves signup (ADR-0042 §4, ADR-0060 amendment).
 const damenCrossSell = 'Beide Felder gehen zusammen — meld dich einfach für beide an.'
 
 // `reglement` lives in `@/data/reglement` as the single source for the Modus rows, so this table
@@ -246,7 +248,9 @@ const sunday = [
           <div class="reveal mt-0.5 min-[901px]:ml-auto min-[901px]:w-[calc(50%-1px)]">
             <FieldFlip slug="womens-social" />
           </div>
-          <p class="reveal mt-5 text-[13px] leading-[1.6] font-semibold opacity-70">{damenCrossSell}</p>
+          <p class="reveal mt-5 text-[13px] leading-[1.6] font-semibold opacity-70" data-signup-lead>
+            {damenCrossSell}
+          </p>
         </div>
 
         <div>
