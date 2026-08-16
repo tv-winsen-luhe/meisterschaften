@@ -1,38 +1,14 @@
 import { Fragment, useMemo } from 'react'
 import { ListOrdered, TriangleAlert } from 'lucide-react'
-import {
-  type AdminRegistration,
-  bracketStructure,
-  CHALLENGER_MIN_LK,
-  challengerEligibility,
-  COMPETITION_SLUGS,
-  drawSize,
-  fieldCut,
-  isActive,
-  isChallengerField,
-  isSupportedDrawSize,
-  isUnseededCompetition,
-  provisionalSeedRanks
-} from '../../../shared'
+import { type AdminRegistration, COMPETITION_SLUGS, isUnseededCompetition } from '../../../shared'
 import { cn } from '@/admin/lib/utils'
 import { Badge } from '@/admin/ui/badge'
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/admin/ui/empty'
 import { CLUB_LOGOS, competitionCapacity, competitionLabel } from './registration-detail'
+import { seedingFieldPreview, type SeedingRow } from './seeding-preview'
 
 interface SeedingSurfaceProps {
   registrations: AdminRegistration[]
-}
-
-// One row of the provisional seeding: the registration, its position in the cut order (1-based), its
-// seed number if it is a drawn seed (DTB §30.5a — by LK, so on a Challenger field it need not match the
-// row position; null when unseeded), whether it falls below the field cut (a reserve), and — for the
-// Challenger field — whether its LK is too strong for the cap.
-interface SeedingRow {
-  reg: AdminRegistration
-  position: number
-  seed: number | null
-  reserve: boolean
-  tooStrong: boolean
 }
 
 // The provisional seeding list + field cut (de: provisorische Setzliste, CONTEXT: Field cut, issue
@@ -49,47 +25,22 @@ interface SeedingRow {
 // shared challengerEligibility predicate — the same authority the draw guard reuses (affordance here,
 // hard block there; ADR-0011, ADR-0024). Read-only: the operator eyeballs the cut + eligibility before
 // auslosen; authority stays in the domain (the draw enforces the cut at the freeze, Schicht 2).
+//
+// The derivation itself lives in the pure `seedingFieldPreview` (tested without React); this surface
+// only looks each field's capacity/label up in the content model and renders the result.
 export const SeedingSurface = ({ registrations }: SeedingSurfaceProps) => {
   const fields = useMemo(() => {
     // An unseeded field (Social mixer, ADR-0051) has no Setzliste — it is never seeded or drawn — so it
     // is absent from the seeding preview entirely, matching the public list (which suppresses its seeds).
     return COMPETITION_SLUGS.filter(slug => !isUnseededCompetition(slug)).map(slug => {
-      const isChallenger = isChallengerField(slug)
-      // The cut ranks the active field (new + confirmed); a `new` row already carries a derived LK.
-      const active = registrations.filter(r => r.competition === slug && isActive(r.status))
-      // A field with no capacity (a planned field, not registerable today) gets no cut — pass the full
-      // count as the cap so nothing is a reserve. The three live fields all carry a capacity.
+      // A field with no capacity (a planned field, not registerable today) gets no cut — the preview
+      // then treats the full count as the cap. The three live fields all carry a capacity.
       const capacity = competitionCapacity(slug)
-      const cut = fieldCut(active, slug, capacity ?? active.length)
-      // Seeds preview the *drawn* field (the in-field entries): the DTB seed count for that field's
-      // draw size, and only for the supported sizes (4/8/16) — bracketStructure throws otherwise. The
-      // seeds are ranked by LK for **every** field (provisionalSeedRanks, ADR-0047), so a Challenger
-      // field — listed in registration order — still marks its LK-strongest, not its earliest registrants.
-      const size = drawSize(cut.inField)
-      const seedCount = isSupportedDrawSize(size) ? bracketStructure(size).seedCount : 0
-      const inField = cut.ranked.filter(r => !r.reserve).map(r => r.entry)
-      const seedRankOf = provisionalSeedRanks(inField, seedCount)
-      // The Challenger field is judged against the current cap (over the active set); other fields
-      // have none, so the too-strong set stays empty.
-      const tooStrong = isChallenger ? challengerEligibility(active, CHALLENGER_MIN_LK).tooStrong : []
-      const tooStrongIds = new Set(tooStrong.map(r => r.id))
-      const rows: SeedingRow[] = cut.ranked.map(({ entry, position, reserve }) => ({
-        reg: entry,
-        position,
-        seed: reserve ? null : (seedRankOf.get(entry) ?? null),
-        reserve,
-        tooStrong: tooStrongIds.has(entry.id)
-      }))
       return {
         slug,
         label: competitionLabel(slug),
         capacity,
-        provisional: cut.provisional,
-        inField: cut.inField,
-        reserves: cut.reserves,
-        seedCount,
-        tooStrongCount: tooStrong.length,
-        rows
+        ...seedingFieldPreview(registrations, slug, capacity)
       }
     })
   }, [registrations])
@@ -128,19 +79,26 @@ interface FieldCardProps {
   rows: SeedingRow[]
   capacity: number | undefined
   provisional: boolean
+  active: number
+  confirmed: number
+  pending: number
   inField: number
   reserves: number
   seedCount: number
   tooStrongCount: number
 }
-// One competition's provisional seeding: a header with the active count (plus the field/reserve split
-// once the cut bites and the seed count), then the ranked rows with the cut line drawn at capacity. An
-// empty field shows the header alone so the operator sees every competition's state at a glance.
+// One competition's provisional seeding: a header with the active count — broken into bestätigt/offen
+// while confirms are outstanding, plus the field/reserve split once the cut bites and the seed count —
+// then the ranked rows with the cut line drawn at capacity. An empty field shows the header alone so
+// the operator sees every competition's state at a glance.
 const FieldCard = ({
   label,
   rows,
   capacity,
   provisional,
+  active,
+  confirmed,
+  pending,
   inField,
   reserves,
   seedCount,
@@ -161,8 +119,12 @@ const FieldCard = ({
             </Badge>
           )}
         </div>
+        {/* The active count is the list's own population (new + confirmed), which is larger than the
+            confirmed count every other surface — and the draw — reads. Spelling the split out keeps
+            the operator from reading one number here and a smaller one on the Konkurrenzen card. */}
         <span className="text-muted-foreground text-sm tabular-nums">
-          {rows.length} aktiv
+          {active} aktiv
+          {pending > 0 && ` · ${confirmed} bestätigt · ${pending} offen`}
           {reserves > 0 && ` · ${inField} im Feld · ${reserves} Nachrücker`}
           {seedCount > 0 && ` · ${seedCount} gesetzt`}
         </span>
