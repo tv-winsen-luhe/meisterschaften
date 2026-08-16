@@ -4,9 +4,14 @@ interface Props {
   minHeight?: number
   stagger?: number
   class?: string
+  /**
+   * The competition slug this card belongs to, if any. It marks the card as one field's, so the front
+   * door's phase read can take it off the page when that competition is cancelled (ADR-0062).
+   */
+  competition?: string
 }
 
-const { variant = 'light', minHeight, stagger, class: className } = Astro.props
+const { variant = 'light', minHeight, stagger, class: className, competition } = Astro.props
 
 const variantClass = {
   light: 'bg-surface-alt text-navy',
@@ -25,6 +30,7 @@ const style = styleParts.length ? styleParts.join('; ') : undefined
 <div
   class:list={['stagger @container relative flex flex-col overflow-hidden p-7', variantClass, className]}
   style={style}
+  data-competition={competition}
 >
   <slot />
 </div>

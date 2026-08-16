@@ -22,9 +22,12 @@ type Client = ReturnType<typeof hc<AppType>>
 //                 rather than revealed.
 //   4. reorder  — from `tournament` onward the page and its nav present their sections in the
 //                 results order, via one class on <body> (ADR-0060 §5).
+//   5. cancel   — [data-competition="<slug>"] marks every element that belongs to exactly one field
+//                 (a card, a participant group). One that is not among the fields the page shows is
+//                 gated, and the derived FAQ line is filled in and revealed (ADR-0062).
 //
 // Order matters: the reveal must read the gates that shipped in the markup before step 2 adds more.
-const project = ({ leads, order }: FrontDoor) => {
+const project = ({ leads, order, competitions, cancellationNote }: FrontDoor) => {
   document.querySelectorAll('[data-phase-gate]').forEach(el => el.removeAttribute('data-phase-gate'))
   document
     .querySelectorAll('[data-signup-open], [data-signup-lead]')
@@ -34,6 +37,26 @@ const project = ({ leads, order }: FrontDoor) => {
     else el.setAttribute('data-phase-gate', '')
   })
   if (order === 'results') document.body.classList.add('is-results-order')
+
+  document.querySelectorAll('[data-competition]').forEach(el => {
+    const slug = el.getAttribute('data-competition')
+    if (!competitions.some(shown => shown === slug)) el.setAttribute('data-phase-gate', '')
+  })
+  // A container that held nothing but competitions goes with the last of them: an empty „Damen"
+  // heading over an empty grid would claim there is more than there is. This is the filter rule, not
+  // a special case for a lost side — if both Damen fields are cancelled the page simply reads as the
+  // Herren-only event it then is (ADR-0062 consequences).
+  document.querySelectorAll('[data-competition-group]').forEach(el => {
+    if (!el.querySelector('[data-competition]:not([data-phase-gate])')) el.setAttribute('data-phase-gate', '')
+  })
+  // The one line a cancellation leaves behind (see `cancellationNote`). It ships hidden and empty, so
+  // a page whose phase read never resolves says nothing rather than something stale.
+  const note = document.querySelector<HTMLElement>('[data-cancellation-note]')
+  const line = note?.querySelector('[data-cancellation-line]')
+  if (note && line && cancellationNote !== null) {
+    line.textContent = cancellationNote
+    note.hidden = false
+  }
 }
 
 // The two extra reads behind the three `tournament` stages (ADR-0060 §1). Both are existing public
@@ -66,11 +89,14 @@ export const projectPhaseOnLoad = async ({ frontDoor = false }: Options = {}) =>
   try {
     const res = await client.api.phase.$get()
     if (!res.ok) return
-    const { phase } = await res.json()
+    const { phase, cancelledCompetitions } = await res.json()
+    // The cancelled set rides on the same read (ADR-0062), so `signup` still costs one call. It only
+    // takes effect from `tournament` on: during signup the „ab 4" notice is the recruiting call the
+    // cancellation replaces, and a field is not cancelled before its window has even closed.
     if (phase === 'signup') return
     const bits =
       frontDoor && phase === 'tournament' ? await readStageFlags(client) : { drawn: false, schedulePublished: false }
-    project(frontDoorLead({ phase, ...bits }))
+    project(frontDoorLead({ phase, ...bits, cancelled: cancelledCompetitions }))
   } catch {
     // Network error: leave the signup default standing.
   }

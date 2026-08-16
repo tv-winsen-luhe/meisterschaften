@@ -66,7 +66,12 @@ concept here drifts or a new one appears, update this file rather than inventing
   section that told a visitor to act („Wähl dein Feld") describes instead once nobody can act on it,
   while the blocks that exist purely to convert (the objection flips, the „meld dich für beide an"
   cross-sell) leave with the signup buttons. The front door **points**; the draw, the schedule and the
-  results surfaces own their content. _(See ADR-0060, ADR-0042, ADR-0041.)_
+  results surfaces own their content. The same rule module (`src/scripts/front-door-lead.ts`) also
+  derives **which fields the page shows** and the one **derived FAQ line** a cancellation leaves behind
+  (Competition cancellation): the front door is built statically, so it is the one surface that
+  _applies_ the cancellation client-side instead of being served a shorter list — the decision is still
+  the single server signal, this page is only the surface. _(See ADR-0060, ADR-0062, ADR-0042,
+  ADR-0041.)_
 - **Seeding freeze** (de: Setzungs-Freeze) — before the draw, LKs keep updating and the **provisional
   seeding list** (de: provisorische Setzliste; the seeding preview) reflects them live. At the draw it
   snapshots each player's current LK into its immutable draw record (ADR-0003) — that snapshot _is_ the
@@ -292,7 +297,10 @@ cancelled`, duplicate check, capacity, first-come cut) **unchanged**, with one r
     rows stay as they are — the honest count of who wanted it, which is what next year's planning needs.
   - **Removal is a wire decision** (the ADR-0048 stance): the public API projections omit the field and the
     Astro surfaces render what they are served, held by one cross-projection invariant — not client-side
-    hiding, which is how a surface gets forgotten. It is total: cards, participant list, draw, schedule,
+    hiding, which is how a surface gets forgotten. The **front door is the one exception, and only in the
+    applying**: it is rendered at build time from the static competition list (ADR-0008), so it takes the
+    same one signal off `GET /api/phase` and applies it through its rule module (Front-door lead) — the
+    decision still arrives from the server, the page is only the surface. It is total: cards, participant list, draw, schedule,
     live board, and the **post-event archive** (which records what happened — no match, no result, no
     champion, nothing to archive; ADR-0007). Exactly one factual line survives, in the FAQ, **derived from
     the flag** so it cannot drift the way hand-written copy can. The **admin never hides**: the competition

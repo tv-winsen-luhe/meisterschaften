@@ -1,12 +1,23 @@
 ---
 interface Props {
   question: string
+  /**
+   * Marks this item as the derived cancellation line (ADR-0062): it ships hidden and the front door's
+   * phase read fills its text in and reveals it. A prop rather than a wrapper element around the item,
+   * because the divider run below is `last:border-b-0` — a wrapper would make this `<details>` the last
+   * child of its own box and cost it the border it needs in the middle of the list.
+   */
+  cancellation?: boolean
 }
 
-const { question } = Astro.props
+const { question, cancellation } = Astro.props
 ---
 
-<details class="faq__item border-b border-navy/15 last:border-b-0">
+<details
+  class="faq__item border-b border-navy/15 last:border-b-0"
+  hidden={cancellation}
+  data-cancellation-note={cancellation ? '' : undefined}
+>
   <summary
     class="faq__q flex cursor-pointer items-center justify-between gap-4 py-5 text-base font-bold tracking-[-0.01em]"
   >

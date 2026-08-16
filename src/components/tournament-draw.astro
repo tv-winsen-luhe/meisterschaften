@@ -12,7 +12,7 @@ const drawCompetitions = competitions
 ---
 
 <div class="dm" data-draw>
-  <div class="dm-tabs" role="tablist" aria-label="Konkurrenz wählen">
+  <div class="dm-tabs" role="tablist" aria-label="Konkurrenz wählen" data-tabs>
     {
       drawCompetitions.map((c, i) => (
         <button
@@ -564,11 +564,17 @@ const drawCompetitions = competitions
   // is treated as redacted, so a protected field never advertises strength („nach Leistungsklasse gesetzt")
   // in the gap before its `redacted: false` arrives — the leak the old synchronous slug guard couldn't have.
   // Re-run on every render (the flag may only arrive with the feeds) and on every tab switch.
+  // The field on screen: the selected tab, or — once the filter is down to a single option and no longer
+  // renders (ADR-0062) — the one panel that is left.
+  const selectedSlug = (): string | undefined =>
+    root?.querySelector<HTMLElement>('[data-tab][aria-selected="true"]')?.dataset.tab ??
+    root?.querySelector<HTMLElement>('[data-panel]:not([hidden])')?.dataset.panel
+
   const syncSeedLegend = () => {
     if (!root) return
     const seedLegend = root.querySelector<HTMLElement>('[data-legend-seed]')
-    const selected = root.querySelector<HTMLElement>('[data-tab][aria-selected="true"]')
-    if (seedLegend && selected) seedLegend.hidden = redactedByComp.get(selected.dataset.tab!) ?? true
+    const slug = selectedSlug()
+    if (seedLegend && slug !== undefined) seedLegend.hidden = redactedByComp.get(slug) ?? true
   }
 
   const render = () => {
@@ -629,30 +635,82 @@ const drawCompetitions = competitions
     syncSeedLegend()
   }
 
-  const initTabs = () => {
+  // The tabs are read from the live DOM on every use, never captured: a cancelled field's tab leaves
+  // the filter after the wiring (ADR-0062), and a captured array would keep steering arrow keys onto a
+  // detached button.
+  const tabsNow = () => [...(root?.querySelectorAll<HTMLButtonElement>('[data-tab]') ?? [])]
+
+  const selectTab = (slug: string) => {
     if (!root) return
-    const tabs = [...root.querySelectorAll<HTMLButtonElement>('[data-tab]')]
-    const select = (slug: string) => {
-      tabs.forEach(t => t.setAttribute('aria-selected', String(t.dataset.tab === slug)))
-      root.querySelectorAll<HTMLElement>('[data-panel]').forEach(p => (p.hidden = p.dataset.panel !== slug))
-      // Sync the seed legend to the newly-selected tab, reading the wire's redaction flag (ADR-0048).
-      syncSeedLegend()
-    }
-    tabs.forEach((tab, i) => {
-      tab.addEventListener('click', () => select(tab.dataset.tab!))
+    tabsNow().forEach(t => t.setAttribute('aria-selected', String(t.dataset.tab === slug)))
+    root.querySelectorAll<HTMLElement>('[data-panel]').forEach(p => (p.hidden = p.dataset.panel !== slug))
+    // Sync the seed legend to the newly-selected tab, reading the wire's redaction flag (ADR-0048).
+    syncSeedLegend()
+  }
+
+  const initTabs = () => {
+    const tabs = tabsNow()
+    tabs.forEach(tab => {
+      tab.addEventListener('click', () => selectTab(tab.dataset.tab!))
       tab.addEventListener('keydown', e => {
         if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return
         e.preventDefault()
-        const next = (i + (e.key === 'ArrowRight' ? 1 : tabs.length - 1)) % tabs.length
-        tabs[next].focus()
-        select(tabs[next].dataset.tab!)
+        const live = tabsNow()
+        const i = live.indexOf(tab)
+        const next = (i + (e.key === 'ArrowRight' ? 1 : live.length - 1)) % live.length
+        live[next].focus()
+        selectTab(live[next].dataset.tab!)
       })
     })
     // Select the server-rendered initial tab (first tab = championship). The seed legend stays hidden until
     // a feed confirms the field is not redacted (fail-safe, ADR-0048); on the championship tab it appears
     // with the first participants fetch, alongside the rest of the bracket populating.
     const initial = tabs.find(t => t.getAttribute('aria-selected') === 'true') ?? tabs[0]
-    if (initial) select(initial.dataset.tab!)
+    if (initial) selectTab(initial.dataset.tab!)
+  }
+
+  // The competition filter degrades with the cancellations (ADR-0062). Its options are enumerated from
+  // the static competition list, so a cancelled field keeps its tab even though no wire fills its panel
+  // any more — the tab and the panel are dropped outright here, and a filter left with a single option
+  // does not render at all: with one field there is nothing to choose between, and the lone panel is the
+  // surface. The tabs are wired first and this runs after its read resolves — a filter that only works
+  // once the network answers would be worse than one option too many. Fail-open on a read error, like
+  // every other public read: a transient failure must never take a running field off the page.
+  //
+  // This is the front door *applying* the decision, not a surface re-deriving it (ADR-0062 §4 and the
+  // carve-out CONTEXT.md records): these tabs are enumerated statically at build time, exactly like the
+  // competition cards. Deriving them from the feeds instead — the way /spielplan's filter legitimately
+  // does — would tie a field's tab to its having rows, and a not-yet-drawn field with no confirmed
+  // entries (or any field at all while the participant list's kill-switch is off) would lose its
+  // preview with it.
+  const dropCancelledTabs = async () => {
+    if (!root) return
+    let cancelled: readonly string[] = []
+    try {
+      const res = await client.api.phase.$get()
+      if (res.ok) cancelled = (await res.json()).cancelledCompetitions
+    } catch {
+      return
+    }
+    for (const slug of cancelled) {
+      root.querySelector(`[data-tab="${slug}"]`)?.remove()
+      root.querySelector(`[data-panel="${slug}"]`)?.remove()
+    }
+    const panels = [...root.querySelectorAll<HTMLElement>('[data-panel]')]
+    if (panels.length < 2) {
+      root.querySelector('[data-tabs]')?.remove()
+      // The lone panel is the surface now, not a tab's panel: it shows unconditionally and drops the
+      // tab roles, whose `aria-labelledby` would otherwise point at a button that no longer exists.
+      panels.forEach(panel => {
+        panel.hidden = false
+        panel.removeAttribute('role')
+        panel.removeAttribute('aria-labelledby')
+      })
+      return
+    }
+    // A cancelled field may have been the selected tab — hand the selection to a survivor rather than
+    // leave the surface with no panel showing.
+    if (!root.querySelector('[data-panel]:not([hidden])')) selectTab(panels[0].dataset.panel!)
   }
 
   // The participant feed seeds the pre-draw preview; it changes rarely, so it loads once (and on a
@@ -727,6 +785,9 @@ const drawCompetitions = competitions
   }
 
   initTabs()
+  // The cancelled fields leave the filter as soon as the phase read answers; the wiring above does not
+  // wait on it, so the tabs work from the first paint either way.
+  dropCancelledTabs()
   loadParticipants()
   poll()
   startPolling()

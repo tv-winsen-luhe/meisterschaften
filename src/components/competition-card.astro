@@ -37,7 +37,7 @@ const audienceColor = variant === 'dark' || variant === 'clay' ? 'text-white' : 
 const blurbColor = { light: 'opacity-65', dark: 'text-white/80', clay: 'text-white/80', blue: 'opacity-80' }[variant]
 ---
 
-<Card variant={variant} stagger={stagger}>
+<Card variant={variant} stagger={stagger} competition={competition.slug}>
   <span class={badgeClass}>{style.badge}</span>
   <div class="my-5 flex flex-col gap-1 uppercase">
     <span class:list={['text-[clamp(11px,2.8cqw,15px)] font-bold tracking-[0.18em]', typeColor]}>{style.type}</span>
