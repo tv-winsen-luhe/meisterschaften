@@ -1,7 +1,12 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { hc } from 'hono/client'
 import type { AppType } from '../../worker/app'
-import type { CompetitionSlug } from '../../shared'
+import {
+  type AdminRegistration,
+  type CompetitionSlug,
+  type UnderfilledCompetition,
+  underfilledCompetitions
+} from '../../shared'
 
 // The competition-cancellation seam (ADR-0062), kept out of the admin shell like useSchedule: which
 // competitions the operator has cancelled, and the toggle that cancels one or takes it back.
@@ -21,9 +26,16 @@ interface CancellationApi {
   cancelledCompetitions: CompetitionSlug[]
   // Cancel one competition, or take the cancellation back; resolves to whether the write took.
   setCompetitionCancelled: (competition: CompetitionSlug, cancelled: boolean) => Promise<boolean>
+  // The competitions under their threshold, for the „Anmeldung schließen" dialog's hint. The advisory
+  // half of the seam: it names what is worth cancelling, and cancels nothing.
+  underfilled: UnderfilledCompetition[]
 }
 
-export const useCancellation = (client: Client, mutate: Mutate): CancellationApi => {
+export const useCancellation = (
+  client: Client,
+  mutate: Mutate,
+  registrations: AdminRegistration[]
+): CancellationApi => {
   const [cancelledCompetitions, setCancelled] = useState<CompetitionSlug[]>([])
 
   useEffect(() => {
@@ -60,5 +72,14 @@ export const useCancellation = (client: Client, mutate: Mutate): CancellationApi
     [client, mutate]
   )
 
-  return { cancelledCompetitions, setCompetitionCancelled }
+  // The threshold hint (ADR-0062), derived from the same admin list every surface reads: the confirmed
+  // count is the number the decision hangs on, and the already-cancelled fields drop out of the advice.
+  const underfilled = useMemo(() => {
+    const confirmed: Partial<Record<CompetitionSlug, number>> = {}
+    for (const reg of registrations)
+      if (reg.status === 'confirmed') confirmed[reg.competition] = (confirmed[reg.competition] ?? 0) + 1
+    return underfilledCompetitions(confirmed, cancelledCompetitions)
+  }, [registrations, cancelledCompetitions])
+
+  return { cancelledCompetitions, setCompetitionCancelled, underfilled }
 }
