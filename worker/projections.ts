@@ -2,6 +2,7 @@ import {
   bracketDepth,
   type CompetitionDraw,
   type CompetitionSlug,
+  isCancelledCompetition,
   isFullyRevealed,
   type LiveBracket,
   type LiveBracketSlot,
@@ -160,10 +161,14 @@ export const createProjections = (deps: ProjectionsDeps) => {
      * operatorDraws() under Access, which never redacts whatever this one decides (ADR-0044).
      */
     async publicDraws(): Promise<PublicCompetitionBracket[]> {
-      // Two independent reads: the cursor-sliced reveal build (the revealing phase) and the full draw set
-      // (a fully-revealed field resolves its live bracket from the matches aggregate). No dependency
-      // between them on a user-facing path, so fetch together.
-      const [reveals, draws] = await Promise.all([buildReveals(), drawStore.listDraws()])
+      // Three independent reads: the cursor-sliced reveal build (the revealing phase), the full draw set
+      // (a fully-revealed field resolves its live bracket from the matches aggregate), and the cancelled
+      // set. No dependency between them on a user-facing path, so fetch together.
+      const [reveals, draws, cancelled] = await Promise.all([
+        buildReveals(),
+        drawStore.listDraws(),
+        appStateStore.getCancelledCompetitions()
+      ])
       const revealByComp = new Map(reveals.map(r => [r.competition, r]))
 
       // The drawn brackets per competition. `listDraws` returns one entry per competition+bracket; the
@@ -172,6 +177,15 @@ export const createProjections = (deps: ProjectionsDeps) => {
       const mainByComp = new Map<CompetitionSlug, CompetitionDraw>()
       const consolationByComp = new Map<CompetitionSlug, CompetitionDraw>()
       for (const d of draws) {
+        // A cancelled competition leaves the wire here, server-side (ADR-0062 §4): the flag is *read*, not
+        // re-derived, and it is read on the draw set rather than inside `buildReveals` — that build is
+        // shared with the never-filtered operatorDraws (ADR-0044), and gating the public wire on the draw
+        // set drops both phases of the two-phase bracket together (a revealing field only reaches the
+        // response through `mainByComp`). The cost is a name join for a field about to be discarded, on a
+        // path where a cancelled competition is normally unreachable anyway — a drawn field cannot be
+        // cancelled and a cancelled one cannot be drawn. The filter stands regardless, because the
+        // projection owes the same answer as every other wire whatever the write side let through.
+        if (isCancelledCompetition(cancelled, d.competition)) continue
         if (d.bracket === 'main') mainByComp.set(d.competition, d)
         else if (d.bracket === 'consolation') consolationByComp.set(d.competition, d)
       }
@@ -238,13 +252,20 @@ export const createProjections = (deps: ProjectionsDeps) => {
      * live board (#91), which must never be blanked out from under a running match.
      */
     async schedule(): Promise<ScheduleFeed> {
-      // Three independent reads on a user-facing path: placed matches, reveal states, and the publish flag
-      // hit different tables with no dependency between them, so fetch them together rather than serially.
-      const [all, reveals, published] = await Promise.all([
+      // Four independent reads on a user-facing path: placed matches, reveal states, the publish flag and
+      // the cancelled set hit different tables with no dependency between them, so fetch them together
+      // rather than serially.
+      const [allMatches, reveals, published, cancelled] = await Promise.all([
         drawStore.listMatches(),
         mainReveals(),
-        appStateStore.getSchedulePublished()
+        appStateStore.getSchedulePublished(),
+        appStateStore.getCancelledCompetitions()
       ])
+
+      // A cancelled competition leaves the feed server-side (ADR-0062 §4), before numbering and slot
+      // resolution — the board must show no match for a field that does not take place, and dropping the
+      // matches here keeps the „Sieger M{n}" numbering of the remaining fields untouched.
+      const all = allMatches.filter(m => !isCancelledCompetition(cancelled, m.competition))
 
       // Honor the main reveal cursor (ADR-0036): a placed `main` match leaves the server only once its
       // competition's draw is fully revealed — the schedule feed must not leak pairings ahead of the reveal

@@ -18,8 +18,9 @@ import { createD1AppStateStore } from '../worker/store/app-state'
 // signal travels: the pure predicate, the Store (including its fail-closed degradation), and the HTTP
 // seam — the operator route with its one refusal, and the participant list that stops serving the field.
 //
-// The cross-projection invariant (draws + schedule feed) lands with the last of those wires (#278); what
-// is asserted here is the participant list, the /api/phase carriage, and that no registration row moves.
+// The cross-projection invariant — a cancelled competition missing from *every* public wire at once —
+// lives in cancellation-cross-projection.test.ts, over the in-memory stores; what is asserted here is the
+// participant list, the /api/phase carriage, and that no registration row moves, all over a real D1.
 
 // ── The predicate: pure, and the set comes in as a parameter ──────────────────────────────────────
 describe('isCancelledCompetition / activeCompetitions (shared/cancellation.ts)', () => {
