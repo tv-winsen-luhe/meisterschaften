@@ -9,6 +9,8 @@ interface Anchor {
   label: string
   // Phase-gated anchor (ADR-0042 revised) — hidden during signup, revealed once phase ≠ signup.
   gated?: boolean
+  // Slot in the results order the front door switches to from `tournament` onward (ADR-0060 §5).
+  resultsOrder?: number
 }
 
 interface Props {
@@ -23,8 +25,8 @@ interface Props {
   chrome?: 'event' | 'legal' | 'none'
   headerAnchors?: Anchor[]
   headerCta?: { href: string; label: string; competition?: string }
-  // Per-phase replacements for the header CTA, shipped hidden beside it (ADR-0042 revised).
-  headerPhaseCtas?: { phase: 'tournament' | 'post-event'; href: string; label: string }[]
+  // Per-lead replacements for the header CTA, shipped hidden beside it (ADR-0042 revised, ADR-0060 §6).
+  headerPhaseCtas?: { lead: string; href: string; label: string }[]
 }
 
 const {

@@ -93,17 +93,52 @@ html {
      (the „Der Draw" section and its nav link). The client-side phase read also *adds* it to the
      signup affordances it hides, so reveal and hide are the same attribute-toggle in both
      directions.
-   - [data-phase-lead="<phase>"] ships on the per-phase alternatives (hero lead, header CTA); the
-     phase read removes it from the one matching element only.
+   - [data-phase-lead="<lead> <lead>…"] ships on the per-lead alternatives (hero lead, header CTA,
+     the time-bound Konkurrenzen lines); the phase read removes it from the elements opting into an
+     active lead and gates the rest (ADR-0060 amendment §3).
    Default-hidden is the months-long signup common case, so there is no flash, and a failed or
-   absent phase read degrades to the statically rendered signup page.
+   absent phase read degrades to the statically rendered signup page. Which is exactly why a lead
+   list containing `signup` is *not* hidden here: the static page already is the signup page, so
+   those elements ship visible and the phase read takes them away via [data-phase-gate] instead.
 
    `!important` because this is a hard gate, not a style: the elements it hides carry their own
    display rules (`.cta-primary`, section layout, Tailwind utilities) at equal specificity, which
    would otherwise win on source order alone and leave a stale „Anmelden" button on the page. */
 [data-phase-gate],
-[data-phase-lead] {
+[data-phase-lead]:not([data-phase-lead~='signup']) {
   display: none !important;
+}
+
+/* The results order (ADR-0060 §4/§5). One DOM, two orders: the document order *is* the signup
+   marketing order, and these classes only bite under the `.is-results-order` body class the phase
+   read sets from `tournament` onward. Both flex containers it applies to — the homepage's section
+   wrapper and the header nav — get the same numbering, so „Der Draw" and „Das Feld" rise to the
+   top of the page and of the map of the page. Anything without a class keeps order 0 and therefore
+   stays first (the hero); a section added later lands in the marketing order by default, which is
+   the harmless direction. */
+.is-results-order .results-order-1 {
+  order: 1;
+}
+.is-results-order .results-order-2 {
+  order: 2;
+}
+.is-results-order .results-order-3 {
+  order: 3;
+}
+.is-results-order .results-order-4 {
+  order: 4;
+}
+.is-results-order .results-order-5 {
+  order: 5;
+}
+.is-results-order .results-order-6 {
+  order: 6;
+}
+.is-results-order .results-order-7 {
+  order: 7;
+}
+.is-results-order .results-order-8 {
+  order: 8;
 }
 
 /* Shared CTA buttons — used by the front door, the competition cards, the signup modal and the

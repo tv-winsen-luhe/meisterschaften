@@ -68,23 +68,31 @@ const sunday = [
   bodyClass="bg-surface-alt"
   chrome="event"
   headerAnchors={[
-    { href: '#event', label: 'Event' },
-    { href: '#competitions', label: 'Konkurrenzen' },
-    { href: '#participants', label: 'Wer ist dabei' },
-    { href: '#draw', label: 'Draw', gated: true },
-    { href: '#format', label: 'Modus' },
-    { href: '#weekend', label: 'Ablauf' },
-    { href: '#drumherum', label: 'Drumherum' },
-    { href: '#faq', label: 'FAQ' }
+    { href: '#event', label: 'Event', resultsOrder: 3 },
+    { href: '#competitions', label: 'Konkurrenzen', resultsOrder: 4 },
+    { href: '#participants', label: 'Wer ist dabei', resultsOrder: 2 },
+    { href: '#draw', label: 'Draw', gated: true, resultsOrder: 1 },
+    { href: '#format', label: 'Modus', resultsOrder: 5 },
+    { href: '#weekend', label: 'Ablauf', resultsOrder: 6 },
+    { href: '#drumherum', label: 'Drumherum', resultsOrder: 7 },
+    { href: '#faq', label: 'FAQ', resultsOrder: 8 }
   ]}
   headerCta={{ href: '#', label: 'Anmelden' }}
   headerPhaseCtas={[
-    { phase: 'tournament', href: '/spielplan', label: 'Spielplan' },
-    { phase: 'post-event', href: '#draw', label: 'Tableau' }
+    { lead: 'tournament-field', href: '#participants', label: 'Wer ist dabei' },
+    { lead: 'tournament-draw', href: '#draw', label: 'Tableau' },
+    { lead: 'tournament-schedule', href: '/spielplan', label: 'Spielplan' },
+    { lead: 'post-event', href: '#draw', label: 'Tableau' }
   ]}
 >
-  <div class="mx-auto max-w-[1280px] px-5 pt-6 text-navy md:px-10 md:pt-8">
-    <!-- Hero -->
+  {
+    /* A flex column so the sections can carry two orders on one DOM (ADR-0060 §5): the document
+      order is the signup marketing order, and the `results-order-*` classes below only bite under
+      the `.is-results-order` body class the phase read sets. No `gap` — the sections space
+      themselves with padding, never margins, so nothing was collapsing here to begin with. */
+  }
+  <div class="mx-auto flex max-w-[1280px] flex-col px-5 pt-6 text-navy md:px-10 md:pt-8">
+    <!-- Hero — no order class, so order 0 keeps it first in both orders. -->
     <section class="flex min-h-dvh flex-col justify-center pt-16 pb-[72px] md:pt-24 md:pb-[104px]">
       <div class="hero-head">
         <h1
@@ -122,7 +130,7 @@ const sunday = [
 
         {
           /* The hero lead is the swap set's centrepiece (ADR-0042 §4): the signup lead renders
-             statically (the months-long common case, no flash), the two later leads ship hidden
+             statically (the months-long common case, no flash), the four later leads ship hidden
              beside it and the phase read swaps in the matching one. The statement „signup is over"
              lives here, once — the stale affordances elsewhere are removed without comment. */
         }
@@ -143,11 +151,35 @@ const sunday = [
           </div>
         </div>
 
-        <div class="enter enter--7 mt-8" data-phase-lead="tournament">
+        {
+          /* `tournament` is one phase but three moments (ADR-0060 §1), so it ships three leads and
+            the stage rule picks one. Each points only at a surface that has something on it: until
+            a bracket exists „Das Feld" is the only one, /spielplan would still say „noch nicht
+            veröffentlicht". Stage 1's „live, hier auf dieser Seite" holds because „Der Draw" is
+            revealed from `tournament` onward — if the reveal show ever moves to its own surface,
+            that sentence moves with it. */
+        }
+        <div class="enter enter--7 mt-8" data-phase-lead="tournament-field">
           <p class="hero-lead__headline">Die Anmeldung ist geschlossen.</p>
-          <p class="hero-lead__sub">
-            Das Feld steht, die Auslosung läuft. Wer wann auf welchem Platz spielt, steht im Spielplan.
-          </p>
+          <p class="hero-lead__sub">Das Feld steht. Die Auslosung folgt — live, hier auf dieser Seite.</p>
+          <div class="flex flex-wrap items-center gap-6">
+            <a href="#participants" class="cta-primary">Wer ist dabei? <span aria-hidden="true">&darr;</span></a>
+            <a href="#weekend" class="cta-secondary">Der Ablauf <span aria-hidden="true">&darr;</span></a>
+          </div>
+        </div>
+
+        <div class="enter enter--7 mt-8" data-phase-lead="tournament-draw">
+          <p class="hero-lead__headline">Die Auslosung ist da.</p>
+          <p class="hero-lead__sub">Wer gegen wen — das komplette Tableau.</p>
+          <div class="flex flex-wrap items-center gap-6">
+            <a href="#draw" class="cta-primary">Zum Tableau <span aria-hidden="true">&darr;</span></a>
+            <a href="#participants" class="cta-secondary">Wer ist dabei? <span aria-hidden="true">&darr;</span></a>
+          </div>
+        </div>
+
+        <div class="enter enter--7 mt-8" data-phase-lead="tournament-schedule">
+          <p class="hero-lead__headline">Der Spielplan steht.</p>
+          <p class="hero-lead__sub">Wer wann auf welchem Platz spielt.</p>
           <div class="flex flex-wrap items-center gap-6">
             <a href="/spielplan" class="cta-primary">Zum Spielplan</a>
             <a href="#draw" class="cta-secondary">Zum Tableau <span aria-hidden="true">&darr;</span></a>
@@ -168,7 +200,7 @@ const sunday = [
     </section>
 
     <!-- Das Event -->
-    <section id="event" class:list={[sectClass]} tabindex="-1">
+    <section id="event" class:list={[sectClass, 'results-order-3']} tabindex="-1">
       <SectionHeader
         eyebrow="Das Event"
         headline={['Ein Wochenende', 'für alle.']}
@@ -214,12 +246,43 @@ const sunday = [
     </section>
 
     <!-- Konkurrenzen -->
-    <section id="competitions" class:list={[sectClass]} tabindex="-1">
-      <SectionHeader
-        eyebrow="Konkurrenzen"
-        headline={['Wähl dein', 'Feld.']}
-        note={`Vier Felder, zwei je Seite: bei den Damen das Hauptfeld um die Winsener Meisterin und das gesellige Damen Doppel zum Kennenlernen; bei den Herren das Hauptfeld und das geschützte Challenger-Feld auf Augenhöhe (ab LK 20). Dein Feld wählst du bei der Anmeldung selbst, deine Leistungsklasse musst du dafür nicht kennen. Startgeld: ${entryFee} € pro Person, bar vor Ort beim Check-in.`}
-      />
+    <section id="competitions" class:list={[sectClass, 'results-order-4']} tabindex="-1">
+      {
+        /* „Wähl dein Feld." is an imperative over four fields nobody can enter any more the moment
+          signup closes, so the framing follows the phase like every other signup affordance — while
+          the section itself stays: a visitor reading the draw needs it to know what „Herren
+          Challenger" means (ADR-0060 amendment §1). The trigger is the phase, not the draw: the
+          three stages steer where the page *points*, they do not decide whether a sentence is true. */
+      }
+      <div data-signup-lead>
+        <SectionHeader eyebrow="Konkurrenzen" headline={['Wähl dein', 'Feld.']} />
+      </div>
+      <div data-phase-lead="tournament post-event">
+        <SectionHeader eyebrow="Konkurrenzen" headline={['Die vier', 'Felder.']} />
+      </div>
+
+      {
+        /* One descriptive core that is true in every phase, plus two time-bound add-ons gated
+          beside it — rather than a second copy of the description that could drift (amendment §2).
+          `gap` rather than `space-y`, so a hidden line leaves no stray margin behind. */
+      }
+      <div class="mb-14 flex max-w-[48ch] flex-col gap-3 text-[15px] leading-[1.6] opacity-70">
+        <p class="m-0">
+          Vier Felder, zwei je Seite: bei den Damen das Hauptfeld um die Winsener Meisterin und das gesellige Damen
+          Doppel zum Kennenlernen; bei den Herren das Hauptfeld und das geschützte Challenger-Feld auf Augenhöhe (ab LK
+          20).
+        </p>
+        <p class="m-0" data-signup-lead>
+          Dein Feld wählst du bei der Anmeldung selbst, deine Leistungsklasse musst du dafür nicht kennen.
+        </p>
+        {
+          /* Still true while the event runs — the Startgeld is paid at the check-in desk — so this
+            line survives into `tournament` and only leaves in `post-event`. */
+        }
+        <p class="m-0" data-phase-lead="signup tournament">
+          Startgeld: {entryFee} € pro Person, bar vor Ort beim Check-in.
+        </p>
+      </div>
 
       {
         /* Two gender pairs, Damen first (ADR-0051). Each pair leads with its Hauptfeld, then the soft
@@ -245,7 +308,12 @@ const sunday = [
               stagger={1}
             />
           </div>
-          <div class="reveal mt-0.5 min-[901px]:ml-auto min-[901px]:w-[calc(50%-1px)]">
+          {
+            /* The objection flip answers „traue ich mich?" — a question nobody has after the
+              deadline — so it joins the existing swap set via [data-signup-lead] (ADR-0060
+              amendment §4). The cards, chips and blurbs stay: they describe the field. */
+          }
+          <div class="reveal mt-0.5 min-[901px]:ml-auto min-[901px]:w-[calc(50%-1px)]" data-signup-lead>
             <FieldFlip slug="womens-social" />
           </div>
           <p class="reveal mt-5 text-[13px] leading-[1.6] font-semibold opacity-70" data-signup-lead>
@@ -269,7 +337,7 @@ const sunday = [
               stagger={1}
             />
           </div>
-          <div class="reveal mt-0.5 min-[901px]:ml-auto min-[901px]:w-[calc(50%-1px)]">
+          <div class="reveal mt-0.5 min-[901px]:ml-auto min-[901px]:w-[calc(50%-1px)]" data-signup-lead>
             <FieldFlip slug="mens-challenger" />
           </div>
         </div>
@@ -277,7 +345,7 @@ const sunday = [
     </section>
 
     <!-- Wer ist dabei -->
-    <section id="participants" class:list={[sectClass, 'sect--clay']} tabindex="-1">
+    <section id="participants" class:list={[sectClass, 'sect--clay', 'results-order-2']} tabindex="-1">
       <SectionHeader
         eyebrow="Wer ist dabei"
         headline={['Das', 'Feld.']}
@@ -288,7 +356,7 @@ const sunday = [
 
     <!-- Der Draw — hidden during signup, revealed once phase ≠ signup (ADR-0042 revised). During
          signup nothing is drawn yet; the provisional seeding still shows on „Das Feld". -->
-    <section id="draw" class:list={[sectClass]} tabindex="-1" data-phase-gate>
+    <section id="draw" class:list={[sectClass, 'results-order-1']} tabindex="-1" data-phase-gate>
       <SectionHeader
         eyebrow="Auslosung"
         headline={['Der', 'Draw.']}
@@ -298,7 +366,7 @@ const sunday = [
     </section>
 
     <!-- Modus -->
-    <section id="format" class:list={[sectClass]} tabindex="-1">
+    <section id="format" class:list={[sectClass, 'results-order-5']} tabindex="-1">
       <SectionHeader
         eyebrow="Modus"
         headline={['So wird', 'gespielt.']}
@@ -322,7 +390,7 @@ const sunday = [
     </section>
 
     <!-- Der Ablauf -->
-    <section id="weekend" class:list={[sectClass]} tabindex="-1">
+    <section id="weekend" class:list={[sectClass, 'results-order-6']} tabindex="-1">
       <SectionHeader
         eyebrow="Der Ablauf"
         headline={['Das', 'Wochenende.']}
@@ -366,7 +434,7 @@ const sunday = [
     </section>
 
     <!-- Drumherum -->
-    <section id="drumherum" class:list={[sectClass]} tabindex="-1">
+    <section id="drumherum" class:list={[sectClass, 'results-order-7']} tabindex="-1">
       <SectionHeader
         eyebrow="Drumherum"
         headline={['Mehr als', 'Tennis.']}
@@ -408,7 +476,7 @@ const sunday = [
     </section>
 
     <!-- FAQ -->
-    <section id="faq" class:list={[sectClass]} tabindex="-1">
+    <section id="faq" class:list={[sectClass, 'results-order-8']} tabindex="-1">
       <SectionHeader eyebrow="FAQ" headline={['Gut zu', 'wissen.']} />
 
       <div class="reveal max-w-[720px]">
@@ -872,10 +940,11 @@ const sunday = [
 </script>
 
 <script>
-  // The front door is a phase-projected door (ADR-0042): the signup lead renders statically, and one
-  // phase read swaps in the „Turnier"/„Post-Event" lead, hides the signup affordances and reveals
-  // „Der Draw". The projection itself is shared with /abmelden.
+  // The front door is a phase-projected door (ADR-0042, ADR-0060): the signup lead renders
+  // statically, and the phase read swaps in the matching later lead, hides the signup affordances,
+  // reveals „Der Draw" and switches the page to its results order. `frontDoor` buys the two extra
+  // reads behind the three `tournament` stages — this is the only page that has stages to show.
   import { projectPhaseOnLoad } from '@/scripts/phase-projection'
 
-  projectPhaseOnLoad()
+  projectPhaseOnLoad({ frontDoor: true })
 </script>

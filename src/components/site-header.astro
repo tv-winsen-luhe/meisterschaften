@@ -9,10 +9,15 @@ interface Anchor {
   // client-side by the front door's phase read once phase ≠ signup. Used for the „Draw" link, whose
   // target section is hidden during signup.
   gated?: boolean
+  // Slot in the results order (ADR-0060 §5). The nav is already a flex container, so it reorders
+  // with the page it maps; without a slot the anchor stays where the markup puts it.
+  resultsOrder?: number
 }
 
 interface PhaseCta {
-  phase: 'tournament' | 'post-event'
+  // The front-door lead this CTA belongs to („tournament-draw", „post-event", …) — the header CTA
+  // follows the hero lead's primary action, so the page never offers two different next steps.
+  lead: string
   href: string
   label: string
 }
@@ -22,9 +27,9 @@ interface Props {
   anchors?: Anchor[]
   // `competition` preselects that field in the signup modal; omit it to open with the form default.
   cta?: { href: string; label: string; competition?: string }
-  // Per-phase replacements for `cta`, shipped hidden beside it (ADR-0042 revised). Below the nav
-  // breakpoint the CTA is the header's only control, so the slot is refilled rather than emptied
-  // when the signup affordance goes away.
+  // Per-lead replacements for `cta`, shipped hidden beside it (ADR-0042 revised, ADR-0060 §6).
+  // Below the nav breakpoint the CTA is the header's only control, so the slot is refilled rather
+  // than emptied when the signup affordance goes away.
   phaseCtas?: PhaseCta[]
 }
 
@@ -63,7 +68,11 @@ const home = import.meta.env.BASE_URL || '/'
           {anchors.length > 0 && (
             <nav class="site-header__nav" aria-label="Seitenabschnitte">
               {anchors.map(a => (
-                <a href={a.href} class="site-header__nav-link" data-phase-gate={a.gated ? '' : undefined}>
+                <a
+                  href={a.href}
+                  class:list={['site-header__nav-link', a.resultsOrder && `results-order-${a.resultsOrder}`]}
+                  data-phase-gate={a.gated ? '' : undefined}
+                >
                   {a.label}
                 </a>
               ))}
@@ -84,7 +93,7 @@ const home = import.meta.env.BASE_URL || '/'
           )}
 
           {phaseCtas.map(p => (
-            <a href={p.href} class="cta-primary cta-primary--sm site-header__cta" data-phase-lead={p.phase}>
+            <a href={p.href} class="cta-primary cta-primary--sm site-header__cta" data-phase-lead={p.lead}>
               {p.label}
             </a>
           ))}
