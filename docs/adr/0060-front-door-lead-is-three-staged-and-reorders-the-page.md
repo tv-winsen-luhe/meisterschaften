@@ -135,3 +135,55 @@ post-event` remains the operator's whole vocabulary. "After the deadline, before
 - Two orders means one new failure mode to watch: a section added later gets a marketing-order slot
   by default and no results-order slot. The order classes live beside each section, so the omission
   is visible where it happens rather than in a central list.
+
+## Amendment (2026-08-16): Konkurrenzen keeps its content but not its imperative
+
+§4 said "Konkurrenzen keeps explaining the fields once its ‚Anmelden' buttons are gone". That is
+half right, and the half it got wrong is the section's own headline: **„Wähl dein Feld."** Removing
+the buttons leaves an imperative standing over four fields nobody can enter any more — and the note
+under it („Dein Feld wählst du bei der Anmeldung selbst") repeats the instruction in prose. The
+section is not deleted (the "hiding Konkurrenzen" rejection above still stands: a visitor reading
+the draw needs this section to know what „Herren Challenger" means) — but its **framing follows the
+phase like every other signup affordance does**.
+
+1. **The trigger is the phase, not the draw.** „Wähl dein Feld" is false from the moment signup
+   closes, not from the first bracket. The three stages of §1 steer _where the page points_; they do
+   not decide whether a sentence is true. So the header swaps at `signup → tournament`, the same
+   boundary that removes the „Anmelden" buttons and (per §4) flips the order.
+
+2. **One descriptive core, two gated add-ons.** The field description itself is phase-independent
+   and stays a single string — no second copy to drift. Only the time-bound sentences are gated,
+   as separate paragraphs beside the `SectionHeader` (whose `note` is a string prop, not a slot):
+
+   | Line                                                    | Visible in             |
+   | ------------------------------------------------------- | ---------------------- |
+   | „Vier Felder, zwei je Seite: …" (the description)       | all phases             |
+   | „Dein Feld wählst du bei der Anmeldung selbst, …"       | `signup`               |
+   | „Startgeld: 5 € pro Person, bar vor Ort beim Check-in." | `signup`, `tournament` |
+
+   The headline becomes „Die vier / Felder." from `tournament` onward.
+
+3. **`data-phase-lead` learns multiple values.** Matching becomes a split on whitespace
+   (`data-phase-lead="signup tournament"`), because the binary cut _signup vs. the rest_ is exactly
+   what §4's two orders need as well — a single-valued attribute would force every such element into
+   two identical hidden copies. The matching itself is a pure function beside `project()` and is
+   unit-tested; the DOM plumbing around it stays untested as before.
+
+4. **Conversion blocks join the existing swap set.** The two `FieldFlip` blocks answer „traue ich
+   mich?" — a question nobody has after the deadline — and the Damen cross-sell line („meld dich
+   einfach für beide an") is a signup instruction that shipped **ungated**, i.e. visibly false on the
+   tournament weekend. Both carry `data-signup-lead`, the attribute that already means "signup-only
+   block". No new attribute. The cards, their chips and their blurbs stay: they describe the field.
+
+5. **The cards end without a CTA, deliberately.** Linking each card to its bracket was rejected on
+   ADR-0042 §1's unchanged ground — the front door points, and four card-level jumps into `#draw`
+   would build a second navigation next to the results order.
+
+6. **The evergreen Startgeld FAQ is not an inconsistency.** „Was kostet die Teilnahme?" keeps its
+   answer in every phase while the identical sentence is gated out of the Konkurrenzen note. A FAQ
+   **answers a question that was asked**; a note sentence **asserts unprompted**. A price that is
+   looked up ages differently from one that jumps at you. Recorded here so the next reader does not
+   "fix" it.
+
+The ungated cross-sell line ships on its own as a bug fix; the rest is built with the order swap in
+issue #267, since both rewrite the same section.
