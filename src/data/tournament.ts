@@ -1,6 +1,7 @@
 import { CHALLENGER_MIN_LK, DEFAULT_LK } from '../../shared/constants'
 import { COMPETITION_SLUGS } from '../../shared/competition'
 import { SCHEDULE } from '../../shared/schedule'
+import { SOCIAL_MIXER_BLOCK, socialMixerBlockTime } from '../../shared/social-mixer'
 
 export type CompetitionStatus = 'open' | 'planned'
 
@@ -60,12 +61,15 @@ export const matchSlotsPerWeekend = courtSchedule.courts * courtSchedule.matches
 
 /**
  * Court-slot reservation for the women's social mixer, which shares the event weekend's courts
- * (ADR-0023, ADR-0051). It runs Sunday midday on ~3 side courts inside the finals day; ~6 = 3 courts ×
- * a two-slot midday block. Shown as its own segment in the total-utilization gauge so the championship
- * load and this reservation read against the same 72-slot budget. Revisable once the soft-launch
- * feedback gives real size numbers.
+ * (ADR-0023, ADR-0051). **Derived from `SOCIAL_MIXER_BLOCK`** — the one definition of when and where the
+ * mixer occupies courts (ADR-0063) — rather than asserted beside it, so the gauge can never disagree with
+ * the reservation the schedule validator actually enforces. In the budget's units one slot is one match,
+ * so the block's three hours on three courts read as 3 × (180 / 90) = 6. Shown as its own segment in the
+ * total-utilization gauge, against the same 72-slot budget as the championship load.
  */
-export const socialMixerReservedSlots = 6
+export const socialMixerReservedSlots =
+  SOCIAL_MIXER_BLOCK.courts.length *
+  ((SOCIAL_MIXER_BLOCK.endMinutes - SOCIAL_MIXER_BLOCK.startMinutes) / SCHEDULE.matchMinutes)
 
 /** Default LK for participants without a nuLiga entry (set in admin). Single source: shared/. */
 export const defaultLk = DEFAULT_LK
@@ -121,7 +125,7 @@ export const competitions: readonly Competition[] = [
     // Concrete-format copy for the soft-launch (ADR-0051); the homepage presentation (equal-weight
     // cards, Damen first, momentum framing instead of „Plätze frei") is a follow-up design pass.
     blurb:
-      'Du meldest dich allein an. Wir spielen Doppel, die Partnerinnen wechseln reihum — so spielst du im Lauf des Nachmittags mit und gegen viele verschiedene. Kein Turnierbaum, kein Ergebnis, kein Titel — ein geselliger Sonntag zum Kennenlernen.',
+      'Du meldest dich allein an. Wir spielen Doppel, die Partnerinnen wechseln reihum — so spielst du in gut drei Stunden mit und gegen viele verschiedene. Kein Turnierbaum, kein Ergebnis, kein Titel — ein geselliger Sonntagmittag zum Kennenlernen.',
     title: '',
     capacity: 16,
     status: 'open'
@@ -172,6 +176,17 @@ export const tournament = {
   saturday: { weekday: 'Samstag', short: '22.08.' },
   sunday: { weekday: 'Sonntag', short: '23.08.' }
 }
+
+/**
+ * The Social mixer's appointment as one German line („Sonntag, 23.08. · 12:00–15:00 Uhr · Platz 4, 5 und 6"),
+ * derived from `SOCIAL_MIXER_BLOCK` (ADR-0063) and the event's date copy. The one place this sentence is
+ * written: the public schedule section and the front-door card both render it, so the time the participants
+ * read can never drift from the time the schedule validator reserves. The day is read off the block rather
+ * than hard-coded, so moving the block moves the copy with it.
+ */
+const mixerDay = [tournament.saturday, tournament.sunday][SOCIAL_MIXER_BLOCK.day]
+const mixerCourts = SOCIAL_MIXER_BLOCK.courts.join(', ').replace(/, (\d+)$/, ' und $1')
+export const socialMixerWhen = `${mixerDay.weekday}, ${mixerDay.short} · ${socialMixerBlockTime()} Uhr · Platz ${mixerCourts}`
 
 export const signupDeadline = {
   date: SIGNUP_DEADLINE,

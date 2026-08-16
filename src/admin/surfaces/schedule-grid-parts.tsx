@@ -5,6 +5,7 @@ import {
   absoluteSlot,
   COURT_NUMBERS,
   isFloodlit,
+  overlapsSocialMixerBlock,
   type Placement,
   SLOT_INDICES,
   SLOT_SPAN,
@@ -199,6 +200,9 @@ export const DayGrid = ({
               // A free cell is too early when its absolute slot sits before the in-hand match's earliest
               // legal slot (the structural feeder guard, #119) — disabled for both tap and drag.
               const tooEarly = inHand !== null && absoluteSlot(day, slot) < inHandEarliest
+              // A free cell inside the Social mixer's reserved block (ADR-0063): tinted, but still a legal
+              // target — it warns on drop, it does not block. Static per cell, like the window shading.
+              const reserved = overlapsSocialMixerBlock(court, day, slot)
               return (
                 <EmptyCell
                   key={`${day}-${slot}-${court}`}
@@ -208,6 +212,7 @@ export const DayGrid = ({
                   inHand={inHand}
                   tooEarly={tooEarly}
                   pastWindow={pastWindow}
+                  reserved={reserved}
                   style={{ gridColumn: ci + 2, gridRow: slot + 2 }}
                   onClick={() => onCellClick(day, slot, court)}
                 />
@@ -289,6 +294,7 @@ interface EmptyCellProps {
   inHand: number | null
   tooEarly: boolean
   pastWindow: boolean
+  reserved: boolean
   style: CSSProperties
   onClick: () => void
 }
@@ -298,7 +304,11 @@ interface EmptyCellProps {
 // block is static per court (rendered muted even at rest, so the dark courts visibly stop earlier),
 // while too-early depends on the match in hand. The droppable carries the target `Placement`, so
 // drag-end reads it straight off and reaches the same path a tap does.
-const EmptyCell = ({ day, slot, court, inHand, tooEarly, pastWindow, style, onClick }: EmptyCellProps) => {
+//
+// A cell inside the Social mixer's reserved block (ADR-0063) is a third, weaker state: tinted so the
+// reservation is visible at rest, but **still a legal target** — it warns on drop rather than blocking,
+// because the reservation is an organiser agreement the operator may overrule (ADR-0033).
+const EmptyCell = ({ day, slot, court, inHand, tooEarly, pastWindow, reserved, style, onClick }: EmptyCellProps) => {
   const blocked = pastWindow || tooEarly
   const { setNodeRef, isOver } = useDroppable({
     id: `${day}-${slot}-${court}`,
@@ -313,9 +323,16 @@ const EmptyCell = ({ day, slot, court, inHand, tooEarly, pastWindow, style, onCl
       onClick={onClick}
       disabled={inHand === null || blocked}
       style={style}
-      aria-label={pastWindow ? `Platz ${court} ist um ca. ${slotTime(day, slot)} nicht mehr bespielbar` : undefined}
+      aria-label={
+        pastWindow
+          ? `Platz ${court} ist um ca. ${slotTime(day, slot)} nicht mehr bespielbar`
+          : reserved
+            ? `Platz ${court} ist um ca. ${slotTime(day, slot)} für das Damen Doppel reserviert`
+            : undefined
+      }
       className={cn(
         'relative rounded-md border border-dashed p-1.5 text-left transition-colors',
+        reserved && !pastWindow && 'border-amber-500/30 bg-amber-500/10',
         pastWindow && 'bg-muted/40 cursor-not-allowed border-transparent',
         tooEarly && !pastWindow && 'cursor-not-allowed opacity-40',
         isDropTarget && 'border-foreground/40 bg-foreground/5 hover:bg-foreground/10',

@@ -1,5 +1,6 @@
 ---
 import Layout from '@/layouts/default.astro'
+import { socialMixerWhen } from '@/data/tournament'
 
 // The public event-wide schedule + live board (ADR-0005, ADR-0032, issue #91): one page for the whole
 // weekend that always shows the current truth, never the stale plan. It leads with a „Jetzt auf dem Platz"
@@ -17,6 +18,26 @@ import Layout from '@/layouts/default.astro'
       Oben steht, was gerade auf den sechs Plätzen läuft. Darunter der Spielplan mit Platz und ungefährer Zeit — „ca."
       und ohne Gewähr. Was wirklich passiert, steht im Status: läuft oder beendet mit Ergebnis.
     </p>
+
+    <!-- The Social mixer's reserved court-time (ADR-0063). It sits **outside** `[data-board]` on purpose:
+         it is neither the forward plan the publish gate hides (ADR-0041) nor live truth — it is a fixed
+         appointment, and its participants must be able to read it whether or not the championship schedule
+         is finished. Rendered statically from `socialMixerWhen`, the one line derived from
+         `SOCIAL_MIXER_BLOCK`, so it can never drift from the block the schedule validator reserves. No wire
+         field and no polling: nothing about a fixed time changes between polls. The one runtime signal it
+         does honour is the cancellation (ADR-0062), applied client-side below — the same „the decision is
+         the server's, the page is only the surface" pattern the front door uses. It renders **visible** and
+         is hidden only on an explicit cancellation — fail-open, unlike the match feed's fail-closed reveal
+         gate (ADR-0036), because the failure modes are not symmetric: withholding a fixed appointment from
+         its participants on a network blip is worse than briefly showing one that was called off. -->
+    <section data-mixer class="mixer">
+      <h2 class="board-heading">Damen Doppel</h2>
+      <p class="mixer-when">{socialMixerWhen}</p>
+      <p class="mixer-note">
+        Geselliger Doppel-Spieltag mit wechselnden Partnerinnen — kein Turnierbaum, kein Ergebnis. Die Einteilung macht
+        die Spielleiterin vor Ort; komm einfach zur angegebenen Zeit an die Plätze.
+      </p>
+    </section>
 
     <!-- Starts in the loading state so the board never paints a misleading empty „keine Spiele" grid before
          the first poll resolves — and if the inline script fails to load at all, this benign „lädt…" holding
@@ -119,6 +140,33 @@ import Layout from '@/layouts/default.astro'
   [data-board].not-published .board-empty,
   [data-board].is-error .board-empty {
     display: none;
+  }
+
+  /* The Social mixer's fixed appointment (ADR-0063): a calm card above the board, deliberately not styled
+     as a match row — it is an appointment, not an ansetzung. Outside [data-board], so no board state
+     (loading, error, unpublished) touches it. */
+  .mixer {
+    margin: 0 0 32px;
+    padding: 18px 20px;
+    border: 1px solid rgba(12, 30, 58, 0.12);
+    border-radius: 12px;
+    background: rgba(12, 30, 58, 0.03);
+  }
+  .mixer[hidden] {
+    display: none;
+  }
+  .mixer-when {
+    margin: 0 0 8px;
+    font-size: 17px;
+    font-weight: 800;
+    letter-spacing: -0.01em;
+  }
+  .mixer-note {
+    margin: 0;
+    max-width: 60ch;
+    font-size: 14px;
+    line-height: 1.6;
+    color: rgba(12, 30, 58, 0.7);
   }
 
   .board-heading {
@@ -682,8 +730,26 @@ import Layout from '@/layouts/default.astro'
     }
   }
 
+  // The Social mixer's block is static copy, but its *existence* is a server decision: a cancelled
+  // competition leaves every public surface (ADR-0062). Read once on load — a fixed appointment does not
+  // need polling — and hide the section only on an explicit cancellation, so a failed read leaves the
+  // appointment standing rather than withholding it (see the markup comment).
+  const applyMixerCancellation = async () => {
+    const mixer = document.querySelector<HTMLElement>('[data-mixer]')
+    if (!mixer) return
+    try {
+      const res = await client.api.phase.$get()
+      if (!res.ok) return
+      const { cancelledCompetitions } = await res.json()
+      if (cancelledCompetitions.includes('womens-social')) mixer.hidden = true
+    } catch {
+      // Leave the appointment visible — see above.
+    }
+  }
+
   load()
   start()
+  void applyMixerCancellation()
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible') {
       load()

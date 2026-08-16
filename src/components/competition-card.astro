@@ -1,7 +1,7 @@
 ---
 import Card from './card.astro'
 import MarkerHighlight from './marker-highlight.astro'
-import type { Competition } from '@/data/tournament'
+import { socialMixerWhen, type Competition } from '@/data/tournament'
 import type { CardStyle } from '@/data/competition-cards'
 
 interface Props {
@@ -35,6 +35,13 @@ const labelSize = style.compact ? 'text-[clamp(30px,11cqw,52px)]' : 'text-[clamp
 const labelColor = style.marker ? 'text-navy' : variant === 'dark' || variant === 'clay' ? 'text-white' : ''
 const audienceColor = variant === 'dark' || variant === 'clay' ? 'text-white' : ''
 const blurbColor = { light: 'opacity-65', dark: 'text-white/80', clay: 'text-white/80', blue: 'opacity-80' }[variant]
+
+// The Social mixer is the one field with a **fixed appointment** rather than an ansetzung — it is never
+// drawn, so no schedule row will ever carry its time (ADR-0063). The line comes from `socialMixerWhen`,
+// derived from the same `SOCIAL_MIXER_BLOCK` the schedule validator reserves, so the card, the public
+// schedule and the grid can never disagree. Checked here in the one shared card rather than threaded as a
+// prop, so the front door and the Damen porch (ADR-0052) both pick it up without either page knowing.
+const appointment = competition.slug === 'womens-social' ? socialMixerWhen : undefined
 ---
 
 <Card variant={variant} stagger={stagger} competition={competition.slug}>
@@ -46,7 +53,16 @@ const blurbColor = { light: 'opacity-65', dark: 'text-white/80', clay: 'text-whi
     </span>
   </div>
   <p class:list={['m-0 text-[13px] leading-[1.6] font-semibold', audienceColor]}>{competition.audience}</p>
-  <p class:list={['mt-2 text-[13px] leading-[1.6]', blurbColor, hasChips ? 'mb-5' : 'mb-7']}>{competition.blurb}</p>
+  <p class:list={['mt-2 text-[13px] leading-[1.6]', blurbColor, appointment ? 'mb-2' : hasChips ? 'mb-5' : 'mb-7']}>
+    {competition.blurb}
+  </p>
+  {
+    appointment && (
+      <p class:list={['text-[13px] leading-[1.6] font-semibold', hasChips ? 'mb-5' : 'mb-7', audienceColor]}>
+        {appointment}
+      </p>
+    )
+  }
   {
     hasChips && (
       <ul class="mb-7 flex flex-wrap gap-2">
