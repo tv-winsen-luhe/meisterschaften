@@ -6,16 +6,18 @@ import type { LiveBracket, LiveBracketSlot, PublicDraw } from './admin'
 // The concept was built for the protected Challenger field: its LK value and seed number were dropped on
 // every public wire, so a recreational field would not broadcast its weakness (ADR-0024, ADR-0044). ADR-0061
 // ended that for the Herren Challenger — a drawn field must be verifiable and a player must be able to
-// place an opponent against their own LK — so **no competition is redacted today**. The seam stays: it is
-// what a future protected field (Damen Freizeit) flips, and it keeps the decision one server-side switch
-// rather than a rule each surface re-derives from the competition slug.
+// place an opponent against their own LK — so **no competition is redacted today**, and no field is
+// currently planned that would want it (the once-planned Damen Freizeit became the unseeded Social mixer,
+// which carries no LK at all — ADR-0051). The seam stays anyway: it keeps the decision one server-side
+// switch rather than a rule each surface re-derives from the slug, so a field that ever wants it is one
+// list entry and no client edits (ADR-0061 §3).
 //
 // The predicate and the two redactors live together, apart from the projections that call them, so the
 // mechanism stays exercised by tests while the list is empty and the rule cannot drift across surfaces.
 
 // The competitions whose absolute strength is withheld from the public wire. Deliberately a list, not a
 // slug-suffix rule like isChallengerField: redaction is a per-field editorial decision (what a field's
-// audience should see), not a structural property of the field type — the Herren Challenger is protected
+// audience should see), not a structural property of the field type — the Herren Challenger is capped
 // *and* public. Adding a field here is the single change that turns redaction on for it; every public
 // projection reads this predicate, and the client reads the `redacted` flag they set from it (ADR-0048).
 const STRENGTH_REDACTED_COMPETITIONS: readonly string[] = []

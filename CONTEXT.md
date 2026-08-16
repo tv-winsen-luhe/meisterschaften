@@ -116,10 +116,10 @@ concept here drifts or a new one appears, update this file rather than inventing
 - **Strength redaction** — the mechanism for keeping a field's **absolute** strength (the LK value and the
   seed number) off the public surfaces, while its **relative rank** — which players sit on the seed lines,
   the provisional seed rank — stays, because the concern is an absolute-weakness broadcast, not relative
-  rank (ADR-0044 §2, ADR-0047). **No competition is redacted today** (ADR-0061): it is a **dormant seam**,
-  kept for a future field whose audience should not see ratings (Damen Freizeit). Which fields are redacted
-  is an explicit list (`strengthRedacted`), deliberately _not_ a rule derived from the field type — the
-  Herren Challenger is protected _and_ public, so redaction is an editorial choice per field. It stays **one
+  rank (ADR-0044 §2, ADR-0047). **No competition is redacted today, and none is planned** (ADR-0061): it is
+  a **dormant seam**, kept for a field whose audience should not see ratings, should one ever exist. Which
+  fields are redacted is an explicit list (`strengthRedacted`), deliberately _not_ a rule derived from the
+  field type — the Herren Challenger is capped _and_ public, so redaction is an editorial choice per field. It stays **one
   decision every public surface reads as a single signal** rather than re-deriving: turning it on for a field
   is a one-line change with no client edits, a not-yet-synced rating („LK folgt") can never be confused with
   a withheld one, and one cross-projection invariant enforces that every public wire agrees with the

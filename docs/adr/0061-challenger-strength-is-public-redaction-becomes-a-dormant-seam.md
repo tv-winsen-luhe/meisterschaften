@@ -59,10 +59,16 @@ field might want (1) without (2), and this ADR should not have to be re-read to 
 redactors and ADR-0048's cross-projection invariant all stay; only the answer changes. The predicate moves
 from `isChallengerField` (a structural rule about the field _type_) to `strengthRedacted` — an explicit list
 of competitions, **empty today**. This is the point: redaction is an editorial decision about what a field's
-audience should see, not a property of the field type. The Herren Challenger is protected _and_ public; a
-future Damen Freizeit may want the opposite, and it becomes one list entry with zero client edits — the
-extensibility ADR-0048 was built for, now used in the other direction. We deliberately do **not** decide
-today what that field will want.
+audience should see, not a property of the field type. The Herren Challenger is capped _and_ public.
+
+Be honest about the strength of this: ADR-0048 justified the machinery by a **planned fourth protected
+field**, „Damen Freizeit (`womens-challenger`)". That field no longer exists — it became the **Social
+mixer** (`womens-social`, ADR-0051), which is unseeded and carries no LK at all, so it can never want LK
+redaction. There is therefore **no named beneficiary** today, and „delete it, git remembers" is a defensible
+alternative (recorded below). We keep it because the machinery is small (~50 lines) and already covered by
+an enforcing test, because deleting it days before the event is churn against a live tournament, and because
+what changed is an **editorial** judgement about one field's audience — the kind of decision that reverses.
+We deliberately do **not** decide today what any future field will want.
 
 **4. It says so in the Reglement, and nowhere else.** The seeding row now reads „Nach Leistungsklasse — LK
 und Setzung sind öffentlich einsehbar". The competition cards and the Challenger flip stay untouched: they
@@ -83,9 +89,12 @@ Telegram).
 - **Restrict the un-redacted view to the field's own players** — rejected: it needs an authentication
   concept the app does not have, for a ~8-player club field whose ratings are already public on nuLiga
   (ADR-0021).
-- **Delete strength redaction entirely** — rejected: a fourth protected field is planned (CONTEXT
-  „Competition"), and the machinery ADR-0048 built is ~50 lines with an enforcing test. Deleting it means
-  rebuilding it, and re-scattering `isChallengerField` guards across four public projections.
+- **Delete strength redaction entirely** — rejected, but it is the closest call in this ADR. With Damen
+  Freizeit gone (ADR-0051) the machinery has no named future user, and `strengthRedacted` is a constant
+  `false`: the two redactors are unreachable from production, kept alive only by their unit tests. Against
+  that: it is ~50 lines with an enforcing test, deleting it means re-scattering the decision across four
+  public projections when it returns, and doing it six days before the event buys nothing. Revisit after
+  the tournament — if no field has wanted it by the next edition, delete it then.
 - **Also make the Challenger cut LK-based, now that strength is visible** — rejected: that abolishes the
   Challenger format rather than changing what it displays (ADR-0043). Visibility and admission are separate
   axes; this ADR moves only the first.

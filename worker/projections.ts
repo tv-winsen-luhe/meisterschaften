@@ -47,14 +47,6 @@ export interface ScheduleFeed {
   matches: ScheduleMatch[]
 }
 
-// Apply strength redaction to a reveal draw when its competition calls for it (CONTEXT: Strength
-// redaction; shared/redaction.ts owns both the predicate and the transform). No field is redacted today
-// (ADR-0061), so this is the identity for every competition — it stays because a future protected field
-// flips one list entry, not four projections. The operator's beamer reads the un-redacted reveal under
-// Access (operatorDraws) either way, so its draw show always keeps the LK + seed it needs (ADR-0024).
-const redactReveal = (draw: PublicDraw): PublicDraw =>
-  strengthRedacted(draw.competition) ? redactRevealDraw(draw) : draw
-
 // Resolve one fully-revealed competition+bracket draw into its live wire shape (ADR-0046): the `matches`
 // aggregate run through the shared `resolveBracket` (the same resolver the schedule feed and admin grid
 // read), with each filled slot joined to its player name + LK, a seeded player's seed number, and the
@@ -135,8 +127,8 @@ export const createProjections = (deps: ProjectionsDeps) => {
       size: r.size,
       cursor: r.cursor,
       total: r.steps.length,
-      // The un-redacted base (operatorDraws ships this as-is, ADR-0024); publicDraws runs it through
-      // `redactChallenger`, which flips `redacted` to true and nulls the strength for a protected field.
+      // The un-redacted base, which both reveals ship as-is today (no field is redacted, ADR-0061).
+      // publicDraws passes it through `strengthRedacted` first, which would flip this to true.
       redacted: false,
       // Only the revealed prefix — `cursor` ≤ total (clamped by advance), so the slice is safe.
       steps: r.steps.slice(0, r.cursor).map(s => ({
@@ -156,16 +148,16 @@ export const createProjections = (deps: ProjectionsDeps) => {
      * The public bracket (ADR-0046), a **two-phase** projection switched per competition on its main
      * bracket's reveal cursor:
      *   - **while revealing** (`cursor < total`) — the cursor-sliced reveal steps, unchanged (ADR-0003):
-     *     the unrevealed tail never leaves the server. A protected Challenger field is **redacted** on the
-     *     wire (each step's `lk` + `seed` nulled, ADR-0044).
+     *     the unrevealed tail never leaves the server. Strength travels with them (LK + seed), so the
+     *     draw is checkable live; a redacted field would lose both here (none is today, ADR-0061).
      *   - **once fully revealed** — the resolved main bracket (+ „Spiel um Platz 3") and, the moment it is
      *     drawn (no reveal show, ADR-0004), the resolved consolation bracket, both from the `matches`
      *     aggregate (ADR-0025) so winners advance to the champion. The gate is full-reveal **only**, never
-     *     the schedule publish flag — a recorded result is reality (ADR-0032), not the plan (ADR-0041). A
-     *     Challenger field's LK + seed are redacted on the live wire too (ADR-0044).
+     *     the schedule publish flag — a recorded result is reality (ADR-0032), not the plan (ADR-0041).
+     *     The live wire reads the same `strengthRedacted` decision as the reveal, on both brackets.
      *
-     * The Access-free endpoint the off-site bracket polls; the operator's beamer reads the un-redacted,
-     * reveal-only operatorDraws() under Access.
+     * The Access-free endpoint the off-site bracket polls; the operator's beamer reads the reveal-only
+     * operatorDraws() under Access, which never redacts whatever this one decides (ADR-0044).
      */
     async publicDraws(): Promise<PublicCompetitionBracket[]> {
       // Two independent reads: the cursor-sliced reveal build (the revealing phase) and the full draw set
@@ -199,15 +191,17 @@ export const createProjections = (deps: ProjectionsDeps) => {
 
       const brackets: PublicCompetitionBracket[] = []
       for (const [competition, main] of mainByComp) {
+        // The one strength decision this field's public wire carries, read once and applied the same way in
+        // both phases below (CONTEXT: Strength redaction). False for every competition today (ADR-0061).
+        const redact = strengthRedacted(competition)
         if (!isFullyRevealed(main)) {
-          // Revealing: the cursor-sliced, redacted reveal steps — the suspense invariant (ADR-0003).
+          // Revealing: the cursor-sliced reveal steps — the suspense invariant (ADR-0003).
           const reveal = revealByComp.get(competition)
-          if (reveal) brackets.push({ phase: 'revealing', ...redactReveal(reveal) })
+          if (reveal) brackets.push({ phase: 'revealing', ...(redact ? redactRevealDraw(reveal) : reveal) })
           continue
         }
         // Live: resolve the main bracket (+ third place) and, once drawn, the consolation from the matches
-        // aggregate; redact a protected field's strength on both (CONTEXT: Strength redaction, ADR-0061).
-        const redact = strengthRedacted(competition)
+        // aggregate (ADR-0025), applying the same decision to both.
         const mainBracket = buildLiveBracket(main, players)
         const consolationDraw = consolationByComp.get(competition)
         const consolationBracket = consolationDraw ? buildLiveBracket(consolationDraw, players) : null
@@ -223,9 +217,9 @@ export const createProjections = (deps: ProjectionsDeps) => {
 
     /**
      * The operator's full main-bracket reveal (ADR-0044): the same cursor slice and suspense invariant as
-     * publicDraws(), but **without** the Challenger redaction, so the beamer draw show keeps the LK + seed
-     * it needs to run a Challenger draw (ADR-0024). Served only under Access (GET /api/admin/draw/reveal)
-     * — the protected-field strength never reaches the public wire.
+     * publicDraws(), but **never** redacted, so the beamer draw show always keeps the LK + seed it needs to
+     * run a draw (ADR-0024). Served only under Access (GET /api/admin/draw/reveal). With no field redacted
+     * today it agrees with publicDraws step for step (ADR-0061); it stays as the seam that would diverge.
      */
     async operatorDraws(): Promise<PublicDraw[]> {
       return buildReveals()

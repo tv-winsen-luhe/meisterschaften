@@ -131,7 +131,7 @@ describe('projections — the Challenger publishes its strength (ADR-0061)', () 
   })
 
   it('publicDraws keeps lk + seed on a still-revealing Challenger field — the draw is verifiable live', async () => {
-    // The Nachvollziehbarkeit half of ADR-0061: while the show runs, the public reveal names the seed and
+    // The verifiability half of ADR-0061: while the show runs, the public reveal names the seed and
     // its LK, so „Nr. 1" is checkable against the field rather than asserted.
     const drawStore = createInMemoryDrawStore()
     const registrationsStore = createInMemoryRegistrationsStore(challengerField())
@@ -216,13 +216,16 @@ describe('strength redaction is one decision across public projections (ADR-0048
     return createProjections({ drawStore, registrationsStore, appStateStore: createInMemoryAppStateStore() })
   }
 
-  it('participant list: every row agrees with strengthRedacted, and the Challenger carries LK + rank', async () => {
+  it('participant list: the Challenger is unredacted and carries LK + rank', async () => {
+    // Asserted against the literal `false`, never against `strengthRedacted(p.competition)` — re-deriving
+    // the expectation from the production predicate would pass even if this projection read the *wrong*
+    // predicate, which is precisely the drift ADR-0048's invariant exists to catch.
     const store = createInMemoryRegistrationsStore(
       [21, 22, 23, 24].map((lk, i) => confirmed(i + 1, { competition: 'mens-challenger', lk: `${lk}.0` }))
     )
     const list = await store.listConfirmed()
     expect(list.length).toBe(4)
-    expect(list.every(p => p.redacted === strengthRedacted(p.competition))).toBe(true)
+    expect(list.every(p => p.redacted === false)).toBe(true)
     expect(list.every(p => p.lk !== null)).toBe(true)
     // The relative-rank signal is unchanged by ADR-0061 — it was always public (ADR-0047); the LK value
     // now sits beside it, so the seed lines can be checked against the strengths that produced them.
