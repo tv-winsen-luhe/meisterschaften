@@ -3,12 +3,15 @@ import '../styles/global.css'
 import faviconUrl from '@/assets/signet.svg'
 import SiteHeader from '@/components/site-header.astro'
 import SiteFooter from '@/components/site-footer.astro'
+import type { Lead } from '@/scripts/front-door-lead'
 
 interface Anchor {
   href: string
   label: string
   // Phase-gated anchor (ADR-0042 revised) — hidden during signup, revealed once phase ≠ signup.
   gated?: boolean
+  // Slot in the results order the front door switches to from `tournament` onward (ADR-0060 §5).
+  resultsOrder?: number
 }
 
 interface Props {
@@ -23,8 +26,8 @@ interface Props {
   chrome?: 'event' | 'legal' | 'none'
   headerAnchors?: Anchor[]
   headerCta?: { href: string; label: string; competition?: string }
-  // Per-phase replacements for the header CTA, shipped hidden beside it (ADR-0042 revised).
-  headerPhaseCtas?: { phase: 'tournament' | 'post-event'; href: string; label: string }[]
+  // Per-lead replacements for the header CTA, shipped hidden beside it (ADR-0042 revised, ADR-0060 §6).
+  headerLeadCtas?: { lead: Lead; href: string; label: string }[]
 }
 
 const {
@@ -39,7 +42,7 @@ const {
   chrome = 'event',
   headerAnchors,
   headerCta,
-  headerPhaseCtas
+  headerLeadCtas
 } = Astro.props
 
 const canonicalUrl = Astro.site ? new URL(Astro.url.pathname, Astro.site).toString() : Astro.url.toString()
@@ -86,7 +89,7 @@ const ogImageUrl = ogImage && Astro.site ? new URL(ogImage, Astro.site).toString
   <body class:list={['font-sans text-text antialiased', bodyClass]}>
     {
       chrome !== 'none' && (
-        <SiteHeader variant={chrome} anchors={headerAnchors} cta={headerCta} phaseCtas={headerPhaseCtas} />
+        <SiteHeader variant={chrome} anchors={headerAnchors} cta={headerCta} leadCtas={headerLeadCtas} />
       )
     }
     <main id="main"><slot /></main>
