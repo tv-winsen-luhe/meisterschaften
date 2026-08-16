@@ -147,17 +147,20 @@ concept here drifts or a new one appears, update this file rather than inventing
 cancelled`, duplicate check, capacity, first-come cut) **unchanged**, with one relaxation — being
   unseeded, an entry carries **no LK** and `confirm` needs **no seeding basis** (seedability is a property
   of the competition, not of every registration). The partner rotation and any on-court scoring run
-  **offline** on the day (a Spielleiterin with a printed plan), never in the system. It runs **Sunday
-  (Finaltag) midday on reserved side courts**, inside the busy day rather than a dead evening slot — the
-  one slot that is both full/festive and has court slack (ADR-0051) — sharing the court budget
-  (`socialMixerReservedSlots`). The duplicate-entry guard matches on **person + competition**, so a member
-  may hold a championship entry **and** the mixer — because they are distinct competitions, not because the
-  mixer is specially exempt. And since the mixer runs no bracket, the schedule validator sees no mixer
-  matches, so its per-player no-double-booking guarantee is unaffected. The Damen porch **actively invites**
-  holding both (the „Einzel, Doppel — oder beides?" FAQ), because a „both" entry converts the fragile
-  Meisterin field (ADR-0054 amendment 2026-07-12). One operator consequence follows: the mixer is offline
-  and invisible to the validator, so a „both" player's championship match must be **hand-placed outside the
-  Sunday mixer block** — the validator cannot flag that clash.
+  **offline** on the day (a Spielleiterin with a printed rotation table), never in the system — and there
+  is **no scoring at all**: the public copy promised „kein Ergebnis" to an audience that self-selected away
+  from competition, so no points are kept even on paper. The tournament engine models **no mixer match**;
+  the one thing it does know is **when and where the mixer occupies courts** — the **Mixer block**
+  (`SOCIAL_MIXER_BLOCK`, see Schedule): **Sunday (Finaltag) 12:00–15:00 on courts 4–6**, inside the busy day
+  rather than a dead evening slot, the one slot that is both full/festive and has court slack (ADR-0051).
+  The block is the single definition every surface reads, and the court-budget reservation
+  (`socialMixerReservedSlots`) is **derived** from it rather than asserted beside it. The duplicate-entry
+  guard matches on **person + competition**, so a member may hold a championship entry **and** the mixer —
+  because they are distinct competitions, not because the mixer is specially exempt. The Damen porch
+  **actively invites** holding both (the „Einzel, Doppel — oder beides?" FAQ), because a „both" entry
+  converts the fragile Meisterin field (ADR-0054 amendment 2026-07-12); since the block is now visible to
+  the schedule validator, such a player's championship match **warns** if it is placed against the mixer
+  instead of having to be remembered by hand. _(See ADR-0063.)_
   **It is not a „Challenger":** not LK-capped, not singles, not competitive — „Freizeit"/„Challenger" stays
   reserved for the protected LK-capped singles field, and the code slug is `womens-social` (renamed from the
   misleading `womens-challenger`). **Scope is settled: it sits _beside_ the competitive Damen championship, not
@@ -466,9 +469,22 @@ reveal sequence }`. Randomness enters through an injected **`RandomSource`** por
   (physically impossible — one body, two courts); and a start past a court's evening window. _Warn (soft,
   overridable):_ a **rest gap under 60 minutes** between a player's matches, **more than 2 matches per day**
   (so a deep run, or a main-bracket exit plus the consolation bracket, tends to spread across both event
-  days), and a **semifinal/final off Sunday** (Finaltag). The schedule is **private until published**, and
+  days), a **semifinal/final off Sunday** (Finaltag), and a placement inside the **Mixer block** (below).
+  The schedule is **private until published**, and
   **reset** wipes the placements to rebuild (see Schedule publication). _(See ADR-0005, ADR-0033, ADR-0040,
   ADR-0041.)_
+- **Mixer block** (de: Doppel-Block; code: `SOCIAL_MIXER_BLOCK`) — the court-time the Social mixer occupies,
+  held as a **constant in `shared/schedule.ts`, not as a row or a match**: a day, a set of courts and a
+  clock interval (2026: Sunday, courts 4–6, 12:00–15:00). It is the one definition five surfaces read — the
+  validator, the admin grid's shading, the public schedule, the front-door card, and the court-load gauge,
+  whose reserved-slot count is derived from it. It **warns rather than blocks** (a reserved court is an
+  organiser agreement, not a physical impossibility — the ADR-0033 „unwise" category), so the operator keeps
+  the override; the auto-suggest routes around it for free, because it already prefers warning-free cells.
+  Because a match spans 90 minutes, the block warns on **starts from 10:30 to 14:30**, wider than its own
+  three hours. It is deliberately **not** an entity: one block for one weekend, known at build time, does
+  not earn a table — a second reservation is the trigger to revisit. And it is **not gated by
+  `schedule_published`** (Schedule publication): a fixed appointment is neither the unfinished plan the gate
+  hides nor live truth, and its participants must be able to read it regardless. _(See ADR-0063, ADR-0051.)_
 - **Finaltag** (Sunday as finals day) — the auto-suggest reserves **semifinals → finals → third-place**
   for Sunday and packs Saturday through the **quarterfinals** (plus the consolation bracket). A soft
   preference, never a hard rule: a final _may_ be placed on Saturday, against a soft warning. _(See ADR-0040.)_
@@ -490,14 +506,17 @@ reveal sequence }`. Randomness enters through an injected **`RandomSource`** por
 - **Court budget** (de: Platz-Budget) — the shared ceiling of match-slots the event weekend can run:
   **72** = 6 courts × ~6 matches/court/day × 2 event days, at the 90-min default (`courtSchedule`,
   `tournament.ts`). One pool **all competitions draw from** — the per-field capacities are not
-  independent; their summed match load (main + third-place + consolation), plus the Damen-Freizeit
-  reservation, must fit this one budget. The overview cockpit measures projected load against it so the
-  operator plans and avoids overbooking. _(See ADR-0023, ADR-0043.)_
+  independent; their summed match load (main + third-place + consolation), plus the Social mixer's
+  reservation (`socialMixerReservedSlots`, **derived** from the Mixer block so the gauge and the
+  reservation the validator enforces cannot disagree), must fit this one budget. The overview cockpit
+  measures projected load against it so the operator plans and avoids overbooking. _(See ADR-0023,
+  ADR-0043, ADR-0063.)_
 - **Schedule publication** (de: Veröffentlichung) — the schedule is **private until published**: a global
   `schedule_published` flag (off by default) gates the **planned** public schedule, so the operator builds
   the whole plan unseen and reveals it in one act („Veröffentlichen"). Scope is **global** (one flag for the
   event), not per-competition — the draws happen together at the Auslosungs-Show. The gate covers only the
-  **forward plan**; the Live board (the „jetzt auf dem Platz" courts board and a running/done match's actual
+  **forward plan**; the **Mixer block** is outside it too (a fixed appointment, not a plan under
+  construction — ADR-0063), and the Live board (the „jetzt auf dem Platz" courts board and a running/done match's actual
   court + status) is **current truth and is never gated** (ADR-0032). It is a legitimate **manual** flag,
   not a derivable state (ADR-0027): "the plan is ready" is an operator judgment with no clean derived trigger
   ("backlog empty" is wrong — matches may be left unplaced on purpose), and a forgotten publish shows a loud

@@ -4,6 +4,7 @@
 // This file owns the grid shape, the approximate slot time, match numbering, feeder *resolution* (against
 // topology's `winnerFeeders` / `winnerTarget` / `semifinalPositions`), and `validatePlacement` (block the
 // impossible, warn the unwise — ADR-0033).
+import { SOCIAL_MIXER_BLOCK } from './social-mixer'
 import { bracketDepth, semifinalPositions, winnerFeeders, winnerTarget, type BracketPosition } from './bracket-topology'
 
 // The courts×time grid the operator places matches on (ADR-0005, ADR-0040). A match is a fixed
@@ -118,6 +119,23 @@ export const courtEndMinutes = (court: number): number =>
  */
 export const withinEveningWindow = (court: number, day: number, slot: number): boolean =>
   slotStartMinutes(day, slot) + SCHEDULE.matchMinutes <= courtEndMinutes(court)
+
+/**
+ * Whether a (court, day, slot) start would run a match into the Social mixer's reserved block (CONTEXT:
+ * Mixer block, ADR-0063). Interval overlap, like court occupancy (ADR-0040): the match holds its court for
+ * [start, start+90), so it collides whenever that interval meets the block's clock window — which makes the
+ * block bite wider than its own three hours (starts from 10:30 through 14:30 for a 12:00–15:00 block).
+ *
+ * Read by the validator's **soft** `social-mixer-block` rule and by the grid's shading, so the cells the
+ * operator sees marked are exactly the ones that warn. Soft, not hard: a reserved court is an organiser
+ * agreement, not a physical impossibility — the operator may overrule their own reservation when the day
+ * slips (ADR-0033: block the impossible, warn the unwise).
+ */
+export const overlapsSocialMixerBlock = (court: number, day: number, slot: number): boolean => {
+  if (day !== SOCIAL_MIXER_BLOCK.day || !SOCIAL_MIXER_BLOCK.courts.some(c => c === court)) return false
+  const start = slotStartMinutes(day, slot)
+  return start < SOCIAL_MIXER_BLOCK.endMinutes && start + SCHEDULE.matchMinutes > SOCIAL_MIXER_BLOCK.startMinutes
+}
 
 // The minimal match shape the schedule helpers read — a bracket position with its two slot references and
 // whether it is the third-place playoff (its slots are fed by the semifinal losers, not the implicit
@@ -414,10 +432,15 @@ export type HardViolation =
 //    finals day (ADR-0040), so an earlier placement is nudged — never blocked; a final *may* be played on
 //    Saturday. `round` is the candidate's round (the surface phrases the reminder from it). The rule value
 //    is English (CLAUDE.md — wire/data values); the German term survives only in the user-facing copy.
+//  - `social-mixer-block`: the candidate's 90 minutes would run into the Social mixer's reserved court-time
+//    (CONTEXT: Mixer block, ADR-0063). An organiser agreement rather than a physical impossibility, so the
+//    operator may override it. Like `court-window` it is about the candidate's own cell, not a clash with
+//    another match, so it carries no `otherMatchId`.
 export type SoftViolation =
   | { rule: 'player-load'; regId: number; count: number }
   | { rule: 'short-rest'; regId: number; otherMatchId: number }
   | { rule: 'finals-day'; round: number }
+  | { rule: 'social-mixer-block' }
 
 export interface PlacementValidation {
   hard: HardViolation[]
@@ -608,6 +631,13 @@ export const validatePlacement = (
   // not the plan. The same `isFinalsDayMatch` predicate the auto-suggest's `targetDay` reads, so the plan
   // and the warnings agree.
   if (isFinalsDayMatch(self, matches) && day !== SCHEDULE.days - 1) soft.push({ rule: 'finals-day', round: self.round })
+
+  // Soft — the Social mixer's reserved block (CONTEXT: Mixer block, ADR-0063). The mixer is never drawn, so
+  // there is no match here to collide with; the reservation is configuration the validator honours on its
+  // behalf. Soft because it is an agreement, not a physical impossibility (ADR-0033) — and because the
+  // auto-suggest prefers warning-free cells, this one rule is also what keeps „Vorschlag" out of the block
+  // without any change to `suggestSchedule`.
+  if (overlapsSocialMixerBlock(court, day, slot)) soft.push({ rule: 'social-mixer-block' })
 
   // Hard + soft — per named player (an undecided feeder/bye slot is null and carries no clash/load yet).
   // The interval model makes "one person on two courts at once" expressible for the first time, so it is a

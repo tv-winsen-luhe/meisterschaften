@@ -1,4 +1,10 @@
-import { type HardViolation, SCHEDULE, type SoftViolation } from '../../../shared'
+import {
+  type HardViolation,
+  SCHEDULE,
+  SOCIAL_MIXER_BLOCK,
+  socialMixerBlockTime,
+  type SoftViolation
+} from '../../../shared'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -19,10 +25,15 @@ const hardReason = (v: HardViolation): string => {
   return 'Die Runden-Reihenfolge stimmt nicht — dieses Match hängt von einem anderen ab.'
 }
 
+// „4, 5 und 6" — the reserved courts read as German prose rather than a bare array.
+const courtList = SOCIAL_MIXER_BLOCK.courts.join(', ').replace(/, (\d+)$/, ' und $1')
+
 const softReason = (v: SoftViolation): string => {
   if (v.rule === 'player-load') return `Ein Spieler hätte ${v.count} Matches an diesem Tag (mehr als 2).`
   if (v.rule === 'short-rest')
     return `Ein Spieler hätte weniger als ${SCHEDULE.minRestMinutes} Minuten Pause zwischen zwei Matches.`
+  if (v.rule === 'social-mixer-block')
+    return `Für das Damen Doppel reserviert (${socialMixerBlockTime()} Uhr, Platz ${courtList}).`
   return 'Halbfinale und Finale gehören auf den Finaltag (Sonntag).'
 }
 
