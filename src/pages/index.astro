@@ -78,7 +78,7 @@ const sunday = [
     { href: '#faq', label: 'FAQ', resultsOrder: 8 }
   ]}
   headerCta={{ href: '#', label: 'Anmelden' }}
-  headerPhaseCtas={[
+  headerLeadCtas={[
     { lead: 'tournament-field', href: '#participants', label: 'Wer ist dabei' },
     { lead: 'tournament-draw', href: '#draw', label: 'Tableau' },
     { lead: 'tournament-schedule', href: '/spielplan', label: 'Spielplan' },
@@ -264,7 +264,10 @@ const sunday = [
       {
         /* One descriptive core that is true in every phase, plus two time-bound add-ons gated
           beside it — rather than a second copy of the description that could drift (amendment §2).
-          `gap` rather than `space-y`, so a hidden line leaves no stray margin behind. */
+          The amendment has the add-ons sit beside a `SectionHeader` still carrying the core as its
+          `note`; with the header itself now doubled, that would double the core too, so all three
+          lines share one container here instead. `gap` rather than `space-y`, so a hidden line
+          leaves no stray margin behind. */
       }
       <div class="mb-14 flex max-w-[48ch] flex-col gap-3 text-[15px] leading-[1.6] opacity-70">
         <p class="m-0">

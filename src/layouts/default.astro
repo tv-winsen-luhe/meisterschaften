@@ -3,6 +3,7 @@ import '../styles/global.css'
 import faviconUrl from '@/assets/signet.svg'
 import SiteHeader from '@/components/site-header.astro'
 import SiteFooter from '@/components/site-footer.astro'
+import type { Lead } from '@/scripts/front-door-lead'
 
 interface Anchor {
   href: string
@@ -26,7 +27,7 @@ interface Props {
   headerAnchors?: Anchor[]
   headerCta?: { href: string; label: string; competition?: string }
   // Per-lead replacements for the header CTA, shipped hidden beside it (ADR-0042 revised, ADR-0060 §6).
-  headerPhaseCtas?: { lead: string; href: string; label: string }[]
+  headerLeadCtas?: { lead: Lead; href: string; label: string }[]
 }
 
 const {
@@ -41,7 +42,7 @@ const {
   chrome = 'event',
   headerAnchors,
   headerCta,
-  headerPhaseCtas
+  headerLeadCtas
 } = Astro.props
 
 const canonicalUrl = Astro.site ? new URL(Astro.url.pathname, Astro.site).toString() : Astro.url.toString()
@@ -88,7 +89,7 @@ const ogImageUrl = ogImage && Astro.site ? new URL(ogImage, Astro.site).toString
   <body class:list={['font-sans text-text antialiased', bodyClass]}>
     {
       chrome !== 'none' && (
-        <SiteHeader variant={chrome} anchors={headerAnchors} cta={headerCta} phaseCtas={headerPhaseCtas} />
+        <SiteHeader variant={chrome} anchors={headerAnchors} cta={headerCta} leadCtas={headerLeadCtas} />
       )
     }
     <main id="main"><slot /></main>

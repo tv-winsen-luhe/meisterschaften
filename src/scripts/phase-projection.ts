@@ -40,7 +40,7 @@ const project = ({ leads, order }: FrontDoor) => {
 // contracts, both are read once on load beside the phase, and both degrade to `false` — which is
 // stage 1, the lead that points at „Das Feld". Understating what exists is safe; overstating it
 // sends visitors to a page that says „noch nicht veröffentlicht".
-const readStageBits = async (client: Client) => {
+const readStageFlags = async (client: Client) => {
   const drawn = client.api.draw
     .$get()
     .then(async res => (res.ok ? (await res.json()).brackets.length > 0 : false))
@@ -69,7 +69,7 @@ export const projectPhaseOnLoad = async ({ frontDoor = false }: Options = {}) =>
     const { phase } = await res.json()
     if (phase === 'signup') return
     const bits =
-      frontDoor && phase === 'tournament' ? await readStageBits(client) : { drawn: false, schedulePublished: false }
+      frontDoor && phase === 'tournament' ? await readStageFlags(client) : { drawn: false, schedulePublished: false }
     project(frontDoorLead({ phase, ...bits }))
   } catch {
     // Network error: leave the signup default standing.

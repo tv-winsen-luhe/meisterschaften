@@ -11,6 +11,14 @@ import type { Phase } from '../../shared/phase'
 // (ADR-0060 §7). The homepage still does not model the per-competition lifecycle — it reads two
 // bits, not a bracket state machine (§3).
 
+/**
+ * The closed set of leads an element can opt into via `data-phase-lead`. A union rather than a
+ * bare string so a mistyped token is a build error instead of a CTA that silently never appears:
+ * the producer below and every consumer in the markup are otherwise coupled by spelling alone.
+ */
+export type Lead =
+  'signup' | 'tournament' | 'tournament-field' | 'tournament-draw' | 'tournament-schedule' | 'post-event'
+
 export interface FrontDoorInput {
   phase: Phase
   /** `GET /api/draw` returned a non-empty `brackets` array — any field is drawn. */
@@ -25,7 +33,7 @@ export interface FrontDoor {
    * stage token are active inside `tournament`, so an element can opt into the whole phase
    * (`"signup tournament"`) or into one stage (`"tournament-draw"`).
    */
-  leads: string[]
+  leads: Lead[]
   /** `marketing` is the document order (signup); `results` puts draw and field directly under the hero. */
   order: 'marketing' | 'results'
 }
@@ -52,5 +60,5 @@ export const frontDoorLead = ({ phase, drawn, schedulePublished }: FrontDoorInpu
  * instead of shipping two identical hidden copies. Tokens match whole — `tournament` must not pull
  * in the stage-specific `tournament-draw` lead.
  */
-export const matchesLead = (value: string | null, leads: string[]): boolean =>
+export const matchesLead = (value: string | null, leads: readonly string[]): boolean =>
   value !== null && value.split(/\s+/).some(token => token !== '' && leads.includes(token))

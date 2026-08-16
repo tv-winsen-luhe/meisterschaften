@@ -94,7 +94,7 @@ html {
      signup affordances it hides, so reveal and hide are the same attribute-toggle in both
      directions.
    - [data-phase-lead="<lead> <lead>…"] ships on the per-lead alternatives (hero lead, header CTA,
-     the time-bound Konkurrenzen lines); the phase read removes it from the elements opting into an
+     the time-bound lines in the competitions section); the phase read removes it from the elements opting into an
      active lead and gates the rest (ADR-0060 amendment §3).
    Default-hidden is the months-long signup common case, so there is no flash, and a failed or
    absent phase read degrades to the statically rendered signup page. Which is exactly why a lead
