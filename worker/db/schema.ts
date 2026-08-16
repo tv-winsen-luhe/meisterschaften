@@ -44,7 +44,14 @@ export const appState = sqliteTable('app_state', {
   // gates the *planned* public schedule (a not-yet-started match's court/day/slot); the live board's actual
   // court + status are never gated by it. Stored as SQLite 0/1 (`mode: 'boolean'`); it lives beside `phase`
   // because it is the same kind of single-row global state (ADR-0006), not a derivable middle (ADR-0027).
-  schedulePublished: integer('schedule_published', { mode: 'boolean' }).notNull().default(false)
+  schedulePublished: integer('schedule_published', { mode: 'boolean' }).notNull().default(false),
+  // The competitions the operator has cancelled (ADR-0062) — a JSON array of competition slugs, stored
+  // as text (small N, ADR-0021: at most four slugs, set once per event). Deliberately a per-competition
+  // fact on a so-far strictly global row; the moment a second per-competition operator flag appears,
+  // that is the signal to lift both into their own table. The default `[]` means „nothing cancelled",
+  // so existing rows need no data migration; the value is validated against the shared slug enum above
+  // this layer, and an unparseable one degrades to the empty set (fail-closed, see the Store).
+  cancelledCompetitions: text('cancelled_competitions').notNull().default('[]')
 })
 
 export type AppStateRow = typeof appState.$inferSelect

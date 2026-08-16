@@ -1,11 +1,12 @@
 import { useMemo } from 'react'
-import { MonitorPlay, Shuffle } from 'lucide-react'
+import { CalendarX2, MonitorPlay, Shuffle, Undo2 } from 'lucide-react'
 import {
   type AdminRegistration,
   byeCount,
   type CompetitionDraw,
   COMPETITION_SLUGS,
   type CompetitionSlug,
+  isCancelledCompetition,
   type ConsolationBlocker,
   CONSOLATION_BLOCKER_REASON,
   consolationBlocker,
@@ -17,14 +18,23 @@ import {
   isDrawStageLocked,
   isFullyRevealed,
   isUnseededCompetition,
-  type Match,
-  type Phase,
-  roundLabel
+  type Phase
 } from '../../../shared'
-import { cn } from '@/admin/lib/utils'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger
+} from '@/admin/ui/alert-dialog'
 import { Badge } from '@/admin/ui/badge'
 import { Button } from '@/admin/ui/button'
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/admin/ui/empty'
+import { Bracket } from './competition-bracket'
 import { competitionCapacity, competitionLabel } from './registration-detail'
 
 interface CompetitionsSurfaceProps {
@@ -43,6 +53,12 @@ interface CompetitionsSurfaceProps {
   onDrawConsolation: (competition: CompetitionSlug) => Promise<boolean>
   // True while a consolation draw is in flight, so the triggered card shows a pending button.
   drawingConsolation: CompetitionSlug | null
+  // The competitions the operator has cancelled (ADR-0062) — read from GET /api/phase, the one signal
+  // every surface keys off, so this card marks exactly what the public wire withholds.
+  cancelledCompetitions: CompetitionSlug[]
+  // Cancel a competition or take the cancellation back. The card owns the confirm dialog (on the cancel
+  // only), so this just performs the mutation.
+  onSetCancelled: (competition: CompetitionSlug, cancelled: boolean) => void
 }
 
 // The competitions surface (ADR-0027): one card per competition with its lifecycle — *nicht ausgelost* →
@@ -59,7 +75,9 @@ export const CompetitionsSurface = ({
   drawingCompetition,
   onStartShow,
   onDrawConsolation,
-  drawingConsolation
+  drawingConsolation,
+  cancelledCompetitions,
+  onSetCancelled
 }: CompetitionsSurfaceProps) => {
   // Resolve a registration id to a short label once, for the bracket slots and the seeding column.
   const nameById = useMemo(() => {
@@ -122,11 +140,13 @@ export const CompetitionsSurface = ({
     )
   }
 
-  // An unseeded field (Social mixer, ADR-0051) is never drawn — signup-only, no bracket — so it is
-  // absent from the draw cockpit (the worker's `Unseeded` guard is the fail-closed backstop below it).
-  const rows = COMPETITION_SLUGS.filter(slug => !isUnseededCompetition(slug)).map(slug => {
+  // Every competition the event offers gets a card — the unseeded Social mixer (ADR-0051) included, even
+  // though it is never drawn (no draw controls below): it can still be cancelled, and cancelling it is the
+  // case ADR-0062 was written for. The worker's `Unseeded` draw guard stays the fail-closed backstop.
+  const rows = COMPETITION_SLUGS.map(slug => {
+    const unseeded = isUnseededCompetition(slug)
     const confirmed = registrations.filter(r => r.competition === slug && r.status === 'confirmed').length
-    const size = drawSize(confirmed)
+    const size = unseeded ? 0 : drawSize(confirmed)
     const byes = byeCount(confirmed)
     const draw = drawByCompetition.get(slug) ?? null
     // The disabled reason comes from the shared gate the server enforces (ADR-0011) — phase null
@@ -140,7 +160,9 @@ export const CompetitionsSurface = ({
       size,
       byes,
       draw,
-      blocker
+      blocker,
+      unseeded,
+      cancelled: isCancelledCompetition(cancelledCompetitions, slug)
     }
   })
 
@@ -152,7 +174,14 @@ export const CompetitionsSurface = ({
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div className="flex items-center gap-3">
                 <span className="font-semibold">{row.label}</span>
-                {!row.draw ? (
+                {/* The cancellation marker (ADR-0062). It sits *beside* the lifecycle badge, not instead
+                    of it: the admin is the record, so it keeps saying what the field's draw state is. */}
+                {row.cancelled && <Badge className="border-red-300 bg-red-50 text-red-900">Abgesagt</Badge>}
+                {row.unseeded ? (
+                  <Badge variant="outline" className="text-muted-foreground">
+                    Wird nicht ausgelost
+                  </Badge>
+                ) : !row.draw ? (
                   <Badge variant="outline" className="text-muted-foreground">
                     Nicht ausgelost
                   </Badge>
@@ -177,7 +206,12 @@ export const CompetitionsSurface = ({
                   )}
                   {row.draw && !isFullyRevealed(row.draw) && ` · ${row.draw.cursor}/${row.draw.total} enthüllt`}
                 </span>
-                {!row.draw ? (
+                {/* No draw trigger on an unseeded field (never drawn) and none on a cancelled one: a
+                    cancelled field that gets drawn can no longer be un-drawn *and* re-cancelled from
+                    here (the server's 409), and its bracket would go public while its players are
+                    already withheld. #277 turns this into a disabled button carrying the shared gate's
+                    reason; until then the affordance simply isn't offered. */}
+                {row.unseeded || row.cancelled ? null : !row.draw ? (
                   <DrawAction
                     blocker={row.blocker}
                     pending={drawingCompetition === row.slug}
@@ -206,6 +240,11 @@ export const CompetitionsSurface = ({
                       onDraw={() => onDrawConsolation(row.slug)}
                     />
                   ))}
+                <CancelAction
+                  label={row.label}
+                  cancelled={row.cancelled}
+                  onToggle={next => onSetCancelled(row.slug, next)}
+                />
               </div>
             </div>
 
@@ -267,87 +306,42 @@ const ConsolationAction = ({ blocker, pending, onDraw }: ConsolationActionProps)
   </Button>
 )
 
-interface BracketProps {
-  draw: CompetitionDraw
-  nameById: Map<number, string>
+interface CancelActionProps {
+  label: string
+  cancelled: boolean
+  onToggle: (cancelled: boolean) => void
 }
-// A read-only bracket: one column per round, the round-1 matches carrying the drawn players (with
-// their seed number) and later rounds showing the implicit feeders as not-yet-decided slots. Mirrors
-// the public preview's column layout (tournament-draw.astro) but reads the persisted `matches`.
-const Bracket = ({ draw, nameById }: BracketProps) => {
-  const seedByPlayer = useMemo(() => {
-    const map = new Map<number, number>()
-    for (const s of draw.seeding) map.set(s.playerId, s.seed)
-    return map
-  }, [draw.seeding])
-
-  const totalRounds = Math.log2(draw.size)
-  const byRound = useMemo(() => {
-    const rounds: Match[][] = Array.from({ length: totalRounds }, () => [])
-    // The third-place playoff shares the final's round but is a separate placement match, not a KO-tree
-    // node — excluded here so the final column shows the final alone, not a phantom second box (#90).
-    for (const m of draw.matches) if (!m.thirdPlace) rounds[m.round - 1]?.push(m)
-    for (const r of rounds) r.sort((a, b) => a.position - b.position)
-    return rounds
-  }, [draw.matches, totalRounds])
-
-  return (
-    <div className="overflow-x-auto pb-1">
-      <div className="flex min-w-min items-stretch gap-6">
-        {byRound.map((roundMatches, i) => {
-          const round = i + 1
-          return (
-            <div key={round} className="flex w-44 shrink-0 flex-col">
-              <div className="text-muted-foreground mb-2 border-b pb-1 text-xs font-semibold tracking-[0.08em] uppercase">
-                {roundLabel({ bracket: 'main', round, totalRounds })}
-              </div>
-              <div className="flex flex-1 flex-col justify-around gap-2">
-                {roundMatches.map(m => (
-                  <div key={m.id} className="flex flex-col gap-px">
-                    <Slot regId={m.slot1RegId} round={round} nameById={nameById} seedByPlayer={seedByPlayer} />
-                    <Slot regId={m.slot2RegId} round={round} nameById={nameById} seedByPlayer={seedByPlayer} />
-                  </div>
-                ))}
-              </div>
-            </div>
-          )
-        })}
-      </div>
-    </div>
+// „Absagen" / „Absage zurücknehmen" (ADR-0062). The friction sits **only** on the cancel: the expensive
+// half of that act is social — the operator telephones everyone in the field — while taking it back
+// materializes nothing and costs a click. The competition and its registrations stay visible either way;
+// the admin is the record, not the stage.
+const CancelAction = ({ label, cancelled, onToggle }: CancelActionProps) =>
+  cancelled ? (
+    <Button size="sm" variant="outline" onClick={() => onToggle(false)}>
+      <Undo2 className="size-4" />
+      Absage zurücknehmen
+    </Button>
+  ) : (
+    <AlertDialog>
+      <AlertDialogTrigger asChild>
+        <Button size="sm" variant="outline">
+          <CalendarX2 className="size-4" />
+          Absagen
+        </Button>
+      </AlertDialogTrigger>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>{label} absagen?</AlertDialogTitle>
+          <AlertDialogDescription>
+            Die Konkurrenz verschwindet aus der öffentlichen Teilnehmerliste. Die Anmeldungen bleiben unverändert
+            erhalten und hier sichtbar; die Absage bei den Angemeldeten selbst läuft per Anruf. Jederzeit
+            zurückzunehmen.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>Abbrechen</AlertDialogCancel>
+          <AlertDialogAction onClick={() => onToggle(true)}>Absagen</AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
   )
-}
-
-interface SlotProps {
-  regId: number | null
-  round: number
-  nameById: Map<number, string>
-  seedByPlayer: Map<number, number>
-}
-// One bracket slot: a drawn player (round 1) with their seed badge, or an empty feeder — a bye
-// ("Freilos") in round 1, otherwise a winner ("Sieger") placeholder for a not-yet-played match (ADR-0025).
-const Slot = ({ regId, round, nameById, seedByPlayer }: SlotProps) => {
-  if (regId === null) {
-    return (
-      <div className="text-muted-foreground bg-muted/40 flex min-h-8 items-center rounded border border-dashed px-2 text-xs">
-        {round === 1 ? 'Freilos' : 'Sieger'}
-      </div>
-    )
-  }
-  const seed = seedByPlayer.get(regId)
-  return (
-    <div className="bg-background flex min-h-8 items-center gap-2 rounded border px-2 text-sm">
-      {seed !== undefined && (
-        <span
-          className={cn(
-            'inline-flex size-4 shrink-0 items-center justify-center rounded-full text-[10px] font-bold tabular-nums',
-            'bg-foreground text-background'
-          )}
-          title={`An ${seed} gesetzt`}
-        >
-          {seed}
-        </span>
-      )}
-      <span className="truncate">{nameById.get(regId) ?? `#${regId}`}</span>
-    </div>
-  )
-}

@@ -24,12 +24,12 @@ describe('GET /api/phase', () => {
   it('defaults to signup on a fresh app-state', async () => {
     const res = await req('/api/phase')
     expect(res.status).toBe(200)
-    expect(await res.json()).toEqual({ phase: 'signup' })
+    expect(await res.json()).toEqual({ phase: 'signup', cancelledCompetitions: [] })
   })
 
   it('reflects a persisted phase', async () => {
     await env.DB.prepare("INSERT INTO app_state (id, phase) VALUES (1, 'tournament')").run()
-    expect(await (await req('/api/phase')).json()).toEqual({ phase: 'tournament' })
+    expect(await (await req('/api/phase')).json()).toEqual({ phase: 'tournament', cancelledCompetitions: [] })
   })
 })
 
@@ -42,7 +42,7 @@ describe('POST /api/admin/phase', () => {
     })
     expect(res.status).toBe(200)
     expect(await res.json()).toEqual({ ok: true, phase: 'tournament' })
-    expect(await (await req('/api/phase')).json()).toEqual({ phase: 'tournament' })
+    expect(await (await req('/api/phase')).json()).toEqual({ phase: 'tournament', cancelledCompetitions: [] })
   })
 
   it('keeps a single row across repeated sets', async () => {
@@ -58,7 +58,7 @@ describe('POST /api/admin/phase', () => {
     })
     const count = await env.DB.prepare('SELECT COUNT(*) AS c FROM app_state').first<{ c: number }>()
     expect(count?.c).toBe(1)
-    expect(await (await req('/api/phase')).json()).toEqual({ phase: 'post-event' })
+    expect(await (await req('/api/phase')).json()).toEqual({ phase: 'post-event', cancelledCompetitions: [] })
   })
 
   it('rejects an invalid phase at the Zod boundary', async () => {

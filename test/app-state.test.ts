@@ -35,4 +35,41 @@ describe('in-memory app-state store', () => {
     expect(await store.getSchedulePublished()).toBe(true)
     expect(await store.getPhase()).toBe('tournament')
   })
+
+  it('cancels a competition and takes it back — a plain toggle (ADR-0062)', async () => {
+    const store = createInMemoryAppStateStore()
+    expect(await store.getCancelledCompetitions()).toEqual([])
+    await store.setCompetitionCancelled('womens-social', true)
+    expect(await store.getCancelledCompetitions()).toEqual(['womens-social'])
+    // Idempotent: cancelling twice is still one entry.
+    await store.setCompetitionCancelled('womens-social', true)
+    expect(await store.getCancelledCompetitions()).toEqual(['womens-social'])
+    await store.setCompetitionCancelled('womens-social', false)
+    expect(await store.getCancelledCompetitions()).toEqual([])
+  })
+
+  it('holds several cancelled competitions in the canonical slug order', async () => {
+    const store = createInMemoryAppStateStore()
+    await store.setCompetitionCancelled('womens-social', true)
+    await store.setCompetitionCancelled('womens', true)
+    // Cancelled social-first, stored womens-first: the order is the offering's, not the operator's.
+    expect(await store.getCancelledCompetitions()).toEqual(['womens', 'womens-social'])
+  })
+
+  it('honours a seeded cancelled set', async () => {
+    const store = createInMemoryAppStateStore('tournament', false, ['womens'])
+    expect(await store.getCancelledCompetitions()).toEqual(['womens'])
+  })
+
+  it('keeps the cancelled set, the phase and the publish flag independent', async () => {
+    const store = createInMemoryAppStateStore()
+    await store.setCompetitionCancelled('womens', true)
+    await store.setPhase('tournament')
+    await store.setSchedulePublished(true)
+    expect(await store.getCancelledCompetitions()).toEqual(['womens'])
+    // …and the other direction: cancelling must not disturb the two global flags.
+    await store.setCompetitionCancelled('mens-challenger', true)
+    expect(await store.getPhase()).toBe('tournament')
+    expect(await store.getSchedulePublished()).toBe(true)
+  })
 })

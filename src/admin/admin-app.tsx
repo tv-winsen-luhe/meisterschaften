@@ -4,6 +4,7 @@ import { toast } from 'sonner'
 import type { AppType } from '../../worker/app'
 import { type AdminRegistration, type CompetitionDraw, type CompetitionSlug, type Phase } from '../../shared'
 import { errorMessage, isAuthRedirect } from './lib/api'
+import { useCancellation } from './use-cancellation'
 import { useDraw } from './use-draw'
 import { useReveal } from './use-reveal'
 import { useResults } from './use-results'
@@ -142,6 +143,10 @@ export const AdminApp = () => {
     },
     [client, phase, mutate]
   )
+
+  // The competition-cancellation seam (ADR-0062), kept out of the shell like useSchedule: the cancelled
+  // set the competitions surface marks, and the toggle that cancels one or takes it back.
+  const { cancelledCompetitions, setCompetitionCancelled } = useCancellation(client, mutate)
 
   // Resolves to whether the save succeeded, so the surface auto-advances only on success and
   // keeps the operator on a rejected row (their edits intact) instead of skipping ahead.
@@ -336,6 +341,8 @@ export const AdminApp = () => {
             onStartShow={setShowCompetition}
             onDrawConsolation={drawConsolation}
             drawingConsolation={drawingConsolation}
+            cancelledCompetitions={cancelledCompetitions}
+            onSetCancelled={setCompetitionCancelled}
           />
         ) : surface === 'schedule' ? (
           <ScheduleSurface
