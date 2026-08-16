@@ -42,7 +42,7 @@ describe('projections.schedule · publish gate (ADR-0041)', () => {
     const registrationsStore = createInMemoryRegistrationsStore(field(4))
     const appStateStore = createInMemoryAppStateStore('tournament', published)
     const service = createDrawService({ registrationsStore, drawStore, randomSource: createFakeRandomSource([0]) })
-    await service.draw({ competition: 'mens', phase: 'tournament', now: 'now' })
+    await service.draw({ competition: 'mens', phase: 'tournament', cancelled: false, now: 'now' })
     let r = await service.advance('mens', 'forward')
     while (r.ok && r.cursor < r.total) r = await service.advance('mens', 'forward')
     return { drawStore, registrationsStore, appStateStore }

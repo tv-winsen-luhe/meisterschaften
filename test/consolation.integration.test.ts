@@ -58,7 +58,7 @@ describe('createDrawService.drawConsolation', () => {
 
   it('draws the consolation from the round-1 losers once every first match is decided', async () => {
     const { drawStore, svc } = setup(8)
-    await svc.draw({ competition: 'mens', phase: 'tournament', now: 'now' })
+    await svc.draw({ competition: 'mens', phase: 'tournament', cancelled: false, now: 'now' })
     const r1 = await decideFirstRound(drawStore)
     const losers = r1.map(m => m.slot2RegId) // slot 1 won each, so slot 2 lost
 
@@ -87,7 +87,7 @@ describe('createDrawService.drawConsolation', () => {
 
   it('has no consolation bracket at draw size 4', async () => {
     const { svc } = setup(4)
-    await svc.draw({ competition: 'mens', phase: 'tournament', now: 'now' })
+    await svc.draw({ competition: 'mens', phase: 'tournament', cancelled: false, now: 'now' })
     expect(await svc.drawConsolation({ competition: 'mens', now: 'now' })).toMatchObject({
       ok: false,
       error: 'no-consolation'
@@ -96,7 +96,7 @@ describe('createDrawService.drawConsolation', () => {
 
   it('blocks while the first matches are still being played', async () => {
     const { svc } = setup(8)
-    await svc.draw({ competition: 'mens', phase: 'tournament', now: 'now' })
+    await svc.draw({ competition: 'mens', phase: 'tournament', cancelled: false, now: 'now' })
     expect(await svc.drawConsolation({ competition: 'mens', now: 'now' })).toMatchObject({
       ok: false,
       error: 'first-matches-pending'
@@ -105,7 +105,7 @@ describe('createDrawService.drawConsolation', () => {
 
   it('refuses a re-run once the consolation is drawn (ADR-0026)', async () => {
     const { drawStore, svc } = setup(8)
-    await svc.draw({ competition: 'mens', phase: 'tournament', now: 'now' })
+    await svc.draw({ competition: 'mens', phase: 'tournament', cancelled: false, now: 'now' })
     await decideFirstRound(drawStore)
     expect((await svc.drawConsolation({ competition: 'mens', now: 'now' })).ok).toBe(true)
     expect(await svc.drawConsolation({ competition: 'mens', now: 'now' })).toMatchObject({

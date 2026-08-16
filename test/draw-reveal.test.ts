@@ -48,7 +48,7 @@ describe('createDrawService.advance', () => {
       drawStore,
       randomSource: createFakeRandomSource([0, 0, 0, 0, 0])
     })
-    await svc.draw({ competition: 'mens', phase: 'tournament', now: 'now' })
+    await svc.draw({ competition: 'mens', phase: 'tournament', cancelled: false, now: 'now' })
     return { svc, drawStore }
   }
 
@@ -115,7 +115,7 @@ describe('projections.publicDraws', () => {
       drawStore,
       randomSource: createFakeRandomSource([0, 0, 0, 0, 0])
     })
-    await svc.draw({ competition: 'mens', phase: 'tournament', now: 'now' })
+    await svc.draw({ competition: 'mens', phase: 'tournament', cancelled: false, now: 'now' })
 
     const projections = createProjections({
       drawStore,
@@ -135,7 +135,7 @@ describe('projections.publicDraws', () => {
       drawStore,
       randomSource: createFakeRandomSource([0, 0, 0, 0, 0])
     })
-    await svc.draw({ competition: 'mens', phase: 'tournament', now: 'now' })
+    await svc.draw({ competition: 'mens', phase: 'tournament', cancelled: false, now: 'now' })
     await svc.advance('mens', 'forward')
     await svc.advance('mens', 'forward')
 

@@ -297,7 +297,9 @@ cancelled`, duplicate check, capacity, first-come cut) **unchanged**, with one r
     champion, nothing to archive; ADR-0007). Exactly one factual line survives, in the FAQ, **derived from
     the flag** so it cannot drift the way hand-written copy can. The **admin never hides**: the competition
     and its registrations stay, visibly marked „abgesagt" — it is the record, not the stage. The **draw
-    guard** refuses a cancelled field (a second reason at the same seam as the ≥4 check) and the admin's
+    guard** refuses a cancelled field (a second reason at the same seam as the ≥4 check, reported **ahead**
+    of it: a cancelled field is usually also under the floor, and the operator must read the reason that is
+    theirs to undo), the „Jetzt auslosen" button carries that same reason, and the admin's
     **court-load gauge** excludes it. If a whole side falls away the site simply degrades — it reads as a
     Herren-only event, because it is one; a competition filter left with a single option does not render.
     _(See ADR-0062, ADR-0034, ADR-0048, ADR-0007.)_

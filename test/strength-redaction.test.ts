@@ -109,7 +109,7 @@ describe('projections — the Challenger publishes its strength (ADR-0061)', () 
     const drawStore = createInMemoryDrawStore()
     const registrationsStore = createInMemoryRegistrationsStore(challengerField())
     const svc = createDrawService({ registrationsStore, drawStore, randomSource: createFakeRandomSource([0]) })
-    await svc.draw({ competition: 'mens-challenger', phase: 'tournament', now: 'now' })
+    await svc.draw({ competition: 'mens-challenger', phase: 'tournament', cancelled: false, now: 'now' })
     for (let i = 0; i < 4; i++) await svc.advance('mens-challenger', 'forward')
     return createProjections({ drawStore, registrationsStore, appStateStore: createInMemoryAppStateStore() })
   }
@@ -136,7 +136,7 @@ describe('projections — the Challenger publishes its strength (ADR-0061)', () 
     const drawStore = createInMemoryDrawStore()
     const registrationsStore = createInMemoryRegistrationsStore(challengerField())
     const svc = createDrawService({ registrationsStore, drawStore, randomSource: createFakeRandomSource([0]) })
-    await svc.draw({ competition: 'mens-challenger', phase: 'tournament', now: 'now' })
+    await svc.draw({ competition: 'mens-challenger', phase: 'tournament', cancelled: false, now: 'now' })
     await svc.advance('mens-challenger', 'forward')
     const projections = createProjections({
       drawStore,
@@ -175,7 +175,7 @@ describe('projections — the Challenger publishes its strength (ADR-0061)', () 
       drawStore,
       randomSource: createFakeRandomSource([0, 0, 0, 0, 0])
     })
-    await svc.draw({ competition: 'mens', phase: 'tournament', now: 'now' })
+    await svc.draw({ competition: 'mens', phase: 'tournament', cancelled: false, now: 'now' })
     await svc.advance('mens', 'forward')
     const projections = createProjections({
       drawStore,
@@ -210,7 +210,7 @@ describe('strength redaction is one decision across public projections (ADR-0048
       drawStore,
       randomSource: createFakeRandomSource(Array(20).fill(0))
     })
-    await svc.draw({ competition: 'mens', phase: 'tournament', now: 'now' })
+    await svc.draw({ competition: 'mens', phase: 'tournament', cancelled: false, now: 'now' })
     // Advance past the last step (clamped at total) so the field is fully revealed → the live phase.
     for (let i = 0; i < 20; i++) await svc.advance('mens', 'forward')
     return createProjections({ drawStore, registrationsStore, appStateStore: createInMemoryAppStateStore() })

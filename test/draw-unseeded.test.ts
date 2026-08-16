@@ -37,6 +37,7 @@ describe('createDrawService.draw · unseeded Social mixer', () => {
     const result = await service.draw({
       competition: 'womens-social',
       phase: 'tournament',
+      cancelled: false,
       now: '2026-08-01T09:00:00.000Z'
     })
 

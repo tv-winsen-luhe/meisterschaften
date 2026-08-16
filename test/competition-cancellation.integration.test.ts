@@ -5,6 +5,7 @@ import {
   activeCompetitions,
   CANCEL_DRAWN_REASON,
   COMPETITION_SLUGS,
+  DRAW_BLOCKER_REASON,
   isCancelledCompetition,
   type ParticipantsResponse,
   type PhaseResponse
@@ -204,16 +205,43 @@ describe('POST /api/admin/competition/cancel + the public wires', () => {
     expect((await env.DB.prepare('SELECT COUNT(*) AS c FROM draws').first<{ c: number }>())?.c).toBe(1)
   })
 
-  it('never blocks taking a cancellation back, drawn or not', async () => {
+  it('never blocks taking a cancellation back — the guard binds the cancel, never its reversal', async () => {
     for (let i = 1; i <= 4; i++) await seedConfirmed('mens', i)
     await setCancelled('mens', true)
     await post('/api/admin/phase', { phase: 'tournament' })
-    // The field is drawn while cancelled (the draw gate learns about cancellation in #277) — the
-    // un-cancel must still go through: the guard binds the cancel, never its reversal.
-    expect((await post('/api/admin/draw', { competition: 'mens' })).status).toBe(200)
 
     const res = await setCancelled('mens', false)
     expect(res.status).toBe(200)
     expect(await res.json()).toEqual({ ok: true, cancelledCompetitions: [] })
+    // …and with the cancellation taken back the castable field draws again — the block was the flag,
+    // nothing else about the field changed.
+    expect((await post('/api/admin/draw', { competition: 'mens' })).status).toBe(200)
+  })
+
+  // The two guards close the loop from both sides: a drawn field cannot be cancelled (above), and a
+  // cancelled field cannot be drawn — so a cancelled competition never grows a bracket that would go
+  // public while its players are already withheld from every projection.
+  it('refuses to draw a cancelled competition, with the gate reason the admin button shows', async () => {
+    for (let i = 1; i <= 4; i++) await seedConfirmed('mens', i)
+    await post('/api/admin/phase', { phase: 'tournament' })
+    await setCancelled('mens', true)
+
+    const res = await post('/api/admin/draw', { competition: 'mens' })
+    expect(res.status).toBe(400)
+    expect(await res.json()).toEqual({ error: DRAW_BLOCKER_REASON['cancelled'] })
+    expect((await env.DB.prepare('SELECT COUNT(*) AS c FROM draws').first<{ c: number }>())?.c).toBe(0)
+  })
+
+  // The reason must be the operator's own act, not the count that prompted it: a cancelled field is
+  // typically also under the 4-floor, and „Mindestens vier bestätigte Anmeldungen nötig" would point at
+  // the wrong lever.
+  it('names the cancellation, not the too-few floor, for a cancelled field under the floor', async () => {
+    await seedConfirmed('mens', 1)
+    await post('/api/admin/phase', { phase: 'tournament' })
+    await setCancelled('mens', true)
+
+    const res = await post('/api/admin/draw', { competition: 'mens' })
+    expect(res.status).toBe(400)
+    expect(await res.json()).toEqual({ error: DRAW_BLOCKER_REASON['cancelled'] })
   })
 })
