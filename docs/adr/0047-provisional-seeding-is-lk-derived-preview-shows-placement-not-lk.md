@@ -2,6 +2,7 @@
 
 - Status: accepted
 - Date: 2026-07-02
+- Amended: 2026-08-16 (see Amendment below — the Setzliste's seeds preview the **confirmed** field, not the active one)
 
 ## Context
 
@@ -56,3 +57,40 @@ registration order, not a bug to "sort away".
 - The draw engine is untouched — this ADR changes only the preview and the operator affordance.
 - Standing trap (ADR-0044 Consequence 4) restated: **any new public projection that joins a Challenger
   registration must null its LK value.** It may carry the seed rank; it must never carry the LK.
+
+## Amendment (2026-08-16): the Setzliste's seeds preview the **confirmed** field; the list and cut keep the active one
+
+Decision 3 settled _where_ the operator's seed badges sit (in place, in cut order). It never said which
+**population** they are computed over, and the implementation took the whole active field (`new` +
+`confirmed`) — the same set the cut runs on. The Herren Challenger showed this to be wrong on two
+counts at once: eight confirmed entries plus one still-unconfirmed row read as **„9 aktiv"** in a header
+where every other surface (the Konkurrenzen card, `drawBlocker`) reads the confirmed **8**, and — the
+heavier fault — the ninth row pushed `drawSize` from 8 to 16, so the Setzliste previewed **4 seeds** and a
+16-line bracket that the draw, running on the confirmed field, would never produce. A `new` row that
+happened to be the LK-strongest could also take badge Nr. 1 from an entry actually in the draw.
+
+The cut and the seeding are different axes — the point this ADR and ADR-0043 already make — and so are
+their populations:
+
+- The **cut is planning**: a spot is occupied the moment someone registers, so who is in the field and
+  who is a reserve must be answerable before anyone is confirmed. It runs over the **active** field.
+- The **seeding is a preview of the draw**, and the draw runs on **confirmed** entries alone
+  (`confirmedForDraw`). Anything sized off a larger set is a bracket that does not exist.
+
+**Decision (amended):** in the operator Setzliste the **seed count and the seed ranks are derived from the
+confirmed in-field entries**; the row list, the cut line and the reserve split stay over the active field.
+A `new` row therefore never carries a seed badge — it is not in the draw the badges preview. The header
+states both populations (`9 aktiv · 8 bestätigt · 1 offen`) rather than one number that disagrees with the
+rest of the admin. Decisions 1–3 are untouched: seed rank is still LK-derived via the shared helper, still
+badged in place, still out of numeric order on a Challenger field.
+
+Consequences:
+
+- Before the first confirm a field shows its cut and its too-strong flags but **no seed badges**
+  (`seedCount = 0`). That is the honest reading — there is no draw to preview yet — and it costs nothing
+  the cut does not already give.
+- The derivation moved out of the React surface into the pure `src/admin/surfaces/seeding-preview.ts`
+  (`seedingFieldPreview`), the same discipline as `confirm-preview`. That is the fix for the root cause
+  **behind** this defect: the counting rule lived inline in a component the test setup cannot render, so
+  nothing could assert it against the confirmed-field rule it was supposed to agree with. It now has a
+  test seam, and a regression test on it (`test/seeding-preview.test.ts`).
