@@ -93,6 +93,9 @@ export interface DrawServiceDeps {
 export interface DrawParams {
   competition: string
   phase: Phase
+  // Is this competition cancelled (ADR-0062)? Handed in like the phase, so the shared gate stays pure —
+  // the route reads the operator state, the service enforces it.
+  cancelled: boolean
   challengerMinLk?: number
   now: string
 }
@@ -115,17 +118,17 @@ export const createDrawService = (deps: DrawServiceDeps) => {
 
   return {
     /**
-     * Draw the main bracket for one competition. Gated on the shared draw preconditions (phase, count,
-     * supported size) and on the field being un-drawn (ADR-0026). On success the bracket +
+     * Draw the main bracket for one competition. Gated on the shared draw preconditions (not cancelled,
+     * phase, count, supported size) and on the field being un-drawn (ADR-0026). On success the bracket +
      * draw record are persisted atomically and the assembled CompetitionDraw is returned.
      */
-    async draw({ competition, phase, challengerMinLk, now }: DrawParams): Promise<DrawOutcome> {
+    async draw({ competition, phase, cancelled, challengerMinLk, now }: DrawParams): Promise<DrawOutcome> {
       // An unseeded field (Social mixer) is never drawn — signup-only, no bracket (ADR-0051). Refuse
       // before reading the field, so a stray call can never produce a bracket from LK-less entries.
       if (isUnseededCompetition(competition)) return fail('Unseeded')
 
       const players = await registrationsStore.confirmedForDraw(competition)
-      const blocker = drawBlocker(phase, players.length)
+      const blocker = drawBlocker(phase, players.length, cancelled)
       if (blocker) return fail(blocker)
 
       // The re-run guard (ADR-0026, ADR-0003): a draw is final the moment it is revealed. While it is

@@ -47,7 +47,7 @@ const drawn8 = async (published = false) => {
     drawStore,
     randomSource: createFakeRandomSource(Array<number>(20).fill(0))
   })
-  await svc.draw({ competition: 'mens', phase: 'tournament', now: 'now' })
+  await svc.draw({ competition: 'mens', phase: 'tournament', cancelled: false, now: 'now' })
   let r = await svc.advance('mens', 'forward')
   while (r.ok && r.cursor < r.total) r = await svc.advance('mens', 'forward')
   const projections = createProjections({ drawStore, registrationsStore, appStateStore })

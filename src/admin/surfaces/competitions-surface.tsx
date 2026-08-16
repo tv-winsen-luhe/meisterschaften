@@ -149,9 +149,12 @@ export const CompetitionsSurface = ({
     const size = unseeded ? 0 : drawSize(confirmed)
     const byes = byeCount(confirmed)
     const draw = drawByCompetition.get(slug) ?? null
+    const cancelled = isCancelledCompetition(cancelledCompetitions, slug)
     // The disabled reason comes from the shared gate the server enforces (ADR-0011) — phase null
-    // (not yet loaded) reads as not-yet-tournament, which is the safe "can't draw yet" default.
-    const blocker = drawBlocker(phase ?? 'signup', confirmed)
+    // (not yet loaded) reads as not-yet-tournament, which is the safe "can't draw yet" default. The
+    // cancellation goes in as the third input, so a cancelled field's button carries *its* reason
+    // („abgesagt"), not the too-few one it usually also trips (ADR-0062).
+    const blocker = drawBlocker(phase ?? 'signup', confirmed, cancelled)
     return {
       slug,
       label: competitionLabel(slug),
@@ -162,7 +165,7 @@ export const CompetitionsSurface = ({
       draw,
       blocker,
       unseeded,
-      cancelled: isCancelledCompetition(cancelledCompetitions, slug)
+      cancelled
     }
   })
 
@@ -194,10 +197,12 @@ export const CompetitionsSurface = ({
               <div className="flex items-center gap-3">
                 <span className="text-muted-foreground text-sm tabular-nums">
                   {row.confirmed} bestätigt
-                  {/* The would-be-draw chip only when the size isn't itself the reason the draw is blocked
-                      (too-few / unsupported-size) — otherwise it would advertise a „4er-Feld" next to a
-                      disabled „too few" button (ADR-0034). A forming field in signup still shows it. */}
-                  {row.size > 0 && row.blocker !== 'too-few' && row.blocker !== 'unsupported-size' && (
+                  {/* The would-be-draw chip only while a draw is still on the table: not when the size is
+                      itself the reason it is blocked (too-few / unsupported-size), which would advertise a
+                      „4er-Feld" next to a disabled „too few" button (ADR-0034), and not for a cancelled
+                      field, whose draw is off for good (ADR-0062). A forming field in signup still shows
+                      it — „not-tournament" is a deadline, not a verdict on the field. */}
+                  {row.size > 0 && (row.blocker === null || row.blocker === 'not-tournament') && (
                     <>
                       {' · '}
                       {row.size}er-Feld
@@ -206,12 +211,12 @@ export const CompetitionsSurface = ({
                   )}
                   {row.draw && !isFullyRevealed(row.draw) && ` · ${row.draw.cursor}/${row.draw.total} enthüllt`}
                 </span>
-                {/* No draw trigger on an unseeded field (never drawn) and none on a cancelled one: a
-                    cancelled field that gets drawn can no longer be un-drawn *and* re-cancelled from
-                    here (the server's 409), and its bracket would go public while its players are
-                    already withheld. #277 turns this into a disabled button carrying the shared gate's
-                    reason; until then the affordance simply isn't offered. */}
-                {row.unseeded || row.cancelled ? null : !row.draw ? (
+                {/* No draw trigger on an unseeded field — it is never drawn at all (ADR-0051), so an
+                    always-disabled button would only add noise. A cancelled field *does* keep the
+                    button, disabled with the gate's „abgesagt" reason (ADR-0062): the draw is a step
+                    the operator would otherwise expect here, so it says why it is off rather than
+                    vanishing. The server refuses it through the same gate. */}
+                {row.unseeded ? null : !row.draw ? (
                   <DrawAction
                     blocker={row.blocker}
                     pending={drawingCompetition === row.slug}

@@ -37,7 +37,7 @@ const drawn = async () => {
   const registrationsStore = createInMemoryRegistrationsStore(Array.from({ length: 4 }, (_, i) => confirmed(i + 1)))
   const appStateStore = createInMemoryAppStateStore('tournament', true)
   const service = createDrawService({ registrationsStore, drawStore, randomSource: createFakeRandomSource([0]) })
-  await service.draw({ competition: 'mens', phase: 'tournament', now: 'now' })
+  await service.draw({ competition: 'mens', phase: 'tournament', cancelled: false, now: 'now' })
   let r = await service.advance('mens', 'forward')
   while (r.ok && r.cursor < r.total) r = await service.advance('mens', 'forward')
   const projections = createProjections({ drawStore, registrationsStore, appStateStore })

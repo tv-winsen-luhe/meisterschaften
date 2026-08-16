@@ -251,7 +251,7 @@ export const displaySeedCount = (confirmed: number): number => bracketStructure(
 // Why a competition cannot be drawn yet. The single predicate both the worker enforces (authority)
 // and the competitions surface (UI: „Konkurrenzen") renders (affordance) — defined once so the button's disabled reason
 // can never drift from the server guard (the canConfirm pattern, ADR-0011). `null` = drawable.
-export type DrawBlocker = 'not-tournament' | 'too-few' | 'unsupported-size'
+export type DrawBlocker = 'cancelled' | 'not-tournament' | 'too-few' | 'unsupported-size'
 
 // The minimum confirmed entries for a real knockout field (ADR-0034): below 4 a draw would carry a bye
 // semifinal (a player walks to the final). The single source the gate and the public „ab 4" affordances
@@ -260,6 +260,7 @@ export const MIN_DRAW_ENTRIES = 4
 
 // The operator-facing reason per blocker — one source for the server's 400 body and the button hint.
 export const DRAW_BLOCKER_REASON: Record<DrawBlocker, string> = {
+  cancelled: 'Diese Konkurrenz ist abgesagt. Erst die Absage zurücknehmen, dann auslosen.',
   'not-tournament': 'Auslosung erst nach Anmeldeschluss (Phase „Turnier").',
   'too-few': 'Mindestens vier bestätigte Anmeldungen nötig.',
   'unsupported-size': 'Aktuell nur 4er-, 8er- und 16er-Felder.'
@@ -274,10 +275,15 @@ export const DRAW_BLOCKER_REASON: Record<DrawBlocker, string> = {
  * below that the club plays it off another way, not through this KO engine (ADR-0034). Byes are no
  * longer a blocker — §31 fills a non-full field — so the remaining gates are the floor and the size
  * table (a field of 4 is a full 4-draw, 5–8 rounds to 8, 9–16 to 16; under 4 is too-few, 17+ rounds to
- * 32, which has no seed table). The "already drawn" check is not here: it needs the store, so the worker
+ * 32, which has no seed table). A **cancelled** competition (ADR-0062) is refused first, before the count
+ * and the phase: it is typically also under the 4-floor — that is why it was cancelled — and the operator
+ * must read the reason that is actually theirs to undo, not „Mindestens vier bestätigte Anmeldungen nötig"
+ * for a field they cancelled themselves. Like the phase and the count, the cancelled state comes in as an
+ * argument, so this stays pure. The "already drawn" check is not here: it needs the store, so the worker
  * adds it; this is the pure, store-free part the client can run too.
  */
-export const drawBlocker = (phase: Phase, confirmed: number): DrawBlocker | null => {
+export const drawBlocker = (phase: Phase, confirmed: number, cancelled: boolean): DrawBlocker | null => {
+  if (cancelled) return 'cancelled'
   if (phase !== 'tournament') return 'not-tournament'
   if (confirmed < MIN_DRAW_ENTRIES) return 'too-few'
   if (!isSupportedDrawSize(drawSize(confirmed))) return 'unsupported-size'

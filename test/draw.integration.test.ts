@@ -2,7 +2,7 @@ import { applyD1Migrations, env } from 'cloudflare:test'
 import { beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { CHALLENGER_MIN_LK, type CompetitionDraw } from '../shared'
 import { app } from '../worker/app'
-import { createDrawService } from '../worker/draw'
+import { createDrawService, type DrawParams } from '../worker/draw'
 import { createD1DrawStore } from '../worker/store/draw'
 import { createInMemoryDrawStore } from '../worker/store/draw.memory'
 import { createInMemoryRegistrationsStore } from '../worker/store/registrations.memory'
@@ -31,6 +31,17 @@ const confirmed = (id: number, overrides: Partial<RegistrationRow> = {}): Regist
 
 const field = (n: number) => Array.from({ length: n }, (_, i) => confirmed(i + 1))
 
+// The drawable baseline: the Herren field, registration closed, not cancelled. Each test overrides only
+// the input it is about (the phase, the cancellation, the Challenger cap), so the gate under test reads
+// at a glance instead of hiding in four repeated lines.
+const params = (overrides: Partial<DrawParams> = {}): DrawParams => ({
+  competition: 'mens',
+  phase: 'tournament',
+  cancelled: false,
+  now: 'now',
+  ...overrides
+})
+
 // ── Worker orchestration over the in-memory stores (no D1) ──────────────────────────────────────
 // The draw service is the wiring (guards + read + pure draw + atomic write); the bracket math is
 // covered in draw.test.ts. Driving it through the in-memory stores proves the orchestration and the
@@ -45,7 +56,7 @@ describe('createDrawService.draw', () => {
 
   it('draws a full field and writes the bracket + draw record', async () => {
     const svc = service(field(8), [0, 0, 0, 0, 0])
-    const result = await svc.draw({ competition: 'mens', phase: 'tournament', now: '2026-08-01T09:00:00.000Z' })
+    const result = await svc.draw(params({ now: '2026-08-01T09:00:00.000Z' }))
     expect(result.ok).toBe(true)
     if (!result.ok) return
     expect(result.draw.size).toBe(8)
@@ -60,16 +71,12 @@ describe('createDrawService.draw', () => {
 
   it('seeds only this competition — confirmed rows of other fields are ignored', async () => {
     const rows = [...field(8), confirmed(9, { competition: 'womens' }), confirmed(10, { competition: 'womens' })]
-    const result = await service(rows, [0, 0, 0, 0, 0]).draw({
-      competition: 'mens',
-      phase: 'tournament',
-      now: 'now'
-    })
+    const result = await service(rows, [0, 0, 0, 0, 0]).draw(params())
     expect(result.ok && result.draw.size).toBe(8)
   })
 
   it('refuses outside the tournament phase', async () => {
-    const result = await service(field(8), []).draw({ competition: 'mens', phase: 'signup', now: 'now' })
+    const result = await service(field(8), []).draw(params({ phase: 'signup' }))
     expect(result).toMatchObject({ ok: false, error: 'not-tournament' })
   })
 
@@ -82,13 +89,13 @@ describe('createDrawService.draw', () => {
     })
     // While unrevealed (cursor 0, nothing public) a re-run is the only legitimate "repeat": it discards
     // and re-draws. Both attempts succeed; the second replaces the first, leaving a single draw record.
-    expect((await svc.draw({ competition: 'mens', phase: 'tournament', now: 'now' })).ok).toBe(true)
-    expect((await svc.draw({ competition: 'mens', phase: 'tournament', now: 'now' })).ok).toBe(true)
+    expect((await svc.draw(params())).ok).toBe(true)
+    expect((await svc.draw(params())).ok).toBe(true)
     expect(await drawStore.listDraws()).toHaveLength(1)
 
     // Reveal the first lot — now the draw is frozen and a further re-run is refused (no re-roll).
     expect(await svc.advance('mens', 'forward')).toMatchObject({ ok: true, cursor: 1 })
-    expect(await svc.draw({ competition: 'mens', phase: 'tournament', now: 'now' })).toMatchObject({
+    expect(await svc.draw(params())).toMatchObject({
       ok: false,
       error: 'AlreadyDrawn'
     })
@@ -104,9 +111,9 @@ describe('createDrawService.draw', () => {
       drawStore,
       randomSource: createFakeRandomSource([0, 0, 0, 0, 0])
     })
-    expect((await svc.draw({ competition: 'mens', phase: 'tournament', now: 'now' })).ok).toBe(true)
+    expect((await svc.draw(params())).ok).toBe(true)
     // A re-run in the wrong phase fails its gate before any teardown — the original draw still stands.
-    expect(await svc.draw({ competition: 'mens', phase: 'signup', now: 'now' })).toMatchObject({
+    expect(await svc.draw(params({ phase: 'signup' }))).toMatchObject({
       ok: false,
       error: 'not-tournament'
     })
@@ -114,7 +121,7 @@ describe('createDrawService.draw', () => {
   })
 
   it('draws a non-full field, filling it with byes and auto-resolving them (§31)', async () => {
-    const result = await service(field(7), [0, 0, 0, 0]).draw({ competition: 'mens', phase: 'tournament', now: 'now' })
+    const result = await service(field(7), [0, 0, 0, 0]).draw(params())
     expect(result.ok).toBe(true)
     if (!result.ok) return
     expect(result.draw.size).toBe(8)
@@ -127,7 +134,7 @@ describe('createDrawService.draw', () => {
   })
 
   it('draws a 4-player field — the smallest field that forms a knockout (ADR-0034)', async () => {
-    const result = await service(field(4), [0]).draw({ competition: 'mens', phase: 'tournament', now: 'now' })
+    const result = await service(field(4), [0]).draw(params())
     expect(result.ok).toBe(true)
     if (!result.ok) return
     expect(result.draw.size).toBe(4)
@@ -135,13 +142,23 @@ describe('createDrawService.draw', () => {
   })
 
   it('refuses an over-full field whose size has no seed table (17+ rounds to 32)', async () => {
-    const result = await service(field(17), []).draw({ competition: 'mens', phase: 'tournament', now: 'now' })
+    const result = await service(field(17), []).draw(params())
     expect(result).toMatchObject({ ok: false, error: 'unsupported-size' })
   })
 
   it('refuses fewer than four confirmed entries (2–3 are too few to seed a knockout)', async () => {
-    const result = await service(field(3), []).draw({ competition: 'mens', phase: 'tournament', now: 'now' })
+    const result = await service(field(3), []).draw(params())
     expect(result).toMatchObject({ ok: false, error: 'too-few' })
+  })
+
+  // A cancelled competition does not take place (ADR-0062): the service refuses it however castable the
+  // field is, and names the cancellation rather than the floor a cancelled field usually also trips.
+  it('refuses a cancelled competition, ahead of the too-few floor', async () => {
+    const drawn = await service(field(8), []).draw(params({ cancelled: true }))
+    expect(drawn).toMatchObject({ ok: false, error: 'cancelled' })
+
+    const short = await service(field(3), []).draw(params({ cancelled: true }))
+    expect(short).toMatchObject({ ok: false, error: 'cancelled' })
   })
 })
 
@@ -168,7 +185,7 @@ describe('createDrawService.draw — Challenger cap', () => {
       randomSource: createFakeRandomSource([])
     })
 
-    const result = await svc.draw({ competition: 'mens-challenger', phase: 'tournament', now: 'now' })
+    const result = await svc.draw(params({ competition: 'mens-challenger' }))
     expect(result).toMatchObject({ ok: false, error: 'ChallengerTooStrong' })
     if (result.ok) return
     expect(result.tooStrong).toEqual([{ id: 8, lk: '15.0' }])
@@ -185,7 +202,7 @@ describe('createDrawService.draw — Challenger cap', () => {
       randomSource: createFakeRandomSource(FULL_8)
     })
 
-    const result = await svc.draw({ competition: 'mens-challenger', phase: 'tournament', now: 'now' })
+    const result = await svc.draw(params({ competition: 'mens-challenger' }))
     expect(result.ok).toBe(true)
     expect(result.ok && result.draw.size).toBe(8)
     // The cap is frozen into the draw record — the default when the operator passes none.
@@ -203,23 +220,13 @@ describe('createDrawService.draw — Challenger cap', () => {
         randomSource: createFakeRandomSource(FULL_8)
       })
 
-    const blocked = await svc().draw({
-      competition: 'mens-challenger',
-      phase: 'tournament',
-      challengerMinLk: 23,
-      now: 'now'
-    })
+    const blocked = await svc().draw(params({ competition: 'mens-challenger', challengerMinLk: 23 }))
     expect(blocked).toMatchObject({ ok: false, error: 'ChallengerTooStrong' })
     expect(blocked.ok || blocked.tooStrong).toEqual([{ id: 1, lk: '22.0' }])
     expect(await drawStore.findDraw('mens-challenger', 'main')).toBeNull()
 
     // A lower cap of 10 admits the whole field; the chosen value is what gets frozen.
-    const passed = await svc().draw({
-      competition: 'mens-challenger',
-      phase: 'tournament',
-      challengerMinLk: 10,
-      now: 'now'
-    })
+    const passed = await svc().draw(params({ competition: 'mens-challenger', challengerMinLk: 10 }))
     expect(passed.ok).toBe(true)
     expect((await drawStore.findDraw('mens-challenger', 'main'))?.challengerMinLk).toBe(10)
   })
@@ -233,7 +240,7 @@ describe('createDrawService.draw — Challenger cap', () => {
       randomSource: createFakeRandomSource(FULL_8)
     })
 
-    const result = await svc.draw({ competition: 'mens', phase: 'tournament', now: 'now' })
+    const result = await svc.draw(params())
     expect(result.ok).toBe(true)
     expect((await drawStore.findDraw('mens', 'main'))?.challengerMinLk).toBeNull()
   })

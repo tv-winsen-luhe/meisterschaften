@@ -320,15 +320,21 @@ export const createApp = (makeDeps: (env: Env) => Deps = createDepsFromEnv) =>
       return c.json(publicDrawsResponseSchema.parse({ draws }), 200, { 'cache-control': 'no-store' })
     })
     // POST /api/admin/draw — the „Jetzt auslosen" action (ADR-0025). The draw service guards the
-    // preconditions (phase = tournament, not yet drawn, supported size), computes the bracket with crypto
+    // preconditions (not cancelled, phase = tournament, not yet drawn, supported size), computes the bracket with crypto
     // randomness, and writes the matches + draw record atomically. A failed guard maps to 400/409 with
     // the operator-facing reason; the gate values (AlreadyDrawn → 409) match the HTTP semantics.
     .post('/api/admin/draw', parseGuard, v(drawRequestSchema), async c => {
-      const phase = await c.var.deps.appState.getPhase()
+      const [phase, cancelledCompetitions] = await Promise.all([
+        c.var.deps.appState.getPhase(),
+        c.var.deps.appState.getCancelledCompetitions()
+      ])
       const { competition, challengerMinLk } = c.req.valid('json')
       const result = await c.var.deps.drawService.draw({
         competition,
         phase,
+        // A cancelled competition is not drawn (ADR-0062) — read here beside the phase, refused by the
+        // same shared gate the admin button's hint renders, so the two reasons cannot drift (ADR-0011).
+        cancelled: isCancelledCompetition(cancelledCompetitions, competition),
         challengerMinLk,
         now: new Date().toISOString()
       })
