@@ -9,11 +9,11 @@ import { useDraw } from './use-draw'
 import { useReveal } from './use-reveal'
 import { useResults } from './use-results'
 import { useSchedule } from './use-schedule'
-import { Button } from '@/admin/ui/button'
 import { Separator } from '@/admin/ui/separator'
 import { Toaster } from '@/admin/ui/sonner'
 import { SidebarInset, SidebarProvider, SidebarTrigger } from '@/admin/ui/sidebar'
 import { AppSidebar, type Surface } from './app-sidebar'
+import { BootScreen } from './boot-screen'
 import { PHASE_LABELS, PhaseStepper } from './phase-stepper'
 import { CompetitionsSurface } from './surfaces/competitions-surface'
 import { ScheduleSurface } from './surfaces/schedule-surface'
@@ -145,8 +145,9 @@ export const AdminApp = () => {
   )
 
   // The competition-cancellation seam (ADR-0062), kept out of the shell like useSchedule: the cancelled
-  // set the competitions surface marks, and the toggle that cancels one or takes it back.
-  const { cancelledCompetitions, setCompetitionCancelled } = useCancellation(client, mutate)
+  // set the competitions surface marks, the toggle that cancels one or takes it back, and the
+  // under-threshold list the „Anmeldung schließen" dialog names.
+  const { cancelledCompetitions, setCompetitionCancelled, underfilled } = useCancellation(client, mutate, registrations)
 
   // Resolves to whether the save succeeded, so the surface auto-advances only on success and
   // keeps the operator on a rejected row (their edits intact) instead of skipping ahead.
@@ -251,26 +252,9 @@ export const AdminApp = () => {
     setSurface('registrations')
   }, [])
 
-  // Until the first successful load, hold a loading/error screen rather than the full admin — a
-  // failed load must not look like an empty registration list (the operator could mistake a
-  // backend hiccup for "nobody signed up"). Once loaded, later refresh failures only toast.
-  if (!ready || !everLoaded) {
-    return (
-      <main className="grid min-h-svh place-items-center p-5">
-        {!ready ? (
-          <p className="text-muted-foreground text-sm">Lädt …</p>
-        ) : (
-          <p className="text-muted-foreground text-center text-sm">
-            Konnte die Anmeldungen nicht laden.{' '}
-            <Button variant="outline" size="sm" onClick={() => location.reload()}>
-              Neu laden
-            </Button>
-          </p>
-        )}
-        <Toaster />
-      </main>
-    )
-  }
+  // Until the first successful load, hold the boot screen rather than the full admin — a failed load
+  // must not look like an empty registration list. Once loaded, later refresh failures only toast.
+  if (!ready || !everLoaded) return <BootScreen ready={ready} />
 
   // The large-screen draw show takes over the whole viewport (issue #71): a beamer projection has no
   // place for the sidebar/stepper chrome, so it renders instead of the admin shell. Exiting re-reads the
@@ -319,7 +303,15 @@ export const AdminApp = () => {
           <SidebarTrigger className="-ml-1" />
           <Separator orientation="vertical" className="mr-1 !h-5" />
           <div className="flex flex-1 justify-center">
-            <PhaseStepper phase={phase} onChange={changePhase} />
+            <PhaseStepper
+              phase={phase}
+              onChange={changePhase}
+              underfilled={underfilled}
+              onGoToCompetitions={() => {
+                setSelectId(null)
+                setSurface('competitions')
+              }}
+            />
           </div>
         </header>
         {surface === 'overview' ? (
@@ -328,6 +320,7 @@ export const AdminApp = () => {
             onGoToNew={goToNew}
             onGoToCompetition={goToCompetition}
             onOpenRegistration={goToRegistration}
+            cancelledCompetitions={cancelledCompetitions}
           />
         ) : surface === 'seeding' ? (
           <SeedingSurface registrations={registrations} />

@@ -1,5 +1,7 @@
 import { z } from 'zod'
 import { COMPETITION_SLUGS, competitionSlug, type CompetitionSlug } from './competition'
+import { MIN_DRAW_ENTRIES } from './draw'
+import { isUnseededCompetition } from './seeding'
 
 // Competition cancellation (CONTEXT: Competition cancellation; ADR-0062) — the one place that answers
 // „does this competition take place?" and derives „which ones still count".
@@ -34,6 +36,48 @@ export const isCancelledCompetition = (cancelled: readonly string[], competition
  */
 export const activeCompetitions = (cancelled: readonly string[]): CompetitionSlug[] =>
   COMPETITION_SLUGS.filter(slug => !isCancelledCompetition(cancelled, slug))
+
+// ── The affordance: which competitions are worth cancelling ─────────────────────────────────────
+// The count never cancels (that is the operator's act) — it only advises, in the one moment the number
+// becomes final: the „Anmeldung schließen" confirm dialog. These thresholds feed that list and nothing
+// else. They are constants in the code, like the capacities (ADR-0021), not an admin surface.
+
+// The minimum confirmed entries for the unseeded Social mixer. It is never drawn (ADR-0058), so the
+// draw floor does not apply to it at all — a rotating-partner afternoon needs its own, higher number,
+// and this is a judgment, not bracket math.
+export const MIN_SOCIAL_MIXER_ENTRIES = 6
+
+/**
+ * The confirmed count below which a competition is worth cancelling. For a drawn field this **is** the
+ * draw floor (ADR-0034) — that floor already says „this field cannot happen", and a second number would
+ * be free to disagree with it; the mixer, having no draw, brings its own.
+ */
+export const cancellationThreshold = (competition: string): number =>
+  isUnseededCompetition(competition) ? MIN_SOCIAL_MIXER_ENTRIES : MIN_DRAW_ENTRIES
+
+/** One competition under its threshold: what it has, and what it would need. */
+export interface UnderfilledCompetition {
+  competition: CompetitionSlug
+  confirmed: number
+  threshold: number
+}
+
+/**
+ * The competitions under their threshold, in canonical order — the dialog's list. A competition with no
+ * entry at all counts as zero (it is missing from the tally, not absent from the event), and one that is
+ * already cancelled is left out: there is nothing left to advise.
+ */
+export const underfilledCompetitions = (
+  confirmed: Readonly<Partial<Record<CompetitionSlug, number>>>,
+  cancelled: readonly string[]
+): UnderfilledCompetition[] =>
+  activeCompetitions(cancelled)
+    .map(competition => ({
+      competition,
+      confirmed: confirmed[competition] ?? 0,
+      threshold: cancellationThreshold(competition)
+    }))
+    .filter(field => field.confirmed < field.threshold)
 
 // POST /api/admin/competition/cancel — the operator cancels one competition, or takes the cancellation
 // back. A plain reversible toggle: cancelling materializes nothing, so there is nothing to reconcile on
