@@ -26,7 +26,11 @@ import type {
 // (`renderPreview` / `renderReveal` / `renderLive`) are the module's surface; everything above is internal.
 
 export type Entry = Participant
-type Slot = { seed: number; player: Entry } | null
+// A round-1 line of the pre-draw preview. A `seed` line is a seed the DTB table fixes (Nr. 1, Nr. 2 —
+// and every seed of a 4- or 8-draw); a `lot` line is one of a lot group's prescribed lines (16-draw:
+// lines 5 and 12 for Nr. 3/4), which carries the whole group because §30.5b leaves it to the lot which
+// of them lands where. Preview-only — the reveal and the live bracket have their own slot unions.
+type Slot = { kind: 'seed'; seed: number; player: Entry } | { kind: 'lot'; seeds: number[]; players: Entry[] } | null
 // PlayerDisplay (shared) is the display fields a bracket line shows — the wire contract's reveal-step
 // player. A Participant is structurally assignable to it, so the preview and the reveal share one shape.
 
@@ -97,8 +101,29 @@ const playerEl = (
   return el
 }
 
-const slotEl = (slot: Slot, redacted: boolean): HTMLElement =>
-  slot ? playerEl(slot.player, slot.seed, redacted) : tbdEl()
+// A lot-group line of the pre-draw preview („3/4 · wird gelost"): both prescribed lines carry both
+// seeds, because the lines are fixed by the table but the pairing is the lot's (DTB §30.5b). It keeps
+// the accepted relative-rank signal — which players are seeded (ADR-0047) — without claiming a
+// placement the draw has not made. The seed pill drops on a redacted field like any other seed number
+// (ADR-0048); the LKs stay off the line entirely, two ratings would not fit and are not the point here.
+const lotSlotEl = (seeds: number[], players: Entry[], redacted: boolean): HTMLElement => {
+  const el = elem('div', 'dm-slot dm-slot--lot')
+  const label = seeds.join('/')
+  if (!redacted) {
+    const no = elem('span', 'dm-lotno', label)
+    no.title = `An ${label} gesetzt — die Linie wird gelost`
+    el.append(no)
+  }
+  el.append(elem('span', 'dm-name', players.map(p => `${p.firstName} ${p.lastName}`.trim()).join(' / ')))
+  el.append(elem('span', 'dm-lot', 'wird gelost'))
+  return el
+}
+
+const slotEl = (slot: Slot, redacted: boolean): HTMLElement => {
+  if (!slot) return tbdEl()
+  if (slot.kind === 'lot') return lotSlotEl(slot.seeds, slot.players, redacted)
+  return playerEl(slot.player, slot.seed, redacted)
+}
 
 // An empty bye line („Freilos", §31) — the paired seed advances „ohne Spiel". Shared by the reveal (a
 // revealed bye step) and the live bracket (a resolved round-1 bye slot).
@@ -295,20 +320,29 @@ export const renderPreview = (bracket: HTMLElement, players: Entry[], redacted: 
   }
   const size = displayDrawSize(players.length)
   // One bracketStructure — the single topology source the real draw also uses (ADR-0025), so the
-  // preview's seed lines and count can't drift from the draw's. Lot seeds (Nr.3/4) sit on the first
-  // of their prescribed lines until the actual lot runs at the draw.
+  // preview's seed lines and count can't drift from the draw's — including which groups are drawn by
+  // lot, so a lot group is recognised from the table rather than from a hardcoded „Nr.3/4" here.
   const struct = bracketStructure(size)
-  const seedPos: Record<number, number> = {}
-  for (const group of struct.seedGroups) group.seeds.forEach((seed, i) => (seedPos[seed] = group.lines[i]))
   const slots: Slot[] = Array.from({ length: size }, () => null)
-  // Place each seed on its line by the server-computed `seedRank` (by LK, ADR-0047), never by list
-  // position: the participants feed is in list order — registration date for a Challenger field — so
-  // slicing the top of it would seed the earliest registrants, not the LK-strongest (the prod bug). The
-  // seed number stays hidden on a `redacted` field (playerEl) and the LK never reaches this wire.
-  for (const player of players) {
-    if (player.seedRank == null) continue
-    const pos = seedPos[player.seedRank]
-    if (pos !== undefined) slots[pos] = { seed: player.seedRank, player }
+  // Seeds go on by the server-computed `seedRank` (by LK, ADR-0047), never by list position: the
+  // participants feed is in list order — registration date for a Challenger field — so slicing the top
+  // of it would seed the earliest registrants, not the LK-strongest (the prod bug). Seed numbers stay
+  // hidden on a `redacted` field and the LK never reaches this wire.
+  const bySeed = new Map<number, Entry>()
+  for (const player of players) if (player.seedRank != null) bySeed.set(player.seedRank, player)
+  for (const group of struct.seedGroups) {
+    const seeded = group.seeds.filter(seed => bySeed.has(seed))
+    if (seeded.length === 0) continue
+    if (group.seeds.length === 1) {
+      // A one-seed group: the table fixes the line (Nr. 1 → first, Nr. 2 → last), nothing is drawn.
+      slots[group.lines[0]] = { kind: 'seed', seed: seeded[0], player: bySeed.get(seeded[0])! }
+      continue
+    }
+    // A lot group (Nr. 3/4 in a 16-draw): the lines are prescribed, the pairing is the lot's (§30.5b).
+    // Both lines therefore show the whole group — pinning one seed per line here would pre-announce a
+    // placement the draw has yet to make.
+    const entry: Slot = { kind: 'lot', seeds: seeded, players: seeded.map(seed => bySeed.get(seed)!) }
+    for (const line of group.lines) slots[line] = entry
   }
   bracket.innerHTML = ''
   bracket.append(renderTree(size, roundLabels(size), (r, i) => (r === 0 ? slotEl(slots[i], redacted) : tbdEl())))

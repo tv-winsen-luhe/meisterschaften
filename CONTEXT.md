@@ -95,7 +95,8 @@ concept here drifts or a new one appears, update this file rather than inventing
   re-derives from the field's identity (ADR-0048) — and the public list
   **orders it by registration date, not strength** — the visible expression of its first-come-first-served
   admission (Field cut, ADR-0043). The pre-draw seeding preview still places players on their **LK seed
-  lines** — _which_ players are seeded is the accepted relative-rank signal (ADR-0044/0047); only the LK
+  lines** (as far as the table fixes them — a **lot group** stays undecided, see Seeding → Placement) —
+  _which_ players are seeded is the accepted relative-rank signal (ADR-0044/0047); only the LK
   value and the seed number are withheld. Only the admin, which needs the LK to bind the cap and the seed to
   run the draw, reads the full, un-redacted reveal. _(See ADR-0024, ADR-0044, ADR-0047, ADR-0048.)_
 - **Strength redaction** — how a **protected** field's strength is kept off the public surfaces: its
@@ -201,7 +202,10 @@ cancelled`, duplicate check, capacity, first-come cut) **unchanged**, with one r
   - **Placement** (§30.5b table): Nr. 1 on the first line, Nr. 2 on the last line (4-field: lines 1 and
     4, both fixed, no lot). **Nr. 3 and 4 are drawn by lot onto two fixed lines** (16-field: lines 5 and 12) — the lines are prescribed, the lot only decides which of the two seeds lands on which. Larger fields draw the further seed groups
     (Nr. 5–8, 9–12, 13–16) by lot onto their prescribed lines the same way — so seed placement itself
-    contributes lot steps to the show.
+    contributes lot steps to the show. The **pre-draw preview honours the same split**: a table-fixed
+    seed sits on its line, while a **lot group** is shown on _all_ of its prescribed lines at once
+    („3/4 · wird gelost", both names) — the players are settled, the pairing is the lot's, so the
+    preview may never pin one of them to one line.
   - **Byes** (de: Freilose / „Rasten", §31): given in round 1 whenever the entry count is not a power of
     two; assigned **to the seeds first, in seeding-list order** (highest seed first). Any **remaining
     byes are drawn by lot, spread evenly across the sections** (halves/quarters/eighths) of the draw
