@@ -294,8 +294,14 @@ const sunday = [
           whole pair. The „hold both" cross-sell follows the Damen pair only — the Herren fields are
           LK-exclusive, so a „beide" invite there would mislead. */
       }
+      {
+        /* Each side carries [data-competition-group]: when the phase read gates both its cards as
+          cancelled (ADR-0062), the side goes with them rather than leaving a „Damen" heading over an
+          empty grid. Not a special case for a lost side — the page then simply reads as the
+          Herren-only event it is. */
+      }
       <div class="grid gap-12 md:gap-16">
-        <div>
+        <div data-competition-group>
           <span class="mb-4 block text-[11px] font-bold tracking-[0.18em] uppercase opacity-45">Damen</span>
           <div class="cat-grid grid grid-cols-2 gap-0.5 bg-navy p-0.5 max-[900px]:grid-cols-1">
             <CompetitionCard
@@ -324,7 +330,7 @@ const sunday = [
           </p>
         </div>
 
-        <div>
+        <div data-competition-group>
           <span class="mb-4 block text-[11px] font-bold tracking-[0.18em] uppercase opacity-45">Herren</span>
           <div class="cat-grid grid grid-cols-2 gap-0.5 bg-navy p-0.5 max-[900px]:grid-cols-1">
             <CompetitionCard
@@ -531,6 +537,14 @@ const sunday = [
         <FaqItem question="Was passiert bei Regen?">
           Das Turnier findet bei fast jedem Wetter statt — Sand verträgt einiges. Bei stärkerem Regen kann das
           Spielformat verkürzt werden; zwei Plätze haben Flutlicht für den Abend.
+        </FaqItem>
+        {
+          /* The one line a cancelled competition leaves behind (ADR-0062 §5). It ships hidden and
+            empty; the phase read fills in the text `cancellationNote` derives from the flag and
+            reveals it. A FAQ answer, deliberately: quiet and factual, not a second lead. */
+        }
+        <FaqItem question="Fällt eine Konkurrenz aus?" cancellation>
+          <span data-cancellation-line></span>
         </FaqItem>
         <FaqItem question="Wie melde ich mich wieder ab?">
           Pläne geändert? Über die{' '}
@@ -777,6 +791,13 @@ const sunday = [
   .cat-grid.is-visible .stagger {
     opacity: 1;
     transform: translateY(0);
+  }
+
+  /* A pair that lost one field to a cancellation (ADR-0062) is a single card, not a card beside an
+     empty navy cell: the survivor takes the whole row. Both cards gated takes the whole side with it,
+     so this only ever bites the one-of-two case. */
+  .cat-grid:has(> [data-phase-gate]) {
+    grid-template-columns: 1fr;
   }
 
   /* Clay cat-card texture */

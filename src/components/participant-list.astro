@@ -10,12 +10,18 @@ const layoutFor = (slug: string) => (slug === 'mens' || slug === 'womens' ? 'boa
 ---
 
 <div class="participants" data-participants data-logo-tv={tvLogo.src} data-logo-tsv={tsvLogo.src}>
-  <div class="participants__grid grid grid-cols-1 gap-0.5 bg-navy p-0.5 md:grid-cols-2">
+  {
+    /* The groups are enumerated from the static competition list, so a cancelled field would keep an
+      empty panel here even though the wire no longer carries its rows (ADR-0062). [data-competition]
+      hands that decision to the front door's phase read, which gates the panel — and the grid with it
+      once every field is gone. */
+  }
+  <div class="participants__grid grid grid-cols-1 gap-0.5 bg-navy p-0.5 md:grid-cols-2" data-competition-group>
     {
       openCompetitions.map(c => (
         <section
           class="pl-group bg-surface-alt p-6 md:p-7"
-          data-group={c.slug}
+          data-competition={c.slug}
           data-layout={layoutFor(c.slug)}
           data-capacity={isUnseededCompetition(c.slug) ? undefined : c.capacity}
         >
@@ -375,7 +381,7 @@ const layoutFor = (slug: string) => (slug === 'mens' || slug === 'womens' ? 'boa
     const statusEl = root.querySelector<HTMLElement>('[data-status]')
 
     if (!data.enabled) {
-      root.querySelectorAll<HTMLElement>('[data-group]').forEach(group => {
+      root.querySelectorAll<HTMLElement>('[data-competition]').forEach(group => {
         group.querySelector<HTMLElement>('[data-list]')!.innerHTML = ''
         const freeLabel = group.querySelector<HTMLElement>('[data-free-label]')
         if (freeLabel) freeLabel.textContent = ''
@@ -399,8 +405,8 @@ const layoutFor = (slug: string) => (slug === 'mens' || slug === 'womens' ? 'boa
       byComp.set(e.competition, arr)
     }
 
-    root.querySelectorAll<HTMLElement>('[data-group]').forEach(group => {
-      const slug = group.dataset.group!
+    root.querySelectorAll<HTMLElement>('[data-competition]').forEach(group => {
+      const slug = group.dataset.competition!
       const layout = group.dataset.layout || 'list'
       const unseeded = isUnseededCompetition(slug)
       const entries = byComp.get(slug) ?? []

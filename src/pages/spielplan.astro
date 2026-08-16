@@ -630,6 +630,8 @@ import Layout from '@/layouts/default.astro'
 
     // The competitions actually present, in the fixed display order. A filter that no longer has its field
     // (e.g. a reset dropped it) falls back to „Alle"; fewer than two present hides the filter entirely.
+    // This is also how a cancelled competition leaves the board's filter (ADR-0062): the feed stops
+    // carrying its matches, so it stops being an option — the filter is never told about it separately.
     const present = COMPETITION_ORDER.filter(slug => matches.some(m => m.competition === slug))
     if (present.length < 2 || (selected && !present.includes(selected))) selected = null
 
