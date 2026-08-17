@@ -12,16 +12,16 @@ interface SeedingSurfaceProps {
 }
 
 // The provisional seeding list + field cut (de: provisorische Setzliste, CONTEXT: Field cut, issue
-// #72 / ADR-0043): per competition, the **active** players (new + confirmed) ranked in cut order, with
+// #72 / ADR-0065): per competition, the **active** players (new + confirmed) ranked in cut order, with
 // a cut line drawn at the field's `capacity` — above the line is in the field, below is a reserve
-// (Nachrücker). The cut criterion depends on the field type (fieldCut, ADR-0043): a championship field
-// ranks by LK (the cut is **provisional** — LK drifts until the seeding freeze, ADR-0010/0024), a
-// Challenger field by registration order (the cut is **stable** — that key never drifts). `new` rows
+// (Nachrücker). One criterion for every field (fieldCut, ADR-0065): LK ascending, registration time only
+// breaking ties. Every cut is therefore **provisional** — LK drifts until the seeding freeze
+// (ADR-0010/0024) — the Challenger included, which no longer gets a „fix" cut. `new` rows
 // carry an LK because `matchOnRegister` matches them at signup and `syncAll` refreshes them weekly, so
 // the list is rankable without confirming anyone first. Seed numbers are by LK on **every** field
-// (provisionalSeedRanks, ADR-0047): on a championship field they read down the rows (cut order is LK
-// order); on a Challenger field, listed in registration order, a seed badge can sit at any row (Nr. 1 may
-// be last) — the honest signal that seeding ≠ registration. Too-strong Challenger entries are flagged via the
+// (provisionalSeedRanks, ADR-0047) and now read straight down the rows, because the cut order *is* the
+// seeding order — the badges are still computed from LK, never inferred from the row
+// position. Too-strong Challenger entries are flagged via the
 // shared challengerEligibility predicate — the same authority the draw guard reuses (affordance here,
 // hard block there; ADR-0011, ADR-0024). Read-only: the operator eyeballs the cut + eligibility before
 // auslosen; authority stays in the domain (the draw enforces the cut at the freeze, Schicht 2).
@@ -78,7 +78,6 @@ interface FieldCardProps {
   label: string
   rows: SeedingRow[]
   capacity: number | undefined
-  provisional: boolean
   active: number
   confirmed: number
   pending: number
@@ -95,7 +94,6 @@ const FieldCard = ({
   label,
   rows,
   capacity,
-  provisional,
   active,
   confirmed,
   pending,
@@ -136,7 +134,7 @@ const FieldCard = ({
         <ol className="flex flex-col">
           {rows.map((row, i) => (
             <Fragment key={row.reg.id}>
-              {i === firstReserve && <CutLine capacity={capacity} provisional={provisional} />}
+              {i === firstReserve && <CutLine capacity={capacity} />}
               <SeedRow {...row} />
             </Fragment>
           ))}
@@ -148,27 +146,26 @@ const FieldCard = ({
 
 interface CutLineProps {
   capacity: number | undefined
-  provisional: boolean
 }
-// The field cut (CONTEXT: Field cut, ADR-0043): a labelled rule between the in-field rows above and
-// the reserves below. „vorläufig" for a championship field (the cut moves as LKs sync until the
-// freeze), „fix" for a Challenger field (registration order never drifts — a spot is secure once
-// taken). Not aria-hidden: the label conveys the cut to assistive tech, not just the dimmed rows.
-const CutLine = ({ capacity, provisional }: CutLineProps) => (
+// The field cut (CONTEXT: Field cut, ADR-0065): a labelled rule between the in-field rows above and
+// the reserves below. Always „vorläufig" — every field cuts by LK now, and an LK drifts until the
+// seeding freeze, so no spot is secure until the draw (the Challenger's „fix" went with ADR-0043).
+// Not aria-hidden: the label conveys the cut to assistive tech, not just the dimmed rows.
+const CutLine = ({ capacity }: CutLineProps) => (
   <li className="my-1 flex items-center gap-2 py-1">
     <span className="h-px flex-1 bg-amber-300" />
     <span className="text-[11px] font-semibold tracking-wide text-amber-700 uppercase">
-      Schnitt bei {capacity} · {provisional ? 'vorläufig' : 'fix'}
+      Schnitt bei {capacity} · vorläufig
     </span>
     <span className="h-px flex-1 bg-amber-300" />
   </li>
 )
 
-// One ranked row: the position in the cut order (a muted number — the first-come order for a Challenger
-// field), then the club logo and player name, followed by a filled **seed badge** (the LK seed number,
-// mirroring the bracket) when the row is a drawn seed, the LK, and — for a too-strong Challenger entry —
-// an amber „stark"-marker. Because seeding is by LK (ADR-0047), the seed badge can sit at any row on a
-// Challenger field (Nr. 1 may be the last-registered), which is exactly the divergence to surface. A
+// One ranked row: the position in the cut order (a muted number), then the club logo and player name,
+// followed by a filled **seed badge** (the LK seed number, mirroring the bracket) when the row is a drawn
+// seed, the LK, and — for a too-strong Challenger entry — an amber „stark"-marker. Since ADR-0065 one LK
+// order runs the cut and the seeding on every field, so the badges read 1..N straight down from the top;
+// the rank is still *computed* from LK, never inferred from the row (ADR-0047). A
 // reserve (below the cut) is dimmed and never seeded. The LK is shown as stored; a row with no resolvable
 // rating seeds at the weakest.
 const SeedRow = ({ reg, position, seed, reserve, tooStrong }: SeedingRow) => (

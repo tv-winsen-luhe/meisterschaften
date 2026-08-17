@@ -4,6 +4,13 @@
 - Date: 2026-07-02
 - Amended: 2026-08-16 (see Amendment below — the Setzliste's seeds preview the **confirmed** field, not the active one)
 
+> **Still in force, with one premise gone (2026-08-17, ADR-0065).** Decision 1 is the lasting rule: seed
+> rank is **computed from LK** on every surface, never read off a row's position. What no longer exists is
+> the _divergence_ it was written against — the cut now uses the seeding's own LK order on every field, so
+> a Challenger list is no longer ordered by registration. Concretely: Decision 3's "badges read out of
+> numeric order, Nr. 1 may sit at the bottom" no longer happens, and the redaction halves of Decisions 2–3
+> describe a dormant seam (no field is redacted, ADR-0061). The root-cause fix stands unchanged.
+
 ## Context
 
 On prod the public „Der Draw" **pre-draw preview** for the Herren Challenger placed the first two entries

@@ -61,10 +61,10 @@ describe('in-memory registrations store · listConfirmed', () => {
     expect(order).toEqual(['mens:MensStrong', 'mens:MensNoLk', 'mens-challenger:Chall', 'womens:W'])
   })
 
-  it('lists a Challenger field by registration date, but still seeds it strongest-first for the draw (ADR-0043)', async () => {
-    // The protected field is admitted first-come-first-served, so its public list follows createdAt; the
-    // draw still seeds it by LK (drawBracket's strongest-first precondition). Registration order and LK
-    // order disagree here, so the list and the draw must diverge.
+  it('lists a Challenger field strongest-first, the same order the draw seeds it in (ADR-0065)', async () => {
+    // The protected field is admitted by LK like every other field, so its public list and the draw read
+    // one order — the divergence ADR-0043 required is gone. Registration order here is the reverse of LK
+    // order, so a list that still followed createdAt would fail this.
     const store = createInMemoryRegistrationsStore([
       reg({ competition: 'mens-challenger', lk: '15.0', firstName: 'Strong', createdAt: '2026-06-03T10:00:00.000Z' }),
       reg({ competition: 'mens-challenger', lk: null, firstName: 'Weak', createdAt: '2026-06-01T10:00:00.000Z' }),
@@ -72,7 +72,7 @@ describe('in-memory registrations store · listConfirmed', () => {
     ])
 
     const listOrder = (await store.listConfirmed()).map(p => p.firstName)
-    expect(listOrder).toEqual(['Weak', 'Mid', 'Strong']) // registration date, earliest first
+    expect(listOrder).toEqual(['Strong', 'Mid', 'Weak']) // LK, strongest first (null = weakest, 25.0)
 
     const drawLks = (await store.confirmedForDraw('mens-challenger')).map(p => p.lk)
     expect(drawLks).toEqual(['15.0', '22.0', null]) // strongest LK first (null = weakest)
@@ -81,8 +81,8 @@ describe('in-memory registrations store · listConfirmed', () => {
   it('carries the LK of a Challenger field on the public wire like any other field (ADR-0061)', async () => {
     // Strength redaction is off for every competition (CONTEXT: Strength redaction, ADR-0061): the
     // Challenger's LK reaches the public list, so a drawn field is verifiable and a player can place an
-    // opponent against their own LK. The list *order* is untouched by this — the Challenger still lists by
-    // registration date (the first-come cut, ADR-0043): showing strength is not admitting by it.
+    // opponent against their own LK. The list *order* is a separate decision, and since ADR-0065 it is the
+    // LK order on every field — the Challenger is admitted by strength too.
     const store = createInMemoryRegistrationsStore([
       reg({ competition: 'mens', lk: '11.5', firstName: 'Champ' }),
       reg({ competition: 'mens-challenger', lk: '22.0', firstName: 'Chall' })

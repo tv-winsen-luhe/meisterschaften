@@ -17,7 +17,8 @@ import {
   isUnseededCompetition,
   materializeMatches,
   type Phase,
-  type RandomSource
+  type RandomSource,
+  unresolvedLkEntries
 } from '../shared'
 import type { DrawStore } from './store/draw'
 import type { RegistrationsStore } from './store/registrations'
@@ -33,14 +34,20 @@ import type { RegistrationsStore } from './store/registrations'
 // is the hard Challenger cap binding on the frozen LKs (ADR-0024). Each maps to an operator-facing
 // reason and an HTTP status at the route. `Unseeded` fail-closes a field that must never be drawn
 // (the Social mixer — signup-only, no bracket; ADR-0051): a defensive guard beneath the admin UI,
-// which does not offer the draw for it.
-export type DrawError = DrawBlocker | 'AlreadyDrawn' | 'ChallengerTooStrong' | 'Unseeded'
+// which does not offer the draw for it. `UnresolvedLk` closes the gap ADR-0065 opened: the cut now admits
+// by LK, so a field may not be frozen while an entry's LK is still unknown.
+export type DrawError = DrawBlocker | 'AlreadyDrawn' | 'ChallengerTooStrong' | 'Unseeded' | 'UnresolvedLk'
 
 // A rules-compliant draw is final (ADR-0026) — a re-run is refused, not silently re-drawn.
 const ALREADY_DRAWN_REASON = 'Diese Konkurrenz ist bereits ausgelost.'
 const UNSEEDED_REASON = 'Diese Konkurrenz wird nicht ausgelost (geselliges Feld ohne Auslosung).'
 const reasonFor = (error: DrawBlocker | 'AlreadyDrawn' | 'Unseeded'): string =>
   error === 'AlreadyDrawn' ? ALREADY_DRAWN_REASON : error === 'Unseeded' ? UNSEEDED_REASON : DRAW_BLOCKER_REASON[error]
+
+// The unresolved-LK block reason — names the count so the toast alone tells the operator what to fix; the
+// levers are a nuLiga match or the explicit „keine nuLiga-ID" (⇒ LK 25.0), never a hand-typed LK (ADR-0020).
+const unresolvedLkReason = (count: number): string =>
+  `Auslosung nicht möglich: ${count} ${count === 1 ? 'Eintrag hat' : 'Einträge haben'} noch keine LK. nuLiga-Abgleich durchführen oder „keine nuLiga-ID" setzen.`
 
 // The Challenger block reason — names the threshold and the offender count so the toast alone tells
 // the operator what to fix; the levers are the field-wide threshold or removing the entry (ADR-0024).
@@ -109,6 +116,12 @@ export const createDrawService = (deps: DrawServiceDeps) => {
     reason: reasonFor(error)
   })
 
+  const failUnresolvedLk = (unresolved: DrawPlayer[]): DrawOutcome => ({
+    ok: false,
+    error: 'UnresolvedLk',
+    reason: unresolvedLkReason(unresolved.length)
+  })
+
   const failTooStrong = (tooStrong: DrawPlayer[], threshold: number): DrawOutcome => ({
     ok: false,
     error: 'ChallengerTooStrong',
@@ -139,6 +152,15 @@ export const createDrawService = (deps: DrawServiceDeps) => {
       // standing unrevealed draw.
       const existing = await drawStore.findDraw(competition, 'main')
       if (existing && existing.revealCursor > 0) return fail('AlreadyDrawn')
+
+      // Every field is admitted **by LK** since ADR-0065, and `seedingValue(null)` ⇒ 25.0 would let a
+      // merely-unsynced entry be cut as the weakest — so a missing rating may never reach the freeze.
+      // Confirming needs only a seeding basis, not an LK (canConfirm), and resolveLkOnConfirm is
+      // best-effort (no rating / no id / a nuLiga outage all write nothing), so this is reachable in
+      // normal operation. Refuse here, where the cut binds, beside the cap guard below: the operator
+      // resolves the LK first. An unseeded field never gets this far (the Unseeded guard above).
+      const unresolved = unresolvedLkEntries(players)
+      if (unresolved.length > 0) return failUnresolvedLk(unresolved)
 
       // The Challenger cap binds here, on the frozen LKs (ADR-0024): snapshot the threshold, judge the
       // field with the shared predicate (Slice 6, the single authority), and on a violation write

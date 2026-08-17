@@ -11,7 +11,7 @@ import {
   type AdminRegistration
 } from '../../../shared'
 
-// The provisional seeding list's per-field derivation (CONTEXT: Field cut, ADR-0043/0047), kept a pure
+// The provisional seeding list's per-field derivation (CONTEXT: Field cut, ADR-0065/0047), kept a pure
 // function separate from the surface so the rules are tested in isolation rather than through rendered
 // React — the same discipline as confirm-preview.
 //
@@ -27,8 +27,8 @@ import {
 // which, instead of showing a number no other admin surface agrees with.
 
 // One row of the provisional seeding: the registration, its position in the cut order (1-based), its
-// seed number if it is a drawn seed (DTB §30.5a — by LK, so on a Challenger field it need not match the
-// row position; null when unseeded or unconfirmed), whether it falls below the field cut (a reserve),
+// seed number if it is a drawn seed (DTB §30.5a — null when unseeded or unconfirmed; since ADR-0065 the
+// cut order is the seeding order, so a seed's position matches its rank), whether it falls below the cut,
 // and — for the Challenger field — whether its LK is too strong for the cap.
 export interface SeedingRow {
   reg: AdminRegistration
@@ -47,7 +47,6 @@ export interface SeedingFieldPreview {
   pending: number
   inField: number
   reserves: number
-  provisional: boolean
   seedCount: number
   tooStrongCount: number
 }
@@ -65,12 +64,12 @@ export const seedingFieldPreview = (
   const active = registrations.filter(r => r.competition === slug && isActive(r.status))
   // A field with no capacity (a planned field, not registerable today) gets no cut — pass the full
   // count as the cap so nothing is a reserve. The three live fields all carry a capacity.
-  const cut = fieldCut(active, slug, capacity ?? active.length)
+  const cut = fieldCut(active, capacity ?? active.length)
   const inFieldEntries = cut.ranked.filter(r => !r.reserve).map(r => r.entry)
   // Seeds preview the *drawn* field, which is the confirmed one: the DTB seed count for the draw size
   // that many entries produce, and only for the supported sizes (4/8/16) — bracketStructure throws
-  // otherwise. Ranked by LK for **every** field (provisionalSeedRanks, ADR-0047), so a Challenger field
-  // — listed in registration order — still marks its LK-strongest, not its earliest registrants.
+  // otherwise. Ranked by LK for **every** field (provisionalSeedRanks, ADR-0047); the ranks are still
+  // *computed*, never read off the row position, even though the two orders now coincide (ADR-0065).
   const confirmedInField = inFieldEntries.filter(r => r.status === 'confirmed')
   const size = drawSize(confirmedInField.length)
   const seedCount = isSupportedDrawSize(size) ? bracketStructure(size).seedCount : 0
@@ -94,7 +93,6 @@ export const seedingFieldPreview = (
     pending: active.length - confirmed,
     inField: cut.inField,
     reserves: cut.reserves,
-    provisional: cut.provisional,
     seedCount,
     tooStrongCount: tooStrong.length
   }
