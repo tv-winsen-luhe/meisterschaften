@@ -222,6 +222,11 @@ cancelled`, duplicate check, capacity, first-come cut) **unchanged**, with one r
   LK puts the strongest first. It is **never entered by hand**: a player's LK is whatever nuLiga has for
   their linked `player_id`, and any player with no resolvable rating — no linked ID, or an ID nuLiga has
   no rating for (unrated / not yet rated) — defaults to `defaultLk` (25.0), i.e. treated as the weakest.
+  It is the **publicly displayed LK, to one decimal** — the value the club ranking page publishes and the
+  one the DTB Turnierordnung § 26 makes decisive. nuLiga also keeps an **LK-Begleitwert** with three
+  decimals, but that is its internal arithmetic (LK gains and the motivation bonus are booked onto it), not
+  a tournament criterion: we never read it, never sync it, and never break a tie with it. Two players at
+  LK 10,5 are **equally strong** here, however their Begleitwerte compare — see Lot group. _(See ADR-0067.)_
 - **Seeding basis** — the minimal input that makes a Registration confirmable and seedable. The LK
   itself is **derived, not supplied** (see LK): the only seeding input the operator gives is whether the
   entry is **linked to a nuLiga `player_id`** or **explicitly has none** (UI: „keine nuLiga-ID"). From
@@ -232,7 +237,9 @@ cancelled`, duplicate check, capacity, first-come cut) **unchanged**, with one r
 - **Seeding** (de: Setzung) — ordering players in the draw by LK so the strongest are kept apart early.
   Seed rank is derived from LK on **every** surface (draw, public preview, operator Setzliste) and **never
   read from row position** (ADR-0047) — even now that the cut and the participant list share the seeding's
-  own LK order (Field cut, ADR-0065), the rank is computed, not inferred from where a row sits. Follows the DTB Turnierordnung 2026 (Stand 09.11.2025), §§ 30–32:
+  own LK order (Field cut, ADR-0065), the rank is computed, not inferred from where a row sits. **Equal LKs
+  are not ordered by the seeding at all** — they form a **Lot group**, and when one straddles the seed line
+  the lot decides who is seeded (§ 26, ADR-0067). Follows the DTB Turnierordnung 2026 (Stand 09.11.2025), §§ 26 and 30–32:
   - **Number of seeds** by draw size (§30.5a): 8 → 2, 16 → 4, 24/32 → 8, 48/64/128 → 16 — plus our
     extension **4 → 2** (§30.5a's table starts at 8; a 4-field reuses the 8-field's 2-seed pattern, a
     deliberate sub-DTB extension — ADR-0034). Our fields draw at **4, 8, or 16**.
@@ -271,13 +278,18 @@ cancelled`, duplicate check, capacity, first-come cut) **unchanged**, with one r
   changed a handful of times over one event does not justify a config surface (ADR-0021/0023). _(See ADR-0043 → ADR-0065.)_
 - **Field cut** (de: Schnitt / Schnittlinie) — when a competition's confirmed field exceeds its capacity,
   the surplus become reserves; **every field takes the top-N by LK**, by the one comparator that also
-  orders the seeding and the public list (`bySeedingLk` — `seedingValue` ascending, `createdAt` only as the
-  tie-break among equal LKs). The cut binds on the **frozen** LK at the draw, so during signup it is always
+  orders the seeding and the public list (`bySeedingLk` — `seedingValue` ascending). Equal LKs are **not**
+  separated by it: they form a **Lot group**, and when one straddles the cut line the **lot decides who is
+  in the field and who is a reserve** (DTB § 25 Ziffer 1 routes admission through § 26). `createdAt` is no
+  longer an ordering criterion anywhere except the mixer (ADR-0067 replaced the ADR-0065 tie-break).
+  The cut binds on the **frozen** LK at the draw, so during signup it is always
   a **provisional** preview that drifts as LKs sync, and a late, stronger entry slots in — on **every**
   field, the Challenger included: a spot is **not** secure once taken. There is no field-type criterion any
-  more (ADR-0065 superseded the split; `cutsByStrength` is gone). The **Social mixer** is cut by the same
-  comparator, but its entries are unrated by construction, so they all weigh 25.0 and the tie-break governs
-  — nominally LK-cut, in effect registration order. The bracket is still **seeded by LK** — the cut decides
+  more (ADR-0065 superseded the split; `cutsByStrength` is gone). The **Social mixer** is the one stated
+  exception: it is cut by **registration order**, as its own rule rather than as a by-product of comparing
+  LKs a field without LKs does not have. Unrated by construction, every mixer entry weighs 25.0, so the LK
+  comparator would turn the whole field into one lot — and „wer zuerst kommt" is the promise a Freizeit
+  format actually makes; the DTB Turnierordnung does not govern it (ADR-0067). The bracket is still **seeded by LK** — the cut decides
   _who is in_, the seeding decides _where_, and the two now share one order; the mixer is cut but never
   drawn or seeded. A seeded field is **not drawable while an entry in it has an unresolved LK** (`lk` still
   `null` — nuLiga not yet matched, or an outage): once admission rests on LK, it may never rest on a missing
@@ -329,6 +341,18 @@ cancelled`, duplicate check, capacity, first-come cut) **unchanged**, with one r
 - **Draw** (de: Auslosung) — assigning seeded and unseeded players into bracket positions, producing
   the bracket for each competition. Automatic and unriggable (DTB-Ranglistenturnier conventions), with
   no operator edit step. _(See ADR-0002.)_
+- **Lot group** (de: Losgruppe) — a set of entries whose **relative order the lot owns**, because nothing
+  in the rules separates them. Two sources, one meaning: **equal LK** (DTB § 26 — „Bei gleicher LK mehrerer
+  Spieler wird die Reihenfolge gelost"; two entries at LK 10,5 are equally strong, and `defaultLk` 25.0
+  counts as an ordinary LK here), and the **§30.5b seed pairings** whose two prescribed lines the lot
+  assigns (Nr. 3/4, then 5–8, 9–12, 13–16). A lot group's internal order is **not a rank**: surfaces
+  display it alphabetically by last name — stable and reproducible, and deliberately not `createdAt`, which
+  reads as a ranking and is why the equal-LK case went unnoticed. A group that **straddles a line** — the
+  field cut or the seed line — is rendered whole above it with the number of contested places named, never
+  split so one member looks settled in and another settled out. The lot is drawn at the seeding freeze and
+  persisted as the **resolved order** in the draw record (ADR-0003), not as an RNG seed; it is **not** a
+  Lot step (see below) — it falls before any position exists — so it is drawn silently and reported openly
+  on the participant list. _(See ADR-0067, ADR-0065.)_
 - **Lot step** (de: Los) — a placement step **where the lot decided**: a seed _gezogen_ onto one of its
   two prescribed lines (Nr. 3/4+; DTB §30.5b calls each pairing a „Ziehung"), a remaining bye _eingelost_
   onto a section (§31.2b), or an unseeded player _eingelost_ into the next open slot (§32.4c). The
