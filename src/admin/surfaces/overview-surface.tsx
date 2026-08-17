@@ -103,24 +103,32 @@ export const OverviewSurface = ({
   // match count *clamped to capacity*: the cut (ADR-0043) leaves the surplus as reserves, who run no
   // bracket matches, so an over-subscribed field reads at its cap, not at a phantom over-full count.
   // An unseeded field (Social mixer) runs no bracket at all (ADR-0051) — its court use is the separate
-  // `socialMixerReservedSlots` reservation, so it must be excluded here or it would be counted twice.
+  // mixer-block reservation, so it must be excluded here or it would be counted twice.
   // A cancelled field (ADR-0062) drops out of the planning too — it runs no match, so counting it would
   // have the operator plan the weekend against load that never arrives. The list is filtered here, at
   // the call site; `courtBudgetProjection` itself stays as it is (no new seam for a list filter).
+  //
+  // The load counts **confirmed entries only**, not `new + confirmed`: a new entry is an intent the
+  // operator has not yet accepted, and it takes a court only once confirmed. One basis for the whole
+  // cockpit — the same number the draw floor, the cancellation advice and the mixer block's court count
+  // (ADR-0064) all read — so the gauge cannot say one thing while the fields beneath it say another. The
+  // pending entries are not lost from view: they are the „voll ≈" marker's job, which projects each field
+  // at its **capacity**, the honest upper bound on where a queue of new entries can land.
   const planRows = rows.filter(r => !isCancelledCompetition(cancelledCompetitions, r.slug))
   const planFields = planRows
     .filter(r => !isUnseededCompetition(r.slug))
-    .map(r => ({ active: r.new + r.confirmed, capacity: r.capacity ?? 0 }))
+    .map(r => ({ active: r.confirmed, capacity: r.capacity ?? 0 }))
   // The mixer never enters `planFields` (its court use is the reservation, not a bracket), so its cost
   // comes from the block instead — sized by the confirmed head-count, and `null` (nothing reserved) when
   // the mixer is cancelled (ADR-0064, ADR-0062). The cancellation is decided once, in the resolver, so
   // this surface no longer keeps its own copy of that rule.
   const projection = courtBudgetProjection(planFields, socialMixerReservedSlots(socialMixerBlock), matchSlotsPerWeekend)
   // Per-field court-slot consumption for the planning breakdown: load now (clamped) vs at the cap —
-  // the "if it fills" figure. Same clamp as the projection, so the rows always sum to its total.
+  // the "if it fills" figure. Same confirmed-only basis and the same clamp as the projection, so the rows
+  // always sum to its total.
   const fieldLoads = planRows.map(r => ({
     label: r.label,
-    load: matchCount(Math.min(r.new + r.confirmed, r.capacity ?? 0)),
+    load: matchCount(Math.min(r.confirmed, r.capacity ?? 0)),
     capacityLoad: matchCount(r.capacity ?? 0)
   }))
 

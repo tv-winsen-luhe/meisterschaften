@@ -77,14 +77,16 @@ export const matchCount = (confirmed: number): number => mainDrawMatches(confirm
 // can never disagree with the draw on how many matches a field of N runs. The capacities and the
 // reservation are content (tournament.ts); they enter as plain numbers, keeping this shared and pure.
 
-// One field's planning inputs: its active count (new + confirmed) and its soft capacity.
+// One field's planning inputs: its entry count and its soft capacity. The caller decides which entries
+// count — the admin cockpit passes **confirmed only**, because a new entry is an intent the operator has
+// not yet accepted and takes no court until they do.
 export interface CourtBudgetField {
   active: number
   capacity: number
 }
 
 export interface CourtBudgetProjection {
-  // Match load at the current active counts, and if every field filled to its capacity.
+  // Match load at the current entry counts, and if every field filled to its capacity.
   load: number
   fullLoad: number
   // The social-mixer reservation and the weekend budget, echoed back for the gauge.

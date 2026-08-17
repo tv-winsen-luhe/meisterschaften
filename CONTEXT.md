@@ -517,8 +517,13 @@ reveal sequence }`. Randomness enters through an injected **`RandomSource`** por
   independent; their summed match load (main + third-place + consolation), plus the Social mixer's
   reservation (**derived** from the Mixer block — and with it from the mixer's confirmed head-count — so
   the gauge and the reservation the validator enforces cannot disagree), must fit this one budget. The
-  overview cockpit measures projected load against it so the operator plans and avoids overbooking.
-  _(See ADR-0023, ADR-0043, ADR-0063, ADR-0064.)_
+  overview cockpit measures projected load against it so the operator plans and avoids overbooking. Every
+  figure in that cockpit counts **confirmed entries only** — a new entry is an intent the operator has not
+  yet accepted and takes no court until they do — so the gauge, the per-field breakdown and the mixer's
+  reservation all rest on one basis. Pending entries show up as the **„voll ≈" marker**, which projects
+  each field at its capacity. Note this is deliberately _not_ the basis the **Seeding cut** uses: a spot in
+  the field is occupied the moment someone registers (ADR-0043), while a court is only taken once the entry
+  is confirmed. _(See ADR-0023, ADR-0043, ADR-0063, ADR-0064.)_
 - **Schedule publication** (de: Veröffentlichung) — the schedule is **private until published**: a global
   `schedule_published` flag (off by default) gates the **planned** public schedule, so the operator builds
   the whole plan unseen and reveals it in one act („Veröffentlichen"). Scope is **global** (one flag for the
