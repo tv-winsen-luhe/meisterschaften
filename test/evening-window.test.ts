@@ -29,7 +29,7 @@ describe('isFloodlit / courtEndMinutes', () => {
 
 describe('withinEveningWindow', () => {
   // A 90-minute match must *finish* by the court's bound, and the slot→clock arithmetic runs off each
-  // day's own first start (Saturday 10:30, Sunday 10:00 — ADR-0067). The last legal start is therefore a
+  // day's own first start (Saturday 10:30, Sunday 10:00 — ADR-0068). The last legal start is therefore a
   // *clock* time (18:30 dark, 20:30 floodlit) at a different slot index per day — derived here rather
   // than hard-coded, so a moved first start re-aims the test instead of breaking it.
   const lastStart = (day: number, endMinutes: number) => slotAtMinutes(day, endMinutes - SCHEDULE.matchMinutes)

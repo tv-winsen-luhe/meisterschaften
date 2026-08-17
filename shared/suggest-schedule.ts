@@ -28,7 +28,7 @@ export interface Suggestion {
 const targetDay = (match: PlacedMatch, matches: readonly PlacedMatch[]): number =>
   isFinalsDayMatch(match, matches) ? SCHEDULE.days - 1 : 0
 
-// The courts a match prefers, best-watched first (ADR-0067). The main bracket — where the titles are
+// The courts a match prefers, best-watched first (ADR-0068). The main bracket — where the titles are
 // decided — takes the venue's viewing ranking as it stands; the consolation bracket takes it reversed, so
 // it settles on the courts the spectators are least drawn to and leaves the good ones for the tennis the
 // weekend is billed on. A preference only: every court stays legal, the scan just reaches them in this

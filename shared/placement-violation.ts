@@ -41,7 +41,7 @@ export type HardViolation =
 //    (CONTEXT: Mixer block, ADR-0063). An organiser agreement rather than a physical impossibility, so the
 //    operator may override it. Like `court-window` it is about the candidate's own cell, not a clash with
 //    another match, so it carries no `otherMatchId`.
-//  - `parallel-limit`: more matches would be on court at one moment than the day's cap allows (ADR-0067) —
+//  - `parallel-limit`: more matches would be on court at one moment than the day's cap allows (ADR-0068) —
 //    Saturday shares the grounds with a youth fixture, Sunday is there to be watched. `count` is the peak
 //    number running together, the candidate included. It is about the day's shape rather than any one other
 //    match, so it names no `otherMatchId`.

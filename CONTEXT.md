@@ -498,7 +498,7 @@ reveal sequence }`. Randomness enters through an injected **`RandomSource`** por
   overlap, not a shared cell** (ADR-0040). Each event day carries its own first start — **Saturday 10:30**
   (the courts hold a youth fixture that morning), **Sunday 10:00** — and each court its own evening window
   (see Court). The grid is as tall as the **earliest-starting** day's reach to the last curfew start, so
-  the later day's last rows simply fall outside every court's window (ADR-0067). _Block (hard):_ a match before its real
+  the later day's last rows simply fall outside every court's window (ADR-0068). _Block (hard):_ a match before its real
   (non-bye) feeder chain — enforced **structurally**, so it cannot sit earlier than that chain allows even
   before the feeders are placed; a same-court interval overlap; **a player in two time-overlapping matches**
   (physically impossible — one body, two courts); and a start past a court's evening window. _Warn (soft,
@@ -507,7 +507,7 @@ reveal sequence }`. Randomness enters through an injected **`RandomSource`** por
   days), a **semifinal/final off Sunday** (Finaltag), a placement inside the **Mixer block** (below), and
   one **over the day's Parallel limit** (below). The schedule is **private until published**, and
   **reset** wipes the placements to rebuild (see Schedule publication). _(See ADR-0005, ADR-0033, ADR-0040,
-  ADR-0041, ADR-0067.)_
+  ADR-0041, ADR-0068.)_
 - **Parallel limit** (de: Parallelitätsgrenze) — how many championship matches the organiser wants on court
   at one moment, **per event day**: **Saturday 4** (the grounds also hold a youth fixture, so the
   championship works four of the six courts), **Sunday 2** (the finals day exists to be watched, and a
@@ -520,7 +520,7 @@ reveal sequence }`. Randomness enters through an injected **`RandomSource`** por
   together. Because the auto-suggest prefers warning-free cells, the day's **wave rhythm** falls out of this
   rule without `suggestSchedule` knowing it exists. Lives in `shared/court-plan.ts` with the Court viewing
   order — the two „how the courts are used" decisions, beside `schedule.ts`'s „what the courts are".
-  _(See ADR-0067, ADR-0033.)_
+  _(See ADR-0068, ADR-0033.)_
 - **Mixer block** (de: Doppel-Block) — the court-time the Social mixer occupies: a day, a set of courts and
   a clock interval, **resolved rather than declared** (`resolveSocialMixerBlock`, `shared/social-mixer.ts`)
   and still **not a row and not a match**. Its three hours are fixed by the format; its **day and start are
@@ -564,7 +564,7 @@ reveal sequence }`. Randomness enters through an injected **`RandomSource`** por
   surface only — the auto-suggest reaches courts in that order within a slot instead of by number, so the
   main bracket lands where an audience can watch and the **consolation bracket takes the order reversed**.
   A preference, never a restriction: every court stays legal and a full wave still fills all six.
-  _(See ADR-0033, ADR-0040, ADR-0067.)_
+  _(See ADR-0033, ADR-0040, ADR-0068.)_
 - **Court budget** (de: Platz-Budget) — the shared ceiling of match-slots the event weekend can run:
   **72** = 6 courts × ~6 matches/court/day × 2 event days, at the 90-min default (`courtSchedule`,
   `tournament.ts`). One pool **all competitions draw from** — the per-field capacities are not

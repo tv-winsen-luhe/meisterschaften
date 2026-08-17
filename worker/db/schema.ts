@@ -58,7 +58,7 @@ export const appState = sqliteTable('app_state', {
   // „unparseable degrades to…" path to reason about. The block's *courts* are not stored: they are derived
   // from the mixer's confirmed head-count, and its three hours are fixed by the format. The slot is
   // relative to the day's first start, so moving Sunday's start re-points it — the 9:00 → 10:00 move
-  // (ADR-0067) turned the same 12:00 from slot 6 into slot 4, migrated for existing rows.
+  // (ADR-0068) turned the same 12:00 from slot 6 into slot 4, migrated for existing rows.
   socialMixerDay: integer('social_mixer_day').notNull().default(1),
   socialMixerSlot: integer('social_mixer_slot').notNull().default(4)
 })

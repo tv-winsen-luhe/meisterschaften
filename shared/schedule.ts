@@ -16,7 +16,7 @@ import type { HardViolation, PlacementCandidate, PlacementValidation, SoftViolat
 // The courts×time grid the operator places matches on (ADR-0005, ADR-0040). A match is a fixed
 // **90 minutes**, but its **start** is set on a **30-minute** cadence, so a `slot` is a 30-minute index
 // (a match spans three steps — SLOT_SPAN — and reserves its court for the interval [start, start+90)).
-// Each event day has its own first start (Saturday 10:30, Sunday 10:00 — ADR-0067), so `slotTime` is day-aware. The
+// Each event day has its own first start (Saturday 10:30, Sunday 10:00 — ADR-0068), so `slotTime` is day-aware. The
 // numeric shape lives here (the single source both clients size the grid from); the day *labels*
 // („Samstag 22.08.") stay in src/data/tournament.ts, the home of the event's date copy. Per-court evening
 // windows below make the grid lopsided — the floodlit pair reach later than the dark four (ADR-0040) —
@@ -34,7 +34,7 @@ export const SCHEDULE = {
   // later, so its last rows are simply out of every court's window. The per-court evening windows (below)
   // gate which rows each court may actually take, on both days.
   slotsPerDay: 22,
-  // Minutes-from-midnight of each day's first start (ADR-0067). The two days differ: **Saturday 10:30**
+  // Minutes-from-midnight of each day's first start (ADR-0068). The two days differ: **Saturday 10:30**
   // (the courts carry a youth fixture in the morning and the organizer starts the championship after it),
   // **Sunday 10:00** (the finals day runs a longer programme). Indexed by the event day (0 = Saturday,
   // 1 = Sunday) and read by `slotTime` — the per-day start ADR-0040 made expressible, now actually used,
@@ -101,7 +101,7 @@ export const slotStartMinutes = (day: number, slot: number): number =>
  * The approximate clock time of a (day, slot) on the grid, "HH:MM" (24h). Times are explicitly a plan,
  * shown „ca." — the live truth is the match status, not a rewritten time (ADR-0032). Day-aware via
  * `dayStartMinutes` (ADR-0040), so each day carries its own first start and slot 0 is a different clock
- * time on each: Saturday opens at 10:30 (slot 0 = 10:30, slot 1 = 11:00, …), Sunday at 10:00 (ADR-0067).
+ * time on each: Saturday opens at 10:30 (slot 0 = 10:30, slot 1 = 11:00, …), Sunday at 10:00 (ADR-0068).
  * An out-of-range day falls back to the first day's start rather than producing NaN. Public copy that
  * promises a start time derives it from here (`tournament.startTime`) rather than restating it.
  */
@@ -115,7 +115,7 @@ export const slotTime = (day: number, slot: number): string => {
 /**
  * The grid slot that starts at `minutes` past midnight on `day` — the inverse of `slotStartMinutes`, and
  * the arithmetic every "which row is 18:30 on?" question needs. It earns its place now that the two days
- * open at different times (ADR-0067): a clock bound is one number, but the row it lands on is per day, and
+ * open at different times (ADR-0068): a clock bound is one number, but the row it lands on is per day, and
  * re-deriving that per caller is how a moved first start goes unnoticed. Fractional when `minutes` is not
  * on the cadence — the callers ask about cadence times.
  */
@@ -614,7 +614,7 @@ export const validatePlacement = (
   if (socialMixerBlock && overlapsSocialMixerBlock(socialMixerBlock, candidate.placement))
     soft.push({ rule: 'social-mixer-block' })
 
-  // Soft — the day's parallel cap (CONTEXT: Parallel limit, ADR-0067). How many matches the day should
+  // Soft — the day's parallel cap (CONTEXT: Parallel limit, ADR-0068). How many matches the day should
   // hold at once is the organiser's shape decision, so it lives in court-plan.ts; here it is one lookup and
   // one comparison against the peak that cell would actually produce.
   const tooParallel = parallelLimitViolation(

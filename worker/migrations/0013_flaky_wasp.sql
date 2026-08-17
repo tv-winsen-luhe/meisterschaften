@@ -12,7 +12,7 @@ INSERT INTO `__new_app_state`("id", "phase", "schedule_published", "cancelled_co
 DROP TABLE `app_state`;--> statement-breakpoint
 ALTER TABLE `__new_app_state` RENAME TO `app_state`;--> statement-breakpoint
 PRAGMA foreign_keys=ON;--> statement-breakpoint
--- The Social mixer's stored placement is a *grid slot*, and the grid's first start moved (ADR-0067):
+-- The Social mixer's stored placement is a *grid slot*, and the grid's first start moved (ADR-0068):
 -- Saturday 9:00 → 10:30 (three 30-minute steps later), Sunday 9:00 → 10:00 (two). Left untouched, the same
 -- slot number would silently push the block later on the clock, so each stored placement is shifted back by
 -- its day's step count and keeps the clock time it was chosen as — the planned Sunday 12:00 block moves from

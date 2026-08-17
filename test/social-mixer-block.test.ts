@@ -48,7 +48,7 @@ const pm = (id: number, round: number, position: number, { p = [null, null], at 
 const block = resolveSocialMixerBlock({ ...SOCIAL_MIXER_DEFAULT_PLACEMENT, confirmed: 12, cancelled: false })!
 
 // The grid slot whose start is `minutes` past midnight, on the mixer's own day — the common case here.
-// Day-aware via `slotAtMinutes`, because the two event days open at different times (ADR-0067), so the
+// Day-aware via `slotAtMinutes`, because the two event days open at different times (ADR-0068), so the
 // same clock time is a different row on each.
 const slotAt = (minutes: number) => slotAtMinutes(block.day, minutes)
 
