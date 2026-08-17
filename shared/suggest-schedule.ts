@@ -7,6 +7,7 @@ import {
   validatePlacement
 } from './schedule'
 import type { SocialMixerBlock } from './social-mixer'
+import { COURT_VIEWING_ORDER } from './court-plan'
 
 // The schedule auto-suggest (#122, ADR-0040, ADR-0033): a finals-day-shaped greedy fill of the backlog,
 // built entirely on the shared `validatePlacement` authority so a suggestion can never commit a hard-
@@ -27,20 +28,29 @@ export interface Suggestion {
 const targetDay = (match: PlacedMatch, matches: readonly PlacedMatch[]): number =>
   isFinalsDayMatch(match, matches) ? SCHEDULE.days - 1 : 0
 
-// The first cell that takes a match, scanning the given days in order then slot-ascending, court-
-// ascending. A warning-free cell (zero soft violations) wins outright; otherwise the first merely-legal
-// cell is the fallback. Returns null when no day in `dayOrder` has a legal cell. Because the finals day
-// is scanned first, even the fallback lands on the target day unless it is wholly full.
+// The courts a match prefers, best-watched first (ADR-0067). The main bracket — where the titles are
+// decided — takes the venue's viewing ranking as it stands; the consolation bracket takes it reversed, so
+// it settles on the courts the spectators are least drawn to and leaves the good ones for the tennis the
+// weekend is billed on. A preference only: every court stays legal, the scan just reaches them in this
+// order, so a full wave still fills all six.
+const courtOrder = (match: PlacedMatch): readonly number[] =>
+  match.bracket === 'consolation' ? [...COURT_VIEWING_ORDER].reverse() : COURT_VIEWING_ORDER
+
+// The first cell that takes a match, scanning the given days in order, then slot-ascending, then by the
+// match's court preference. A warning-free cell (zero soft violations) wins outright; otherwise the first
+// merely-legal cell is the fallback. Returns null when no day in `dayOrder` has a legal cell. Because the
+// finals day is scanned first, even the fallback lands on the target day unless it is wholly full.
 const firstValidPlacement = (
   working: readonly PlacedMatch[],
   id: number,
   dayOrder: readonly number[],
+  courts: readonly number[],
   socialMixerBlock: SocialMixerBlock | null
 ): Placement | null => {
   let fallback: Placement | null = null
   for (const day of dayOrder) {
     for (let slot = 0; slot < SCHEDULE.slotsPerDay; slot++) {
-      for (let court = 1; court <= SCHEDULE.courts; court++) {
+      for (const court of courts) {
         const placement: Placement = { court, day, slot }
         const { hard, soft } = validatePlacement(working, { id, placement }, socialMixerBlock)
         if (hard.length > 0) continue
@@ -61,7 +71,9 @@ const firstValidPlacement = (
  * Algorithm: each unplaced match (round asc, position asc) targets a day — Saturday through the
  * quarterfinals plus the consolation bracket, Sunday for the semifinals/final (`targetDay`) — and is
  * placed in the first valid cell of that day (then the other day as a spill), preferring a warning-free
- * cell. The finals-day *soft* rule and this day ordering reinforce each other: a final scanned on Saturday
+ * cell. Within a slot the courts are reached in the match's own preference order (`courtOrder`), so the
+ * main bracket lands where spectators can watch and the consolation takes what is left. The finals-day
+ * *soft* rule and this day ordering reinforce each other: a final scanned on Saturday
  * is never warning-free (the finals-day nudge), so it settles on Sunday on its own. A simple greedy fill,
  * not a global optimizer — per the issue spec (ADR-0040, ADR-0033).
  */
@@ -86,7 +98,7 @@ export const suggestSchedule = (
     // strands a match in the backlog.
     const first = targetDay(match, working)
     const dayOrder = [first, ...DAY_INDICES.filter(d => d !== first)]
-    const placement = firstValidPlacement(working, match.id, dayOrder, socialMixerBlock)
+    const placement = firstValidPlacement(working, match.id, dayOrder, courtOrder(match), socialMixerBlock)
     if (!placement) continue
 
     // Apply to the working set so subsequent matches see this cell as occupied.

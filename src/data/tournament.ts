@@ -1,6 +1,6 @@
 import { CHALLENGER_MIN_LK, DEFAULT_LK } from '../../shared/constants'
 import { COMPETITION_SLUGS } from '../../shared/competition'
-import { SCHEDULE } from '../../shared/schedule'
+import { SCHEDULE, slotTime } from '../../shared/schedule'
 import { socialMixerBlockTime, type SocialMixerBlock } from '../../shared/social-mixer'
 
 export type CompetitionStatus = 'open' | 'planned'
@@ -24,7 +24,7 @@ export interface Competition {
   status: CompetitionStatus
 }
 
-const TOURNAMENT_START = new Date('2026-08-22T09:00:00+02:00')
+const TOURNAMENT_START = new Date('2026-08-22T10:30:00+02:00')
 const SIGNUP_DEADLINE = new Date('2026-08-19T23:59:00+02:00')
 
 export const venue = {
@@ -159,8 +159,12 @@ export const tournament = {
   long: '22.-23.08.2026',
   /** "Sa/So, 22.-23.08.2026" */
   longWithWeekdays: 'Sa/So, 22.-23.08.2026',
-  /** "09:00" — the event's earliest start (both days; matches the schedule's first „ca." slot time). */
-  startTime: '09:00',
+  /**
+   * "10:30" — Saturday's first start, *derived* from the grid rather than restated (ADR-0067). The two
+   * days no longer open at the same time, and the public copy that promises a start time must be the same
+   * number the schedule's first „ca." slot shows.
+   */
+  startTime: slotTime(0, 0),
   saturday: { weekday: 'Samstag', short: '22.08.' },
   sunday: { weekday: 'Sonntag', short: '23.08.' }
 }

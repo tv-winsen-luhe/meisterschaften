@@ -3,6 +3,7 @@ import {
   courtEndMinutes,
   isFloodlit,
   SCHEDULE,
+  slotAtMinutes,
   slotTime,
   validatePlacement,
   withinEveningWindow
@@ -27,35 +28,54 @@ describe('isFloodlit / courtEndMinutes', () => {
 })
 
 describe('withinEveningWindow', () => {
-  // A 90-minute match must *finish* by the court's bound. Both days open at 9:00 on a 30-minute cadence,
-  // so the dark courts' last legal start is slot 19 (18:30 → finishes 20:00) and the floodlit pair's is
-  // slot 23 (20:30 → finishes 22:00, the last slot the uniform grid offers).
-  it('lets a dark court (1–4) start only up to a finish by ~20:00 (last start 18:30 = slot 19)', () => {
-    expect(slotTime(0, 19)).toBe('18:30')
-    expect(withinEveningWindow(1, 0, 19)).toBe(true)
-    // Slot 20 (19:00) would finish at 20:30 — past the dark courts' daylight bound.
-    expect(slotTime(0, 20)).toBe('19:00')
-    expect(withinEveningWindow(1, 0, 20)).toBe(false)
+  // A 90-minute match must *finish* by the court's bound, and the slot→clock arithmetic runs off each
+  // day's own first start (Saturday 10:30, Sunday 10:00 — ADR-0067). The last legal start is therefore a
+  // *clock* time (18:30 dark, 20:30 floodlit) at a different slot index per day — derived here rather
+  // than hard-coded, so a moved first start re-aims the test instead of breaking it.
+  const lastStart = (day: number, endMinutes: number) => slotAtMinutes(day, endMinutes - SCHEDULE.matchMinutes)
+
+  it('lets a dark court (1–4) start only up to a finish by ~20:00 (last start 18:30)', () => {
+    const last = lastStart(0, SCHEDULE.daylightEndMinutes)
+    expect(slotTime(0, last)).toBe('18:30')
+    expect(withinEveningWindow(1, 0, last)).toBe(true)
+    // One step later (19:00) would finish at 20:30 — past the dark courts' daylight bound.
+    expect(slotTime(0, last + 1)).toBe('19:00')
+    expect(withinEveningWindow(1, 0, last + 1)).toBe(false)
   })
 
-  it('lets a floodlit court (5 & 6) run on past daylight to the 22:00 curfew (last start 20:30 = slot 23)', () => {
-    // The same slot 20 a dark court must refuse is still fine under the lights…
-    expect(withinEveningWindow(5, 0, 20)).toBe(true)
-    // …all the way to the grid's last slot, which finishes exactly at the 22:00 curfew.
-    const lastSlot = SCHEDULE.slotsPerDay - 1
-    expect(slotTime(0, lastSlot)).toBe('20:30')
-    expect(withinEveningWindow(6, 0, lastSlot)).toBe(true)
+  it('lets a floodlit court (5 & 6) run on past daylight to the 22:00 curfew (last start 20:30)', () => {
+    // The slot a dark court must refuse is still fine under the lights…
+    expect(withinEveningWindow(5, 0, lastStart(0, SCHEDULE.daylightEndMinutes) + 1)).toBe(true)
+    // …up to the curfew start, which finishes exactly at 22:00.
+    const last = lastStart(0, SCHEDULE.curfewMinutes)
+    expect(slotTime(0, last)).toBe('20:30')
+    expect(withinEveningWindow(6, 0, last)).toBe(true)
+    expect(withinEveningWindow(6, 0, last + 1)).toBe(false)
   })
 
-  it('applies the window per day off each day’s own start (both 9:00 today)', () => {
-    expect(withinEveningWindow(1, 1, 19)).toBe(true)
-    expect(withinEveningWindow(1, 1, 20)).toBe(false)
+  it('is exactly as tall as the earliest-starting day’s curfew reach', () => {
+    // The grid height is uniform across days, so it is sized by whichever day opens earliest — every row
+    // it offers is one *some* court can take, and none beyond. Saturday opens later, so its last rows are
+    // disabled by this very rule rather than by a shorter column.
+    const earliest = SCHEDULE.dayStartMinutes.indexOf(Math.min(...SCHEDULE.dayStartMinutes))
+    expect(SCHEDULE.slotsPerDay - 1).toBe(lastStart(earliest, SCHEDULE.curfewMinutes))
+  })
+
+  it('applies the window per day off each day’s own start', () => {
+    // Sunday opens half an hour earlier, so its last legal dark-court start sits one slot higher than
+    // Saturday's — the same 18:30 on the clock.
+    expect(lastStart(1, SCHEDULE.daylightEndMinutes)).toBe(lastStart(0, SCHEDULE.daylightEndMinutes) + 1)
+    expect(withinEveningWindow(1, 1, lastStart(1, SCHEDULE.daylightEndMinutes))).toBe(true)
+    expect(withinEveningWindow(1, 1, lastStart(1, SCHEDULE.daylightEndMinutes) + 1)).toBe(false)
   })
 })
 
 describe('validatePlacement — hard court-window rule (ADR-0040)', () => {
-  // A lone round-1 match (no feeders, no other placements) so only the window rule can bite. Slot 20
-  // (19:00) finishes at 20:30: past the dark courts' ~20:00 daylight bound, but fine under the lights.
+  // A lone round-1 match (no feeders, no other placements) so only the window rule can bite. `dark` is
+  // Saturday's last legal dark-court start (18:30, finishing exactly at 20:00); one step later (19:00)
+  // finishes at 20:30 — past the dark courts' daylight bound, but fine under the lights.
+  const dark = slotAtMinutes(0, SCHEDULE.daylightEndMinutes - SCHEDULE.matchMinutes)
+  const lit = slotAtMinutes(0, SCHEDULE.curfewMinutes - SCHEDULE.matchMinutes)
   const lateMatch = {
     id: 40,
     competition: 'mens',
@@ -72,22 +92,22 @@ describe('validatePlacement — hard court-window rule (ADR-0040)', () => {
   const at = (court: number, slot: number): Placement => ({ court, day: 0, slot })
 
   it('blocks a dark court (1–4) from a start that would finish past ~20:00', () => {
-    const { hard } = validatePlacement([lateMatch], { id: 40, placement: at(1, 20) })
+    const { hard } = validatePlacement([lateMatch], { id: 40, placement: at(1, dark + 1) })
     expect(hard).toEqual([{ rule: 'court-window' }])
   })
 
-  it('lets the dark court take its last in-window start (slot 19 = 18:30, finishes 20:00)', () => {
-    const { hard } = validatePlacement([lateMatch], { id: 40, placement: at(4, 19) })
+  it('lets the dark court take its last in-window start (18:30, finishes 20:00)', () => {
+    const { hard } = validatePlacement([lateMatch], { id: 40, placement: at(4, dark) })
     expect(hard).toEqual([])
   })
 
   it('lets a floodlit court (5 & 6) take the very start a dark court must refuse', () => {
-    const { hard } = validatePlacement([lateMatch], { id: 40, placement: at(5, 20) })
+    const { hard } = validatePlacement([lateMatch], { id: 40, placement: at(5, dark + 1) })
     expect(hard).toEqual([])
   })
 
-  it('lets a floodlit court run to the grid’s last slot (20:30, finishes at the 22:00 curfew)', () => {
-    const { hard } = validatePlacement([lateMatch], { id: 40, placement: at(6, SCHEDULE.slotsPerDay - 1) })
+  it('lets a floodlit court run to its curfew start (20:30, finishes at the 22:00 curfew)', () => {
+    const { hard } = validatePlacement([lateMatch], { id: 40, placement: at(6, lit) })
     expect(hard).toEqual([])
   })
 })

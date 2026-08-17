@@ -3,14 +3,20 @@
 // the bracket-topology adjacency rule (ADR-0049) — the same single-source discipline as shared/draw.ts.
 // This file owns the grid shape, the approximate slot time, match numbering, feeder *resolution* (against
 // topology's `winnerFeeders` / `winnerTarget` / `semifinalPositions`), and `validatePlacement` (block the
-// impossible, warn the unwise — ADR-0033).
+// impossible, warn the unwise — ADR-0033). What the courts physically *are* lives here; how the organiser
+// wants them *used* (viewing order, parallel cap) lives in court-plan.ts, one directional import away.
 import type { SocialMixerBlock } from './social-mixer'
 import { bracketDepth, semifinalPositions, winnerFeeders, winnerTarget, type BracketPosition } from './bracket-topology'
+import { parallelLimitViolation } from './court-plan'
+// The violation vocabulary lives beside this file (placement-violation.ts) and is re-exported here, so
+// every reader keeps importing it from `schedule` — the module they already speak to about placements.
+export type { HardViolation, PlacementCandidate, PlacementValidation, SoftViolation } from './placement-violation'
+import type { HardViolation, PlacementCandidate, PlacementValidation, SoftViolation } from './placement-violation'
 
 // The courts×time grid the operator places matches on (ADR-0005, ADR-0040). A match is a fixed
 // **90 minutes**, but its **start** is set on a **30-minute** cadence, so a `slot` is a 30-minute index
 // (a match spans three steps — SLOT_SPAN — and reserves its court for the interval [start, start+90)).
-// Each event day has its own first start (both currently 9:00), so `slotTime` is day-aware. The
+// Each event day has its own first start (Saturday 10:30, Sunday 10:00 — ADR-0067), so `slotTime` is day-aware. The
 // numeric shape lives here (the single source both clients size the grid from); the day *labels*
 // („Samstag 22.08.") stay in src/data/tournament.ts, the home of the event's date copy. Per-court evening
 // windows below make the grid lopsided — the floodlit pair reach later than the dark four (ADR-0040) —
@@ -22,14 +28,18 @@ export const SCHEDULE = {
   // slots (SLOT_SPAN).
   matchMinutes: 90,
   slotMinutes: 30,
-  // 30-minute start slots per day: 9:00 → 20:30 (the latest start the floodlit courts 5 & 6 allow before
-  // the 22:00 quiet-hours curfew) at a 30-minute cadence = 24 slots. A uniform grid height for both days;
-  // the per-court evening windows (below) gate which of those rows each court may actually take.
-  slotsPerDay: 24,
-  // Minutes-from-midnight of each day's first start — both days open at the earliest 9:00 per the
-  // organizer. Indexed by the event day (0 = Saturday, 1 = Sunday) and read by `slotTime`, so a per-day
-  // start stays expressible (ADR-0040) even though the two are equal today.
-  dayStartMinutes: [9 * 60, 9 * 60],
+  // 30-minute start slots per day, sized by the **earliest-starting** day's reach to 20:30 (the latest
+  // start the floodlit courts 5 & 6 allow before the 22:00 quiet-hours curfew): Sunday opens at 10:00, so
+  // 10:00 → 20:30 at a 30-minute cadence = 22 slots. A uniform grid height for both days; Saturday opens
+  // later, so its last rows are simply out of every court's window. The per-court evening windows (below)
+  // gate which rows each court may actually take, on both days.
+  slotsPerDay: 22,
+  // Minutes-from-midnight of each day's first start (ADR-0067). The two days differ: **Saturday 10:30**
+  // (the courts carry a youth fixture in the morning and the organizer starts the championship after it),
+  // **Sunday 10:00** (the finals day runs a longer programme). Indexed by the event day (0 = Saturday,
+  // 1 = Sunday) and read by `slotTime` — the per-day start ADR-0040 made expressible, now actually used,
+  // so slot 0 is a different clock time on each day.
+  dayStartMinutes: [10 * 60 + 30, 10 * 60],
   // The floodlit courts (ADR-0040): only courts 5 & 6 have lights, so only they may run on into the dark.
   // They are the overflow valve for a packed Saturday, reaching the 22:00 curfew while the four dark
   // courts must clear in daylight.
@@ -90,9 +100,10 @@ export const slotStartMinutes = (day: number, slot: number): number =>
 /**
  * The approximate clock time of a (day, slot) on the grid, "HH:MM" (24h). Times are explicitly a plan,
  * shown „ca." — the live truth is the match status, not a rewritten time (ADR-0032). Day-aware via
- * `dayStartMinutes` (ADR-0040), so each day can carry its own first start; both days currently open at
- * 9:00, so slot 0 = 09:00, slot 1 = 09:30, … at the 30-minute cadence. An out-of-range day falls back to
- * the first day's start rather than producing NaN.
+ * `dayStartMinutes` (ADR-0040), so each day carries its own first start and slot 0 is a different clock
+ * time on each: Saturday opens at 10:30 (slot 0 = 10:30, slot 1 = 11:00, …), Sunday at 10:00 (ADR-0067).
+ * An out-of-range day falls back to the first day's start rather than producing NaN. Public copy that
+ * promises a start time derives it from here (`tournament.startTime`) rather than restating it.
  */
 export const slotTime = (day: number, slot: number): string => {
   const total = slotStartMinutes(day, slot)
@@ -100,6 +111,16 @@ export const slotTime = (day: number, slot: number): string => {
   const m = total % 60
   return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`
 }
+
+/**
+ * The grid slot that starts at `minutes` past midnight on `day` — the inverse of `slotStartMinutes`, and
+ * the arithmetic every "which row is 18:30 on?" question needs. It earns its place now that the two days
+ * open at different times (ADR-0067): a clock bound is one number, but the row it lands on is per day, and
+ * re-deriving that per caller is how a moved first start goes unnoticed. Fractional when `minutes` is not
+ * on the cadence — the callers ask about cadence times.
+ */
+export const slotAtMinutes = (day: number, minutes: number): number =>
+  (minutes - (SCHEDULE.dayStartMinutes[day] ?? SCHEDULE.dayStartMinutes[0])) / SCHEDULE.slotMinutes
 
 // Whether a court is floodlit (courts 5 & 6, ADR-0040) — the only courts that may run on past daylight.
 // `.some` rather than `.includes` so the `as const` tuple's literal element type doesn't reject a plain
@@ -403,59 +424,6 @@ interface PlacedMatch {
   slot: number | null
 }
 
-// A **hard** violation — a physically impossible state the placement endpoint blocks (ADR-0033).
-//  - `feeder-order`: the candidate would start before a match it depends on by round has finished — a
-//    feeder whose 90 minutes are not yet over, or a successor it must finish before. `otherMatchId` is
-//    the conflicting match.
-//  - `court-taken`: the candidate's 90-minute interval overlaps another match already on its court — two
-//    matches cannot share one court at one time. Occupancy is **interval overlap** (starts fewer than
-//    SLOT_SPAN steps apart), not a shared cell (ADR-0040). `otherMatchId` is the match already there.
-//    With `court` bounded to the six courts, this also makes "more matches running at once than courts"
-//    structurally impossible (ADR-0033 — the grid's court rows make the court cap structural).
-//  - `court-window`: the candidate's 90 minutes would run past its court's evening window — the four dark
-//    courts must finish by ~20:00 daylight, the floodlit pair by the 22:00 curfew (ADR-0040). It is about
-//    the candidate's own cell, not a clash with another match, so it carries no `otherMatchId`.
-//  - `player-overlap`: a player in the candidate would be in two time-overlapping matches at once — one
-//    person, two courts, physically impossible (ADR-0040). Now expressible thanks to the interval model;
-//    it bites when a round-1 loser drops into the consolation bracket the same day. `regId` is the shared
-//    player, `otherMatchId` the match they already hold.
-export type HardViolation =
-  | { rule: 'feeder-order'; otherMatchId: number }
-  | { rule: 'court-taken'; otherMatchId: number }
-  | { rule: 'court-window' }
-  | { rule: 'player-overlap'; regId: number; otherMatchId: number }
-
-// A **soft** violation — a player-comfort or scheduling-shape concern the operator may override (ADR-0033).
-//  - `player-load`: the player would hold more than 2 matches on the candidate's day. `count` is the total.
-//  - `short-rest`: the player's rest between two same-day matches (`nextStart − previousEnd`) would be under
-//    `minRestMinutes` (ADR-0040). It only covers non-overlapping matches — an actual overlap is the hard
-//    `player-overlap` block, not a rest nudge. `otherMatchId` is the player's other match.
-//  - `finals-day`: a main-bracket semifinal or final placed off Sunday (the last event day). Sunday is
-//    finals day (ADR-0040), so an earlier placement is nudged — never blocked; a final *may* be played on
-//    Saturday. `round` is the candidate's round (the surface phrases the reminder from it). The rule value
-//    is English (CLAUDE.md — wire/data values); the German term survives only in the user-facing copy.
-//  - `social-mixer-block`: the candidate's 90 minutes would run into the Social mixer's reserved court-time
-//    (CONTEXT: Mixer block, ADR-0063). An organiser agreement rather than a physical impossibility, so the
-//    operator may override it. Like `court-window` it is about the candidate's own cell, not a clash with
-//    another match, so it carries no `otherMatchId`.
-export type SoftViolation =
-  | { rule: 'player-load'; regId: number; count: number }
-  | { rule: 'short-rest'; regId: number; otherMatchId: number }
-  | { rule: 'finals-day'; round: number }
-  | { rule: 'social-mixer-block' }
-
-export interface PlacementValidation {
-  hard: HardViolation[]
-  soft: SoftViolation[]
-}
-
-// The match being placed: its `id` (it must appear in the `matches` set so its bracket position and
-// players are known) and the proposed grid cell.
-export interface PlacementCandidate {
-  id: number
-  placement: Placement
-}
-
 // Day-major slot ordinal across the whole event, so a later day's slot 0 sorts after an earlier day's
 // last slot. The structural feeder floor (`earliestPlaceableSlot` vs `here`) is ordered against it.
 export const absoluteSlot = (day: number, slot: number): number => day * SCHEDULE.slotsPerDay + slot
@@ -645,6 +613,17 @@ export const validatePlacement = (
   // no change to `suggestSchedule`. No block (a cancelled mixer, or a hard-rules-only caller) — no warning.
   if (socialMixerBlock && overlapsSocialMixerBlock(socialMixerBlock, candidate.placement))
     soft.push({ rule: 'social-mixer-block' })
+
+  // Soft — the day's parallel cap (CONTEXT: Parallel limit, ADR-0067). How many matches the day should
+  // hold at once is the organiser's shape decision, so it lives in court-plan.ts; here it is one lookup and
+  // one comparison against the peak that cell would actually produce.
+  const tooParallel = parallelLimitViolation(
+    placed.filter(m => m.day === day).map(m => m.slot),
+    day,
+    slot,
+    SLOT_SPAN
+  )
+  if (tooParallel) soft.push(tooParallel)
 
   // Hard + soft — per named player (an undecided feeder/bye slot is null and carries no clash/load yet).
   // The interval model makes "one person on two courts at once" expressible for the first time, so it is a

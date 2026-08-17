@@ -1,6 +1,12 @@
 import { env } from 'cloudflare:test'
 import { describe, expect, it } from 'vitest'
-import { overlapsSocialMixerBlock, SCHEDULE, slotStartMinutes, validatePlacement } from '../shared/schedule'
+import {
+  overlapsSocialMixerBlock,
+  SCHEDULE,
+  slotAtMinutes,
+  slotStartMinutes,
+  validatePlacement
+} from '../shared/schedule'
 import {
   resolveSocialMixerBlock,
   socialMixerCourts,
@@ -41,8 +47,10 @@ const pm = (id: number, round: number, position: number, { p = [null, null], at 
 // The block as the event actually stands: the default placement, at the head-count that fills three courts.
 const block = resolveSocialMixerBlock({ ...SOCIAL_MIXER_DEFAULT_PLACEMENT, confirmed: 12, cancelled: false })!
 
-// The grid slot index whose start is `minutes` past midnight, on the mixer's day.
-const slotAt = (minutes: number) => (minutes - SCHEDULE.dayStartMinutes[block.day]) / SCHEDULE.slotMinutes
+// The grid slot whose start is `minutes` past midnight, on the mixer's own day — the common case here.
+// Day-aware via `slotAtMinutes`, because the two event days open at different times (ADR-0067), so the
+// same clock time is a different row on each.
+const slotAt = (minutes: number) => slotAtMinutes(block.day, minutes)
 
 const { day, startMinutes, endMinutes } = block
 const [reservedCourt] = block.courts
@@ -137,11 +145,18 @@ describe('social mixer block · overlap (ADR-0063)', () => {
   })
 
   it('moves with the block — the old cells go quiet, the new ones warn', () => {
-    const moved = resolveSocialMixerBlock({ day: 0, startSlot: slotAt(9 * 60), confirmed: 12, cancelled: false })!
+    const moved = resolveSocialMixerBlock({
+      day: 0,
+      startSlot: slotAtMinutes(0, 11 * 60),
+      confirmed: 12,
+      cancelled: false
+    })!
     // The default block's day and time no longer bite…
     expect(overlapsSocialMixerBlock(moved, { court: reservedCourt, day, slot: slotAt(startMinutes) })).toBe(false)
-    // …and Saturday 09:00 now does.
-    expect(overlapsSocialMixerBlock(moved, { court: reservedCourt, day: 0, slot: slotAt(9 * 60) })).toBe(true)
+    // …and Saturday 11:00 now does.
+    expect(overlapsSocialMixerBlock(moved, { court: reservedCourt, day: 0, slot: slotAtMinutes(0, 11 * 60) })).toBe(
+      true
+    )
   })
 
   it('narrows with the head-count — the court it no longer needs stops warning', () => {

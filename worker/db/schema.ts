@@ -54,11 +54,13 @@ export const appState = sqliteTable('app_state', {
   cancelledCompetitions: text('cancelled_competitions').notNull().default('[]'),
   // Where the operator has put the Social mixer's court block (ADR-0064): the event day and the 30-minute
   // grid slot it starts on. Two bounded integers rather than JSON — the defaults are the block's planned
-  // placement (Sunday, slot 6 = 12:00), so existing rows need no data migration and there is no
+  // placement (Sunday, slot 4 = 12:00), so a fresh database needs no operator act and there is no
   // „unparseable degrades to…" path to reason about. The block's *courts* are not stored: they are derived
-  // from the mixer's confirmed head-count, and its three hours are fixed by the format.
+  // from the mixer's confirmed head-count, and its three hours are fixed by the format. The slot is
+  // relative to the day's first start, so moving Sunday's start re-points it — the 9:00 → 10:00 move
+  // (ADR-0067) turned the same 12:00 from slot 6 into slot 4, migrated for existing rows.
   socialMixerDay: integer('social_mixer_day').notNull().default(1),
-  socialMixerSlot: integer('social_mixer_slot').notNull().default(6)
+  socialMixerSlot: integer('social_mixer_slot').notNull().default(4)
 })
 
 export type AppStateRow = typeof appState.$inferSelect

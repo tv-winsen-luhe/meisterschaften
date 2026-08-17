@@ -22,7 +22,8 @@ const hardReason = (v: HardViolation): string => {
   if (v.rule === 'court-taken') return 'Dieser Platz ist zu dieser Zeit bereits belegt.'
   if (v.rule === 'court-window') return 'Dieser Platz hat um diese Zeit kein Flutlicht — das Match würde zu spät enden.'
   if (v.rule === 'player-overlap') return 'Ein Spieler stünde zur selben Zeit in einem anderen Match.'
-  return 'Die Runden-Reihenfolge stimmt nicht — dieses Match hängt von einem anderen ab.'
+  if (v.rule === 'feeder-order') return 'Die Runden-Reihenfolge stimmt nicht — dieses Match hängt von einem anderen ab.'
+  return v satisfies never
 }
 
 // „4, 5 und 6" — the reserved courts read as German prose rather than a bare array. Off the resolved
@@ -41,7 +42,12 @@ const softReason = (v: SoftViolation, socialMixerBlock: SocialMixerBlock | null)
     return socialMixerBlock
       ? `Für das Damen Doppel reserviert (${socialMixerBlockTime(socialMixerBlock)} Uhr, Platz ${courtList(socialMixerBlock)}).`
       : 'Für das Damen Doppel reserviert.'
-  return 'Halbfinale und Finale gehören auf den Finaltag (Sonntag).'
+  if (v.rule === 'parallel-limit')
+    return `Dann liefen ${v.count} Matches gleichzeitig — mehr als an diesem Tag geplant.`
+  if (v.rule === 'finals-day') return 'Halbfinale und Finale gehören auf den Finaltag (Sonntag).'
+  // Every rule is answered above; the compiler holds the list to this file, so a new soft rule shipped
+  // without its German sentence breaks the build instead of silently borrowing the last one's copy.
+  return v satisfies never
 }
 
 // Distinct reasons, in input order — two feeders can each block a drop with the same sentence.

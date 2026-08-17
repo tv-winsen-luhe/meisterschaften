@@ -6,6 +6,7 @@ import {
   resolveBracket,
   SCHEDULE,
   SLOT_SPAN,
+  slotAtMinutes,
   slotLabel,
   slotTime,
   validatePlacement,
@@ -28,17 +29,18 @@ const m = (id: number, round: number, position: number, slot1: number | null = n
 })
 
 describe('slotTime', () => {
-  it('counts up from each day’s first start (both 9:00) at the 30-minute cadence (ADR-0040)', () => {
-    // Both days open at 9:00; a slot is a 30-minute step.
-    expect(slotTime(0, 0)).toBe('09:00')
-    expect(slotTime(0, 1)).toBe('09:30')
-    expect(slotTime(0, 2)).toBe('10:00')
-    expect(slotTime(1, 0)).toBe('09:00')
-    expect(slotTime(1, 2)).toBe('10:00')
+  it('counts up from each day’s own first start at the 30-minute cadence (ADR-0040)', () => {
+    // The two days open at different times (Saturday 10:30, Sunday 10:00 — ADR-0067); a slot is a
+    // 30-minute step from that day's own start, which is the whole point of the per-day array.
+    expect(slotTime(0, 0)).toBe('10:30')
+    expect(slotTime(0, 1)).toBe('11:00')
+    expect(slotTime(0, 2)).toBe('11:30')
+    expect(slotTime(1, 0)).toBe('10:00')
+    expect(slotTime(1, 2)).toBe('11:00')
   })
 
   it('falls back to the first day’s start for an out-of-range day rather than NaN', () => {
-    expect(slotTime(99, 0)).toBe('09:00')
+    expect(slotTime(99, 0)).toBe('10:30')
   })
 })
 
@@ -283,10 +285,11 @@ describe('validatePlacement', () => {
     })
 
     it('does not leak a feeder’s interval across the day boundary (late-Saturday → Sunday-morning is sound)', () => {
-      // A semifinal in Saturday's last start-slot feeds a final in Sunday's first — the feeder's 90
-      // minutes are long over by the next morning, so neither direction may block. The grid's last slot
-      // is only reachable on a floodlit court (5 & 6, ADR-0040), so the late placement sits on one.
-      const lastSlot = SCHEDULE.slotsPerDay - 1
+      // A semifinal in Saturday's last legal start feeds a final in Sunday's first — the feeder's 90
+      // minutes are long over by the next morning, so neither direction may block. That last start (20:30,
+      // finishing at the curfew) is only reachable on a floodlit court (5 & 6, ADR-0040), so the late
+      // placement sits on one; it is one row below the grid's height, which Sunday's earlier start sets.
+      const lastSlot = slotAtMinutes(0, SCHEDULE.curfewMinutes - SCHEDULE.matchMinutes)
       const feederLate = [{ ...semi1, court: 5, day: 0, slot: lastSlot }, semi2, final]
       expect(validatePlacement(feederLate, { id: 3, placement: { court: 1, day: 1, slot: 0 } }).hard).toEqual([])
       // …and the mirror: placing the feeder while its successor already sits Sunday morning.
