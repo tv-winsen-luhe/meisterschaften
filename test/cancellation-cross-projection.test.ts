@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import { COMPETITION_SLUGS, type CompetitionSlug, type ParticipantsResponse, type PhaseResponse } from '../shared'
+import {
+  COMPETITION_SLUGS,
+  SOCIAL_MIXER_DEFAULT_PLACEMENT,
+  type CompetitionSlug,
+  type ParticipantsResponse,
+  type PhaseResponse
+} from '../shared'
 import { createApp } from '../worker/app'
 import type { RegistrationRow } from '../worker/db/schema'
 import { createInMemoryAppStateStore } from '../worker/store/app-state'
@@ -116,7 +122,11 @@ describe('a cancelled competition is missing from every public wire (ADR-0062 §
   it('carries the cancelled set on /api/phase — the one signal the surfaces read', async () => {
     const wires = await bothFieldsLive(['womens'])
     const phase = await wires.phase()
-    expect(phase).toEqual({ phase: 'tournament', cancelledCompetitions: ['womens'] })
+    expect(phase).toEqual({
+      phase: 'tournament',
+      cancelledCompetitions: ['womens'],
+      socialMixerPlacement: SOCIAL_MIXER_DEFAULT_PLACEMENT
+    })
   })
 
   it('takes the whole event off the public wires when every competition is cancelled', async () => {
@@ -142,7 +152,11 @@ describe('a cancelled competition is missing from every public wire (ADR-0062 §
     expect(scheduled.published).toBe(true)
     expect(new Set(scheduled.matches.map(m => m.competition))).toEqual(new Set(['mens', 'womens']))
 
-    expect(await wires.phase()).toEqual({ phase: 'tournament', cancelledCompetitions: [] })
+    expect(await wires.phase()).toEqual({
+      phase: 'tournament',
+      cancelledCompetitions: [],
+      socialMixerPlacement: SOCIAL_MIXER_DEFAULT_PLACEMENT
+    })
   })
 })
 

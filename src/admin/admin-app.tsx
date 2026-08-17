@@ -5,6 +5,7 @@ import type { AppType } from '../../worker/app'
 import { type AdminRegistration, type CompetitionDraw, type CompetitionSlug, type Phase } from '../../shared'
 import { errorMessage, isAuthRedirect } from './lib/api'
 import { useCancellation } from './use-cancellation'
+import { useSocialMixer } from './use-social-mixer'
 import { useDraw } from './use-draw'
 import { useReveal } from './use-reveal'
 import { useResults } from './use-results'
@@ -148,6 +149,16 @@ export const AdminApp = () => {
   // set the competitions surface marks, the toggle that cancels one or takes it back, and the
   // under-threshold list the „Anmeldung schließen" dialog names.
   const { cancelledCompetitions, setCompetitionCancelled, underfilled } = useCancellation(client, mutate, registrations)
+
+  // The Social mixer's court block (ADR-0064): where it sits, the move, and the resolved block the
+  // schedule surfaces shade and validate against. Depends on the cancelled set — a cancelled mixer has no
+  // block at all — so it is composed here, after `useCancellation`.
+  const { socialMixerPlacement, socialMixerBlock, confirmedEntries, moveSocialMixerBlock } = useSocialMixer(
+    client,
+    mutate,
+    registrations,
+    cancelledCompetitions
+  )
 
   // Resolves to whether the save succeeded, so the surface auto-advances only on success and
   // keeps the operator on a rejected row (their edits intact) instead of skipping ahead.
@@ -321,6 +332,7 @@ export const AdminApp = () => {
             onGoToCompetition={goToCompetition}
             onOpenRegistration={goToRegistration}
             cancelledCompetitions={cancelledCompetitions}
+            socialMixerBlock={socialMixerBlock}
           />
         ) : surface === 'seeding' ? (
           <SeedingSurface registrations={registrations} />
@@ -345,6 +357,10 @@ export const AdminApp = () => {
             onPlace={placeMatch}
             onPublish={publishSchedule}
             onReset={resetSchedule}
+            socialMixerBlock={socialMixerBlock}
+            socialMixerPlacement={socialMixerPlacement}
+            socialMixerConfirmed={confirmedEntries}
+            onMoveSocialMixerBlock={moveSocialMixerBlock}
           />
         ) : surface === 'results' ? (
           <ResultsSurface

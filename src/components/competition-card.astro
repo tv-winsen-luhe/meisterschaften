@@ -2,6 +2,7 @@
 import Card from './card.astro'
 import MarkerHighlight from './marker-highlight.astro'
 import { socialMixerWhen, type Competition } from '@/data/tournament'
+import { resolveSocialMixerBlock, SOCIAL_MIXER_DEFAULT_PLACEMENT } from '../../shared'
 import type { CardStyle } from '@/data/competition-cards'
 
 interface Props {
@@ -36,12 +37,17 @@ const labelColor = style.marker ? 'text-navy' : variant === 'dark' || variant ==
 const audienceColor = variant === 'dark' || variant === 'clay' ? 'text-white' : ''
 const blurbColor = { light: 'opacity-65', dark: 'text-white/80', clay: 'text-white/80', blue: 'opacity-80' }[variant]
 
-// The Social mixer is the one field with a **fixed appointment** rather than an ansetzung — it is never
-// drawn, so no schedule row will ever carry its time (ADR-0063). The line comes from `socialMixerWhen`,
-// derived from the same `SOCIAL_MIXER_BLOCK` the schedule validator reserves, so the card, the public
-// schedule and the grid can never disagree. Checked here in the one shared card rather than threaded as a
-// prop, so the front door and the Damen porch (ADR-0052) both pick it up without either page knowing.
-const appointment = competition.slug === 'womens-social' ? socialMixerWhen : undefined
+// The Social mixer is the one field with an **appointment** rather than an ansetzung — it is never drawn,
+// so no schedule row will ever carry its time (ADR-0063). The line comes from `socialMixerWhen`, derived
+// from the same block the schedule validator reserves, so the card, the public schedule and the grid can
+// never disagree. Built at the block's default placement and patched by the same one-shot `/api/phase`
+// read that applies a cancellation (ADR-0064) — the card carries `data-mixer-when` for it. Checked here in
+// the one shared card rather than threaded as a prop, so the front door and the Damen porch (ADR-0052)
+// both pick it up without either page knowing.
+const appointment =
+  competition.slug === 'womens-social'
+    ? socialMixerWhen(resolveSocialMixerBlock({ ...SOCIAL_MIXER_DEFAULT_PLACEMENT, confirmed: 0 })!)
+    : undefined
 ---
 
 <Card variant={variant} stagger={stagger} competition={competition.slug}>
@@ -58,7 +64,10 @@ const appointment = competition.slug === 'womens-social' ? socialMixerWhen : und
   </p>
   {
     appointment && (
-      <p class:list={['text-[13px] leading-[1.6] font-semibold', hasChips ? 'mb-5' : 'mb-7', audienceColor]}>
+      <p
+        data-mixer-when
+        class:list={['text-[13px] leading-[1.6] font-semibold', hasChips ? 'mb-5' : 'mb-7', audienceColor]}
+      >
         {appointment}
       </p>
     )

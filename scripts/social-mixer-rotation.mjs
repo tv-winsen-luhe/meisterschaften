@@ -14,10 +14,13 @@
 //   node scripts/social-mixer-rotation.mjs              # every head-count, 8–12
 //   node scripts/social-mixer-rotation.mjs --n=9        # just one
 //   node scripts/social-mixer-rotation.mjs --minutes=180 --briefing=15
+//   node scripts/social-mixer-rotation.mjs --start=14:00   # after moving the block in the admin
 //
-// `--minutes` mirrors SOCIAL_MIXER_BLOCK's three hours (shared/social-mixer.ts). It is a plain argument rather
-// than an import because this file is plain Node with no build step; the default is the block's length, and
-// the block is the source of truth if the two ever disagree.
+// `--minutes` and `--start` mirror the mixer block (shared/social-mixer.ts): its fixed three hours and the
+// start the operator has set in the admin, which is movable since ADR-0064 — pass `--start` whenever the
+// block no longer sits at its default 12:00, or the sheet in the Spielleiterin's hand will name times the
+// app does not. They are plain arguments rather than imports because this file is plain Node with no build
+// step; the block is the source of truth if the two ever disagree.
 
 const arg = (name, fallback) => {
   const hit = process.argv.find(a => a.startsWith(`--${name}=`))
@@ -26,6 +29,24 @@ const arg = (name, fallback) => {
 
 const BLOCK_MINUTES = arg('minutes', 180)
 const BRIEFING_MINUTES = arg('briefing', 15)
+
+// The block's start as minutes from midnight, from `--start=HH:MM` (default 12:00, the block's own default).
+const START_MINUTES = (() => {
+  const hit = process.argv.find(a => a.startsWith('--start='))
+  if (!hit) return 12 * 60
+  const [h, m] = hit.slice('--start='.length).split(':').map(Number)
+  return h * 60 + (m || 0)
+})()
+
+// The mixer's court rule, duplicated from `socialMixerCourts` in shared/social-mixer.ts (ADR-0064) because
+// this file is plain Node with no build step and the shared module is TypeScript: four players to a court,
+// `floor(n / 4)` capped at three, and the courts numbered **from the top down** so court 4 — the one
+// Sunday's finals can use — is the first one released. `test/social-mixer-block.test.ts` runs this script
+// and compares its column headings against the resolver, so the two cannot drift quietly. The shared rule
+// additionally floors at one court (a block never silently vanishes; an empty field is a cancellation);
+// here a head-count below four simply has no rotation to print.
+const MAX_COURTS = 3
+const courtNumbers = courts => Array.from({ length: courts }, (_, i) => 6 - courts + 1 + i)
 
 /**
  * How the day is shaped for a given head-count.
@@ -36,7 +57,10 @@ const BRIEFING_MINUTES = arg('briefing', 15)
  * sits out, so the count is free and 8 rounds fills the block at a comfortable length.
  */
 const shapeFor = n => {
-  const courts = Math.floor(n / 4)
+  // Capped at three, like `socialMixerCourts` in shared/social-mixer.ts (ADR-0064): a fourth court would
+  // come out of the championship's Sunday, so beyond twelve players the surplus rotates out instead. The
+  // cap belongs here rather than only in the labelling, because this count drives who plays each round.
+  const courts = Math.min(MAX_COURTS, Math.floor(n / 4))
   const resting = n - courts * 4
   const rounds = resting > 0 ? n : 8
   return { courts, resting, rounds, minutes: Math.floor((BLOCK_MINUTES - BRIEFING_MINUTES) / rounds) }
@@ -130,17 +154,19 @@ const pair = p => `${name(p[0])} + ${name(p[1])}`
 
 const printTable = n => {
   const { schedule, courts, rounds, minutes, partnered, sitCount } = build(n)
-  const start = 12 * 60 + BRIEFING_MINUTES
+  const start = START_MINUTES + BRIEFING_MINUTES
 
   console.log(`\n${'='.repeat(72)}`)
   console.log(
     `DAMEN DOPPEL — ${n} Spielerinnen · ${courts} ${courts === 1 ? 'Platz' : 'Plätze'} · ${rounds} Runden à ${minutes} Min`
   )
-  console.log(`Beginn 12:00 Uhr (Begrüßung ${BRIEFING_MINUTES} Min), Ende ca. ${clock(start + rounds * minutes)} Uhr`)
+  console.log(
+    `Beginn ${clock(START_MINUTES)} Uhr (Begrüßung ${BRIEFING_MINUTES} Min), Ende ca. ${clock(start + rounds * minutes)} Uhr`
+  )
   console.log('='.repeat(72))
   console.log('Jede Spielerin bekommt bei der Ankunft eine Nummer. Kein Ergebnis, keine Wertung.\n')
 
-  const courtHeads = Array.from({ length: courts }, (_, c) => `Platz ${4 + c}`.padEnd(22))
+  const courtHeads = courtNumbers(courts).map(court => `Platz ${court}`.padEnd(22))
   console.log(`${'Runde'.padEnd(7)}${'Zeit'.padEnd(8)}${courtHeads.join('')}Pause`)
   console.log('-'.repeat(72))
   schedule.forEach((round, r) => {

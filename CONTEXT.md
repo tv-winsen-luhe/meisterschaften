@@ -151,10 +151,11 @@ cancelled`, duplicate check, capacity, first-come cut) **unchanged**, with one r
   is **no scoring at all**: the public copy promised „kein Ergebnis" to an audience that self-selected away
   from competition, so no points are kept even on paper. The tournament engine models **no mixer match**;
   the one thing it does know is **when and where the mixer occupies courts** — the **Mixer block**
-  (`SOCIAL_MIXER_BLOCK`, see Schedule): **Sunday (Finaltag) 12:00–15:00 on courts 4–6**, inside the busy day
-  rather than a dead evening slot, the one slot that is both full/festive and has court slack (ADR-0051).
-  The block is the single definition every surface reads, and the court-budget reservation
-  (`socialMixerReservedSlots`) is **derived** from it rather than asserted beside it. The duplicate-entry
+  (see Schedule): by default **Sunday (Finaltag) 12:00–15:00**, inside the busy day rather than a dead
+  evening slot, the one slot that is both full/festive and has court slack (ADR-0051) — but the operator
+  may **move** it, and its **courts follow the confirmed head-count** (ADR-0064). The block is the single
+  definition every surface reads, and the court-budget reservation is **derived** from it rather than
+  asserted beside it. The duplicate-entry
   guard matches on **person + competition**, so a member may hold a championship entry **and** the mixer —
   because they are distinct competitions, not because the mixer is specially exempt. The Damen porch
   **actively invites** holding both (the „Einzel, Doppel — oder beides?" FAQ), because a „both" entry
@@ -473,18 +474,25 @@ reveal sequence }`. Randomness enters through an injected **`RandomSource`** por
   The schedule is **private until published**, and
   **reset** wipes the placements to rebuild (see Schedule publication). _(See ADR-0005, ADR-0033, ADR-0040,
   ADR-0041.)_
-- **Mixer block** (de: Doppel-Block; code: `SOCIAL_MIXER_BLOCK`) — the court-time the Social mixer occupies,
-  held as a **constant in `shared/schedule.ts`, not as a row or a match**: a day, a set of courts and a
-  clock interval (2026: Sunday, courts 4–6, 12:00–15:00). It is the one definition five surfaces read — the
-  validator, the admin grid's shading, the public schedule, the front-door card, and the court-load gauge,
-  whose reserved-slot count is derived from it. It **warns rather than blocks** (a reserved court is an
-  organiser agreement, not a physical impossibility — the ADR-0033 „unwise" category), so the operator keeps
-  the override; the auto-suggest routes around it for free, because it already prefers warning-free cells.
-  Because a match spans 90 minutes, the block warns on **starts from 10:30 to 14:30**, wider than its own
-  three hours. It is deliberately **not** an entity: one block for one weekend, known at build time, does
-  not earn a table — a second reservation is the trigger to revisit. And it is **not gated by
-  `schedule_published`** (Schedule publication): a fixed appointment is neither the unfinished plan the gate
-  hides nor live truth, and its participants must be able to read it regardless. _(See ADR-0063, ADR-0051.)_
+- **Mixer block** (de: Doppel-Block) — the court-time the Social mixer occupies: a day, a set of courts and
+  a clock interval, **resolved rather than declared** (`resolveSocialMixerBlock`, `shared/social-mixer.ts`)
+  and still **not a row and not a match**. Its three hours are fixed by the format; its **day and start are
+  operator state** (movable in the admin, stored on the single app-state row, bounded so the block ends by
+  20:00 on either day); its **courts are derived from the confirmed head-count** — four players per court,
+  `floor(n / 4)` clamped to 1–3, filled from the top down, so nine entries reserve courts 5 and 6 and
+  twelve reserve 4–6. Court 4 is released first because Sunday's finals run on courts 1–3. A **cancelled**
+  mixer resolves to **no block at all** — no shading, no warning, nothing reserved, no public line
+  (ADR-0062). It is the one definition every surface reads: the validator, the admin grid's shading, the
+  public schedule, the front-door card, and the court-load gauge, whose reserved-slot count is derived from
+  it. It **warns rather than blocks** (a reserved court is an organiser agreement, not a physical
+  impossibility — the ADR-0033 „unwise" category), so the operator keeps the override; the auto-suggest
+  routes around it for free, because it already prefers warning-free cells. Because a match spans 90
+  minutes, the block warns wider than its own three hours (a 12:00–15:00 block warns starts from 10:30 to
+  14:30). It is deliberately **not** an entity: one block for one weekend, now two stored numbers — a
+  **second reservation** is still the trigger to revisit. And it is **not gated by `schedule_published`**
+  (Schedule publication): an appointment is neither the unfinished plan the gate hides nor live truth, and
+  its participants must be able to read it regardless — publicly as **day and time only**, without court
+  numbers. _(See ADR-0064, ADR-0063, ADR-0051.)_
 - **Finaltag** (Sunday as finals day) — the auto-suggest reserves **semifinals → finals → third-place**
   for Sunday and packs Saturday through the **quarterfinals** (plus the consolation bracket). A soft
   preference, never a hard rule: a final _may_ be placed on Saturday, against a soft warning. _(See ADR-0040.)_
@@ -507,10 +515,10 @@ reveal sequence }`. Randomness enters through an injected **`RandomSource`** por
   **72** = 6 courts × ~6 matches/court/day × 2 event days, at the 90-min default (`courtSchedule`,
   `tournament.ts`). One pool **all competitions draw from** — the per-field capacities are not
   independent; their summed match load (main + third-place + consolation), plus the Social mixer's
-  reservation (`socialMixerReservedSlots`, **derived** from the Mixer block so the gauge and the
-  reservation the validator enforces cannot disagree), must fit this one budget. The overview cockpit
-  measures projected load against it so the operator plans and avoids overbooking. _(See ADR-0023,
-  ADR-0043, ADR-0063.)_
+  reservation (**derived** from the Mixer block — and with it from the mixer's confirmed head-count — so
+  the gauge and the reservation the validator enforces cannot disagree), must fit this one budget. The
+  overview cockpit measures projected load against it so the operator plans and avoids overbooking.
+  _(See ADR-0023, ADR-0043, ADR-0063, ADR-0064.)_
 - **Schedule publication** (de: Veröffentlichung) — the schedule is **private until published**: a global
   `schedule_published` flag (off by default) gates the **planned** public schedule, so the operator builds
   the whole plan unseen and reveals it in one act („Veröffentlichen"). Scope is **global** (one flag for the

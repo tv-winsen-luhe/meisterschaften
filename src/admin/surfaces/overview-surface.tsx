@@ -10,9 +10,11 @@ import {
   isActive,
   isCancelledCompetition,
   isUnseededCompetition,
-  matchCount
+  matchCount,
+  socialMixerReservedSlots,
+  type SocialMixerBlock
 } from '../../../shared'
-import { socialMixerReservedSlots, matchSlotsPerWeekend } from '@/data/tournament'
+import { matchSlotsPerWeekend } from '@/data/tournament'
 import { cn } from '@/admin/lib/utils'
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/admin/ui/empty'
 import { CLUB_LOGOS, competitionCapacity, competitionLabel } from './registration-detail'
@@ -39,6 +41,9 @@ interface OverviewSurfaceProps {
   // The competitions the operator has cancelled (ADR-0062). The cards keep them — the admin never hides
   // (it is the record) — but the court-load planning drops them: they will never take a court.
   cancelledCompetitions: CompetitionSlug[]
+  // The Social mixer's resolved block, or `null` when there is none (ADR-0064). The gauge's reserved
+  // segment is derived from it, so it can never disagree with the reservation the validator enforces.
+  socialMixerBlock: SocialMixerBlock | null
 }
 
 // The overview surface (ADR-0019, redesigned in ADR-0023): the at-a-glance dashboard the operator
@@ -52,7 +57,8 @@ export const OverviewSurface = ({
   onGoToNew,
   onGoToCompetition,
   onOpenRegistration,
-  cancelledCompetitions
+  cancelledCompetitions,
+  socialMixerBlock
 }: OverviewSurfaceProps) => {
   if (registrations.length === 0) {
     return (
@@ -105,12 +111,11 @@ export const OverviewSurface = ({
   const planFields = planRows
     .filter(r => !isUnseededCompetition(r.slug))
     .map(r => ({ active: r.new + r.confirmed, capacity: r.capacity ?? 0 }))
-  // The mixer never enters `planFields` (its court use is the reservation, not a bracket), so cancelling
-  // it has to drop the reservation instead — same exclusion, at the input the mixer actually occupies.
-  // Keyed off the same `isUnseededCompetition` predicate as the exclusion above, so the two cannot
-  // disagree if a second unseeded field is ever offered.
-  const reservedSlots = planRows.some(r => isUnseededCompetition(r.slug)) ? socialMixerReservedSlots : 0
-  const projection = courtBudgetProjection(planFields, reservedSlots, matchSlotsPerWeekend)
+  // The mixer never enters `planFields` (its court use is the reservation, not a bracket), so its cost
+  // comes from the block instead — sized by the confirmed head-count, and `null` (nothing reserved) when
+  // the mixer is cancelled (ADR-0064, ADR-0062). The cancellation is decided once, in the resolver, so
+  // this surface no longer keeps its own copy of that rule.
+  const projection = courtBudgetProjection(planFields, socialMixerReservedSlots(socialMixerBlock), matchSlotsPerWeekend)
   // Per-field court-slot consumption for the planning breakdown: load now (clamped) vs at the cap —
   // the "if it fills" figure. Same clamp as the projection, so the rows always sum to its total.
   const fieldLoads = planRows.map(r => ({

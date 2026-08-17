@@ -1,7 +1,7 @@
 import { CHALLENGER_MIN_LK, DEFAULT_LK } from '../../shared/constants'
 import { COMPETITION_SLUGS } from '../../shared/competition'
 import { SCHEDULE } from '../../shared/schedule'
-import { SOCIAL_MIXER_BLOCK, socialMixerBlockTime } from '../../shared/social-mixer'
+import { socialMixerBlockTime, type SocialMixerBlock } from '../../shared/social-mixer'
 
 export type CompetitionStatus = 'open' | 'planned'
 
@@ -58,18 +58,6 @@ export const courtSchedule = {
   days: SCHEDULE.days
 } as const
 export const matchSlotsPerWeekend = courtSchedule.courts * courtSchedule.matchesPerCourtPerDay * courtSchedule.days
-
-/**
- * Court-slot reservation for the women's social mixer, which shares the event weekend's courts
- * (ADR-0023, ADR-0051). **Derived from `SOCIAL_MIXER_BLOCK`** — the one definition of when and where the
- * mixer occupies courts (ADR-0063) — rather than asserted beside it, so the gauge can never disagree with
- * the reservation the schedule validator actually enforces. In the budget's units one slot is one match,
- * so the block's three hours on three courts read as 3 × (180 / 90) = 6. Shown as its own segment in the
- * total-utilization gauge, against the same 72-slot budget as the championship load.
- */
-export const socialMixerReservedSlots =
-  SOCIAL_MIXER_BLOCK.courts.length *
-  ((SOCIAL_MIXER_BLOCK.endMinutes - SOCIAL_MIXER_BLOCK.startMinutes) / SCHEDULE.matchMinutes)
 
 /** Default LK for participants without a nuLiga entry (set in admin). Single source: shared/. */
 export const defaultLk = DEFAULT_LK
@@ -178,15 +166,27 @@ export const tournament = {
 }
 
 /**
- * The Social mixer's appointment as one German line („Sonntag, 23.08. · 12:00–15:00 Uhr · Platz 4, 5 und 6"),
- * derived from `SOCIAL_MIXER_BLOCK` (ADR-0063) and the event's date copy. The one place this sentence is
- * written: the public schedule section and the front-door card both render it, so the time the participants
- * read can never drift from the time the schedule validator reserves. The day is read off the block rather
- * than hard-coded, so moving the block moves the copy with it.
+ * The Social mixer's appointment as one German line („Sonntag, 23.08. · 12:00–15:00 Uhr"), derived from the
+ * resolved block (ADR-0064) and the event's date copy. The one place this sentence is written: the public
+ * schedule section and the front-door card both render it, so the time the participants read can never
+ * drift from the time the schedule validator reserves — and because the block is movable, both surfaces
+ * re-render it from the one signal they already fetch.
+ *
+ * Deliberately **without court numbers** (ADR-0064 §6): what is public is the appointment, and a derived
+ * court number that shifts with the head-count is not a promise worth making to someone who will be shown
+ * their court on arrival anyway.
  */
-const mixerDay = [tournament.saturday, tournament.sunday][SOCIAL_MIXER_BLOCK.day]
-const mixerCourts = SOCIAL_MIXER_BLOCK.courts.join(', ').replace(/, (\d+)$/, ' und $1')
-export const socialMixerWhen = `${mixerDay.weekday}, ${mixerDay.short} · ${socialMixerBlockTime()} Uhr · Platz ${mixerCourts}`
+export const socialMixerWhen = (block: SocialMixerBlock): string => {
+  const day = [tournament.saturday, tournament.sunday][block.day] ?? tournament.sunday
+  return `${day.weekday}, ${day.short} · ${socialMixerBlockTime(block)} Uhr`
+}
+
+/** The same appointment for the operator, courts included („Sonntag · 12:00–15:00 · Platz 5 und 6"). */
+export const socialMixerWhenAndWhere = (block: SocialMixerBlock): string => {
+  const day = [tournament.saturday, tournament.sunday][block.day] ?? tournament.sunday
+  const courts = block.courts.join(', ').replace(/, (\d+)$/, ' und $1')
+  return `${day.weekday} · ${socialMixerBlockTime(block)} · Platz ${courts}`
+}
 
 export const signupDeadline = {
   date: SIGNUP_DEADLINE,

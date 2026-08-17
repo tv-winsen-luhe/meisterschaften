@@ -1,6 +1,11 @@
 ---
 import Layout from '@/layouts/default.astro'
 import { socialMixerWhen } from '@/data/tournament'
+import { resolveSocialMixerBlock, SOCIAL_MIXER_DEFAULT_PLACEMENT } from '../../shared'
+
+// The appointment as built: the block at its planned placement. The head-count only sizes the *courts*,
+// which this page does not name, so any confirmed count resolves the same line here (ADR-0064).
+const defaultMixerBlock = resolveSocialMixerBlock({ ...SOCIAL_MIXER_DEFAULT_PLACEMENT, confirmed: 0 })!
 
 // The public event-wide schedule + live board (ADR-0005, ADR-0032, issue #91): one page for the whole
 // weekend that always shows the current truth, never the stale plan. It leads with a „Jetzt auf dem Platz"
@@ -19,20 +24,22 @@ import { socialMixerWhen } from '@/data/tournament'
       und ohne Gewähr. Was wirklich passiert, steht im Status: läuft oder beendet mit Ergebnis.
     </p>
 
-    <!-- The Social mixer's reserved court-time (ADR-0063). It sits **outside** `[data-board]` on purpose:
-         it is neither the forward plan the publish gate hides (ADR-0041) nor live truth — it is a fixed
+    <!-- The Social mixer's reserved court-time (ADR-0064, ADR-0063). It sits **outside** `[data-board]` on
+         purpose: it is neither the forward plan the publish gate hides (ADR-0041) nor live truth — it is an
          appointment, and its participants must be able to read it whether or not the championship schedule
-         is finished. Rendered statically from `socialMixerWhen`, the one line derived from
-         `SOCIAL_MIXER_BLOCK`, so it can never drift from the block the schedule validator reserves. No wire
-         field and no polling: nothing about a fixed time changes between polls. The one runtime signal it
-         does honour is the cancellation (ADR-0062), applied client-side below — the same „the decision is
-         the server's, the page is only the surface" pattern the front door uses. It renders **visible** and
-         is hidden only on an explicit cancellation — fail-open, unlike the match feed's fail-closed reveal
-         gate (ADR-0036), because the failure modes are not symmetric: withholding a fixed appointment from
-         its participants on a network blip is worse than briefly showing one that was called off. -->
+         is finished. Built statically at the block's **default** placement, so the page is right without JS
+         and right for the placement the event was planned around; the operator may move the block
+         (ADR-0064), so the one runtime read below patches this line — together with the cancellation
+         (ADR-0062), off the single `/api/phase` signal both already ride (ADR-0048). Still no polling:
+         an appointment does not change between polls, so it is read once on load.
+         Deliberately **without court numbers**: the courts follow the confirmed head-count, and the one who
+         needs them is told on arrival. Both runtime signals are fail-open — the built line stays put on a
+         failed read, unlike the match feed's fail-closed reveal gate (ADR-0036), because the failure modes
+         are not symmetric: withholding an appointment from its participants on a network blip is worse than
+         briefly showing a stale time. -->
     <section data-mixer class="mixer">
       <h2 class="board-heading">Damen Doppel</h2>
-      <p class="mixer-when">{socialMixerWhen}</p>
+      <p class="mixer-when" data-mixer-when>{socialMixerWhen(defaultMixerBlock)}</p>
       <p class="mixer-note">
         Geselliger Doppel-Spieltag mit wechselnden Partnerinnen — kein Turnierbaum, kein Ergebnis. Die Einteilung macht
         die Spielleiterin vor Ort; komm einfach zur angegebenen Zeit an die Plätze.
@@ -402,8 +409,8 @@ import { socialMixerWhen } from '@/data/tournament'
 
 <script>
   import { hc } from 'hono/client'
-  import { COURT_NUMBERS, roundLabel, slotGames, slotLabel, slotTime } from '../../shared'
-  import { competitions, tournament } from '../data/tournament'
+  import { COURT_NUMBERS, resolveSocialMixerBlock, roundLabel, slotGames, slotLabel, slotTime } from '../../shared'
+  import { competitions, socialMixerWhen, tournament } from '../data/tournament'
   import type { AppType } from '../../worker/app'
   import type { MatchScore, ScheduleMatch, ScheduleResponse, ScheduleSlot } from '../../shared'
 
@@ -730,26 +737,34 @@ import { socialMixerWhen } from '@/data/tournament'
     }
   }
 
-  // The Social mixer's block is static copy, but its *existence* is a server decision: a cancelled
-  // competition leaves every public surface (ADR-0062). Read once on load — a fixed appointment does not
-  // need polling — and hide the section only on an explicit cancellation, so a failed read leaves the
-  // appointment standing rather than withholding it (see the markup comment).
-  const applyMixerCancellation = async () => {
+  // The Social mixer's appointment is built statically, but two facts about it are the server's: whether
+  // the competition still takes place (ADR-0062) and where the operator has put the block (ADR-0064). Both
+  // ride the one `/api/phase` read, done once on load — an appointment does not need polling — and both
+  // fail open: a failed read leaves the built line standing rather than withholding it (see the markup).
+  const applyMixerState = async () => {
     const mixer = document.querySelector<HTMLElement>('[data-mixer]')
     if (!mixer) return
     try {
       const res = await client.api.phase.$get()
       if (!res.ok) return
-      const { cancelledCompetitions } = await res.json()
-      if (cancelledCompetitions.includes('womens-social')) mixer.hidden = true
+      const { cancelledCompetitions, socialMixerPlacement } = await res.json()
+      if (cancelledCompetitions.includes('womens-social')) {
+        mixer.hidden = true
+        return
+      }
+      const when = mixer.querySelector<HTMLElement>('[data-mixer-when]')
+      // Any confirmed count resolves the same sentence — only the courts follow the head-count, and this
+      // line does not name them.
+      const block = resolveSocialMixerBlock({ ...socialMixerPlacement, confirmed: 0 })
+      if (when && block) when.textContent = socialMixerWhen(block)
     } catch {
-      // Leave the appointment visible — see above.
+      // Leave the appointment as built — see above.
     }
   }
 
   load()
   start()
-  void applyMixerCancellation()
+  void applyMixerState()
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible') {
       load()

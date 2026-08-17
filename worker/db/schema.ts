@@ -51,7 +51,14 @@ export const appState = sqliteTable('app_state', {
   // that is the signal to lift both into their own table. The default `[]` means „nothing cancelled",
   // so existing rows need no data migration; the value is validated against the shared slug enum above
   // this layer, and an unparseable one degrades to the empty set (fail-closed, see the Store).
-  cancelledCompetitions: text('cancelled_competitions').notNull().default('[]')
+  cancelledCompetitions: text('cancelled_competitions').notNull().default('[]'),
+  // Where the operator has put the Social mixer's court block (ADR-0064): the event day and the 30-minute
+  // grid slot it starts on. Two bounded integers rather than JSON — the defaults are the block's planned
+  // placement (Sunday, slot 6 = 12:00), so existing rows need no data migration and there is no
+  // „unparseable degrades to…" path to reason about. The block's *courts* are not stored: they are derived
+  // from the mixer's confirmed head-count, and its three hours are fixed by the format.
+  socialMixerDay: integer('social_mixer_day').notNull().default(1),
+  socialMixerSlot: integer('social_mixer_slot').notNull().default(6)
 })
 
 export type AppStateRow = typeof appState.$inferSelect
