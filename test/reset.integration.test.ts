@@ -2,6 +2,7 @@ import { applyD1Migrations, env } from 'cloudflare:test'
 import { beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { app } from '../worker/app'
 import { createD1DrawStore, type SaveDrawInput } from '../worker/store/draw'
+import { SOCIAL_MIXER_DEFAULT_PLACEMENT } from '../shared'
 
 // Thin integration smoke over a real local D1: proves the debug-reset wiring (Hono → flag guard →
 // reset service → stores → D1) and the RESET_ENABLED gate (ADR-0029), not logic — the cascade/guard
@@ -131,7 +132,11 @@ describe('POST /api/admin/reset/back-to-signup', () => {
     expect(await res.json()).toEqual({ ok: true, phase: 'signup', undrawn: 2 })
 
     expect(await drawCount()).toBe(0)
-    expect(await (await reqOn('/api/phase')).json()).toEqual({ phase: 'signup', cancelledCompetitions: [] })
+    expect(await (await reqOn('/api/phase')).json()).toEqual({
+      phase: 'signup',
+      cancelledCompetitions: [],
+      socialMixerPlacement: SOCIAL_MIXER_DEFAULT_PLACEMENT
+    })
     // Registration status is deliberately left alone — confirmed entries are valid during signup.
     const confirmed = await env.DB.prepare("SELECT COUNT(*) AS c FROM registrations WHERE status = 'confirmed'").first<{
       c: number

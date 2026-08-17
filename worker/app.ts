@@ -24,6 +24,7 @@ import {
   scheduleResponseSchema,
   setCompetitionCancelledRequestSchema,
   setPhaseRequestSchema,
+  setSocialMixerBlockRequestSchema,
   undrawRequestSchema,
   validatePlacement,
   type AdvanceResponse,
@@ -43,6 +44,7 @@ import {
   type RefreshLkResponse,
   type ResetCapabilityResponse,
   type SchedulePublishResponse,
+  type SetSocialMixerBlockResponse,
   type ScheduleResetResponse,
   type ScheduleStateResponse,
   type SetCompetitionCancelledResponse,
@@ -52,6 +54,10 @@ import {
 import { createDepsFromEnv, type Deps } from './deps'
 import { matchAndNotify } from './registration-effects'
 import { notifyCancellation } from './notify'
+
+// Every read here serves live operator state (a phase, a draw, a schedule, the admin list), so none of it
+// may sit in a cache. One object rather than ten literals — the header is the same fact each time.
+const NO_STORE = { 'cache-control': 'no-store' }
 
 // Soft rate limit: max 3 registrations per IP per hour.
 const RATE_LIMIT = 3
@@ -117,9 +123,7 @@ export const createApp = (makeDeps: (env: Env) => Deps = createDepsFromEnv) =>
     // remains the orthogonal kill-switch; "true" = visible, anything else = off.
     .get('/api/participants', async c => {
       if (c.env.PUBLIC_LIST_ENABLED !== 'true') {
-        return c.json({ enabled: false, participants: [] } satisfies ParticipantsResponse, 200, {
-          'cache-control': 'no-store'
-        })
+        return c.json({ enabled: false, participants: [] } satisfies ParticipantsResponse, 200, NO_STORE)
       }
 
       // A cancelled competition leaves the wire server-side (ADR-0062): the list must not name players
@@ -130,9 +134,7 @@ export const createApp = (makeDeps: (env: Env) => Deps = createDepsFromEnv) =>
         c.var.deps.appState.getCancelledCompetitions()
       ])
       const participants = confirmed.filter(p => !isCancelledCompetition(cancelled, p.competition))
-      return c.json(participantsResponseSchema.parse({ enabled: true, participants }), 200, {
-        'cache-control': 'no-store'
-      })
+      return c.json(participantsResponseSchema.parse({ enabled: true, participants }), 200, NO_STORE)
     })
     // GET /api/phase — the current operator-controlled phase (ADR-0006). Public and outside
     // Access: every surface (the public list, later the draw/live views) reads it at runtime.
@@ -141,11 +143,12 @@ export const createApp = (makeDeps: (env: Env) => Deps = createDepsFromEnv) =>
       // Two independent reads of the same singleton row, issued together rather than serially. The
       // cancelled set rides this response rather than a second endpoint (ADR-0062): one poll, one signal
       // every public surface already makes, so nothing has to re-derive „does this field take place".
-      const [phase, cancelledCompetitions] = await Promise.all([
+      const [phase, cancelledCompetitions, socialMixerPlacement] = await Promise.all([
         c.var.deps.appState.getPhase(),
-        c.var.deps.appState.getCancelledCompetitions()
+        c.var.deps.appState.getCancelledCompetitions(),
+        c.var.deps.appState.getSocialMixerPlacement()
       ])
-      return c.json({ phase, cancelledCompetitions } satisfies PhaseResponse, 200, { 'cache-control': 'no-store' })
+      return c.json({ phase, cancelledCompetitions, socialMixerPlacement } satisfies PhaseResponse, 200, NO_STORE)
     })
     // GET /api/draw — the public two-phase bracket (ADR-0046). Per competition: while its main bracket is
     // still revealing it carries the cursor-sliced reveal steps (the suspense invariant, ADR-0003); once
@@ -155,14 +158,14 @@ export const createApp = (makeDeps: (env: Env) => Deps = createDepsFromEnv) =>
     // until a field is drawn.
     .get('/api/draw', async c => {
       const brackets = await c.var.deps.projections.publicDraws()
-      return c.json(publicBracketsResponseSchema.parse({ brackets }), 200, { 'cache-control': 'no-store' })
+      return c.json(publicBracketsResponseSchema.parse({ brackets }), 200, NO_STORE)
     })
     // GET /api/schedule — the public schedule + live board feed (ADR-0005): every placed match across all
     // competitions, slots resolved for display. Public and outside Access like /api/draw; polled by the
     // public page (~10–20 s, ADR-0008). Empty until a match is placed on the grid.
     .get('/api/schedule', async c => {
       const feed = await c.var.deps.projections.schedule()
-      return c.json(scheduleResponseSchema.parse(feed), 200, { 'cache-control': 'no-store' })
+      return c.json(scheduleResponseSchema.parse(feed), 200, NO_STORE)
     })
     // POST /api/register — the registration write path. Thin handler: honeypot + rate-limit
     // (abuse/HTTP concerns) and Zod shape validation at the edge, then the Registration
@@ -238,7 +241,7 @@ export const createApp = (makeDeps: (env: Env) => Deps = createDepsFromEnv) =>
     // schema strips the internal `ip`, which the legacy list never exposed either).
     .get('/api/admin/list', async c => {
       const registrations = await c.var.deps.registrations.listAll()
-      return c.json(adminListResponseSchema.parse({ registrations }), 200, { 'cache-control': 'no-store' })
+      return c.json(adminListResponseSchema.parse({ registrations }), 200, NO_STORE)
     })
     // POST /api/admin/confirm — apply the operator's field edits and confirm the row. The domain
     // enforces canConfirm (NotConfirmable → 400 with the reason). When a player id was linked, the
@@ -285,6 +288,16 @@ export const createApp = (makeDeps: (env: Env) => Deps = createDepsFromEnv) =>
       await c.var.deps.appState.setPhase(phase)
       return c.json({ ok: true, phase } satisfies SetPhaseResponse)
     })
+    // POST /api/admin/social-mixer-block — the operator moves the Social mixer's court block (ADR-0064).
+    // Zod carries the whole rule (a real event day, a start whose three hours end by the ~20:00 daylight
+    // bound), enforced here and not only in the dialog. Nothing else is reconciled: the courts follow the
+    // head-count and the warnings are recomputed from the placement. Placed matches are deliberately not
+    // checked — a move onto one is allowed and merely warns (ADR-0033, ADR-0063 §2).
+    .post('/api/admin/social-mixer-block', parseGuard, v(setSocialMixerBlockRequestSchema), async c => {
+      const socialMixerPlacement = c.req.valid('json')
+      await c.var.deps.appState.setSocialMixerPlacement(socialMixerPlacement)
+      return c.json({ ok: true, socialMixerPlacement } satisfies SetSocialMixerBlockResponse)
+    })
     // POST /api/admin/competition/cancel — the operator cancels a competition that drew too few entries,
     // or takes the cancellation back (ADR-0062). Zod validates the slug; the toggle is otherwise plain,
     // because cancelling materializes nothing — there is nothing to reconcile on the way back.
@@ -308,7 +321,7 @@ export const createApp = (makeDeps: (env: Env) => Deps = createDepsFromEnv) =>
     // combines this with the admin list it already holds to derive each field's lifecycle (ADR-0027).
     .get('/api/admin/draws', async c => {
       const draws = await c.var.deps.draws.listDraws()
-      return c.json(drawsResponseSchema.parse({ draws }), 200, { 'cache-control': 'no-store' })
+      return c.json(drawsResponseSchema.parse({ draws }), 200, NO_STORE)
     })
     // GET /api/admin/draw/reveal — the operator's full main-bracket reveal (ADR-0044). Same cursor-sliced
     // shape as the public GET /api/draw, but **never redacted**: the beamer draw show always keeps the LK +
@@ -317,7 +330,7 @@ export const createApp = (makeDeps: (env: Env) => Deps = createDepsFromEnv) =>
     // under /api/admin/* either way — a route outside it is born public (CONTEXT „Admin").
     .get('/api/admin/draw/reveal', async c => {
       const draws = await c.var.deps.projections.operatorDraws()
-      return c.json(publicDrawsResponseSchema.parse({ draws }), 200, { 'cache-control': 'no-store' })
+      return c.json(publicDrawsResponseSchema.parse({ draws }), 200, NO_STORE)
     })
     // POST /api/admin/draw — the „Jetzt auslosen" action (ADR-0025). The draw service guards the
     // preconditions (not cancelled, phase = tournament, not yet drawn, supported size), computes the bracket with crypto
@@ -426,9 +439,11 @@ export const createApp = (makeDeps: (env: Env) => Deps = createDepsFromEnv) =>
     // so the admin reflects it on mount without resolving the whole public schedule feed. Behind Access
     // like every admin read.
     .get('/api/admin/schedule', async c =>
-      c.json({ published: await c.var.deps.appState.getSchedulePublished() } satisfies ScheduleStateResponse, 200, {
-        'cache-control': 'no-store'
-      })
+      c.json(
+        { published: await c.var.deps.appState.getSchedulePublished() } satisfies ScheduleStateResponse,
+        200,
+        NO_STORE
+      )
     )
     // POST /api/admin/schedule/publish — reveal the whole planned schedule at once (ADR-0041). The global
     // flag flips on; edits after publishing stay live (no re-publish step). No body — the flag is global.
@@ -457,9 +472,7 @@ export const createApp = (makeDeps: (env: Env) => Deps = createDepsFromEnv) =>
     // GET /api/admin/reset — report the flag so the admin's Debug surface knows to render itself. Not
     // flag-gated (it answers `enabled: false` when off); behind Access like every admin read.
     .get('/api/admin/reset', async c =>
-      c.json({ enabled: c.env.RESET_ENABLED === 'true' } satisfies ResetCapabilityResponse, 200, {
-        'cache-control': 'no-store'
-      })
+      c.json({ enabled: c.env.RESET_ENABLED === 'true' } satisfies ResetCapabilityResponse, 200, NO_STORE)
     )
     // POST /api/admin/reset/undraw — tear down one competition's draw (record + matches), returning it
     // to „not drawn". Idempotent: an undrawn field reports undrawn: 0, not an error.

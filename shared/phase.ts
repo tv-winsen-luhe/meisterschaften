@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { cancelledCompetitionsSchema } from './cancellation'
+import { socialMixerPlacementSchema } from './social-mixer'
 
 // The operator-controlled phase contract (ADR-0006, ADR-0027) — the single source of truth for
 // the phase value and the /api/phase + /api/admin/phase JSON shapes, shared by the worker
@@ -25,12 +26,15 @@ export type Phase = z.infer<typeof phaseSchema>
 export const DEFAULT_PHASE: Phase = 'signup'
 
 // GET /api/phase — the current phase every surface reads at runtime, plus the competitions the operator
-// has cancelled (ADR-0062). The cancelled set rides along here rather than on a second endpoint: this is
-// the one call every public surface already makes, so it is one poll and one signal — and the same Zod
-// schema stays the single source of the wire form (ADR-0048).
+// has cancelled (ADR-0062) and where the Social mixer's block currently sits (ADR-0064). Both ride along
+// here rather than on their own endpoints: this is the one call every public surface already makes, so it
+// is one poll and one signal — and the same Zod schema stays the single source of the wire form
+// (ADR-0048). The mixer carries its *placement*, not a resolved block: the courts follow the confirmed
+// head-count, which is not public, and the public line names only day and time anyway.
 export const phaseResponseSchema = z.object({
   phase: phaseSchema,
-  cancelledCompetitions: cancelledCompetitionsSchema
+  cancelledCompetitions: cancelledCompetitionsSchema,
+  socialMixerPlacement: socialMixerPlacementSchema
 })
 export type PhaseResponse = z.infer<typeof phaseResponseSchema>
 
@@ -42,3 +46,14 @@ export type SetPhaseRequest = z.infer<typeof setPhaseRequestSchema>
 
 export const setPhaseResponseSchema = z.object({ ok: z.literal(true), phase: phaseSchema })
 export type SetPhaseResponse = z.infer<typeof setPhaseResponseSchema>
+
+// POST /api/admin/social-mixer-block — the operator moves the mixer's block (ADR-0064). The same schema
+// the read side uses, so the window bound („bis 20:00 Uhr") is enforced here and not only in the dialog.
+export const setSocialMixerBlockRequestSchema = socialMixerPlacementSchema
+export type SetSocialMixerBlockRequest = z.infer<typeof setSocialMixerBlockRequestSchema>
+
+export const setSocialMixerBlockResponseSchema = z.object({
+  ok: z.literal(true),
+  socialMixerPlacement: socialMixerPlacementSchema
+})
+export type SetSocialMixerBlockResponse = z.infer<typeof setSocialMixerBlockResponseSchema>

@@ -6,6 +6,7 @@ import {
   CANCEL_DRAWN_REASON,
   COMPETITION_SLUGS,
   DRAW_BLOCKER_REASON,
+  SOCIAL_MIXER_DEFAULT_PLACEMENT,
   isCancelledCompetition,
   type ParticipantsResponse,
   type PhaseResponse
@@ -146,16 +147,28 @@ describe('POST /api/admin/competition/cancel + the public wires', () => {
   })
 
   it('cancels a competition, carries it on /api/phase, and takes it back', async () => {
-    expect(await phase()).toEqual({ phase: 'signup', cancelledCompetitions: [] })
+    expect(await phase()).toEqual({
+      phase: 'signup',
+      cancelledCompetitions: [],
+      socialMixerPlacement: SOCIAL_MIXER_DEFAULT_PLACEMENT
+    })
 
     const res = await setCancelled('womens-social', true)
     expect(res.status).toBe(200)
     expect(await res.json()).toEqual({ ok: true, cancelledCompetitions: ['womens-social'] })
-    expect(await phase()).toEqual({ phase: 'signup', cancelledCompetitions: ['womens-social'] })
+    expect(await phase()).toEqual({
+      phase: 'signup',
+      cancelledCompetitions: ['womens-social'],
+      socialMixerPlacement: SOCIAL_MIXER_DEFAULT_PLACEMENT
+    })
 
     // Taking it back needs no confirmation and no reconciliation — the flag materialized nothing.
     expect((await setCancelled('womens-social', false)).status).toBe(200)
-    expect(await phase()).toEqual({ phase: 'signup', cancelledCompetitions: [] })
+    expect(await phase()).toEqual({
+      phase: 'signup',
+      cancelledCompetitions: [],
+      socialMixerPlacement: SOCIAL_MIXER_DEFAULT_PLACEMENT
+    })
   })
 
   it('rejects an unknown competition slug at the Zod boundary', async () => {

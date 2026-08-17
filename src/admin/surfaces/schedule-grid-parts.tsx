@@ -10,6 +10,7 @@ import {
   SLOT_INDICES,
   SLOT_SPAN,
   slotTime,
+  type SocialMixerBlock,
   withinEveningWindow
 } from '../../../shared'
 import { cn } from '@/admin/lib/utils'
@@ -98,6 +99,10 @@ interface DayGridProps {
   selected: number | null
   inHand: number | null
   inHandEarliest: number
+  // The Social mixer's resolved block, or `null` when there is none — a cancelled mixer shades nothing
+  // (ADR-0064, ADR-0062). Its courts and its day/start both move, so the shading is recomputed per render
+  // from the one resolved block the validator also reads.
+  socialMixerBlock: SocialMixerBlock | null
   onCellClick: (day: number, slot: number, court: number) => void
   onUnplace: (id: number) => void
 }
@@ -113,6 +118,7 @@ export const DayGrid = ({
   selected,
   inHand,
   inHandEarliest,
+  socialMixerBlock,
   onCellClick,
   onUnplace
 }: DayGridProps) => {
@@ -200,9 +206,10 @@ export const DayGrid = ({
               // A free cell is too early when its absolute slot sits before the in-hand match's earliest
               // legal slot (the structural feeder guard, #119) — disabled for both tap and drag.
               const tooEarly = inHand !== null && absoluteSlot(day, slot) < inHandEarliest
-              // A free cell inside the Social mixer's reserved block (ADR-0063): tinted, but still a legal
-              // target — it warns on drop, it does not block. Static per cell, like the window shading.
-              const reserved = overlapsSocialMixerBlock(court, day, slot)
+              // A free cell inside the Social mixer's reserved block (ADR-0064, ADR-0063): tinted, but
+              // still a legal target — it warns on drop, it does not block.
+              const reserved =
+                socialMixerBlock !== null && overlapsSocialMixerBlock(socialMixerBlock, { court, day, slot })
               return (
                 <EmptyCell
                   key={`${day}-${slot}-${court}`}

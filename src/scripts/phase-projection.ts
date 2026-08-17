@@ -1,6 +1,8 @@
 import { hc } from 'hono/client'
 import type { AppType } from '../../worker/app'
 import { frontDoorLead, matchesLead, type FrontDoor } from './front-door-lead'
+import { resolveSocialMixerBlock, type SocialMixerPlacement } from '../../shared'
+import { socialMixerWhen } from '../data/tournament'
 
 type Client = ReturnType<typeof hc<AppType>>
 
@@ -81,6 +83,17 @@ interface Options {
   frontDoor?: boolean
 }
 
+// Rewrite the Social mixer's appointment wherever it is rendered, from the operator's stored placement
+// (ADR-0064). The statically built line already names the default placement, so this only ever changes
+// something once the block has actually been moved. Any confirmed count resolves the same sentence — only
+// the block's *courts* follow the head-count, and no public line names them.
+export const applyMixerAppointment = (placement: SocialMixerPlacement) => {
+  const block = resolveSocialMixerBlock({ ...placement, confirmed: 0 })
+  if (!block) return
+  const line = socialMixerWhen(block)
+  for (const el of document.querySelectorAll<HTMLElement>('[data-mixer-when]')) el.textContent = line
+}
+
 // Best-effort: any failure leaves the statically rendered signup page standing. The affordances it
 // then leaves visible are harmless, because register and cancel enforce the closed window
 // server-side (ADR-0059) — only the optics mislead, nothing breaks.
@@ -89,7 +102,12 @@ export const projectPhaseOnLoad = async ({ frontDoor = false }: Options = {}) =>
   try {
     const res = await client.api.phase.$get()
     if (!res.ok) return
-    const { phase, cancelledCompetitions } = await res.json()
+    const { phase, cancelledCompetitions, socialMixerPlacement } = await res.json()
+    // The mixer's appointment first, and **before** the signup early-return: the block is never gated by a
+    // phase or by the schedule publish flag (ADR-0063 §3), it is simply where the operator has put it
+    // (ADR-0064). Every surface that renders the line carries `data-mixer-when`; a surface without one is
+    // simply not patched.
+    applyMixerAppointment(socialMixerPlacement)
     // The cancelled set rides on the same read (ADR-0062), so `signup` still costs one call. It only
     // takes effect from `tournament` on: during signup the „ab 4" notice is the recruiting call the
     // cancellation replaces, and a field is not cancelled before its window has even closed.

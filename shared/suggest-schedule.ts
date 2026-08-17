@@ -6,6 +6,7 @@ import {
   type SchedulableMatch as PlacedMatch,
   validatePlacement
 } from './schedule'
+import type { SocialMixerBlock } from './social-mixer'
 
 // The schedule auto-suggest (#122, ADR-0040, ADR-0033): a finals-day-shaped greedy fill of the backlog,
 // built entirely on the shared `validatePlacement` authority so a suggestion can never commit a hard-
@@ -33,14 +34,15 @@ const targetDay = (match: PlacedMatch, matches: readonly PlacedMatch[]): number 
 const firstValidPlacement = (
   working: readonly PlacedMatch[],
   id: number,
-  dayOrder: readonly number[]
+  dayOrder: readonly number[],
+  socialMixerBlock: SocialMixerBlock | null
 ): Placement | null => {
   let fallback: Placement | null = null
   for (const day of dayOrder) {
     for (let slot = 0; slot < SCHEDULE.slotsPerDay; slot++) {
       for (let court = 1; court <= SCHEDULE.courts; court++) {
         const placement: Placement = { court, day, slot }
-        const { hard, soft } = validatePlacement(working, { id, placement })
+        const { hard, soft } = validatePlacement(working, { id, placement }, socialMixerBlock)
         if (hard.length > 0) continue
         if (soft.length === 0) return placement
         fallback ??= placement
@@ -63,7 +65,12 @@ const firstValidPlacement = (
  * is never warning-free (the finals-day nudge), so it settles on Sunday on its own. A simple greedy fill,
  * not a global optimizer — per the issue spec (ADR-0040, ADR-0033).
  */
-export const suggestSchedule = (matches: readonly PlacedMatch[]): Suggestion[] => {
+export const suggestSchedule = (
+  matches: readonly PlacedMatch[],
+  // The mixer's resolved block, passed straight through to the validator: the suggest itself stays blind to
+  // it, and the soft warning alone routes the fill around the reservation (ADR-0063 §2, ADR-0064).
+  socialMixerBlock: SocialMixerBlock | null = null
+): Suggestion[] => {
   const result: Suggestion[] = []
 
   // Mutable working copy: as we suggest placements, we apply them so subsequent candidates see them.
@@ -79,7 +86,7 @@ export const suggestSchedule = (matches: readonly PlacedMatch[]): Suggestion[] =
     // strands a match in the backlog.
     const first = targetDay(match, working)
     const dayOrder = [first, ...DAY_INDICES.filter(d => d !== first)]
-    const placement = firstValidPlacement(working, match.id, dayOrder)
+    const placement = firstValidPlacement(working, match.id, dayOrder, socialMixerBlock)
     if (!placement) continue
 
     // Apply to the working set so subsequent matches see this cell as occupied.

@@ -20,10 +20,14 @@ import {
   isFullyRevealed,
   isUnplaced,
   type Match,
+  overlapsSocialMixerBlock,
   type Placement,
   resolveBracket,
+  resolveSocialMixerBlock,
   roundLabel,
   type SchedulableMatch,
+  type SocialMixerBlock,
+  type SocialMixerPlacement,
   type SoftViolation,
   slotLabel,
   type SlotView,
@@ -33,7 +37,7 @@ import {
 import { tournament } from '@/data/tournament'
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/admin/ui/empty'
 import { competitionLabel } from './registration-detail'
-import { ScheduleControls } from './schedule-controls'
+import { MixerBlockDialog, ScheduleControls } from './schedule-controls'
 import { Backlog, DayGrid, DragChip } from './schedule-grid-parts'
 import { type GridMatch, type SlotLabel } from './schedule-match-card'
 import { hardBlockMessage, SoftWarningDialog } from './schedule-warnings'
@@ -64,6 +68,13 @@ interface ScheduleSurfaceProps {
   // shell: 401-regate, one confirmation toast, reload). Reset also un-publishes (ADR-0041).
   onPublish: () => Promise<boolean>
   onReset: () => Promise<boolean>
+  // The Social mixer's court block (ADR-0064): the resolved block the grid shades and the validator warns
+  // against (`null` — nothing reserved — when the mixer is cancelled), the placement the dialog edits, the
+  // confirmed head-count its courts follow, and the move itself.
+  socialMixerBlock: SocialMixerBlock | null
+  socialMixerPlacement: SocialMixerPlacement
+  socialMixerConfirmed: number
+  onMoveSocialMixerBlock: (placement: SocialMixerPlacement) => Promise<boolean>
 }
 
 // A drop the operator must confirm: a sound-but-unwise placement (soft warnings only). Held until the
@@ -80,7 +91,11 @@ export const ScheduleSurface = ({
   published,
   onPlace,
   onPublish,
-  onReset
+  onReset,
+  socialMixerBlock,
+  socialMixerPlacement,
+  socialMixerConfirmed,
+  onMoveSocialMixerBlock
 }: ScheduleSurfaceProps) => {
   // The match the operator has picked up by *tap*, waiting for a cell (or a second tap to drop it).
   // Cleared on a successful place.
@@ -199,7 +214,7 @@ export const ScheduleSurface = ({
   // a clean placement goes straight through. The single funnel for both gestures: tap a cell, or release
   // a drag over it. Clearing to the backlog never runs this path.
   const placeInto = (id: number, placement: Placement) => {
-    const { hard, soft } = validatePlacement(allMatches, { id, placement })
+    const { hard, soft } = validatePlacement(allMatches, { id, placement }, socialMixerBlock)
     if (hard.length > 0) {
       toast.error(hardBlockMessage(hard))
       return
@@ -218,7 +233,7 @@ export const ScheduleSurface = ({
     try {
       // Every bracket's matches — suggestSchedule packs the consolation on Saturday (targetDay) and skips
       // byes itself, so the auto-fill places consolation matches too, not just the main bracket (#92).
-      const suggestions = suggestSchedule(allMatches as SchedulableMatch[])
+      const suggestions = suggestSchedule(allMatches as SchedulableMatch[], socialMixerBlock)
       if (suggestions.length === 0) {
         toast.info('Keine Matches zum Platzieren.')
         return
@@ -290,6 +305,18 @@ export const ScheduleSurface = ({
 
   const dragged = gridMatches.find(g => g.match.id === dragId) ?? null
 
+  // How many placed matches a candidate placement would put inside the block — the number the move dialog
+  // states up front, so the warnings that appear afterwards are not a surprise (ADR-0064). Counted against
+  // the *candidate* block, resolved at the same head-count: moving is never refused, it only warns
+  // (ADR-0033).
+  const affectedByBlock = (placement: SocialMixerPlacement): number => {
+    const candidate = resolveSocialMixerBlock({ ...placement, confirmed: socialMixerConfirmed })
+    if (!candidate) return 0
+    return allMatches.filter(
+      m => m.court !== null && m.day !== null && m.slot !== null && overlapsSocialMixerBlock(candidate, m as Placement)
+    ).length
+  }
+
   return (
     <DndContext sensors={sensors} onDragStart={onDragStart} onDragEnd={onDragEnd} onDragCancel={onDragCancel}>
       <div className="min-h-0 flex-1 overflow-y-auto p-5">
@@ -301,15 +328,26 @@ export const ScheduleSurface = ({
                 : 'Match auf eine freie Zelle ziehen — oder antippen und dann eine Zelle wählen.'}
             </p>
 
-            <ScheduleControls
-              published={published}
-              backlogCount={backlog.length}
-              suggesting={suggesting}
-              hasLiveMatches={hasLiveMatches}
-              onSuggest={suggest}
-              onPublish={onPublish}
-              onReset={onReset}
-            />
+            <div className="flex flex-wrap items-center justify-end gap-2">
+              {socialMixerBlock && (
+                <MixerBlockDialog
+                  block={socialMixerBlock}
+                  placement={socialMixerPlacement}
+                  confirmed={socialMixerConfirmed}
+                  affectedCount={placement => affectedByBlock(placement)}
+                  onMove={onMoveSocialMixerBlock}
+                />
+              )}
+              <ScheduleControls
+                published={published}
+                backlogCount={backlog.length}
+                suggesting={suggesting}
+                hasLiveMatches={hasLiveMatches}
+                onSuggest={suggest}
+                onPublish={onPublish}
+                onReset={onReset}
+              />
+            </div>
           </div>
 
           <Backlog
@@ -329,6 +367,7 @@ export const ScheduleSurface = ({
               selected={selected}
               inHand={inHand}
               inHandEarliest={inHandEarliest}
+              socialMixerBlock={socialMixerBlock}
               onCellClick={onCellClick}
               onUnplace={id => void place(id, null)}
             />
@@ -337,6 +376,7 @@ export const ScheduleSurface = ({
 
         <SoftWarningDialog
           soft={pending?.soft ?? null}
+          socialMixerBlock={socialMixerBlock}
           onConfirm={() => pending && void place(pending.id, pending.placement)}
           onCancel={() => setPending(null)}
         />

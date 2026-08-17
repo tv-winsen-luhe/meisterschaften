@@ -5,9 +5,12 @@ import {
   cancelledCompetitionsSchema,
   COMPETITION_SLUGS,
   DEFAULT_PHASE,
+  isValidSocialMixerPlacement,
   phaseSchema,
+  SOCIAL_MIXER_DEFAULT_PLACEMENT,
   type CompetitionSlug,
-  type Phase
+  type Phase,
+  type SocialMixerPlacement
 } from '../../shared'
 import { appState } from '../db/schema'
 
@@ -36,6 +39,22 @@ export interface AppStateStore {
    * (upserts the single app-state row, leaving `phase` and `schedule_published` untouched).
    */
   setCompetitionCancelled(competition: CompetitionSlug, cancelled: boolean): Promise<void>
+  /**
+   * Where the operator has put the Social mixer's block (ADR-0064) — day + start slot. The planned
+   * placement when never set / on a read failure / on an out-of-window value.
+   */
+  getSocialMixerPlacement(): Promise<SocialMixerPlacement>
+  /** Move the block (upserts the single app-state row, leaving every other global untouched). */
+  setSocialMixerPlacement(placement: SocialMixerPlacement): Promise<void>
+}
+
+// A stored placement, or the planned one. The bound is re-checked on read, not only on write: the column
+// pair is two plain integers, and a hand-edited row must not be able to put the block somewhere the dialog
+// would never offer.
+const placementOrDefault = (day: number | undefined, startSlot: number | undefined): SocialMixerPlacement => {
+  if (day === undefined || startSlot === undefined) return SOCIAL_MIXER_DEFAULT_PLACEMENT
+  const placement = { day, startSlot }
+  return isValidSocialMixerPlacement(placement) ? placement : SOCIAL_MIXER_DEFAULT_PLACEMENT
 }
 
 // A cancelled set in the canonical slug order, so the persisted value is stable regardless of the order
@@ -148,20 +167,43 @@ export const createD1AppStateStore = (d1: D1Database): AppStateStore => {
         .insert(appState)
         .values({ id: APP_STATE_ID, cancelledCompetitions })
         .onConflictDoUpdate({ target: appState.id, set: { cancelledCompetitions } })
+    },
+
+    async getSocialMixerPlacement() {
+      // Fail-safe like the readers above: a transient D1 error degrades to the planned placement, so the
+      // appointment the participants read stays the one the event was planned around rather than vanishing.
+      try {
+        const rows = await db.select().from(appState).where(eq(appState.id, APP_STATE_ID)).limit(1)
+        return placementOrDefault(rows[0]?.socialMixerDay, rows[0]?.socialMixerSlot)
+      } catch {
+        return SOCIAL_MIXER_DEFAULT_PLACEMENT
+      }
+    },
+
+    async setSocialMixerPlacement({ day, startSlot }) {
+      // Writes only the two placement columns, so `phase`, `schedule_published` and the cancelled set keep
+      // their column default on a first insert and are left untouched on update.
+      const set = { socialMixerDay: day, socialMixerSlot: startSlot }
+      await db
+        .insert(appState)
+        .values({ id: APP_STATE_ID, ...set })
+        .onConflictDoUpdate({ target: appState.id, set })
     }
   }
 }
 
-// The in-memory adapter holds the phase + publish flag + cancelled set; tests seed all three and drive
-// the endpoints/cron through their interfaces.
+// The in-memory adapter holds the phase + publish flag + cancelled set + mixer placement; tests seed all
+// four and drive the endpoints/cron through their interfaces.
 export const createInMemoryAppStateStore = (
   initial: Phase = DEFAULT_PHASE,
   initialPublished = false,
-  initialCancelled: readonly CompetitionSlug[] = []
+  initialCancelled: readonly CompetitionSlug[] = [],
+  initialMixerPlacement: SocialMixerPlacement = SOCIAL_MIXER_DEFAULT_PLACEMENT
 ): AppStateStore => {
   let phase = initial
   let schedulePublished = initialPublished
   let cancelledCompetitions = canonical(initialCancelled)
+  let socialMixerPlacement = initialMixerPlacement
   return {
     async getPhase() {
       return phase
@@ -180,6 +222,12 @@ export const createInMemoryAppStateStore = (
     },
     async setCompetitionCancelled(competition, cancelled) {
       cancelledCompetitions = toggleCancelled(cancelledCompetitions, competition, cancelled)
+    },
+    async getSocialMixerPlacement() {
+      return socialMixerPlacement
+    },
+    async setSocialMixerPlacement(next) {
+      socialMixerPlacement = next
     }
   }
 }

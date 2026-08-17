@@ -1,3 +1,4 @@
+import { execFileSync } from 'node:child_process'
 import { readFileSync } from 'node:fs'
 import { cloudflareTest, readD1Migrations } from '@cloudflare/vitest-pool-workers'
 import { defineConfig } from 'vitest/config'
@@ -17,6 +18,16 @@ const readCrons = (): string[] => {
 // TEST_MIGRATIONS binding so tests can apply them with `applyD1Migrations`.
 // (0.16+ API: the pool is configured via the `cloudflareTest` Vite plugin rather than
 // the old `defineWorkersConfig` + `poolOptions.workers`.)
+// Run the offline rotation script here in the Node context (workerd has no child_process) and hand its
+// printed sheet to the test as a binding — the same config-time trick as readCrons. The script carries its
+// own copy of the mixer's court rule because it is plain Node with no build step (ADR-0064), and this is
+// what stops that copy drifting: the test compares the columns it prints against `socialMixerCourts`. Two
+// head-counts, so both the two-court and the three-court shape are pinned rather than one point of a rule.
+const readRotationSheet = (players: number): string =>
+  execFileSync('node', [new URL('./scripts/social-mixer-rotation.mjs', import.meta.url).pathname, `--n=${players}`], {
+    encoding: 'utf8'
+  })
+
 export default defineConfig({
   plugins: [
     cloudflareTest(async () => {
@@ -28,7 +39,8 @@ export default defineConfig({
           bindings: {
             PUBLIC_LIST_ENABLED: 'true',
             TEST_MIGRATIONS: migrations,
-            TEST_CRONS: readCrons()
+            TEST_CRONS: readCrons(),
+            TEST_ROTATION_SHEETS: { 9: readRotationSheet(9), 12: readRotationSheet(12) }
           }
         }
       }

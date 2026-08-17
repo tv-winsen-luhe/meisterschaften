@@ -1,6 +1,7 @@
 # ADR-0063: The social mixer's court block is a configuration reservation, not an entity
 
-- Status: accepted
+- Status: accepted; §1 and §5 superseded by ADR-0064 (the block became operator-placed and count-sized —
+  its own „operator-editable" revisit trigger, met the same day). Everything else here still stands.
 - Date: 2026-08-16
 - Builds on: ADR-0051 (the mixer runs Sunday midday on reserved side courts), ADR-0033 (block the
   impossible, warn the unwise), ADR-0040 (interval occupancy, per-court evening windows)

@@ -1,8 +1,8 @@
 import {
   type HardViolation,
   SCHEDULE,
-  SOCIAL_MIXER_BLOCK,
   socialMixerBlockTime,
+  type SocialMixerBlock,
   type SoftViolation
 } from '../../../shared'
 import {
@@ -25,15 +25,22 @@ const hardReason = (v: HardViolation): string => {
   return 'Die Runden-Reihenfolge stimmt nicht — dieses Match hängt von einem anderen ab.'
 }
 
-// „4, 5 und 6" — the reserved courts read as German prose rather than a bare array.
-const courtList = SOCIAL_MIXER_BLOCK.courts.join(', ').replace(/, (\d+)$/, ' und $1')
+// „4, 5 und 6" — the reserved courts read as German prose rather than a bare array. Off the resolved
+// block, so the sentence names the courts the head-count actually earned (ADR-0064).
+const courtList = (block: SocialMixerBlock) => block.courts.join(', ').replace(/, (\d+)$/, ' und $1')
 
-const softReason = (v: SoftViolation): string => {
+// The block is passed in because the warning names its time and courts, and both move: the operator may
+// relocate the block and its courts follow the confirmed entries. Only a placement *into* a block raises
+// this violation, so `null` here is unreachable in practice — it degrades to the reason without the
+// specifics rather than inventing a time.
+const softReason = (v: SoftViolation, socialMixerBlock: SocialMixerBlock | null): string => {
   if (v.rule === 'player-load') return `Ein Spieler hätte ${v.count} Matches an diesem Tag (mehr als 2).`
   if (v.rule === 'short-rest')
     return `Ein Spieler hätte weniger als ${SCHEDULE.minRestMinutes} Minuten Pause zwischen zwei Matches.`
   if (v.rule === 'social-mixer-block')
-    return `Für das Damen Doppel reserviert (${socialMixerBlockTime()} Uhr, Platz ${courtList}).`
+    return socialMixerBlock
+      ? `Für das Damen Doppel reserviert (${socialMixerBlockTime(socialMixerBlock)} Uhr, Platz ${courtList(socialMixerBlock)}).`
+      : 'Für das Damen Doppel reserviert.'
   return 'Halbfinale und Finale gehören auf den Finaltag (Sonntag).'
 }
 
@@ -46,13 +53,15 @@ export const hardBlockMessage = (hard: HardViolation[]): string => reasons(hard,
 interface SoftWarningDialogProps {
   // The soft warnings to confirm past, or null when no drop is pending.
   soft: SoftViolation[] | null
+  // The mixer's resolved block, whose time and courts the reservation warning names (ADR-0064).
+  socialMixerBlock: SocialMixerBlock | null
   onConfirm: () => void
   onCancel: () => void
 }
 
 // The soft-warning override (ADR-0033): the placement is sound but unwise, so the operator — not the
 // system — decides. Confirm places it; cancel leaves the match in hand for another cell.
-export const SoftWarningDialog = ({ soft, onConfirm, onCancel }: SoftWarningDialogProps) => (
+export const SoftWarningDialog = ({ soft, socialMixerBlock, onConfirm, onCancel }: SoftWarningDialogProps) => (
   <AlertDialog open={soft !== null} onOpenChange={open => !open && onCancel()}>
     <AlertDialogContent>
       <AlertDialogHeader>
@@ -61,7 +70,7 @@ export const SoftWarningDialog = ({ soft, onConfirm, onCancel }: SoftWarningDial
       </AlertDialogHeader>
       {soft && (
         <ul className="text-muted-foreground list-disc space-y-1 pl-5 text-sm">
-          {reasons(soft, softReason).map(reason => (
+          {reasons(soft, v => softReason(v, socialMixerBlock)).map(reason => (
             <li key={reason}>{reason}</li>
           ))}
         </ul>
