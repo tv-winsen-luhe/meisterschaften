@@ -33,7 +33,7 @@ const damenCrossSell = 'Beide Felder gehen zusammen — meld dich einfach für b
 
 const saturday = [
   [
-    'Ab 09:00 · Erste Spiele',
+    `Ab ${tournament.startTime} · Erste Spiele`,
     'Es geht los. Deine Spielzeit kennst du vorab aus dem Spielplan — sei einfach rechtzeitig vor deinem Match da, Startgeld zahlst du beim Check-in.'
   ],
   [
@@ -403,7 +403,7 @@ const sunday = [
       <SectionHeader
         eyebrow="Der Ablauf"
         headline={['Das', 'Wochenende.']}
-        note="Über zwei Tage. Die ersten Spiele starten Samstag um 09:00 — deine genauen Spielzeiten stehen im Spielplan (hier auf der Seite, am Wochenende mit Live-Ergebnissen). Du musst also nicht den ganzen Tag auf der Anlage sein. Der genaue Rundenablauf richtet sich nach den Meldezahlen."
+        note={`Über zwei Tage. Die ersten Spiele starten Samstag um ${tournament.startTime} — deine genauen Spielzeiten stehen im Spielplan (hier auf der Seite, am Wochenende mit Live-Ergebnissen). Du musst also nicht den ganzen Tag auf der Anlage sein. Der genaue Rundenablauf richtet sich nach den Meldezahlen.`}
       />
 
       <div class="grid grid-cols-1 gap-0.5 bg-navy p-0.5 md:grid-cols-2">

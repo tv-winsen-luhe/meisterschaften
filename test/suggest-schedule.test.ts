@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { COURT_VIEWING_ORDER } from '../shared/court-plan'
 import { absoluteSlot, validatePlacement } from '../shared/schedule'
 import { suggestSchedule } from '../shared/suggest-schedule'
 import type { Placement, SchedulableMatch } from '../shared/schedule'
@@ -135,5 +136,48 @@ describe('suggestSchedule', () => {
   it('skips bye matches (they are never scheduled)', () => {
     const matches = [sm(1, 1, 0, { outcome: 'bye' }), sm(2, 1, 1), sm(3, 2, 0)]
     expect(suggestSchedule(matches).find(s => s.id === 1)).toBeUndefined()
+  })
+})
+
+describe('suggestSchedule · court choice follows the spectator ranking (ADR-0067)', () => {
+  const [best] = COURT_VIEWING_ORDER
+  const worst = COURT_VIEWING_ORDER[COURT_VIEWING_ORDER.length - 1]
+
+  it('gives the final the best-watched court rather than the lowest-numbered one', () => {
+    // Court 1 is the hardest court to watch from and court 2 the easiest, so scanning courts by number
+    // would put the weekend's showpiece on the worst court on the ground.
+    const byId = new Map(suggestSchedule(eightDraw()).map(s => [s.id, s]))
+    expect(byId.get(7)!.placement.court).toBe(best)
+    // The semifinals, placed first and in an earlier slot, take the top of the ranking too.
+    expect([byId.get(5)!.placement.court, byId.get(6)!.placement.court]).toEqual(COURT_VIEWING_ORDER.slice(0, 2))
+  })
+
+  it('sends the consolation bracket to the least-watched courts, keeping the good ones free', () => {
+    // The consolation is the weekend's lowest-billing tennis (ADR-0067): it takes the ranking from the
+    // other end, so a main-bracket match placed in the same slot still finds a well-watched court.
+    const conso = [sm(1, 1, 0, { bracket: 'consolation' }), sm(2, 1, 1, { bracket: 'consolation' })]
+    const courts = suggestSchedule(conso).map(s => s.placement.court)
+    expect(courts).toEqual([worst, COURT_VIEWING_ORDER[COURT_VIEWING_ORDER.length - 2]])
+  })
+
+  it('puts a main-bracket placement match above a consolation final in the same wave', () => {
+    // The operator's ruling (ADR-0067): the Herren third-place match is two of the field's best four and
+    // outranks the Challenger's consolation final. It falls out of main-vs-consolation rather than any
+    // per-match importance order — this pins that it actually holds, so a future re-ordering of the fill
+    // cannot quietly swap them.
+    const thirdPlace = { ...sm(1, 1, 0), thirdPlace: true }
+    const consolationFinal = sm(2, 1, 0, { bracket: 'consolation' })
+    const byId = new Map(suggestSchedule([thirdPlace, consolationFinal]).map(s => [s.id, s]))
+    expect(byId.get(1)!.placement.court).toBe(best)
+    expect(byId.get(2)!.placement.court).toBe(worst)
+  })
+
+  it('is a preference, not a restriction — it steps down the ranking when the better court is taken', () => {
+    // The best court already holds a semifinal in that slot, so the other one settles for the next court
+    // down the ranking rather than waiting for a later wave.
+    const [first, second] = COURT_VIEWING_ORDER
+    const matches = eightDraw().map(m => (m.id === 5 ? { ...m, court: first, day: 1, slot: 0 } : m))
+    const placed = suggestSchedule(matches).find(s => s.id === 6)!
+    expect(placed.placement).toMatchObject({ court: second, day: 1, slot: 0 })
   })
 })

@@ -55,7 +55,7 @@ describe('POST /api/admin/social-mixer-block', () => {
   })
 
   it('refuses a start whose three hours would run past daylight — the server, not only the dialog', async () => {
-    // Slot 17 starts at 17:30, so the block would end at 20:30 (ADR-0064 §4).
+    // Sunday's slot 17 starts at 18:30, so the block would end at 21:30 (ADR-0064 §4).
     expect((await move({ day: 1, startSlot: 17 })).status).toBe(400)
     expect((await move({ day: 2, startSlot: 6 })).status).toBe(400)
     // …and nothing was written: the public signal still carries the planned placement.
