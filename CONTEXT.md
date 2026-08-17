@@ -115,12 +115,12 @@ concept here drifts or a new one appears, update this file rather than inventing
   „Protected" means **capped**, not silent: the field's strength **is** shown publicly — LK values and seed
   numbers on the participant list and the bracket, like any other field — because a draw must be checkable
   and a player must be able to place an opponent against their own LK, and because an LK is a public nuLiga
-  rating anyway (ADR-0061). What the protection _does_ buy stays untouched: the cap above, and a spot that
-  is **secure once taken** — the public list **orders the field by registration date, not strength**, the
-  visible expression of its first-come-first-served admission (Field cut, ADR-0043). **Showing strength is
-  not admitting by it**; the two axes stay separate. The pre-draw seeding preview places players on their
+  rating anyway (ADR-0061). What the protection buys is the **cap above, and nothing else**: the field is
+  admitted **by LK like every other field** — oversubscribed, the strongest admitted entries take it and the
+  weakest become reserves — and the public list orders it by strength, so a spot is **not** secure once taken
+  (Field cut, ADR-0065). The pre-draw seeding preview places players on their
   **LK seed lines** (as far as the table fixes them — a **lot group** stays undecided, see Seeding →
-  Placement). _(See ADR-0024, ADR-0043, ADR-0047, ADR-0061.)_
+  Placement). _(See ADR-0024, ADR-0065, ADR-0047, ADR-0061.)_
 - **Strength redaction** — the mechanism for keeping a field's **absolute** strength (the LK value and the
   seed number) off the public surfaces, while its **relative rank** — which players sit on the seed lines,
   the provisional seed rank — stays, because the concern is an absolute-weakness broadcast, not relative
@@ -225,9 +225,9 @@ cancelled`, duplicate check, capacity, first-come cut) **unchanged**, with one r
   no-ID is explicitly set); `resolveSeedingBasis` (beside it) derives the basis fields from that input.
   There is deliberately no operator LK override. _(See ADR-0011, ADR-0020.)_
 - **Seeding** (de: Setzung) — ordering players in the draw by LK so the strongest are kept apart early.
-  Seed rank is derived from LK on **every** surface (draw, public preview, operator Setzliste), independent
-  of the cut/participant-list order: a field ordered by registration (a Challenger field) still seeds by LK,
-  never by row position (ADR-0047). Follows the DTB Turnierordnung 2026 (Stand 09.11.2025), §§ 30–32:
+  Seed rank is derived from LK on **every** surface (draw, public preview, operator Setzliste) and **never
+  read from row position** (ADR-0047) — even now that the cut and the participant list share the seeding's
+  own LK order (Field cut, ADR-0065), the rank is computed, not inferred from where a row sits. Follows the DTB Turnierordnung 2026 (Stand 09.11.2025), §§ 30–32:
   - **Number of seeds** by draw size (§30.5a): 8 → 2, 16 → 4, 24/32 → 8, 48/64/128 → 16 — plus our
     extension **4 → 2** (§30.5a's table starts at 8; a 4-field reuses the 8-field's 2-seed pattern, a
     deliberate sub-DTB extension — ADR-0034). Our fields draw at **4, 8, or 16**.
@@ -263,21 +263,24 @@ cancelled`, duplicate check, capacity, first-come cut) **unchanged**, with one r
   table supports only 4/8/16). It is a planning and affordance number — it drives „Plätze frei" and the
   **field cut** below — and **never** a registration block: signup never auto-closes, and the bracket
   follows the confirmed field (Draw size, ADR-0034). Kept in code, not admin-editable: a soft number
-  changed a handful of times over one event does not justify a config surface (ADR-0021/0023). _(See ADR-0043.)_
+  changed a handful of times over one event does not justify a config surface (ADR-0021/0023). _(See ADR-0043 → ADR-0065.)_
 - **Field cut** (de: Schnitt / Schnittlinie) — when a competition's confirmed field exceeds its capacity,
-  the surplus become reserves; **the criterion depends on the field type**, owned by one predicate
-  (`cutsByStrength`). A **championship field** (Herren, Damen) takes the **top-N by LK** — the cut binds
-  on the **frozen** LK at the draw, so during signup it is only a provisional preview that drifts as LKs
-  sync, and a late, stronger entry slots in by LK. A **Challenger / recreational field** and the
-  **Social mixer** both take the **first N by registration order** (`createdAt`) — for the Challenger
-  because strength must not decide a protected field (ADR-0043), for the mixer because an unseeded field
-  has **no strength to decide by** (ADR-0051); the ordering key never drifts, so a spot is **secure once
-  taken** (no bumping). For the two drawn field types the bracket is still **seeded by LK** — the cut
-  decides _who is in_, the seeding decides _where_; the mixer is cut but never drawn or seeded. _(See
-  ADR-0043, ADR-0051.)_
+  the surplus become reserves; **every field takes the top-N by LK**, by the one comparator that also
+  orders the seeding and the public list (`bySeedingLk` — `seedingValue` ascending, `createdAt` only as the
+  tie-break among equal LKs). The cut binds on the **frozen** LK at the draw, so during signup it is always
+  a **provisional** preview that drifts as LKs sync, and a late, stronger entry slots in — on **every**
+  field, the Challenger included: a spot is **not** secure once taken. There is no field-type criterion any
+  more (ADR-0065 superseded the split; `cutsByStrength` is gone). The **Social mixer** is cut by the same
+  comparator, but its entries are unrated by construction, so they all weigh 25.0 and the tie-break governs
+  — nominally LK-cut, in effect registration order. The bracket is still **seeded by LK** — the cut decides
+  _who is in_, the seeding decides _where_, and the two now share one order; the mixer is cut but never
+  drawn or seeded. A seeded field is **not drawable while an entry in it has an unresolved LK** (`lk` still
+  `null` — nuLiga not yet matched, or an outage): once admission rests on LK, it may never rest on a missing
+  one, so the operator resolves it first (nuLiga match, or explicitly „keine nuLiga-ID" ⇒ 25.0). _(See
+  ADR-0065, ADR-0051.)_
 - **Reserve** (de: Nachrücker) — a `confirmed` entry **below the field cut**: still confirmed, simply not
   drawn into the bracket, and first to step in if a drawn player drops before the draw locks. Not a separate
-  status — the lifecycle stays `new → confirmed → cancelled` (ADR-0018). _(See ADR-0043.)_
+  status — the lifecycle stays `new → confirmed → cancelled` (ADR-0018). _(See ADR-0043 → ADR-0065.)_
 - **Competition cancellation** (de: Konkurrenz-Absage; code: `cancelledCompetitions`, predicate
   `isCancelledCompetition(slug)`) — a competition that drew **too few entries** does not take place, and is
   **removed from every public surface**. It is the terminal answer to an under-filled field, and it belongs
@@ -523,7 +526,7 @@ reveal sequence }`. Randomness enters through an injected **`RandomSource`** por
   reservation all rest on one basis. Pending entries show up as the **„voll ≈" marker**, which projects
   each field at its capacity. Note this is deliberately _not_ the basis the **Seeding cut** uses: a spot in
   the field is occupied the moment someone registers (ADR-0043), while a court is only taken once the entry
-  is confirmed. _(See ADR-0023, ADR-0043, ADR-0063, ADR-0064.)_
+  is confirmed. _(See ADR-0023, ADR-0065, ADR-0063, ADR-0064.)_
 - **Schedule publication** (de: Veröffentlichung) — the schedule is **private until published**: a global
   `schedule_published` flag (off by default) gates the **planned** public schedule, so the operator builds
   the whole plan unseen and reveals it in one act („Veröffentlichen"). Scope is **global** (one flag for the

@@ -77,7 +77,6 @@ describe('seedingFieldPreview', () => {
 
     expect(field.inField).toBe(8)
     expect(field.reserves).toBe(1)
-    expect(field.provisional).toBe(false) // a Challenger cut is fix (registration order never drifts)
   })
 
   it('ignores cancelled rows entirely', () => {

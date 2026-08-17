@@ -40,13 +40,6 @@ export const isChallengerField = (competition: string): boolean => competition.e
 // list, and the draw guard all read this one predicate.
 export const isUnseededCompetition = (competition: string): boolean => competition.endsWith('-social')
 
-// Whether a field admits by **strength** (a championship field: womens, mens) rather than first-come.
-// A protected Challenger field and an unseeded Social mixer both admit **first-come by registration
-// order** — strength must not decide a protected field (ADR-0043), and an unseeded field has no
-// strength to decide by (ADR-0051). Owned once so the cut comparator and its `provisional` flag agree.
-export const cutsByStrength = (competition: string): boolean =>
-  !isChallengerField(competition) && !isUnseededCompetition(competition)
-
 // The Challenger-LK judgment at confirm time, owned once in shared/ (ADR-0011) so the registration
 // notifier, the domain, and the admin affordance all read the same rule — no duplicated threshold.
 // Gated to the Challenger field and the fixed CHALLENGER_MIN_LK: a stronger entry raises the soft
@@ -83,39 +76,37 @@ export const challengerEligibility = <E extends ChallengerEntry>(
   return { eligible: tooStrong.length === 0, tooStrong }
 }
 
-// ── Field cut (CONTEXT: Field cut / Reserve, ADR-0043) ───────────────────────────────────────────
-// When a field's active entries exceed its capacity the surplus become reserves; **which entries are
-// in** depends on the field type. Owned here (ADR-0011: definition once) so the planning cockpit's
-// load projection and the provisional seeding list's cut line order the field identically.
+// ── The one order: seeding, cut, list (CONTEXT: Seeding / Field cut / Reserve, ADR-0065, ADR-0047) ─
+// **One comparator orders every field**: strongest first by LK, registration time breaking ties only
+// among equal LKs. It is the order the draw seeds on (worker confirmedForDraw / drawBracket), the order
+// the cut admits by, and the order the public list and the operator Setzliste display — on all four
+// competitions, the protected Challenger included (ADR-0065 superseded the per-field-type cut of
+// ADR-0043; `cutsByStrength` and `compareForCut` are gone with it). Owned here (ADR-0011: definition
+// once) so no surface can drift from the draw — the class of defect ADR-0047 fixed.
 
-// One entry the cut orders — by LK (championship) or registration order (Challenger). A structural
-// subset of a registration (lk + createdAt), generic so both consumers pass their richer rows through.
+// One entry the order reads: a structural subset of a registration (lk + createdAt), generic so every
+// consumer passes its own richer rows through.
 export interface FieldCutEntry {
   lk: string | null
   createdAt: string
 }
 
-// The cut-order comparator for a competition (ADR-0043). A **championship** field cuts by strength:
-// `seedingValue` ascending (strongest first), with registration order (`createdAt`) as the tie-break
-// among equal LKs — the same tie-break the draw uses (drawBracket's DrawPlayer order). A **Challenger /
-// recreational** field cuts by plain registration order: strength must not decide a protected field,
-// so LK is ignored entirely. `createdAt` is a sortable string (the same `localeCompare` the queue sort
-// uses), so the comparison needs no parsing.
-export const compareForCut =
-  (competition: string) =>
-  (a: FieldCutEntry, b: FieldCutEntry): number =>
-    cutsByStrength(competition)
-      ? seedingValue(a.lk) - seedingValue(b.lk) || a.createdAt.localeCompare(b.createdAt)
-      : a.createdAt.localeCompare(b.createdAt)
-
-// ── Seed order (CONTEXT: Seeding, ADR-0043, ADR-0047) ────────────────────────────────────────────
-// Distinct from the cut order above: the **cut** decides *who is in* (Challenger by registration), the
-// **seeding** decides *where* — and seed rank is LK on **every** field, championship and Challenger
-// alike. This is the order the draw itself seeds on (worker confirmedForDraw / drawBracket): strongest
-// first by LK, registration time breaking ties. Owned here (ADR-0011) so every surface's seed rank
-// agrees with the draw — the fix for surfaces that used to read a seed from list/cut position (ADR-0047).
+// The comparator: `seedingValue` ascending (the LK scale runs 1.0 strongest … 25.0 weakest, so ascending
+// is strongest first), then `createdAt` as the **tie-break only**. The tie-break is load-bearing, not
+// decorative: equal LKs are common at this scale (ADR-0021) and `drawBracket` verifies a non-decreasing
+// seeding order, so the sort must be deterministic — but registration time decides nothing about strength.
+// `createdAt` is a sortable string (the same `localeCompare` the queue sort uses), so it needs no parsing.
 export const bySeedingLk = (a: FieldCutEntry, b: FieldCutEntry): number =>
   seedingValue(a.lk) - seedingValue(b.lk) || a.createdAt.localeCompare(b.createdAt)
+
+// Which of a field's entries have **no resolved LK** — `lk` still null, because the nuLiga match has not
+// landed yet or a lookup failed (resolveLkOnConfirm is best-effort: no rating, no id, or an outage all
+// write nothing). Confirming needs a *seeding basis*, not an LK (canConfirm), so a confirmed row can sit
+// here. Since ADR-0065 the cut admits by LK, and `seedingValue(null)` ⇒ 25.0 would make a missing rating
+// admission-deciding — so the draw refuses a seeded field holding one (worker/draw.ts) rather than
+// silently cutting it as the weakest. The provisional cut still shows it at 25.0; only the freeze blocks.
+export const unresolvedLkEntries = <E extends ChallengerEntry>(entries: readonly E[]): E[] =>
+  entries.filter(e => e.lk === null)
 
 // The provisional seed ranks for a field's entries (ADR-0047): rank them strongest-first by LK
 // (bySeedingLk) and hand ranks 1..`seedCount` to the top. `seedCount` is the caller's — a surface passes
@@ -141,30 +132,24 @@ export interface RankedCutEntry<E> {
   reserve: boolean
 }
 
-// The result of cutting a field: the active entries in cut order with their reserve flag, the counts
-// either side of the line, and whether the cut is provisional. A **championship** cut is provisional —
-// it acts on LKs that drift until the seeding freeze (ADR-0024), so the line moves as LKs sync. A
-// **Challenger** or **Social mixer** cut is stable — its key (`createdAt`) never drifts, so a spot is
-// secure once taken (first-come; cutsByStrength is false).
+// The result of cutting a field: the active entries in cut order with their reserve flag, and the counts
+// either side of the line. **Every** cut is provisional — it acts on LKs that drift until the seeding
+// freeze (ADR-0024), so the line moves as LKs sync and no spot is secure until the draw. That used to be
+// a per-field-type `provisional` flag; since one comparator cuts every field it is constantly true, and a
+// flag that is never false is not information (ADR-0065).
 export interface FieldCutResult<E> {
   ranked: RankedCutEntry<E>[]
   inField: number
   reserves: number
-  provisional: boolean
 }
 
-// Cut a field's `entries` (its **active** rows — new + confirmed) at `capacity`: order them by the
-// field-type rule (compareForCut), then mark everything from index `capacity` on as a reserve. The
-// cut decides *who is in* — the bracket still seeds the drawn field by LK (ADR-0043). Pure: it copies
-// before sorting, so the caller's array is left untouched.
-export const fieldCut = <E extends FieldCutEntry>(
-  entries: readonly E[],
-  competition: string,
-  capacity: number
-): FieldCutResult<E> => {
-  const ranked = [...entries]
-    .sort(compareForCut(competition))
-    .map((entry, i) => ({ entry, position: i + 1, reserve: i >= capacity }))
+// Cut a field's `entries` (its **active** rows — new + confirmed) at `capacity`: order them by the one
+// comparator (bySeedingLk), then mark everything from index `capacity` on as a reserve. The cut decides
+// *who is in*, the seeding decides *where* — and since ADR-0065 both read the same order. Takes no
+// competition: there is no per-field-type rule left. Pure: it copies before sorting, so the caller's
+// array is left untouched.
+export const fieldCut = <E extends FieldCutEntry>(entries: readonly E[], capacity: number): FieldCutResult<E> => {
+  const ranked = [...entries].sort(bySeedingLk).map((entry, i) => ({ entry, position: i + 1, reserve: i >= capacity }))
   const inField = Math.min(ranked.length, capacity)
-  return { ranked, inField, reserves: ranked.length - inField, provisional: cutsByStrength(competition) }
+  return { ranked, inField, reserves: ranked.length - inField }
 }

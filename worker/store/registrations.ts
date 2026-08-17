@@ -3,13 +3,12 @@ import { drizzle } from 'drizzle-orm/d1'
 import { and, asc, count, eq, gt, inArray, sql } from 'drizzle-orm'
 import {
   ACTIVE_STATUSES,
-  compareForCut,
+  bySeedingLk,
   displaySeedCount,
   type DrawPlayer,
   isUnseededCompetition,
   MIN_DRAW_ENTRIES,
   provisionalSeedRanks,
-  seedingValue,
   strengthRedacted,
   type RegistrationStatus
 } from '../../shared'
@@ -23,25 +22,15 @@ interface SeedingOrdered {
   createdAt: string
 }
 
-// The strongest-first seeding order: by competition, then ascending seeding LK (the rule lives in shared/
-// seedingValue), then registration time. This is the order the **draw** seeds every field on — including a
-// Challenger field, which is admitted first-come-first-served but still seeded by LK in the bracket
-// (ADR-0043) — so confirmedForDraw feeds drawBracket its strongest-first precondition from here. With small
-// N (ADR-0021) the order is computed in JS, so D1 and the in-memory double run *this* one comparator — no
-// SQL CAST/COALESCE vs parseFloat pair kept equal by hand.
+// The strongest-first order, grouped by competition: the shared bySeedingLk within each field (ascending
+// seeding LK, registration time breaking ties only). Since ADR-0065 this is the **one** order every
+// surface reads — the draw seeds on it (confirmedForDraw feeds drawBracket its strongest-first
+// precondition from here), the cut admits by it, and the public participant list displays it, on every
+// field including the protected Challenger. The separate `byListOrder` that used to carry the per-field
+// cut order went with `compareForCut`. With small N (ADR-0021) the order is computed in JS, so D1 and the
+// in-memory double run *this* one comparator — no SQL CAST/COALESCE vs parseFloat pair kept equal by hand.
 export const bySeedingThenTime = (a: SeedingOrdered, b: SeedingOrdered): number =>
-  a.competition.localeCompare(b.competition) ||
-  seedingValue(a.lk) - seedingValue(b.lk) ||
-  a.createdAt.localeCompare(b.createdAt)
-
-// The public participant-list order: by competition, then the **field-type cut order** (ADR-0043, shared
-// compareForCut) — a championship field strongest-first by LK, a Challenger field by registration date.
-// The public list is the visible expression of the admission rule, so it orders by the same key the cut
-// uses (first-come-first-served for the protected field) — unchanged by the Challenger now showing its LK,
-// because displaying strength is not admitting by it (ADR-0061; ADR-0011: that order is owned once, in
-// compareForCut). The draw still seeds by LK — bySeedingThenTime.
-export const byListOrder = (a: SeedingOrdered, b: SeedingOrdered): number =>
-  a.competition.localeCompare(b.competition) || compareForCut(a.competition)(a, b)
+  a.competition.localeCompare(b.competition) || bySeedingLk(a, b)
 
 // Narrow any confirmed row (a full RegistrationRow or the D1 projection) to the public list shape,
 // in one place so both adapters' listConfirmed project identically — the comparator and the
@@ -67,15 +56,15 @@ export const toConfirmedParticipant = (r: ConfirmedRow): ConfirmedParticipant =>
 }
 
 // A confirmed row as either adapter holds it before projection: the public display fields plus the two
-// keys the ordering + seeding read (createdAt for the tie-break / Challenger list order, lk for both).
+// keys the ordering + seeding read (lk, and createdAt for the tie-break among equal LKs).
 // `redacted` and `seedRank` are computed by the projection, not carried on the input row.
 export type ConfirmedRow = Omit<ConfirmedParticipant, 'seedRank' | 'redacted'> & { createdAt: string }
 
 // Project confirmed rows to the public participant list, in one place so both adapters stay identical
-// (ADR-0043, ADR-0044, ADR-0047). Orders every field by byListOrder — a championship field by LK, a
-// Challenger field by registration date — and attaches each row's provisional `seedRank`, computed by LK
-// **per competition, independent of that display order** (provisionalSeedRanks). So a Challenger field
-// listed by registration still marks its LK-strongest as the seeds: the preview places the right players
+// (ADR-0065, ADR-0044, ADR-0047). Orders every field by bySeedingThenTime — strongest first by LK, the
+// Challenger included — and attaches each row's provisional `seedRank`, still computed by LK
+// **per competition** (provisionalSeedRanks) rather than read off the row position, so the two can never
+// drift now that they agree: the preview places the right players
 // on the seed lines while the LK value stays redacted (toConfirmedParticipant) — the seed rank is the
 // relative-rank structural signal the preview reads, never the LK (ADR-0044 Consequence 4, refined by
 // ADR-0047). Seeds appear only from the draw floor up (MIN_DRAW_ENTRIES), matching the preview and the
@@ -95,7 +84,9 @@ export const toPublicParticipants = (rows: readonly ConfirmedRow[]): ConfirmedPa
       isUnseededCompetition(competition) || group.length < MIN_DRAW_ENTRIES ? 0 : displaySeedCount(group.length)
     for (const [row, rank] of provisionalSeedRanks(group, seedCount)) seedRankOf.set(row, rank)
   }
-  return [...rows].sort(byListOrder).map(r => ({ ...toConfirmedParticipant(r), seedRank: seedRankOf.get(r) ?? null }))
+  return [...rows]
+    .sort(bySeedingThenTime)
+    .map(r => ({ ...toConfirmedParticipant(r), seedRank: seedRankOf.get(r) ?? null }))
 }
 
 // updated_at is a persistence fact ("when was this row last written"), stamped here on every
@@ -286,9 +277,9 @@ export const createD1RegistrationsStore = (d1: D1Database): RegistrationsStore =
   return {
     async listConfirmed() {
       // Fetch confirmed rows and order them in JS (ADR-0021, small N) through the shared list comparator
-      // (byListOrder): a championship field by LK, a Challenger field by registration date (ADR-0043), so
-      // the public list reflects the admission rule. createdAt is the Challenger sort key (and the
-      // championship tiebreak); it is dropped from the public projection.
+      // (bySeedingThenTime): every field strongest-first by LK (ADR-0065), so the public list reflects the
+      // admission rule. createdAt is only the tie-break among equal LKs; it is dropped from the public
+      // projection.
       const rows = await db
         .select({
           firstName: registrations.firstName,
@@ -312,8 +303,8 @@ export const createD1RegistrationsStore = (d1: D1Database): RegistrationsStore =
 
     async confirmedForDraw(competition) {
       // Fetch this field's confirmed rows and order them strongest-first in JS (ADR-0021, small N) — the
-      // seeding order drawBracket requires, even for a Challenger field, which is admitted by registration
-      // date but still seeded by LK in the bracket (ADR-0043) — then project to the draw's id + LK.
+      // seeding order drawBracket requires — the same order the cut and the public list now read on every
+      // field (ADR-0065) — then project to the draw's id + LK.
       const rows = await db
         .select({
           id: registrations.id,

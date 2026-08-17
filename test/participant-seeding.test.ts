@@ -26,10 +26,10 @@ const reg = (overrides: Partial<RegistrationRow>): RegistrationRow => ({
 })
 
 describe('listConfirmed · provisional seedRank (ADR-0047)', () => {
-  it('marks the LK-strongest as seeds even for a Challenger field listed by registration date', async () => {
-    // The exact prod incident. Four Challenger entries in registration order; Steimmig registers last but
-    // is strongest. The public list keeps registration order and now shows the LK, but the seedRank it
-    // carries is by LK — so the preview seeds Steimmig (not the earliest registrants).
+  it('seeds a Challenger field by LK, and since ADR-0065 lists it that way too', async () => {
+    // The exact prod incident, re-pinned. Four Challenger entries; Steimmig registers last but is
+    // strongest. The seedRank was always by LK (ADR-0047) — what changed is that the list no longer
+    // disagrees with it: the public list is LK-ordered on every field now, so Steimmig also *appears* first.
     const store = createInMemoryRegistrationsStore([
       reg({
         competition: 'mens-challenger',
@@ -44,12 +44,12 @@ describe('listConfirmed · provisional seedRank (ADR-0047)', () => {
 
     const list = await store.listConfirmed()
 
-    expect(list.map(p => p.firstName)).toEqual(['Kasigkeit', 'Luehr', 'Amtsberg', 'Steimmig']) // registration order
-    // The LK rides along on the public wire (ADR-0061) — in registration order, so it is visibly *not*
-    // the list's ordering key: the seedRank below is what carries the LK ranking.
-    expect(list.map(p => p.lk)).toEqual(['21.9', '24.7', '24.5', '21.5'])
+    // LK order (ADR-0065), not registration order: 21.5 → 21.9 → 24.5 → 24.7.
+    expect(list.map(p => p.firstName)).toEqual(['Steimmig', 'Kasigkeit', 'Amtsberg', 'Luehr'])
+    expect(list.map(p => p.lk)).toEqual(['21.5', '21.9', '24.5', '24.7']) // the LK rides along (ADR-0061)
     const seedByName = new Map(list.map(p => [p.firstName, p.seedRank]))
-    expect(seedByName.get('Steimmig')).toBe(1) // strongest LK → seed 1, though listed last
+    // Still *computed* from LK rather than read off the row position (ADR-0047) — the two now agree.
+    expect(seedByName.get('Steimmig')).toBe(1) // strongest LK → seed 1, registered last
     expect(seedByName.get('Kasigkeit')).toBe(2)
     expect(seedByName.get('Luehr')).toBeNull() // weakest → not among the two seeds
     expect(seedByName.get('Amtsberg')).toBeNull()

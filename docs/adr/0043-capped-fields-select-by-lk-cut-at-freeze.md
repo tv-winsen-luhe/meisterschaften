@@ -1,7 +1,15 @@
 # ADR-0043: Capped fields select by LK; the cut binds at the draw freeze
 
-- Status: accepted
+- Status: superseded by ADR-0065
 - Date: 2026-06-29
+
+> **Superseded (2026-08-17, ADR-0065).** The field-type split below — championship by LK, Challenger and
+> Social mixer by registration order — is gone. One comparator now cuts every field by LK, with
+> `createdAt` only as a tie-break, and the `provisional` flag is deleted because every cut drifts. The
+> Challenger's protection is now the **cap alone** (ADR-0024), not its admission order. What survives from
+> this ADR: reserves reuse `confirmed` (no new status, no auto-cancel), `capacity` stays a soft code-level
+> constant, and "the cut decides _who is in_, the seeding decides _where_" — though the two now happen to
+> share one order. Read on for why the split existed; ADR-0065 records why it was traded away.
 
 ## Context
 
