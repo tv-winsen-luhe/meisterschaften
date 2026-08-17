@@ -59,8 +59,12 @@ registration order, not a bug to "sort away".
 - One shared `provisionalSeeding` helper is the single source; `renderPreview` and `seeding-surface` stop
   inferring seeds from position and read seed rank from it.
 - The public participants wire gains `seedRank` for **all** fields (redundant with LK order for a
-  championship field, load-bearing for a Challenger one); the Challenger LK stays `null`. The participant
-  list ignores it (a Challenger field renders as a registration-ordered friendly list with no seed markers).
+  championship field, load-bearing for a Challenger one); the Challenger LK stays `null`. ~~The participant
+  list ignores it (a Challenger field renders as a registration-ordered friendly list with no seed
+  markers).~~ **Corrected 2026-08-17 (ADR-0066):** the participant list reads `seedRank` and renders a
+  seeding board on every seeded field, the Challenger included. Its premise died with ADR-0065 — a
+  Challenger list is no longer in registration order — and the Challenger LK is no longer `null` either
+  (ADR-0061).
 - The draw engine is untouched — this ADR changes only the preview and the operator affordance.
 - Standing trap (ADR-0044 Consequence 4) restated: **any new public projection that joins a Challenger
   registration must null its LK value.** It may carry the seed rank; it must never carry the LK.

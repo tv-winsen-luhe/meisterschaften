@@ -4,9 +4,9 @@ import { isUnseededCompetition } from '../../shared'
 import tvLogo from '@/assets/logo.svg'
 import tsvLogo from '@/assets/tsv-winsen.png'
 
-// Open competitions only; championship field (mens/womens) = seeding board, Challenger = friendly list.
+// Open competitions only. Whether a panel is a seeding board or a friendly list is not decided here: it
+// follows `isUnseededCompetition` (ADR-0058) at render time, one fact read in one place (ADR-0066).
 const openCompetitions = competitions.filter(c => c.status === 'open')
-const layoutFor = (slug: string) => (slug === 'mens' || slug === 'womens' ? 'board' : 'list')
 ---
 
 <div class="participants" data-participants data-logo-tv={tvLogo.src} data-logo-tsv={tsvLogo.src}>
@@ -22,7 +22,6 @@ const layoutFor = (slug: string) => (slug === 'mens' || slug === 'womens' ? 'boa
         <section
           class="pl-group bg-surface-alt p-6 md:p-7"
           data-competition={c.slug}
-          data-layout={layoutFor(c.slug)}
           data-capacity={isUnseededCompetition(c.slug) ? undefined : c.capacity}
         >
           <div class="pl-group__top">
@@ -58,7 +57,7 @@ const layoutFor = (slug: string) => (slug === 'mens' || slug === 'womens' ? 'boa
     }
   </div>
   <p class="pl-status reveal mt-4 text-[13px] leading-[1.6] opacity-60" data-status>
-    Alle bestätigten Anmeldungen, laufend aktualisiert. Im Hauptfeld zeigen die markierten Plätze die <strong
+    Alle bestätigten Anmeldungen, laufend aktualisiert. Die markierten Plätze zeigen die <strong
       >vorläufige Setzung</strong
     > nach Leistungsklasse — endgültige Setzung und Auslosung nach dem Meldeschluss
   </p>
@@ -302,11 +301,13 @@ const layoutFor = (slug: string) => (slug === 'mens' || slug === 'womens' ? 'boa
 
 <script>
   import { hc } from 'hono/client'
-  import { displaySeedCount, isUnseededCompetition, MIN_DRAW_ENTRIES } from '../../shared'
+  import { MIN_DRAW_ENTRIES } from '../../shared'
+  import { renderField } from './participant-list.render'
   import type { AppType } from '../../worker/app'
   import type { Participant, ParticipantsResponse, Phase } from '../../shared'
 
-  type Entry = Participant
+  // All the row building lives in ./participant-list.render; this script only fetches, decides the phase
+  // caption and the scarcity meter, and hands each panel its rows.
   type ApiResponse = ParticipantsResponse
 
   const client = hc<AppType>(location.origin)
@@ -326,55 +327,6 @@ const layoutFor = (slug: string) => (slug === 'mens' || slug === 'womens' ? 'boa
   // once so applyPhase can restore it verbatim when the operator reverts to 'signup'.
   const statusEl = root?.querySelector<HTMLElement>('[data-status]') ?? null
   const defaultCaption = statusEl?.textContent ?? ''
-
-  const divider = (): HTMLLIElement => {
-    const li = document.createElement('li')
-    li.className = 'pl-divider'
-    li.textContent = 'Weitere im Feld — Platzierung wird bei der Auslosung gelost'
-    return li
-  }
-
-  const row = (entry: Entry, layout: string, rank: number, isSeed: boolean, unseeded: boolean): HTMLLIElement => {
-    const li = document.createElement('li')
-    li.className = isSeed ? 'pl-row pl-row--seed' : 'pl-row'
-
-    if (layout === 'board') {
-      const r = document.createElement('span')
-      r.className = isSeed ? 'pl-rank pl-rank--seed' : 'pl-rank'
-      r.textContent = String(rank)
-      if (isSeed) r.title = `An ${rank} gesetzt (vorläufig)`
-      li.appendChild(r)
-    }
-
-    const avatar = document.createElement('span')
-    avatar.className = 'pl-avatar'
-    const isTsv = entry.club.includes('TSV')
-    const logo = document.createElement('img')
-    logo.src = isTsv ? logoTsv : logoTv
-    logo.alt = isTsv ? 'TSV Winsen' : 'TV Winsen'
-    logo.loading = 'lazy'
-    avatar.appendChild(logo)
-    li.appendChild(avatar)
-
-    const name = document.createElement('span')
-    name.className = 'pl-name'
-    name.textContent = `${entry.firstName} ${entry.lastName}`.trim()
-    li.appendChild(name)
-
-    // Strength redaction is the server's decision, carried on the wire (ADR-0048): a `redacted` row omits
-    // the LK entirely — neither „LK x" nor „LK folgt" — while a non-redacted `lk: null` is a genuine
-    // not-yet-synced rating that shows „LK folgt". The client renders the flag; it no longer knows which
-    // fields are protected. The admin still shows the LK (it needs it to bind the cap at the draw, ADR-0024).
-    // An unseeded field (the social mixer) has no LK concept at all, so it never shows an LK column.
-    if (!unseeded && !entry.redacted) {
-      const lk = document.createElement('span')
-      lk.className = entry.lk ? 'pl-lk' : 'pl-lk pl-lk--pending'
-      lk.textContent = entry.lk ? `LK ${entry.lk}` : 'LK folgt'
-      li.appendChild(lk)
-    }
-
-    return li
-  }
 
   const render = (data: ApiResponse) => {
     if (!root) return
@@ -398,7 +350,7 @@ const layoutFor = (slug: string) => (slug === 'mens' || slug === 'womens' ? 'boa
       return
     }
 
-    const byComp = new Map<string, Entry[]>()
+    const byComp = new Map<string, Participant[]>()
     for (const e of data.participants) {
       const arr = byComp.get(e.competition) ?? []
       arr.push(e)
@@ -407,17 +359,10 @@ const layoutFor = (slug: string) => (slug === 'mens' || slug === 'womens' ? 'boa
 
     root.querySelectorAll<HTMLElement>('[data-competition]').forEach(group => {
       const slug = group.dataset.competition!
-      const layout = group.dataset.layout || 'list'
-      const unseeded = isUnseededCompetition(slug)
       const entries = byComp.get(slug) ?? []
       const list = group.querySelector<HTMLElement>('[data-list]')!
       const empty = group.querySelector<HTMLElement>('[data-empty]')!
       const capacity = Number(group.dataset.capacity)
-      // Provisional seeds follow the confirmed field, not the capacity (ADR-0034) — the shared rule the
-      // draw preview uses too, so the two surfaces never disagree. Below the draw floor there is no real
-      // field yet, so no seed markers (the draw preview shows a „needs ≥4" notice in the same case). Only
-      // the seeding board seeds.
-      const seeds = layout === 'board' && entries.length >= MIN_DRAW_ENTRIES ? displaySeedCount(entries.length) : 0
       const freeLabel = group.querySelector<HTMLElement>('[data-free-label]')
       const meter = group.querySelector<HTMLElement>('[data-meter]')
       const segs = group.querySelectorAll<HTMLElement>('.pl-meter__seg')
@@ -427,7 +372,8 @@ const layoutFor = (slug: string) => (slug === 'mens' || slug === 'womens' ? 'boa
       // exactly where recruiting matters most (ADR-0051 §3: empty-field deterrence hits the
       // socially-motivated audience hardest; ADR-0051 amendment 2026-08-15, where it cost the Damen
       // Meisterin field its whole signup period). The floor is already this surface's „no real field
-      // yet" boundary for the seed markers above — the meter now honours the same one, and falls back to
+      // yet" boundary for the seed markers (which the server applies) — the meter honours the same one,
+      // and falls back to
       // the momentum framing the mixer uses. A field-type rule, never a per-slug exception (ADR-0022).
       const showMeter = Number.isFinite(capacity) && capacity > 0 && entries.length >= MIN_DRAW_ENTRIES
       if (showMeter) {
@@ -445,8 +391,8 @@ const layoutFor = (slug: string) => (slug === 'mens' || slug === 'womens' ? 'boa
         if (freeLabel) freeLabel.textContent = entries.length ? `${entries.length} schon dabei` : ''
       }
 
-      list.innerHTML = ''
       if (entries.length === 0) {
+        list.innerHTML = ''
         empty.hidden = false
         const line = empty.querySelector<HTMLElement>('[data-empty-line]')
         if (line) line.textContent = 'Noch niemand im Feld — mach den Anfang.'
@@ -455,12 +401,7 @@ const layoutFor = (slug: string) => (slug === 'mens' || slug === 'womens' ? 'boa
         return
       }
       empty.hidden = true
-      entries.forEach((e, i) => {
-        const rank = i + 1
-        // Separate the seeded players from the rest, which get drawn at the draw.
-        if (seeds > 0 && rank === seeds + 1) list.appendChild(divider())
-        list.appendChild(row(e, layout, rank, seeds > 0 && rank <= seeds, unseeded))
-      })
+      renderField(list, entries, slug, { tv: logoTv, tsv: logoTsv })
     })
   }
 
