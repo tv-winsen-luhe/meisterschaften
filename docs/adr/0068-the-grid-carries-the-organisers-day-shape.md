@@ -1,4 +1,4 @@
-# ADR-0067: The grid carries the organiser's day shape
+# ADR-0068: The grid carries the organiser's day shape
 
 - Status: accepted
 - Date: 2026-08-17

@@ -23,7 +23,7 @@ const node = (competition: string, bracket: string, round: number, position: num
 
 describe('indexScheduleByNode', () => {
   it('keys court + derived ca. time by (competition, bracket, round, position)', () => {
-    // Court 3, Saturday slot 7 → 14:00 (Saturday opens at 10:30, ADR-0067) — the issue's „Platz 3 · Sa 14:00".
+    // Court 3, Saturday slot 7 → 14:00 (Saturday opens at 10:30, ADR-0068) — the issue's „Platz 3 · Sa 14:00".
     const index = indexScheduleByNode([node('mens', 'main', 1, 0, { court: 3, day: 0, slot: 7 })])
     expect(index.get(scheduleNodeKey('mens', 'main', 1, 0))).toEqual({ court: 3, day: 0, time: '14:00' })
   })

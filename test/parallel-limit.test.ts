@@ -4,7 +4,7 @@ import { SCHEDULE, SLOT_SPAN, validatePlacement } from '../shared/schedule'
 import { suggestSchedule } from '../shared/suggest-schedule'
 import type { Placement } from '../shared/schedule'
 
-// The parallel-limit soft rule (ADR-0067): each event day carries a cap on how many championship matches
+// The parallel-limit soft rule (ADR-0068): each event day carries a cap on how many championship matches
 // may run at the same moment — Saturday four (the courts also hold a youth fixture), Sunday two (the
 // finals day is there to be watched, and a spectator cannot follow six courts at once). Soft, because it
 // is an organiser's judgement about the day's shape rather than a physical impossibility: the operator
@@ -40,7 +40,7 @@ const runningTogether = (n: number) => [
   pm(99, 9)
 ]
 
-describe('validatePlacement — soft parallel-limit rule (ADR-0067)', () => {
+describe('validatePlacement — soft parallel-limit rule (ADR-0068)', () => {
   // Only this rule's verdict — a lone round-1 bracket also trips the unrelated finals-day nudge, and this
   // file is about the cap.
   const parallel = (soft: { rule: string }[]) => soft.filter(v => v.rule === 'parallel-limit')
@@ -89,7 +89,7 @@ describe('validatePlacement — soft parallel-limit rule (ADR-0067)', () => {
   })
 })
 
-describe('suggestSchedule — the cap shapes the day into waves (ADR-0067)', () => {
+describe('suggestSchedule — the cap shapes the day into waves (ADR-0068)', () => {
   it('never puts more than the day’s cap on court at once', () => {
     // Eight independent Sunday matches: with the cap at two, the fill spreads them across waves instead
     // of opening six courts at once, because it prefers warning-free cells.

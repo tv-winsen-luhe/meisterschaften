@@ -31,7 +31,7 @@ export interface SocialMixerBlock extends SocialMixerPlacement {
 // column default behind `app_state`. Inside the busy day rather than a dead evening slot, and ending at
 // 15:00 so the mixer's players are at the Siegerehrung rather than beside it. The slot index is relative
 // to the day's own first start, so it moved from 6 to 4 when Sunday's start moved 9:00 → 10:00
-// (ADR-0067): the same 12:00 on the clock, a different row on the grid.
+// (ADR-0068): the same 12:00 on the clock, a different row on the grid.
 export const SOCIAL_MIXER_DEFAULT_PLACEMENT: SocialMixerPlacement = { day: 1, startSlot: 4 }
 
 // Three hours, because the rotation format needs them (~9 rounds of 18 minutes plus a briefing). Fixed on
@@ -62,7 +62,7 @@ export const socialMixerCourts = (confirmed: number): number[] => {
 /**
  * The start slots the block may take on a given day: every 30-minute start whose three hours are over by
  * the ~20:00 daylight bound — that is 10:30 through 17:00 on Saturday and 10:00 through 17:00 on Sunday,
- * the same clock bound off two different first starts (ADR-0067).
+ * the same clock bound off two different first starts (ADR-0068).
  * Deliberately **one flat bound** rather than the per-court evening windows (ADR-0040) — court 4 is dark
  * while 5 and 6 are floodlit, so a per-court rule would make the legal start times a function of the
  * head-count, and a late registration could then invalidate a time the operator had already chosen

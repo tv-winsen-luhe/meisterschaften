@@ -139,7 +139,7 @@ describe('suggestSchedule', () => {
   })
 })
 
-describe('suggestSchedule · court choice follows the spectator ranking (ADR-0067)', () => {
+describe('suggestSchedule · court choice follows the spectator ranking (ADR-0068)', () => {
   const [best] = COURT_VIEWING_ORDER
   const worst = COURT_VIEWING_ORDER[COURT_VIEWING_ORDER.length - 1]
 
@@ -153,7 +153,7 @@ describe('suggestSchedule · court choice follows the spectator ranking (ADR-006
   })
 
   it('sends the consolation bracket to the least-watched courts, keeping the good ones free', () => {
-    // The consolation is the weekend's lowest-billing tennis (ADR-0067): it takes the ranking from the
+    // The consolation is the weekend's lowest-billing tennis (ADR-0068): it takes the ranking from the
     // other end, so a main-bracket match placed in the same slot still finds a well-watched court.
     const conso = [sm(1, 1, 0, { bracket: 'consolation' }), sm(2, 1, 1, { bracket: 'consolation' })]
     const courts = suggestSchedule(conso).map(s => s.placement.court)
@@ -161,7 +161,7 @@ describe('suggestSchedule · court choice follows the spectator ranking (ADR-006
   })
 
   it('puts a main-bracket placement match above a consolation final in the same wave', () => {
-    // The operator's ruling (ADR-0067): the Herren third-place match is two of the field's best four and
+    // The operator's ruling (ADR-0068): the Herren third-place match is two of the field's best four and
     // outranks the Challenger's consolation final. It falls out of main-vs-consolation rather than any
     // per-match importance order — this pins that it actually holds, so a future re-ordering of the fill
     // cannot quietly swap them.

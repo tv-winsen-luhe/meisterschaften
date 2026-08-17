@@ -373,7 +373,7 @@ describe('POST /api/admin/match/place + GET /api/schedule', () => {
   // — the same 409 the grid pre-empts. We pin both edges at the HTTP level: the dark courts' actual ~20:00
   // daylight bound (last legal start 18:30; one step later, 19:00, finishes 20:30 — too late) and the
   // floodlit pair's reach to the 22:00 curfew. Both are *clock* bounds, so the slot indices are derived off
-  // Saturday's first start (ADR-0067). The pure rule is in evening-window.test.ts.
+  // Saturday's first start (ADR-0068). The pure rule is in evening-window.test.ts.
   it('enforces the dark courts’ ~20:00 edge and the floodlit pair’s curfew reach server-side', async () => {
     await drawField()
     const semi = (await env.DB.prepare('SELECT id FROM matches WHERE round = 1 ORDER BY position LIMIT 1').first<{

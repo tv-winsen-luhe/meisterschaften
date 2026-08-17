@@ -160,7 +160,7 @@ export const tournament = {
   /** "Sa/So, 22.-23.08.2026" */
   longWithWeekdays: 'Sa/So, 22.-23.08.2026',
   /**
-   * "10:30" — Saturday's first start, *derived* from the grid rather than restated (ADR-0067). The two
+   * "10:30" — Saturday's first start, *derived* from the grid rather than restated (ADR-0068). The two
    * days no longer open at the same time, and the public copy that promises a start time must be the same
    * number the schedule's first „ca." slot shows.
    */

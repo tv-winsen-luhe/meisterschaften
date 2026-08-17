@@ -1,4 +1,4 @@
-// How the organiser wants the six courts *used* (ADR-0067) — as distinct from `schedule.ts`, which owns
+// How the organiser wants the six courts *used* (ADR-0068) — as distinct from `schedule.ts`, which owns
 // what the courts physically are (how many, how long a match is, when the light runs out). Two decisions
 // live here, both about the shape of a day rather than its physics, and both feeding soft rules the
 // operator may override: which courts an audience can actually watch from, and how many matches should be
