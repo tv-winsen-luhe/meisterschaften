@@ -73,7 +73,12 @@ concept here drifts or a new one appears, update this file rather than inventing
   the single server signal, this page is only the surface. _(See ADR-0060, ADR-0062, ADR-0042,
   ADR-0041.)_
 - **Seeding freeze** (de: Setzungs-Freeze) — before the draw, LKs keep updating and the **provisional
-  seeding list** (de: provisorische Setzliste; the seeding preview) reflects them live. At the draw it
+  seeding list** (de: provisorische Setzliste; the seeding preview) reflects them live. It has two
+  surfaces: the gated operator Setzliste, and the public participant list, which renders as a **seeding
+  board** — position numbers, a filled circle on each seed, the lot divider below them — on **every seeded
+  field**, the Challenger included. Which fields those are is `!isUnseededCompetition(slug)`, so only the
+  Social mixer keeps the plain list (ADR-0066, ADR-0058); a row is seeded iff the wire gives it a
+  `seedRank`. At the draw it
   snapshots each player's current LK into its immutable draw record (ADR-0003) — that snapshot _is_ the
   frozen seeding, and the LK that decides Challenger eligibility (ADR-0024). The weekly nuLiga cron is
   phase-gated to run only during signup, so it is a no-op afterward (no suppression flag). Advancing
