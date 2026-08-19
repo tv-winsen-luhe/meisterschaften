@@ -409,265 +409,40 @@ const defaultMixerBlock = resolveSocialMixerBlock({ ...SOCIAL_MIXER_DEFAULT_PLAC
 
 <script>
   import { hc } from 'hono/client'
-  import { COURT_NUMBERS, resolveSocialMixerBlock, roundLabel, scoreLine, slotLabel, slotTime } from '../../shared'
-  import { competitions, socialMixerWhen, tournament } from '../data/tournament'
+  import { resolveSocialMixerBlock } from '../../shared'
+  import {
+    effectiveSelection,
+    presentCompetitions,
+    renderCourts,
+    renderFilter,
+    renderSchedule,
+    syncGrouping
+  } from '../components/schedule-board.render'
+  import { socialMixerWhen } from '../data/tournament'
   import type { AppType } from '../../worker/app'
-  import type { ScheduleMatch, ScheduleResponse, ScheduleSlot } from '../../shared'
+  import type { Grouping } from '../components/schedule-board.render'
+  import type { ScheduleResponse } from '../../shared'
 
+  // The public schedule board's controller: fetch → state → poll → render. All the DOM building lives in
+  // ../components/schedule-board.render; this script only keeps the feed and the two view controls the
+  // renderers read, and decides when to hand them over.
   const client = hc<AppType>(location.origin)
 
   // The live board polls ~15 s (ADR-0008): a started match, a moved court, or a completed result appears
   // within the interval, light enough for a phone on event Wi-Fi.
   const POLL_MS = 15000
 
-  // Day labels from the event's date copy (src/data/tournament.ts), indexed by the wire `day` (0/1): the
-  // full „Samstag · 22.08." heads a by-day section; the two-letter „Sa"/„So" prefixes a by-court row's time.
-  const DAYS = [tournament.saturday, tournament.sunday]
-  const DAY_ABBR = DAYS.map(d => d.weekday.slice(0, 2))
-
-  // Competition slug → German label, and the stable display order (the wire carries the English slug).
-  const COMPETITION_LABELS = new Map(competitions.map(c => [c.slug, c.label]))
-  const COMPETITION_ORDER = competitions.map(c => c.slug)
-
-  const STATUS_LABEL: Record<ScheduleMatch['status'], string> = {
-    planned: 'geplant',
-    running: 'läuft',
-    done: 'beendet'
-  }
-
-  // The German note for a special outcome (ADR-0032), appended to a finished match's meta line. A normal
-  // scored result carries no note — its set scores are the result.
-  const OUTCOME_NOTE: Record<NonNullable<ScheduleMatch['outcome']>, string> = {
-    walkover: 'Walkover',
-    retirement: 'Aufgabe'
-  }
-
   const root = document.querySelector<HTMLElement>('[data-board]')
-  const courtsEl = root?.querySelector<HTMLElement>('[data-courts]')
-  const filterEl = root?.querySelector<HTMLElement>('[data-filter]')
-  const sectionsEl = root?.querySelector<HTMLElement>('[data-sections]')
+  const courtsEl = root?.querySelector<HTMLElement>('[data-courts]') ?? null
+  const filterEl = root?.querySelector<HTMLElement>('[data-filter]') ?? null
+  const sectionsEl = root?.querySelector<HTMLElement>('[data-sections]') ?? null
   const groupButtons = [...(root?.querySelectorAll<HTMLButtonElement>('[data-group]') ?? [])]
 
   // The last-served feed plus the two view controls. The controls re-render from the cached feed (no
   // refetch), so a filter or grouping change is instant; the poll only replaces `feed` and re-renders.
   let feed: ScheduleResponse = { published: false, matches: [] }
   let selected: string | null = null // competition slug, or null = „Alle"
-  let grouping: 'day' | 'court' = 'day'
-
-  // One slot's display text: a player's name, or the shared German label for a „Freilos"/„Sieger M{n}"/
-  // „Verlierer M{n}"/„offen" line — every not-yet-decided slot renders muted (ADR-0035).
-  interface SlotText {
-    text: string
-    tbd: boolean
-  }
-  const slotDisplay = (slot: ScheduleSlot): SlotText =>
-    slot.kind === 'player'
-      ? { text: `${slot.firstName} ${slot.lastName}`.trim(), tbd: false }
-      : { text: slotLabel(slot), tbd: true }
-
-  // A player line: the name (truncated), the slot's games (if any), and the winner emphasised. Shared by
-  // the courts board and the schedule rows.
-  const playerLine = (slot: ScheduleSlot, games: string, winner: boolean): HTMLElement => {
-    const el = document.createElement('div')
-    el.className = 'sched-match__player'
-    const { text, tbd } = slotDisplay(slot)
-    if (tbd) el.classList.add('sched-match__player--tbd')
-    if (winner) el.classList.add('sched-match__player--winner')
-    const name = document.createElement('span')
-    name.className = 'sched-match__name'
-    name.textContent = text
-    el.appendChild(name)
-    if (games) {
-      const g = document.createElement('span')
-      g.className = 'sched-match__games'
-      g.textContent = games
-      el.appendChild(g)
-    }
-    return el
-  }
-
-  const roundText = (m: ScheduleMatch): string =>
-    roundLabel({ bracket: m.bracket, round: m.round, totalRounds: m.totalRounds, thirdPlace: m.thirdPlace })
-  const compLabel = (m: ScheduleMatch): string => COMPETITION_LABELS.get(m.competition) ?? m.competition
-
-  // ── Courts board ────────────────────────────────────────────────────────────────────────────────
-
-  // The single running match on a court (occupancy is enforced server-side, so at most one). The feed's
-  // `court` is already the actual live court for a running match (ADR-0032), so this indexes by reality.
-  const runningByCourt = (matches: ScheduleMatch[]): Map<number, ScheduleMatch> => {
-    const map = new Map<number, ScheduleMatch>()
-    for (const m of matches) if (m.status === 'running') map.set(m.court, m)
-    return map
-  }
-
-  const courtCell = (court: number, match: ScheduleMatch | undefined): HTMLElement => {
-    const cell = document.createElement('div')
-    cell.className = 'court'
-    if (match) cell.classList.add('court--live')
-    // Fade back the courts that are not the focused field when a filter is active — including free ones —
-    // so „mein Feld" pops without ever relabelling a busy court „frei".
-    if (selected && match?.competition !== selected) cell.classList.add('court--dim')
-
-    const no = document.createElement('div')
-    no.className = 'court__no'
-    no.textContent = `Platz ${court}`
-    cell.appendChild(no)
-
-    if (!match) {
-      const free = document.createElement('div')
-      free.className = 'court__free'
-      free.textContent = 'frei'
-      cell.appendChild(free)
-      return cell
-    }
-
-    const players = document.createElement('div')
-    players.className = 'court__players'
-    // Running — no winner yet; show any opportunistically-saved set games.
-    players.appendChild(playerLine(match.slot1, scoreLine(match.score, 1), false))
-    players.appendChild(playerLine(match.slot2, scoreLine(match.score, 2), false))
-    cell.appendChild(players)
-
-    const meta = document.createElement('div')
-    meta.className = 'court__meta'
-    meta.textContent = `${roundText(match)} · ${compLabel(match)}`
-    cell.appendChild(meta)
-    return cell
-  }
-
-  const renderCourts = (matches: ScheduleMatch[]) => {
-    if (!courtsEl) return
-    const running = runningByCourt(matches)
-    courtsEl.replaceChildren(...COURT_NUMBERS.map(court => courtCell(court, running.get(court))))
-  }
-
-  // ── Competition filter ────────────────────────────────────────────────────────────────────────
-
-  // A competition filter chip: „Alle" (slug null) or one field. The active chip narrows the schedule to
-  // that field and focuses its courts on the board.
-  interface FilterChip {
-    slug: string | null
-    label: string
-  }
-
-  const renderFilter = (present: string[]) => {
-    if (!filterEl) return
-    // A filter with fewer than two fields present has nothing to choose between — hide it.
-    if (present.length < 2) {
-      filterEl.replaceChildren()
-      filterEl.hidden = true
-      return
-    }
-    filterEl.hidden = false
-    const chips: FilterChip[] = [
-      { slug: null, label: 'Alle' },
-      ...present.map((slug): FilterChip => ({ slug, label: COMPETITION_LABELS.get(slug) ?? slug }))
-    ]
-    filterEl.replaceChildren(
-      ...chips.map(chip => {
-        const btn = document.createElement('button')
-        btn.type = 'button'
-        btn.className = 'board-chip'
-        const active = selected === chip.slug
-        btn.classList.toggle('is-active', active)
-        btn.setAttribute('aria-pressed', String(active))
-        btn.textContent = chip.label
-        btn.addEventListener('click', () => {
-          selected = chip.slug
-          render()
-        })
-        return btn
-      })
-    )
-  }
-
-  // ── Schedule rows ─────────────────────────────────────────────────────────────────────────────
-
-  // `showDay` prefixes the time with the two-letter day — needed in the by-court view, where a section's
-  // rows span both days; the by-day view's section header already carries the day.
-  const matchRow = (m: ScheduleMatch, showDay: boolean): HTMLElement => {
-    const row = document.createElement('div')
-    row.className = 'sched-match'
-
-    const time = document.createElement('div')
-    time.className = 'sched-match__time'
-    // The „ca." time is day-aware — Saturday and Sunday start at different clock times (ADR-0040).
-    const clock = `ca. ${slotTime(m.day, m.slot)}`
-    time.textContent = showDay ? `${DAY_ABBR[m.day] ?? `T${m.day + 1}`} · ${clock}` : clock
-    row.appendChild(time)
-
-    const players = document.createElement('div')
-    players.className = 'sched-match__players'
-    players.appendChild(playerLine(m.slot1, scoreLine(m.score, 1), m.winner === 1))
-    players.appendChild(playerLine(m.slot2, scoreLine(m.score, 2), m.winner === 2))
-    const meta = document.createElement('div')
-    meta.className = 'sched-match__meta'
-    // The round („Achtelfinale" … „Finale", „Nebenrunde · …"), the match number, the field, and — for a
-    // special outcome — „Walkover"/„Aufgabe" so a scoreless finish still reads as a result.
-    const note = m.outcome ? ` · ${OUTCOME_NOTE[m.outcome]}` : ''
-    meta.textContent = `${roundText(m)} · M${m.number} · ${compLabel(m)}${note}`
-    players.appendChild(meta)
-    row.appendChild(players)
-
-    const right = document.createElement('div')
-    right.className = 'sched-match__right'
-    const court = document.createElement('div')
-    court.className = 'sched-match__court'
-    court.textContent = `Platz ${m.court}`
-    right.appendChild(court)
-    const status = document.createElement('span')
-    status.className = `sched-status sched-status--${m.status}`
-    status.textContent = STATUS_LABEL[m.status]
-    right.appendChild(status)
-    row.appendChild(right)
-    return row
-  }
-
-  const section = (head: string, matches: ScheduleMatch[], showDay: boolean): HTMLElement => {
-    const el = document.createElement('section')
-    el.className = 'sched-section'
-    const h = document.createElement('h2')
-    h.className = 'sched-section__head'
-    h.textContent = head
-    el.appendChild(h)
-    for (const m of matches) el.appendChild(matchRow(m, showDay))
-    return el
-  }
-
-  // Group by the day values actually present (ascending), each day's matches ordered by slot then court —
-  // so a match is never silently dropped because the day axis was sized too small.
-  const renderByDay = (matches: ScheduleMatch[]): HTMLElement[] => {
-    const days = [...new Set(matches.map(m => m.day))].sort((a, b) => a - b)
-    return days.map(day => {
-      const dayMatches = matches.filter(m => m.day === day).sort((a, b) => a.slot - b.slot || a.court - b.court)
-      const label = DAYS[day]
-      return section(label ? `${label.weekday} · ${label.short}` : `Tag ${day + 1}`, dayMatches, false)
-    })
-  }
-
-  // Group by court (one „Platz N" section per court present, ascending), each court's matches ordered by
-  // day then slot — so an on-site player reads down their court's column to see when they play (#91).
-  const renderByCourt = (matches: ScheduleMatch[]): HTMLElement[] => {
-    const courts = [...new Set(matches.map(m => m.court))].sort((a, b) => a - b)
-    return courts.map(court => {
-      const courtMatches = matches.filter(m => m.court === court).sort((a, b) => a.day - b.day || a.slot - b.slot)
-      return section(`Platz ${court}`, courtMatches, true)
-    })
-  }
-
-  const renderSchedule = (matches: ScheduleMatch[]) => {
-    if (!sectionsEl) return
-    const visible = selected ? matches.filter(m => m.competition === selected) : matches
-    sectionsEl.replaceChildren(...(grouping === 'court' ? renderByCourt(visible) : renderByDay(visible)))
-  }
-
-  const syncGrouping = () => {
-    for (const btn of groupButtons) {
-      const active = btn.dataset.group === grouping
-      btn.classList.toggle('is-active', active)
-      btn.setAttribute('aria-pressed', String(active))
-    }
-  }
+  let grouping: Grouping = 'day'
 
   const render = () => {
     if (!root) return
@@ -677,17 +452,16 @@ const defaultMixerBlock = resolveSocialMixerBlock({ ...SOCIAL_MIXER_DEFAULT_PLAC
     root.classList.toggle('not-published', !published && matches.length === 0)
     root.classList.toggle('has-matches', matches.length > 0)
 
-    // The competitions actually present, in the fixed display order. A filter that no longer has its field
-    // (e.g. a reset dropped it) falls back to „Alle"; fewer than two present hides the filter entirely.
-    // This is also how a cancelled competition leaves the board's filter (ADR-0062): the feed stops
-    // carrying its matches, so it stops being an option — the filter is never told about it separately.
-    const present = COMPETITION_ORDER.filter(slug => matches.some(m => m.competition === slug))
-    if (present.length < 2 || (selected && !present.includes(selected))) selected = null
+    const present = presentCompetitions(matches)
+    selected = effectiveSelection(present, selected)
 
-    renderFilter(present)
-    syncGrouping()
-    renderCourts(matches)
-    renderSchedule(matches)
+    renderFilter(filterEl, present, selected, slug => {
+      selected = slug
+      render()
+    })
+    syncGrouping(groupButtons, grouping)
+    renderCourts(courtsEl, matches, selected)
+    renderSchedule(sectionsEl, matches, selected, grouping)
   }
 
   for (const btn of groupButtons) {

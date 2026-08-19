@@ -50,12 +50,13 @@ const elem = (tag: string, className: string, text?: string): HTMLElement => {
   return node
 }
 
-// Round labels, outermost → final. A bracket reads the tail for its size (16 → all four, 8 → last
-// three, 4 → last two), so one ordered list covers every size and a new size needs no parallel entry
-// — the round *count* is topology (log2(size)), the labels are display copy (the live-draw bracket's
-// own; the schedule cards' round names are the shared `roundLabel`, shared/schedule.ts).
-const ROUND_LABELS = ['Achtelfinale', 'Viertelfinale', 'Halbfinale', 'Finale']
-const roundLabels = (size: number): string[] => ROUND_LABELS.slice(ROUND_LABELS.length - Math.log2(size))
+// One bracket's round labels, outermost → final — the file's only round-label source (ADR-0028: the
+// German label is derived at the edge, from one rule). The shared `roundLabel` reads from the *end*
+// of the bracket, so a 16-, 8- or 4-draw needs no parallel list, and the preview, the reveal and the live
+// tree cannot drift from the schedule cards. The round *count* stays topology: `totalRounds` is the
+// bracket's own depth (log2(size) for the preview and the reveal, the wire's `totalRounds` for a live one).
+const roundLabels = (totalRounds: number, bracket: Segment): string[] =>
+  Array.from({ length: totalRounds }, (_, r) => roundLabel({ bracket, round: r + 1, totalRounds }))
 
 // Compact day labels for the matchup court/time line („Sa"/„So"), from the event's date copy — the
 // weekday's first two letters (Samstag → Sa, Sonntag → So), indexed by the wire `day` (0/1). The full
@@ -243,12 +244,9 @@ const renderLiveTree = (
   // Index the KO matches by (round, position); the third-place match rides its own box, not the tree.
   const matchAt = new Map<string, LiveBracketMatch>()
   for (const m of live.matches) if (!m.thirdPlace) matchAt.set(`${m.round}-${m.position}`, m)
-  const rounds = Array.from({ length: live.totalRounds }, (_, r) =>
-    roundLabel({ bracket: bracketKind, round: r + 1, totalRounds: live.totalRounds })
-  )
   return renderTree(
     live.size,
-    rounds,
+    roundLabels(live.totalRounds, bracketKind),
     (r, slotIndex) => {
       const m = matchAt.get(`${r + 1}-${Math.floor(slotIndex / 2)}`)
       if (!m) return tbdEl()
@@ -345,7 +343,9 @@ export const renderPreview = (bracket: HTMLElement, players: Entry[], redacted: 
     for (const line of group.lines) slots[line] = entry
   }
   bracket.innerHTML = ''
-  bracket.append(renderTree(size, roundLabels(size), (r, i) => (r === 0 ? slotEl(slots[i], redacted) : tbdEl())))
+  bracket.append(
+    renderTree(size, roundLabels(Math.log2(size), 'main'), (r, i) => (r === 0 ? slotEl(slots[i], redacted) : tbdEl()))
+  )
 }
 
 // The live reveal (phase one, ADR-0046): the server sends only the steps revealed so far (sliced to the
@@ -368,7 +368,7 @@ export const renderReveal = (
   bracket.append(
     renderTree(
       draw.size,
-      roundLabels(draw.size),
+      roundLabels(Math.log2(draw.size), 'main'),
       (r, i) => {
         if (r === 0) return revealSlotEl(lines[i], redacted)
         const winner = r === 1 ? byeWinners[i] : null
