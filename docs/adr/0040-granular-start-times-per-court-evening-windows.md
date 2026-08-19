@@ -3,6 +3,9 @@
 - Status: accepted
 - Date: 2026-06-29
 - Refines: ADR-0005 (fixed 90-minute slots), ADR-0033 (court-taken cell occupancy, back-to-back rest rule)
+- Revised by: ADR-0069 (the 90 minutes is a **reservation width**, an average from experience — not the
+  „fixed match length" this ADR's prose calls it. The occupancy arithmetic below is unaffected; what
+  changes is the word for the width, and what a public surface may state as a start time.)
 
 ## Context
 

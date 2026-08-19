@@ -44,9 +44,11 @@ export const entryFee = 5
 
 /**
  * Court-throughput assumption behind the admin's total-utilization gauge (ADR-0023 follow-up). The
- * venue has 6 courts; at the fixed 90 min per match a court turns ~6 matches in a ~9 h playing day,
- * across both event days. `matchSlotsPerWeekend` (= 72) is the 100 % the gauge measures the projected
- * match load against. A planning figure: court count and match length come from the same `SCHEDULE`
+ * venue has 6 courts; at the 90 min each match reserves, a court turns ~6 matches in a ~9 h playing day,
+ * across both event days. Those 90 minutes are a reservation width, not a match length (ADR-0069) — which
+ * is what makes this a throughput estimate rather than a count. `matchSlotsPerWeekend` (= 72) is the 100 %
+ * the gauge measures the projected
+ * match load against. A planning figure: court count and reservation width come from the same `SCHEDULE`
  * shape the real grid is built on (shared/schedule.ts), so the gauge can never disagree with the grid
  * on those; `matchesPerCourtPerDay` is the throughput estimate (a court turns ~6 matches a day), no
  * longer the grid's slot count now that a slot is a 30-minute start step rather than a whole match.

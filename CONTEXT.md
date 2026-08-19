@@ -461,8 +461,9 @@ reveal sequence }`. Randomness enters through an injected **`RandomSource`** por
 - **Match** — a single tie between two players. **Format:** two full sets, then a **Match-Tie-Break to
   10** as the third set at 1:1 — Winsen **never plays a full third set** (a standing choice under DTB
   §37.1, whose default is a full third set; ADR-0045). A match exists as a bracket position from the
-  moment of the draw; until results arrive it names its feeders ("winner M3 vs winner M4"). Default
-  planned length: **90 minutes**.
+  moment of the draw; until results arrive it names its feeders ("winner M3 vs winner M4"). The planner
+  reserves **90 minutes** per match — a **reservation width**, an average from experience, not a length a
+  match keeps: one runs from about 50 minutes to well over two hours (ADR-0069).
 - **Legal score** — the **closed** set of scores the format admits, so an illegal score is _impossible_
   (blocked, not warned — ADR-0033/0045): a **set** is `6:0…6:4`, `7:5`, or `7:6` (no advantage sets — the
   tiebreak decides 6:6, so `7:6` is the ceiling); a **Match-Tie-Break** reaches **10, win by 2,
@@ -493,9 +494,10 @@ reveal sequence }`. Randomness enters through an injected **`RandomSource`** por
   (day + approximate time) after the draw, the way nuTurnier does it. Planned times are explicitly
   approximate ("ca."), not guarantees. The operator places matches by hand on a courts×time grid; the
   system validates rather than auto-generates, on the principle **block the impossible, warn the unwise**.
-  The match length is a **fixed 90 minutes**, but the **start** is set on a **30-minute** cadence, so a
-  placement reserves its court for the interval `[start, start+90)` — **court occupancy is interval
-  overlap, not a shared cell** (ADR-0040). Each event day carries its own first start — **Saturday 10:30**
+  A placement reserves a **fixed 90 minutes** of court time — the planning estimate, not the match's
+  length (ADR-0069) — while the **start** is set on a **30-minute** cadence, so a placement holds its court
+  for the interval `[start, start+90)` — **court occupancy is interval overlap, not a shared cell**
+  (ADR-0040). Each event day carries its own first start — **Saturday 10:30**
   (the courts hold a youth fixture that morning), **Sunday 10:00** — and each court its own evening window
   (see Court). The grid is as tall as the **earliest-starting** day's reach to the last curfew start, so
   the later day's last rows simply fall outside every court's window (ADR-0068). _Block (hard):_ a match before its real
@@ -613,17 +615,18 @@ reveal sequence }`. Randomness enters through an injected **`RandomSource`** por
   all competitions (a competition filter, not per-field pages), grouped **day → court** and led by a
   „jetzt auf dem Platz" courts board; the per-competition brackets stay separate surfaces that fill with
   the same results. _(See ADR-0008, ADR-0032, ADR-0069.)_
-- **Published time** (de: veröffentlichte Zeit) — how a planned start is **said** on a public surface, as
-  opposed to the `(day, slot)` the operator placed. A placement reserves its court for 90 minutes, and
-  those 90 minutes are an **average from experience, not a match length** — so a later match on a court can
-  only ever be late, never early. The published time is therefore a **floor**: **„ab HH:MM"** for a court's
-  first match of the day and for every match that opens a new block after a **gap** in that court's
-  reservation chain, **„im Anschluss · nicht vor ca. HH:MM"** where the reservations abut. A gap breaks the
-  chain — the Mixer block, an evening window or plain air re-anchors the row that follows it with its own
-  clock time. „Im Anschluss" is only true inside **one court's column**, which is why the schedule's
-  grouping is fixed day → court. Derived from day, slot and chain alone: there is **no clock** in it, and
-  „läuft" comes from the Match status, never from comparing a time against now. _(See ADR-0069, ADR-0032,
-  ADR-0040.)_
+- **Published time** (de: veröffentlichte Zeit) — what the public schedule says about _when_, given that
+  the 90 minutes is a reservation and not a match length (Schedule, ADR-0069). It is a **floor, never a
+  point**: a court's first match of the day — and every match that opens a fresh block after a **gap** in
+  that court's reservation chain — reads „**ab HH:MM**"; a match whose reservation directly abuts the one
+  before it reads „**im Anschluss · nicht vor ca. HH:MM**". „Im Anschluss" is therefore only ever said
+  where the reservations actually touch (the next start is exactly one match-width later); a planned gap —
+  the Mixer block, an evening window, plain air — **breaks the chain** and the row re-anchors with its own
+  clock time. „nicht vor" is honest in the one direction a tournament day moves: later, never earlier, and
+  it keeps a floor the players who drive home between matches can plan against — which a bare
+  „im Anschluss" would throw away. Because „im Anschluss" only means anything **inside one court's
+  column**, the public schedule groups **day → court** as a fixed hierarchy; there is no day-vs-court
+  grouping choice, and „what is on right now" is the Live board's job, not a grouping's. _(See ADR-0069.)_
 - **Match row** (de: Match-Zeile) — the one shape a match is displayed in on the public surfaces: its two
   contestant lines (name or „Freilos"/„Sieger M3"/„offen", each with that slot's games and the winner
   marked), its Published time, its meta line (round · match number · competition, plus „Walkover"/„Aufgabe"
