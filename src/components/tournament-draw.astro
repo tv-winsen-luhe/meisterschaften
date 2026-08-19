@@ -820,11 +820,10 @@ const drawCompetitions = drawableCompetitions(competitions)
       border: 1px solid #000;
       color: #000;
     }
-    /* No cell is ever cut in half by a page break; a column keeps together where it fits on one. */
+    /* No cell is ever cut in half by a page break. The *column* deliberately carries no such rule: a
+       round-1 column of eight cells is taller than a page, so „keep it together" could only be ignored or
+       honoured by pushing a near-empty sheet — and a cell is the unit a reader reads. */
     .dm-match {
-      break-inside: avoid;
-    }
-    .dm-round {
       break-inside: avoid;
     }
   }
@@ -835,7 +834,7 @@ const drawCompetitions = drawableCompetitions(competitions)
   import { indexScheduleByNode } from '../../shared'
   import { renderLive } from './tournament-draw.live'
   import { renderPreview, renderReveal } from './tournament-draw.render'
-  import { drawSelection, drawSelectionParams } from './tournament-draw.url'
+  import { drawSelection, writeDrawSelection } from './tournament-draw.url'
   import type { AppType } from '../../worker/app'
   import type { Entry, Segment } from './tournament-draw.render'
   import type { ParticipantsResponse, PublicCompetitionBracket, ScheduleResponse } from '../../shared'
@@ -867,19 +866,14 @@ const drawCompetitions = drawableCompetitions(competitions)
   //
   // The reason is the same one /spielplan's filter has (#310): a render's effective view is a verdict about
   // the feed of *this* poll — a field whose draw has not landed yet shows the main bracket at round 1 — and
-  // letting that rewrite the address would quietly strip the round out of a link somebody shared. The three
-  // parameters are written together, because they describe one view and a link with two of them is a link
-  // that only half works.
+  // letting that rewrite the address would quietly strip the round out of a link somebody shared.
   const writeSelectionToUrl = (slug: string) => {
     const url = new URL(location.href)
-    const params = drawSelectionParams({
+    writeDrawSelection(url, {
       competition: slug,
       segment: segmentByComp.get(slug) ?? 'main',
       round: roundByComp.get(slug) ?? 1
     })
-    // Set rather than replace the query: the page is the front door and may carry parameters of its own
-    // (a campaign tag on a shared link), and the draw has no business dropping them.
-    for (const [key, value] of Object.entries(params)) url.searchParams.set(key, value)
     history.replaceState(null, '', `${url.pathname}${url.search}${url.hash}`)
   }
 
@@ -948,7 +942,7 @@ const drawCompetitions = drawableCompetitions(competitions)
       // bracket's flag, the reveal's flag, or (before any draw) the participants feed. The segment control
       // belongs to the live phase only; the segment state + re-render live here so a switch survives the poll.
       if (entry && entry.phase === 'live') {
-        renderLive(
+        const view = renderLive(
           { segments: segmentsEl, rounds: roundsEl, bracket },
           entry,
           // The whole feed, not the per-node index: the cell footer states a floor („im Anschluss · nicht
@@ -969,6 +963,11 @@ const drawCompetitions = drawableCompetitions(competitions)
             }
           }
         )
+        // Adopt the bracket that was actually shown (#313). A link asking for the consolation of a field
+        // that has none renders the main bracket, and holding on to the request would move a reader into
+        // the consolation the moment it appears on a poll — a switch nobody asked for at the time. The
+        // round is not adopted: its clamp is per-render on purpose (see `renderLive`).
+        segmentByComp.set(slug, view.segment)
         return
       }
       segmentsEl.hidden = true

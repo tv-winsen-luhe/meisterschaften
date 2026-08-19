@@ -224,13 +224,22 @@ export interface LiveHandlers {
 // („im Anschluss · nicht vor ca. 14:00", ADR-0069) and that is a statement about the court's neighbours —
 // mostly matches of other fields this tree never draws. The score does **not** come from here: it rides the
 // draw wire, so it survives a plan the operator has reset (ADR-0070).
+// It hands the view back so the controller can adopt the segment that was actually shown (#313). That matters
+// for one case: a `consolation` asked for by a link, on a field whose consolation does not exist. The view
+// falls back to the main bracket, and if the controller kept „consolation" in memory, the day the consolation
+// *does* arrive on a poll would silently move a reader who had asked for nothing since. Adopting the verdict
+// is also why this returns the view rather than the controller re-deriving it: `hasConsolation` is the view's
+// decision, and asking it twice is the seam leaking one field at a time.
+//
+// The **round** is deliberately not adopted the same way (see `LiveSelection`): a clamp into a shallow
+// consolation is per-render, so remembering it would forget the deep round the reader is switching back to.
 export const renderLive = (
   { segments, rounds, bracket }: LiveTargets,
   live: LiveCompetition,
   feed: Pick<ScheduleResponse, 'matches'>,
   selection: LiveSelection,
   on: LiveHandlers
-) => {
+): BracketView => {
   const view = bracketView(live, feed, { days: DAYS, segment: selection.segment, round: selection.round })
   // The outer choice, offered only where there is one to make: a field below size 8 has no consolation at all
   // (ADR-0004) — at exactly four the „Spiel um Platz 3" *is* it, and it shows under the final either way.
@@ -246,4 +255,5 @@ export const renderLive = (
   rounds.hidden = false
   bracket.innerHTML = ''
   bracket.append(renderLiveTree(view), renderRoundList(view))
+  return view
 }

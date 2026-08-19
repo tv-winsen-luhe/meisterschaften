@@ -40,7 +40,7 @@ export interface DrawSelection {
  * `bracketView` clamps a round past the final into the tree it actually shows (and re-clamps it when the
  * reader switches to a shallower consolation). Answering it twice would let the two answers drift.
  */
-const askedRound = (raw: string | null): number => {
+const roundFromQuery = (raw: string | null): number => {
   const n = Number.parseInt(raw ?? '', 10)
   return Number.isFinite(n) && n >= 1 ? n : 1
 }
@@ -53,7 +53,7 @@ export const drawSelection = (search: string, slugs: readonly string[]): DrawSel
     competition: competition !== null && slugs.includes(competition) ? competition : null,
     // Only the wire value counts. „Nebenrunde" is what the button says, never what the address carries.
     segment: params.get(BRACKET) === 'consolation' ? 'consolation' : 'main',
-    round: askedRound(params.get(ROUND))
+    round: roundFromQuery(params.get(ROUND))
   }
 }
 
@@ -68,12 +68,15 @@ export interface ChosenDraw {
 }
 
 /**
- * The same three choices as query parameters, for the controller to set on the current URL. A record rather
- * than a finished search string, so the page's other parameters (a campaign tag, another surface's state)
- * survive being written past.
+ * Writes the three choices onto a URL, in place. It **sets** its own parameters rather than replacing the
+ * query, so the page's other parameters — a campaign tag on a shared link, another surface's state — survive
+ * being written past. The front door is not the draw's to clear.
+ *
+ * All three are written together: they describe one view, and a link carrying two of them is a link that
+ * only half works.
  */
-export const drawSelectionParams = (selection: ChosenDraw): Record<string, string> => ({
-  [COMPETITION]: selection.competition,
-  [BRACKET]: selection.segment,
-  [ROUND]: String(selection.round)
-})
+export const writeDrawSelection = (url: URL, selection: ChosenDraw): void => {
+  url.searchParams.set(COMPETITION, selection.competition)
+  url.searchParams.set(BRACKET, selection.segment)
+  url.searchParams.set(ROUND, String(selection.round))
+}

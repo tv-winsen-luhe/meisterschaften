@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { drawSelection, drawSelectionParams } from '../src/components/tournament-draw.url'
+import { drawSelection, writeDrawSelection } from '../src/components/tournament-draw.url'
 
 // The public bracket's state lives in the address (#313, ADR-0028): a reload on the grounds keeps the
 // field, the bracket and the round a spectator picked, and „hier ist dein Draw" becomes a link somebody
@@ -64,18 +64,24 @@ describe('drawSelection', () => {
   })
 })
 
-describe('drawSelectionParams', () => {
+describe('writeDrawSelection', () => {
   it('writes English keys and values, the round as a number', () => {
-    expect(drawSelectionParams({ competition: 'mens', segment: 'consolation', round: 3 })).toEqual({
-      competition: 'mens',
-      bracket: 'consolation',
-      round: '3'
-    })
+    const url = new URL('https://example.test/')
+    writeDrawSelection(url, { competition: 'mens', segment: 'consolation', round: 3 })
+    expect(url.search).toBe('?competition=mens&bracket=consolation&round=3')
+  })
+
+  it('leaves the page’s other parameters alone', () => {
+    const url = new URL('https://example.test/?utm_source=whatsapp&competition=mens&round=4')
+    writeDrawSelection(url, { competition: 'womens', segment: 'main', round: 1 })
+    expect(url.searchParams.get('utm_source')).toBe('whatsapp')
+    expect(url.searchParams.get('competition')).toBe('womens')
+    expect(url.searchParams.get('round')).toBe('1')
   })
 
   it('round-trips a selection back into the same reading', () => {
-    const params = drawSelectionParams({ competition: 'womens', segment: 'main', round: 2 })
-    const search = new URLSearchParams(params).toString()
-    expect(drawSelection(`?${search}`, SLUGS)).toEqual({ competition: 'womens', segment: 'main', round: 2 })
+    const url = new URL('https://example.test/')
+    writeDrawSelection(url, { competition: 'womens', segment: 'main', round: 2 })
+    expect(drawSelection(url.search, SLUGS)).toEqual({ competition: 'womens', segment: 'main', round: 2 })
   })
 })
