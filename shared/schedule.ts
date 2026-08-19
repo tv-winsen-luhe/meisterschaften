@@ -337,6 +337,17 @@ export interface RoundLabelInput {
 }
 
 /**
+ * The bare German round name — „Viertelfinale", „Finale", „Runde 1" — read from the end of the bracket, with
+ * no word about which bracket it belongs to. The leaf `roundLabel` is built on, and what a control that
+ * already names its bracket has room for (the phone's round control, #312): inside the Nebenrunde tab every
+ * button would otherwise repeat „Nebenrunde · ", which is both redundant and too long for a segment.
+ *
+ * Exported so that control reads the one table rather than keeping a second list of German round names.
+ */
+export const roundName = ({ round, totalRounds }: Omit<RoundLabelInput, 'bracket' | 'thirdPlace'>): string =>
+  ROUND_NAMES_FROM_FINAL[totalRounds - round] ?? `Runde ${round}`
+
+/**
  * The German round label for a bracket match — Achtelfinale … Finale for the **main** bracket (by the
  * bracket's own depth), a „Nebenrunde · …" form for the **consolation** bracket (so a consolation final
  * never reads as the real one, ADR-0004), and „Spiel um Platz 3" for the third-place match. The single
@@ -345,7 +356,7 @@ export interface RoundLabelInput {
  */
 export const roundLabel = ({ bracket, round, totalRounds, thirdPlace = false }: RoundLabelInput): string => {
   if (thirdPlace) return 'Spiel um Platz 3'
-  const name = ROUND_NAMES_FROM_FINAL[totalRounds - round] ?? `Runde ${round}`
+  const name = roundName({ round, totalRounds })
   return bracket === 'consolation' ? `Nebenrunde · ${name}` : name
 }
 

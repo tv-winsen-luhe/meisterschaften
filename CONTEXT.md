@@ -391,9 +391,17 @@ byeWinners }` in `shared/reveal.ts`. It is **not** the whole story of the public
   champion. Gated on full reveal **only** — never the schedule publish flag, because a result is reality
   (ADR-0032), not the plan (ADR-0041). Shows the full field per competition — main knockout + the „Spiel um
   Platz 3" + the **Consolation bracket** (public the moment it is drawn, since it has no reveal show) — as a
-  **„Hauptrunde / Nebenrunde" segmented view** (the Nebenrunde tab present only at draw size ≥ 8). Both
-  phases carry LK and seed for every field, the Challenger included (Strength redaction is dormant,
-  ADR-0061). _(See ADR-0046.)_
+  **„Hauptrunde / Nebenrunde" segmented view** (the Nebenrunde tab present only at draw size ≥ 8; at exactly
+  four the „Spiel um Platz 3" _is_ the consolation). Both phases carry LK and seed for every field, the
+  Challenger included (Strength redaction is dormant, ADR-0061).
+  It has **two layouts for one projection**, chosen by width alone and never by a script: on a wide screen the
+  elbow **tree**, whose round columns are grid tracks that share the available width, so our deepest field —
+  four rounds — fits without horizontal scrolling; on a phone a **round control** inside the bracket choice
+  and that one round as a **list** of the same cells, because the phone is the device the audience actually
+  holds and a sideways-scrolling tree is unusable on it. The nesting mirrors the domain: the Nebenrunde is a
+  tournament of its own with its own draw and byes (ADR-0004), a round is a position inside one. The „Spiel um
+  Platz 3" belongs to the **final round** in both layouts — under the final's column in the tree, the last row
+  of the final round's list — because that is where it is played. _(See ADR-0046, ADR-0070, ADR-0004.)_
 - **Draw reveal show** (de: Auslosungs-Show; operator UI label: „Auslosung") — the **operator-paced**
   beamer projection in the **gated admin** that plays the reveal sequence back on a large screen during
   the live draw event. It is **not** a public self-serve URL: the operator drives it (projecting onto

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { roundLabel } from '../shared/schedule'
+import { roundLabel, roundName } from '../shared/schedule'
 
 // The shared round-label helper (#142): the single German round name both the admin grid card and the
 // public schedule card render. Read from the end of the bracket (Finale, Halbfinale, …), so one list
@@ -41,5 +41,26 @@ describe('roundLabel', () => {
   it('falls back to „Runde N" for a round deeper than the named list', () => {
     // A 32-draw's first round has no entry in the four-deep list — degrade rather than show undefined.
     expect(roundLabel({ bracket: 'main', round: 1, totalRounds: 5 })).toBe('Runde 1')
+  })
+})
+
+// The bare round name, the leaf `roundLabel` is built on (#312): what a control that already says which
+// bracket it is in has room for. One table, two readings — never a second list of German round names.
+describe('roundName', () => {
+  it('names a round without saying which bracket it is in', () => {
+    expect(roundName({ round: 1, totalRounds: 3 })).toBe('Viertelfinale')
+    expect(roundName({ round: 3, totalRounds: 3 })).toBe('Finale')
+  })
+
+  it('degrades exactly as the label does', () => {
+    expect(roundName({ round: 1, totalRounds: 5 })).toBe('Runde 1')
+  })
+
+  it('is the label a main-bracket round already reads', () => {
+    // The prefix is the only difference, so the control and the round column cannot drift.
+    expect(roundName({ round: 2, totalRounds: 2 })).toBe(roundLabel({ bracket: 'main', round: 2, totalRounds: 2 }))
+    expect(roundLabel({ bracket: 'consolation', round: 2, totalRounds: 2 })).toContain(
+      roundName({ round: 2, totalRounds: 2 })
+    )
   })
 })

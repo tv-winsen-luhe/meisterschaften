@@ -209,7 +209,7 @@ describe('bracketView · the tree is finished — rounds, the playoff, the segme
     ])
   })
 
-  it('pulls the „Spiel um Platz 3" out of the final’s column and labels it as itself', () => {
+  it('hands the „Spiel um Platz 3" to the final round, out of its column and under its own label', () => {
     const third = bMatch({
       round: 2,
       position: 1,
@@ -220,12 +220,18 @@ describe('bracketView · the tree is finished — rounds, the playoff, the segme
       score: { set1: [6, 2], set2: [6, 1], mtb: null }
     })
     const view = bview([bMatch({ round: 2, position: 0, number: 3 }), third])
-    // The playoff shares the final's round, so leaving it in would put two cells in a one-cell column.
+    // The playoff shares the final's round, so leaving it in the column would put two cells in a one-cell
+    // column — and the elbow connectors read a column's cells as the tree's own positions.
     expect(view.rounds[1].cells).toHaveLength(1)
     expect(view.rounds[1].cells[0]?.number).toBe(3)
-    expect(view.thirdPlace?.label).toBe('Spiel um Platz 3')
+    // It belongs to the final *round* though (#312): that is where it is played, and a round list has
+    // nowhere else to put it than under the final.
+    expect(view.rounds[1].playoff?.number).toBe(4)
+    expect(view.rounds[1].playoff?.label).toBe('Spiel um Platz 3')
     // It shows its score exactly like any other cell.
-    expect(view.thirdPlace?.slot1).toMatchObject({ games: '6 6', winner: true })
+    expect(view.rounds[1].playoff?.slot1).toMatchObject({ games: '6 6', winner: true })
+    // No earlier round carries one.
+    expect(view.rounds[0].playoff).toBeNull()
   })
 
   it('shows the consolation bracket under its own round names, scores and all', () => {
@@ -254,9 +260,11 @@ describe('bracketView · the tree is finished — rounds, the playoff, the segme
     expect(view.hasConsolation).toBe(true)
     // „Nebenrunde · …" so a consolation final never reads as the real one (ADR-0004).
     expect(view.rounds.map(r => r.label)).toEqual(['Nebenrunde · Finale'])
+    // The round control sits *inside* the Nebenrunde tab, so its buttons drop the prefix the column keeps.
+    expect(view.rounds.map(r => r.name)).toEqual(['Finale'])
     expect(view.rounds[0].cells[0]?.slot2).toMatchObject({ games: '4 4', winner: true })
-    // The consolation has no playoff.
-    expect(view.thirdPlace).toBeNull()
+    // The consolation has no playoff (ADR-0004).
+    expect(view.rounds[0].playoff).toBeNull()
   })
 
   it('falls back to the main bracket when the consolation asked for does not exist', () => {
@@ -265,5 +273,47 @@ describe('bracketView · the tree is finished — rounds, the playoff, the segme
     const view = bview([bMatch({ round: 1, position: 0, number: 1 })], [], { segment: 'consolation' })
     expect(view).toMatchObject({ segment: 'main', hasConsolation: false, size: 4 })
     expect(view.rounds[0].cells[0]?.slot1.text).toBe('Jan Behrens')
+  })
+})
+
+// The round a reader has navigated to (#312). The tree shows every round at once, so this matters only to
+// the phone's round list — but *which* round a selection resolves to is a decision, so it is settled here
+// rather than in a renderer, and the next slice can hand it straight in from the URL.
+describe('bracketView · the selected round', () => {
+  const twoRounds = [bMatch({ round: 1, position: 0, number: 1 }), bMatch({ round: 2, position: 0, number: 3 })]
+
+  it('starts at the outermost round when the reader has not chosen one', () => {
+    expect(bview(twoRounds).round).toBe(1)
+  })
+
+  it('keeps the round the reader chose', () => {
+    expect(bview(twoRounds, [], { round: 2 }).round).toBe(2)
+  })
+
+  it('degrades a round this bracket does not have to the nearest one it does', () => {
+    // A 4-draw is two rounds deep; a „Runde 7" arrives from a stale link or from a deeper segment.
+    expect(bview(twoRounds, [], { round: 7 }).round).toBe(2)
+    expect(bview(twoRounds, [], { round: 0 }).round).toBe(1)
+    expect(bview(twoRounds, [], { round: -3 }).round).toBe(1)
+  })
+
+  it('degrades a round that is not a whole number at all', () => {
+    expect(bview(twoRounds, [], { round: Number.NaN }).round).toBe(1)
+    expect(bview(twoRounds, [], { round: 1.5 }).round).toBe(1)
+  })
+
+  it('clamps to the segment actually shown, not to the one asked for', () => {
+    // The consolation here is one round deep: a reader standing on the main bracket's Finale who switches
+    // must not land on a round that segment has no column for.
+    const view = bracketView(
+      {
+        competition: 'mens',
+        main: bracket(twoRounds),
+        consolation: bracket([bMatch({ round: 1, position: 0, number: 5 })], { size: 2, totalRounds: 1 })
+      },
+      { matches: [] },
+      { ...BRACKET_OPTIONS, segment: 'consolation', round: 2 }
+    )
+    expect(view).toMatchObject({ segment: 'consolation', round: 1 })
   })
 })

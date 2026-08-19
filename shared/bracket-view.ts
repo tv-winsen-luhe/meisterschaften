@@ -1,5 +1,5 @@
 import { courtLabel, publishedTimes, rowSlot, STATUS_LABELS } from './match-view'
-import { roundLabel, scheduleNodeKey } from './schedule'
+import { roundLabel, roundName, scheduleNodeKey } from './schedule'
 import type { DayCopy, RowSlot } from './match-view'
 import type {
   LiveBracket,
@@ -99,9 +99,28 @@ export interface BracketCell {
  */
 export interface BracketRound {
   round: number
+  /** „Viertelfinale", or „Nebenrunde · Viertelfinale" on the consolation — what the round column heads with. */
   label: string
+  /**
+   * The same round without its bracket's name — what the round control shows (#312), which sits *inside* the
+   * bracket choice and would otherwise repeat „Nebenrunde · " on every one of its buttons. Both come from the
+   * one round-name rule (#307), so the control and the column can never drift.
+   */
+  name: string
   matchCount: number
   cells: (BracketCell | null)[]
+  /**
+   * The „Spiel um Platz 3" of this round — set on the **final** round of a main bracket and null everywhere
+   * else (a consolation has no playoff, ADR-0004).
+   *
+   * It sits beside `cells` rather than inside them because the two are read differently: `cells` is the
+   * tree's own topology, indexed by bracket position and wired up by the elbow connectors, while the playoff
+   * is a match that merely shares the final's round. It hangs off the *round* rather than the view (#312)
+   * because that is where it is played — on the final day, under the final — and because a round list has
+   * nowhere else to put it: as a view-level field it could only be appended as a box under everything, which
+   * is the loose kasten this replaces.
+   */
+  playoff: BracketCell | null
 }
 
 export interface BracketView {
@@ -112,14 +131,23 @@ export interface BracketView {
   /** The draw size of the shown segment — the tree's width. */
   size: number
   rounds: BracketRound[]
-  /** The „Spiel um Platz 3", shown beneath the main tree; null on the consolation (ADR-0004). */
-  thirdPlace: BracketCell | null
+  /**
+   * The round the reader has navigated to, always one this bracket actually has (#312). It addresses
+   * `rounds` as `rounds[round - 1]`.
+   *
+   * The tree shows every round at once, so this speaks only to the phone's round list — but resolving a
+   * selection is a decision (a stale link, or a switch to a shallower segment, can name a round that is not
+   * there), and the seam is where decisions live. See `bracketView` for how it degrades.
+   */
+  round: number
 }
 
 export interface BracketViewOptions {
   days: readonly DayCopy[]
   /** The segment the reader chose, or null/absent for the main bracket. */
   segment?: BracketSegment | null
+  /** The round the reader chose, or null/absent for the outermost one. Degraded, never trusted. */
+  round?: number | null
 }
 
 /** The fully-revealed member of the public bracket union (ADR-0046) — the phase this view projects. */
@@ -169,6 +197,17 @@ const scheduleByNode = (matches: readonly ScheduleMatch[], days: readonly DayCop
 }
 
 /**
+ * The round a selection resolves to: a whole round number inside this bracket's depth, defaulting to the
+ * outermost. Everything else — absent, fractional, NaN, negative, deeper than the tree — is pulled to the
+ * nearest round that exists, because a round control has to point somewhere and an empty panel with no way
+ * back is the failure to avoid (ADR-0035: degrade, never throw).
+ */
+const shownRound = (asked: number | null, bracket: LiveBracket): number => {
+  if (asked === null || !Number.isFinite(asked)) return 1
+  return Math.min(Math.max(Math.trunc(asked), 1), bracket.totalRounds)
+}
+
+/**
  * The public bracket as one finished tree: round columns outermost → final, each cell carrying its two
  * contestant lines, its score, and — when the plan is published — its court and floor (ADR-0070, #311).
  *
@@ -180,12 +219,15 @@ const scheduleByNode = (matches: readonly ScheduleMatch[], days: readonly DayCop
  *
  * A `segment` of 'consolation' on a field that has none falls back to the main bracket, the same way the
  * schedule's competition filter falls back to „Alle": a selection with nothing behind it would otherwise
- * render an empty tree with no control left to leave it by.
+ * render an empty tree with no control left to leave it by. A `round` outside the shown segment's depth is
+ * clamped into it for the same reason, and clamped against the segment actually shown rather than the one
+ * asked for — switching from a four-round main bracket to a one-round consolation must not leave the round
+ * control pointing at a column that segment has not got.
  */
 export const bracketView = (
   live: Pick<LiveCompetition, 'competition' | 'main' | 'consolation'>,
   feed: Pick<ScheduleResponse, 'matches'>,
-  { days, segment = null }: BracketViewOptions
+  { days, segment = null, round = null }: BracketViewOptions
 ): BracketView => {
   const hasConsolation = live.consolation !== null
   const shown: BracketSegment = segment === 'consolation' && hasConsolation ? 'consolation' : 'main'
@@ -205,9 +247,10 @@ export const bracketView = (
   })
 
   // The playoff shares the final's round and would otherwise sit in the final's column as a second cell, so
-  // it comes out of the tree here and is handed over separately, under its own label.
+  // it comes out of the tree here and is handed back on its round instead, under its own label.
   const inTree = new Map<string, LiveBracketMatch>()
   for (const m of bracket.matches) if (!m.thirdPlace) inTree.set(`${m.round}-${m.position}`, m)
+  const third = bracket.matches.find(m => m.thirdPlace)
 
   const rounds = Array.from({ length: bracket.totalRounds }, (_, i): BracketRound => {
     const round = i + 1
@@ -215,14 +258,17 @@ export const bracketView = (
     return {
       round,
       label: roundLabel({ bracket: shown, round, totalRounds: bracket.totalRounds }),
+      name: roundName({ round, totalRounds: bracket.totalRounds }),
       matchCount,
       cells: Array.from({ length: matchCount }, (_, position) => {
         const m = inTree.get(`${round}-${position}`)
         return m ? cell(m) : null
-      })
+      }),
+      // The final's round, wherever the wire says the playoff is played — read off the match rather than
+      // assumed to be `totalRounds`, which is the same fact stated twice.
+      playoff: third && third.round === round ? cell(third) : null
     }
   })
 
-  const third = bracket.matches.find(m => m.thirdPlace)
-  return { segment: shown, hasConsolation, size: bracket.size, rounds, thirdPlace: third ? cell(third) : null }
+  return { segment: shown, hasConsolation, size: bracket.size, rounds, round: shownRound(round, bracket) }
 }
