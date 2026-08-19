@@ -282,6 +282,21 @@ describe('scheduleView · the competition filter', () => {
     expect(result.days[0].courts.map(c => c.court)).toEqual([2])
   })
 
+  it('degrades a field it has never heard of to „Alle"', () => {
+    // The selection arrives from the URL now (#310), so it can say anything at all — a typo, a slug from a
+    // past year, a competition someone invented. It is read like any other selection the page cannot honour
+    // and falls back to the full board, quietly and without an error.
+    const result = view(
+      [
+        match({ id: 1, court: 1, slot: 0, competition: 'mens' }),
+        match({ id: 2, court: 2, slot: 0, competition: 'womens' })
+      ],
+      { competition: 'juniors' }
+    )
+    expect(result.selected).toBe(null)
+    expect(result.days[0].courts.map(c => c.court)).toEqual([1, 2])
+  })
+
   it('drops a selection the feed no longer carries, and one with nothing to choose between', () => {
     const gone = view([match({ id: 1, court: 1, slot: 0, competition: 'mens' })], { competition: 'womens' })
     expect(gone.selected).toBe(null)

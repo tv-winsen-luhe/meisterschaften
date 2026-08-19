@@ -26,7 +26,7 @@ const defaultMixerBlock = resolveSocialMixerBlock({ ...SOCIAL_MIXER_DEFAULT_PLAC
 ---
 
 <Layout title="Spielplan & Live — Winsener Meisterschaften 2026" chrome="legal">
-  <div class="mx-auto max-w-[900px] px-5 pt-12 pb-20 text-navy md:px-10 md:pt-16 md:pb-[120px]">
+  <div data-sheet class="mx-auto max-w-[900px] px-5 pt-12 pb-20 text-navy md:px-10 md:pt-16 md:pb-[120px]">
     <h1 class="mt-0 mb-3 text-[clamp(36px,6vw,56px)] font-black tracking-[-0.04em] uppercase">Spielplan &amp; Live</h1>
     <p class="mb-10 max-w-[60ch] text-sm leading-[1.6] opacity-70">
       Oben steht, was gerade auf den sechs Plätzen läuft. Darunter der Spielplan, Tag für Tag und Platz für Platz — von
@@ -471,6 +471,128 @@ const defaultMixerBlock = resolveSocialMixerBlock({ ...SOCIAL_MIXER_DEFAULT_PLAC
     color: color-mix(in srgb, var(--color-navy) 55%, transparent);
     background: color-mix(in srgb, var(--color-navy) 5%, transparent);
   }
+
+  /* ── Print ────────────────────────────────────────────────────────────────────────────────────── */
+  /* The paper copy at the results desk (#310). A stylesheet, not a PDF generator: the browser already
+     renders this page, and a generator would be new infrastructure for one button. What goes on paper is
+     the plan — day sections, court columns, time, contestants, score — and nothing that only works on a
+     screen. Everything below is the same DOM as the screen, so a change to the row anatomy lands here too.
+
+     Deliberately dropped: the site chrome (a nav bar is not a sheet), the competition filter (an
+     interaction control prints as a lie — the chips look pressable and nothing happens), and the
+     „Jetzt auf dem Platz" board, which is true for the minute it was printed and misleading from then on.
+     The Social mixer's appointment stays: it is a fixed date, and paper is exactly where a date belongs. */
+  @media print {
+    @page {
+      margin: 14mm;
+    }
+
+    /* No chrome and no controls on the sheet. */
+    .skip-link,
+    header,
+    footer,
+    .board-controls {
+      display: none !important;
+    }
+    /* The live board is a snapshot; on paper it is stale before the page leaves the printer. */
+    .board-courts {
+      display: none !important;
+    }
+
+    /* Ink is expensive and the page tints are decoration: black text on white paper, the whole way down.
+       No `print-color-adjust` anywhere — the tinted status pills and court cards are meant to drop out. */
+    [data-sheet] {
+      max-width: none;
+      padding: 0;
+      color: #000;
+    }
+    [data-sheet] h1 {
+      font-size: 24pt;
+      margin-bottom: 6pt;
+    }
+    [data-sheet] > p {
+      max-width: none;
+      opacity: 1;
+      font-size: 9pt;
+      margin-bottom: 12pt;
+    }
+    .mixer {
+      margin-bottom: 12pt;
+      padding: 8pt 10pt;
+      background: none;
+      border-color: #000;
+    }
+    .mixer-when {
+      font-size: 11pt;
+    }
+    .mixer-note {
+      font-size: 8.5pt;
+      color: #000;
+    }
+
+    /* A day starts a fresh sheet from the second one on, and a heading never prints alone at a page foot. */
+    .sched-day {
+      margin-top: 0;
+      break-before: page;
+    }
+    .sched-day:first-child {
+      break-before: auto;
+    }
+    .sched-day__head,
+    .sched-court__head {
+      break-after: avoid;
+      color: #000;
+    }
+    .sched-day__head {
+      font-size: 11pt;
+      border-bottom-color: #000;
+    }
+    .sched-court {
+      margin-top: 14pt;
+      break-inside: avoid;
+    }
+    .sched-court__head {
+      font-size: 10pt;
+    }
+
+    /* No row is ever cut in half by a page break, and none of its parts is cut off by the box either:
+       a name that no longer fits wraps onto a second line rather than ending in an ellipsis. */
+    .sched-match {
+      break-inside: avoid;
+      padding: 5pt 0;
+      border-bottom-color: rgba(0, 0, 0, 0.35);
+    }
+    .sched-match__time,
+    .sched-match__time--follows {
+      font-size: 9pt;
+      font-weight: 700;
+      color: #000;
+    }
+    .sched-match__name {
+      font-size: 10pt;
+      white-space: normal;
+      overflow: visible;
+      text-overflow: clip;
+    }
+    .sched-match__seed,
+    .sched-match__games,
+    .sched-match__outcome,
+    .sched-match__meta {
+      color: #000;
+    }
+    .sched-match__player--tbd .sched-match__name {
+      color: #000;
+    }
+    .sched-match__check {
+      color: #000;
+    }
+    /* The status keeps its word and loses its pill — the tint is what carried it on screen. */
+    .sched-status {
+      padding: 0;
+      background: none !important;
+      color: #000 !important;
+    }
+  }
 </style>
 
 <script>
@@ -507,10 +629,29 @@ const defaultMixerBlock = resolveSocialMixerBlock({ ...SOCIAL_MIXER_DEFAULT_PLAC
   // missing crest would render a broken image, never break the board.
   const LOGOS = { tv: root?.dataset.logoTv ?? '', tsv: root?.dataset.logoTsv ?? '' }
 
+  // The competition filter lives in the URL (#310): a reload on the grounds keeps the field the spectator
+  // picked, and „hier ist der Spielplan der Herren" becomes a link somebody can send. English key and
+  // value — this is a wire value and the slugs already read `mens`/`womens`; the route slug stays German,
+  // which ADR-0028 permits exactly here. An unknown or cancelled field needs no handling of its own: the
+  // view drops a selection it does not offer, so the page degrades to „Alle" and says nothing about it.
+  const FILTER_PARAM = 'competition'
+
+  // Only a click writes the address back. The view's verdict is about the feed of *this* poll — an
+  // unpublished or freshly reset plan carries no fields at all, so every selection degrades to „Alle" —
+  // and letting that rewrite the URL would quietly strip a link somebody shared before the plan came back.
+  const writeFilterToUrl = (slug: string | null) => {
+    const url = new URL(location.href)
+    if (slug === null) url.searchParams.delete(FILTER_PARAM)
+    else url.searchParams.set(FILTER_PARAM, slug)
+    history.replaceState(null, '', `${url.pathname}${url.search}${url.hash}`)
+  }
+
   // The last-served feed plus the one view control. The filter re-renders from the cached feed (no
   // refetch), so changing it is instant; the poll only replaces `feed` and re-renders.
   let feed: ScheduleResponse = { published: false, matches: [] }
-  let selectedCompetition: string | null = null // competition slug, or null = „Alle"
+  // The competition slug, or null = „Alle" — seeded from the URL, so the very first render is already the
+  // view the link promised.
+  let selectedCompetition: string | null = new URL(location.href).searchParams.get(FILTER_PARAM)
 
   const render = () => {
     if (!root) return
@@ -536,6 +677,7 @@ const defaultMixerBlock = resolveSocialMixerBlock({ ...SOCIAL_MIXER_DEFAULT_PLAC
 
     renderFilter(filterEl, options, selected, slug => {
       selectedCompetition = slug
+      writeFilterToUrl(slug)
       render()
     })
     renderCourts(courtsEl, courts, LOGOS)
