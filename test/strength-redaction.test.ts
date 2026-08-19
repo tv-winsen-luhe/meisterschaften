@@ -202,7 +202,9 @@ describe('projections — the Challenger publishes its strength (ADR-0061)', () 
 // bought still holds — a not-yet-synced LK is `lk: null` with `redacted: false`, so a client renders
 // „LK folgt" rather than a protected blank.
 describe('strength redaction is one decision across public projections (ADR-0048)', () => {
-  const drawnChampionship = async () => {
+  // `published` matters only to the schedule feed, which withholds a still-`planned` placement behind the
+  // publish gate (ADR-0041) — the bracket reads are indifferent to it.
+  const drawnChampionship = async (published = false) => {
     const drawStore = createInMemoryDrawStore()
     const registrationsStore = createInMemoryRegistrationsStore(field(8))
     const svc = createDrawService({
@@ -213,7 +215,22 @@ describe('strength redaction is one decision across public projections (ADR-0048
     await svc.draw({ competition: 'mens', phase: 'tournament', cancelled: false, now: 'now' })
     // Advance past the last step (clamped at total) so the field is fully revealed → the live phase.
     for (let i = 0; i < 20; i++) await svc.advance('mens', 'forward')
-    return createProjections({ drawStore, registrationsStore, appStateStore: createInMemoryAppStateStore() })
+    const projections = createProjections({
+      drawStore,
+      registrationsStore,
+      appStateStore: createInMemoryAppStateStore('tournament', published)
+    })
+    return { projections, drawStore }
+  }
+
+  // Put one round-1 match on the grid and read back its two contestant slots — the schedule feed carries
+  // only placed matches, so a slot has to be placed before its seed can be asserted.
+  const placedScheduleSlots = async () => {
+    const { projections, drawStore } = await drawnChampionship(true)
+    const first = (await drawStore.listMatches()).find(m => m.round === 1)!
+    await drawStore.placeMatch(first.id, { court: 1, day: 0, slot: 0 })
+    const { matches } = await projections.schedule()
+    return matches.flatMap(m => [m.slot1, m.slot2])
   }
 
   it('participant list: the Challenger is unredacted and carries LK + rank', async () => {
@@ -248,7 +265,7 @@ describe('strength redaction is one decision across public projections (ADR-0048
   })
 
   it('live bracket: a championship field is not redacted and keeps lk + seed', async () => {
-    const projections = await drawnChampionship()
+    const { projections } = await drawnChampionship()
     const [bracket] = await projections.publicDraws()
     expect(bracket.phase).toBe('live')
     if (bracket.phase !== 'live') return
@@ -256,6 +273,17 @@ describe('strength redaction is one decision across public projections (ADR-0048
     const playerSlots = bracket.main.matches.flatMap(m => [m.slot1, m.slot2]).filter(s => s.kind === 'player')
     expect(playerSlots.some(s => s.kind === 'player' && s.lk !== null)).toBe(true)
     expect(playerSlots.some(s => s.kind === 'player' && s.seed !== null)).toBe(true)
+  })
+
+  // The schedule feed joined the strength-bearing projections when its player slot gained a `seed` for the
+  // match row's token (#309). It reads the same `strengthRedacted` decision as the other two, so the walk
+  // covers it here — otherwise a future edit dropping that gate would fail nothing, which is the drift this
+  // suite exists to catch. The schedule carries no `lk` by design (ADR-0070), so the seed is all there is.
+  it('schedule feed: a championship field keeps its seed on a placed match', async () => {
+    const placed = await placedScheduleSlots()
+    expect(placed.some(s => s.kind === 'player' && s.seed !== null)).toBe(true)
+    // No LK ever reaches this wire — the row's silence about strength is structural, not redaction.
+    expect(placed.every(s => !('lk' in s))).toBe(true)
   })
 })
 

@@ -1,4 +1,6 @@
 import { isUnseededCompetition } from '../../shared'
+import { crestImage } from './club-crest'
+import type { Logos } from './club-crest'
 import type { Participant } from '../../shared'
 
 // The public participant list's DOM layer, split out of participant-list.astro so the component's
@@ -11,12 +13,8 @@ import type { Participant } from '../../shared'
 // below them, the LK column; the unseeded mixer stays a friendly list with none of it, because it is
 // unrated by construction and never drawn.
 
-// The two club crests the avatar picks between, read off the component's dataset and handed in so this
-// module stays free of the DOM it did not build.
-export interface Logos {
-  tv: string
-  tsv: string
-}
+// The crest and its two asset URLs come from the shared helper — the schedule's match row flies the same
+// crest, and it exists once (#309).
 
 const elem = (tag: string, className: string, text?: string): HTMLElement => {
   const node = document.createElement(tag)
@@ -46,12 +44,7 @@ const row = (entry: Participant, position: number, seeded: boolean, logos: Logos
   }
 
   const avatar = elem('span', 'pl-avatar')
-  const isTsv = entry.club.includes('TSV')
-  const logo = document.createElement('img') as HTMLImageElement
-  logo.src = isTsv ? logos.tsv : logos.tv
-  logo.alt = isTsv ? 'TSV Winsen' : 'TV Winsen'
-  logo.loading = 'lazy'
-  avatar.append(logo)
+  avatar.append(crestImage(entry.club, logos))
   li.append(avatar)
 
   li.append(elem('span', 'pl-name', `${entry.firstName} ${entry.lastName}`.trim()))

@@ -1,6 +1,8 @@
 ---
 import Layout from '@/layouts/default.astro'
 import { socialMixerWhen } from '@/data/tournament'
+import tvLogo from '@/assets/logo.svg'
+import tsvLogo from '@/assets/tsv-winsen.png'
 import { resolveSocialMixerBlock, SOCIAL_MIXER_DEFAULT_PLACEMENT } from '../../shared'
 
 // The appointment as built: the block at its planned placement. The head-count only sizes the *courts*,
@@ -59,7 +61,10 @@ const defaultMixerBlock = resolveSocialMixerBlock({ ...SOCIAL_MIXER_DEFAULT_PLAC
          the first poll resolves — and if the inline script fails to load at all, this benign „lädt…" holding
          message stays put instead of a fake-empty board during a live event. The first successful render (or
          a failed poll) clears it. -->
-    <div data-board class="is-loading">
+    <!-- The two club crests the match row flies (#309), handed to the controller through the dataset: Astro
+      fingerprints the bundled assets, so their URLs are the page's to know and never the render module's —
+      the same wiring the participant list uses. -->
+    <div data-board class="is-loading" data-logo-tv={tvLogo.src} data-logo-tsv={tsvLogo.src}>
       <p class="board-loading">Spielplan wird geladen …</p>
       <!-- The publish gate (ADR-0041): until the operator publishes and nothing is live yet, the planned
            schedule stays private and only this notice shows. A running/done match is live truth and is
@@ -330,14 +335,55 @@ const defaultMixerBlock = resolveSocialMixerBlock({ ...SOCIAL_MIXER_DEFAULT_PLAC
     font-weight: 700;
     color: color-mix(in srgb, var(--color-navy) 60%, transparent);
   }
+  /* The two contestant lines share **one** grid — identity · sets · outcome — so the sets line up down a
+     column between them, which is the reference tournaments' single most useful habit. A grid per line
+     would not do it: „· Aufg." on the winner's line would widen only that line and shove its sets left,
+     breaking the column on exactly the case the outcome token introduces. The lines dissolve into this
+     grid (`display: contents`) and keep their element only as the hook the winner/tbd rules select on. */
   .sched-match__players {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    align-items: center;
+    column-gap: 10px;
     min-width: 0;
   }
+  .sched-match__players .sched-match__player {
+    display: contents;
+  }
+  .sched-match__players .sched-match__meta {
+    grid-column: 1 / -1;
+  }
+  /* The courts board reuses the contestant line outside that grid, where it stays a plain flex row. */
   .sched-match__player {
     display: flex;
-    align-items: baseline;
+    align-items: center;
     justify-content: space-between;
     gap: 10px;
+  }
+  /* Crest · name · seed · check, in the order a tennis reader expects them (#309). */
+  .sched-match__ident {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+  }
+  /* The club crest, in place of the country flag the references fly — we have no nations, but we do have
+     clubs, and that is what this audience reads. Same white disc as the participant list's avatar. */
+  .sched-match__crest {
+    flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 18px;
+    height: 18px;
+    border-radius: 999px;
+    background: var(--color-surface);
+    overflow: hidden;
+  }
+  .sched-match__crest img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
   }
   .sched-match__name {
     min-width: 0;
@@ -347,6 +393,23 @@ const defaultMixerBlock = resolveSocialMixerBlock({ ...SOCIAL_MIXER_DEFAULT_PLAC
     overflow: hidden;
     text-overflow: ellipsis;
   }
+  /* The seed rides small and muted behind the name — the references keep exactly this slot for it, so the
+     number never competes with the person. */
+  .sched-match__seed {
+    flex-shrink: 0;
+    font-size: 10px;
+    font-weight: 800;
+    font-variant-numeric: tabular-nums;
+    color: color-mix(in srgb, var(--color-navy) 45%, transparent);
+  }
+  /* The winner's second mark. Bold alone loses on a phone in the sun, so the check carries the result
+     redundantly — a tick, never a tinted row. */
+  .sched-match__check {
+    flex-shrink: 0;
+    font-size: 12px;
+    line-height: 1;
+    color: var(--color-blue);
+  }
   .sched-match__player--tbd .sched-match__name {
     font-weight: 600;
     color: color-mix(in srgb, var(--color-navy) 50%, transparent);
@@ -355,8 +418,11 @@ const defaultMixerBlock = resolveSocialMixerBlock({ ...SOCIAL_MIXER_DEFAULT_PLAC
   .sched-match__player--winner .sched-match__name {
     font-weight: 800;
   }
+  /* Right-aligned within its column, so the sets read down a column between the two lines. */
   .sched-match__games {
     flex-shrink: 0;
+    justify-self: end;
+    text-align: right;
     font-size: 13px;
     font-weight: 700;
     font-variant-numeric: tabular-nums;
@@ -365,6 +431,16 @@ const defaultMixerBlock = resolveSocialMixerBlock({ ...SOCIAL_MIXER_DEFAULT_PLAC
   }
   .sched-match__player--winner .sched-match__games {
     color: var(--color-navy);
+  }
+  /* „· Aufg." / „w.o." — the outcome where the score is, terse and quiet beside the sets it qualifies. Its
+     own column, so it never widens the sets' one and never shifts them out of line. */
+  .sched-match__outcome {
+    flex-shrink: 0;
+    justify-self: end;
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 0.04em;
+    color: color-mix(in srgb, var(--color-navy) 55%, transparent);
   }
   .sched-match__meta {
     margin-top: 3px;
@@ -427,6 +503,10 @@ const defaultMixerBlock = resolveSocialMixerBlock({ ...SOCIAL_MIXER_DEFAULT_PLAC
   const filterEl = root?.querySelector<HTMLElement>('[data-filter]') ?? null
   const sectionsEl = root?.querySelector<HTMLElement>('[data-sections]') ?? null
 
+  // The crest URLs off the dataset (see the markup above). Empty strings are unreachable in practice; a
+  // missing crest would render a broken image, never break the board.
+  const LOGOS = { tv: root?.dataset.logoTv ?? '', tsv: root?.dataset.logoTsv ?? '' }
+
   // The last-served feed plus the one view control. The filter re-renders from the cached feed (no
   // refetch), so changing it is instant; the poll only replaces `feed` and re-renders.
   let feed: ScheduleResponse = { published: false, matches: [] }
@@ -458,8 +538,8 @@ const defaultMixerBlock = resolveSocialMixerBlock({ ...SOCIAL_MIXER_DEFAULT_PLAC
       selectedCompetition = slug
       render()
     })
-    renderCourts(courtsEl, courts)
-    renderSchedule(sectionsEl, days)
+    renderCourts(courtsEl, courts, LOGOS)
+    renderSchedule(sectionsEl, days, LOGOS)
   }
 
   let lastJson = ''

@@ -15,7 +15,15 @@ import type { ScheduleViewOptions } from '../shared/match-view'
 
 const NO_SCORE: MatchScore = { set1: null, set2: null, mtb: null }
 
-const player = (firstName: string, lastName: string): ScheduleSlot => ({ kind: 'player', firstName, lastName })
+// A plain, unseeded TV Winsen player — the inert default. The cases that care about a crest or a seed spell
+// the slot out themselves.
+const player = (firstName: string, lastName: string): ScheduleSlot => ({
+  kind: 'player',
+  firstName,
+  lastName,
+  club: 'TV Winsen',
+  seed: null
+})
 
 // One placed match. Only the fields a case actually exercises are ever passed; the rest are inert defaults,
 // so a test reads as the situation it describes.
@@ -207,13 +215,6 @@ describe('scheduleView · the tree is finished — grouped, ordered, labelled', 
     expect(row.slot2.games).toBe('3 6 10')
     expect(row.slot2.winner).toBe(true)
     expect(row.slot1.winner).toBe(false)
-  })
-
-  it('names a special outcome on the meta line', () => {
-    const walkover = view([match({ id: 1, court: 1, slot: 0, status: 'done', winner: 1, outcome: 'walkover' })])
-    expect(walkover.days[0].courts[0].rows[0].meta).toBe('Viertelfinale · M1 · Herren · Walkover')
-    const retirement = view([match({ id: 2, court: 1, slot: 0, status: 'done', winner: 1, outcome: 'retirement' })])
-    expect(retirement.days[0].courts[0].rows[0].meta).toBe('Viertelfinale · M2 · Herren · Aufgabe')
   })
 })
 

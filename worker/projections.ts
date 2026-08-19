@@ -2,6 +2,7 @@ import {
   bracketDepth,
   type CompetitionDraw,
   type CompetitionSlug,
+  clubSchema,
   isCancelledCompetition,
   isFullyRevealed,
   type LiveBracket,
@@ -19,6 +20,7 @@ import {
   strengthRedacted,
   winningSlot
 } from '../shared'
+import type { Club } from '../shared'
 import type { AppStateStore } from './store/app-state'
 import type { DrawStore } from './store/draw'
 import type { RegistrationsStore, RevealPlayer } from './store/registrations'
@@ -105,6 +107,11 @@ export const createProjections = (deps: ProjectionsDeps) => {
   // never appears.
   const mainReveals = async () => (await drawStore.listReveals()).filter(r => r.bracket === 'main')
 
+  // What a reveal step shows of a player: the name and the frozen LK, and nothing else the shared join type
+  // happens to carry. Named rather than inlined so the reveal wire's shape is stated in one place.
+  const revealStepPlayer = (p: RevealPlayer | undefined) =>
+    p ? { firstName: p.firstName, lastName: p.lastName, lk: p.lk } : undefined
+
   // The full main-bracket reveal, sliced to each field's cursor (ADR-0003): every drawn competition's reveal
   // with the revealed prefix's players joined in by name + LK (the reveal sequence carries only ids). The
   // unrevealed tail never leaves the server, so a spectator cannot read the outcome ahead of the show — the
@@ -139,7 +146,12 @@ export const createProjections = (deps: ProjectionsDeps) => {
         // A lot-bye line has no player; every placed step joins its registration row. A missing id
         // (only reachable if a slot's registration was hard-deleted out from under a frozen draw)
         // degrades to null rather than throwing — the reveal still renders, that line just blank.
-        player: s.playerId !== null ? (players.get(s.playerId) ?? null) : null
+        //
+        // Projected field by field rather than handed over whole: the join type is shared with the
+        // schedule feed, which needs the `club` for its crest (#309), and a reveal step shows a name and an
+        // LK. A spread here would put every field a *different* surface later needs onto this wire by
+        // accident, which is how a wire grows a field nobody decided to publish.
+        player: s.playerId !== null ? (revealStepPlayer(players.get(s.playerId)) ?? null) : null
       }))
     }))
   }
@@ -255,9 +267,10 @@ export const createProjections = (deps: ProjectionsDeps) => {
       // Four independent reads on a user-facing path: placed matches, reveal states, the publish flag and
       // the cancelled set hit different tables with no dependency between them, so fetch them together
       // rather than serially.
-      const [allMatches, reveals, published, cancelled] = await Promise.all([
+      const [allMatches, reveals, draws, published, cancelled] = await Promise.all([
         drawStore.listMatches(),
         mainReveals(),
+        drawStore.listDraws(),
         appStateStore.getSchedulePublished(),
         appStateStore.getCancelledCompetitions()
       ])
@@ -318,15 +331,39 @@ export const createProjections = (deps: ProjectionsDeps) => {
       }
       const players = await registrationsStore.revealPlayers([...ids])
 
+      // The seed a placed player carries, keyed by the bracket they are placed in — the same per-bracket
+      // frozen seeding `buildLiveBracket` reads, so a player wears the same number on the schedule row and
+      // in the bracket cell rather than two surfaces deriving it differently (#309). A strength-redacted
+      // field yields no seeds at all: the schedule is a public wire like any other, and a new surface must
+      // not become the hole a withheld field leaks through (ADR-0048, ADR-0061).
+      const seedByGroupPlayer = new Map<string, number>()
+      for (const d of draws) {
+        if (strengthRedacted(d.competition)) continue
+        for (const s of d.seeding) seedByGroupPlayer.set(`${d.competition}|${d.bracket}|${s.playerId}`, s.seed)
+      }
+
+      // The club behind the crest, narrowed at the one point the registrations table's untyped text becomes
+      // a typed wire value. An unrecognised club degrades to null — no crest beats the wrong crest, and the
+      // feed serves either way (ADR-0035).
+      const toClub = (club: string): Club | null => clubSchema.safeParse(club).data ?? null
+
       // Resolve one slot's SlotView (shared rule) into the wire shape, joining the player name. Both ways a
       // referent can vanish under a frozen draw degrade to the same honest „offen" line (`unknown`,
       // ADR-0035), never a whole-feed 500 and never the „Freilos" free-pass lie: a named player with no row
       // (a registration hard-deleted), and a feeder the shared rule could not resolve. „Freilos" is reserved
       // for a true round-1 bye, where there genuinely is no opponent.
-      const toSlot = (view: SlotView): ScheduleSlot => {
+      const toSlot = (view: SlotView, match: Match): ScheduleSlot => {
         if (view.kind === 'player') {
           const p = players.get(view.regId)
-          return p ? { kind: 'player', firstName: p.firstName, lastName: p.lastName } : { kind: 'unknown' }
+          return p
+            ? {
+                kind: 'player',
+                firstName: p.firstName,
+                lastName: p.lastName,
+                club: toClub(p.club),
+                seed: seedByGroupPlayer.get(`${match.competition}|${match.bracket}|${view.regId}`) ?? null
+              }
+            : { kind: 'unknown' }
         }
         if (view.kind === 'feeder') return { kind: 'feeder', matchNumber: view.matchNumber }
         if (view.kind === 'loser') return { kind: 'loser', matchNumber: view.matchNumber }
@@ -366,8 +403,8 @@ export const createProjections = (deps: ProjectionsDeps) => {
           winner,
           outcome: m.outcome === 'bye' ? null : m.outcome,
           score: m.score,
-          slot1: toSlot(r.slot1),
-          slot2: toSlot(r.slot2)
+          slot1: toSlot(r.slot1, m),
+          slot2: toSlot(r.slot2, m)
         }
       })
 
