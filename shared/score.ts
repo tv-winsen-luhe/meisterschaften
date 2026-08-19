@@ -1,5 +1,6 @@
 import type { MatchScore } from './admin'
 import type { EnteredOutcome } from './draw'
+import { slotGames } from './schedule'
 
 // The match score rules (CONTEXT: Legal score, ADR-0045). Winsen plays two sets + a Match-Tie-Break to 10
 // as the third set (never a full third set — DTB §37.1), so the legal score space is *closed*: an illegal
@@ -97,3 +98,14 @@ export const RESULT_SCORE_ERROR_MESSAGE: Record<ResultScoreError, string> = {
   'normal-illegal': 'Ungültiges Satzergebnis.',
   'winner-mismatch': 'Der Sieger passt nicht zum eingetragenen Ergebnis.'
 }
+
+/**
+ * One slot's score as the line a reader sees — e.g. „6 3 10", or „" when nothing is recorded. The **one**
+ * score formatter: the admin results list, the public schedule and the public bracket all print this string,
+ * so they cannot disagree about separators the way the two inline joins it replaced did (#305).
+ *
+ * A leaf on top of `slotGames`, which stays the single „which games" rule (ADR-0045) — this adds only the
+ * separator. So an unplayed match and a walkover render empty (no trailing numbers to explain), and a match
+ * still on court renders just the sets already saved (ADR-0032 §20).
+ */
+export const scoreLine = (score: MatchScore, slot: 1 | 2): string => slotGames(score, slot).join(' ')

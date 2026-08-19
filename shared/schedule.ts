@@ -277,9 +277,9 @@ interface SlotScores {
 /**
  * One slot's games across the three sets, in order — e.g. `[6, 4, 10]` for the games (or MTB points) that
  * slot won. An unplayed set contributes nothing, so a not-yet-started (or walkover) match yields `[]` and a
- * mid-match with one saved set yields just that set (ADR-0032 §20). The single source both the admin
- * results surface (`scoreFor`) and the public live board join into a score line (#91) — each surface picks
- * its own separator, so the „which games" rule can never drift between them.
+ * mid-match with one saved set yields just that set (ADR-0032 §20). The single „which games" rule (#91,
+ * ADR-0045); `scoreLine` (shared/score.ts) is the one formatter built on it, so every surface prints the
+ * same string and the separator can never drift between them.
  */
 export const slotGames = (score: SlotScores, slot: 1 | 2): number[] =>
   [score.set1, score.set2, score.mtb].map(pair => (pair ? pair[slot - 1] : null)).filter((n): n is number => n !== null)
