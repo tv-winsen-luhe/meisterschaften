@@ -64,9 +64,6 @@ export const elem = (tag: string, className: string, text?: string): HTMLElement
 const roundLabels = (totalRounds: number, bracket: Segment): string[] =>
   Array.from({ length: totalRounds }, (_, r) => roundLabel({ bracket, round: r + 1, totalRounds }))
 
-// The event's date copy, handed to the view like the schedule page hands it (src/data/tournament.ts is the
-// client's, and `shared/` must not reach into it). The view abbreviates it to „Sa"/„So" for the tight cell
-// footer; the full „Samstag · 22.08." stays on /spielplan.
 // Which competitions get a draw tab. Two facts decide it, and both are read here rather than implied by
 // a slug list: a field must be **offered** (open, with a capacity) and it must be **seeded** — an unseeded
 // field is never drawn at all (ADR-0058/0066, the server refuses it outright in worker/draw.ts), so a tab
@@ -85,7 +82,11 @@ export const drawableCompetitions = (all: readonly Competition[]): Competition[]
     .filter(c => c.status === 'open' && c.capacity && !isUnseededCompetition(c.slug))
     .sort((a, b) => drawRank(a.slug) - drawRank(b.slug))
 
-const DAYS = [tournament.saturday, tournament.sunday]
+// The event's date copy, handed to the view like the schedule page hands it (src/data/tournament.ts is the
+// client's, and `shared/` must not reach into it). The view abbreviates it to „Sa"/„So" for the tight cell
+// footer; the full „Samstag · 22.08." stays on /spielplan. Exported for the live layer next door, which hands
+// the same two days to `bracketView` — two copies of the event's own calendar would be one too many.
+export const DAYS = [tournament.saturday, tournament.sunday]
 // The reveal phase still builds its own caption from the older per-node index (see `scheduleNoteEl`), so it
 // keeps the two-letter form here.
 const DAY_ABBR = DAYS.map(d => d.weekday.slice(0, 2))

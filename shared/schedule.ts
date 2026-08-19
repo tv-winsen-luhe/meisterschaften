@@ -339,7 +339,7 @@ export interface RoundLabelInput {
 /**
  * The bare German round name — „Viertelfinale", „Finale", „Runde 1" — read from the end of the bracket, with
  * no word about which bracket it belongs to. The leaf `roundLabel` is built on, and what a control that
- * already names its bracket has room for (the phone's round control, #312): inside the Nebenrunde tab every
+ * already names its bracket has room for (the phone’s round control, #312): inside the consolation’s tab every
  * button would otherwise repeat „Nebenrunde · ", which is both redundant and too long for a segment.
  *
  * Exported so that control reads the one table rather than keeping a second list of German round names.

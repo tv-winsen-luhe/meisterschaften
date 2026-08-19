@@ -118,7 +118,7 @@ export interface BracketRound {
    * is a match that merely shares the final's round. It hangs off the *round* rather than the view (#312)
    * because that is where it is played — on the final day, under the final — and because a round list has
    * nowhere else to put it: as a view-level field it could only be appended as a box under everything, which
-   * is the loose kasten this replaces.
+   * is the loose box this replaces.
    */
   playoff: BracketCell | null
 }

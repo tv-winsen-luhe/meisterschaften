@@ -1,6 +1,5 @@
 import { bracketView } from '../../shared'
-import { elem, tbdEl } from './tournament-draw.render'
-import { tournament } from '../data/tournament'
+import { DAYS, elem, tbdEl } from './tournament-draw.render'
 import type { Segment } from './tournament-draw.render'
 import type {
   BracketCell,
@@ -21,11 +20,6 @@ import type {
 // `renderLive` is the module's surface; it emits **both** layouts (#312) — the round-column tree for a wide
 // screen, the chosen round as a list for a phone — and the stylesheet shows one. Which width gets which is a
 // stylesheet's question, so there is no `matchMedia` here and no resize listener in the controller.
-
-// The event's date copy, handed to the view like the schedule page hands it (src/data/tournament.ts is the
-// client's, and `shared/` must not reach into it). The view abbreviates it to „Sa"/„So" for the tight cell
-// footer; the full „Samstag · 22.08." stays on /spielplan.
-const DAYS = [tournament.saturday, tournament.sunday]
 
 // The fully-revealed member of the per-competition bracket union (ADR-0046) — the one phase this file renders.
 export type LiveCompetition = Extract<PublicCompetitionBracket, { phase: 'live' }>
@@ -121,11 +115,11 @@ const renderLiveTree = (view: BracketView): HTMLElement => {
     for (const cell of round.cells) matches.append(liveMatchEl(cell))
     col.append(matches)
     tree.append(col)
+    // The „Spiel um Platz 3" of this round (ADR-0046, #312) — a sibling of the columns rather than a cell
+    // inside one, so it stays out of the elbow connectors, which describe the tree's own wiring. The
+    // stylesheet puts it in the second grid row under this column; this only asks the round for it.
+    if (round.playoff) tree.append(liveMatchEl(round.playoff))
   }
-  // The „Spiel um Platz 3", under the final column it shares a round with (ADR-0046, #312) — the stylesheet
-  // places it, so this appends it last and says no more about where it goes.
-  const playoff = view.rounds.find(r => r.playoff)?.playoff
-  if (playoff) tree.append(liveMatchEl(playoff))
   return tree
 }
 
@@ -146,10 +140,10 @@ const renderRoundList = (view: BracketView): HTMLElement => {
   return list
 }
 
-// The Hauptrunde / Nebenrunde segment control (ADR-0046) — the buttons are created once per panel, then
+// The bracket control („Hauptrunde" / „Nebenrunde", ADR-0046) — the buttons are created once per panel, then
 // re-synced on each render (so a poll never drops focus or duplicates a listener). Clicking calls `onSelect`
-// (the controller switches the panel's segment + re-renders). The 3rd-place cell rides under the Hauptrunde's
-// final, so there is no tab for it.
+// (the controller switches the panel's segment + re-renders). The 3rd-place cell rides under the main
+// bracket's final, so there is no tab for it.
 //
 // This is the **outer** choice, with the rounds nested inside it (#312): the consolation is a tournament of
 // its own with its own draw and its own byes (ADR-0004), while a round is a position inside one — two
@@ -172,7 +166,7 @@ const renderSegments = (segmentsEl: HTMLElement, selected: Segment, onSelect: (s
 
 // The round control, nested inside the segment choice (#312) — the phone's way through the bracket, and the
 // only control the wide tree does not need. Its buttons carry the view's `name`, the bracket-less reading of
-// the same round-name rule the columns use (#307, ADR-0028): the segment above already says Nebenrunde, and
+// the same round-name rule the columns use (#307, ADR-0028): the control above already names the bracket, and
 // repeating it on every button would not fit a segment anyway. No round names are spelled here.
 //
 // Rebuilt only when the rounds themselves change (a segment switch changes their number and their names);
@@ -219,8 +213,8 @@ export interface LiveHandlers {
 
 // A fully-revealed competition (phase two, ADR-0046, ADR-0070, #312): project the field through `bracketView`
 // and render the segment it hands back — as the round-column tree for a wide screen and as the chosen round's
-// list for a phone, both emitted, one shown by the stylesheet. The Hauptrunde carries the „Spiel um Platz 3"
-// under its final; the Nebenrunde is the consolation alone (ADR-0004).
+// list for a phone, both emitted, one shown by the stylesheet. The main bracket carries the „Spiel um Platz 3"
+// under its final; the consolation stands alone (ADR-0004).
 //
 // `selection` + `on` carry the reader's choices, which live in the controller so they survive a poll — the
 // *effective* segment and round come back from the view, which falls back to the main bracket when the one

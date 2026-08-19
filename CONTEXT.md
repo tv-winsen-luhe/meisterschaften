@@ -398,7 +398,7 @@ byeWinners }` in `shared/reveal.ts`. It is **not** the whole story of the public
   elbow **tree**, whose round columns are grid tracks that share the available width, so our deepest field —
   four rounds — fits without horizontal scrolling; on a phone a **round control** inside the bracket choice
   and that one round as a **list** of the same cells, because the phone is the device the audience actually
-  holds and a sideways-scrolling tree is unusable on it. The nesting mirrors the domain: the Nebenrunde is a
+  holds and a sideways-scrolling tree is unusable on it. The nesting mirrors the domain: the consolation is a
   tournament of its own with its own draw and byes (ADR-0004), a round is a position inside one. The „Spiel um
   Platz 3" belongs to the **final round** in both layouts — under the final's column in the tree, the last row
   of the final round's list — because that is where it is played. _(See ADR-0046, ADR-0070, ADR-0004.)_
