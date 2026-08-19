@@ -89,6 +89,16 @@ const buildLiveBracket = (draw: CompetitionDraw, players: Map<number, RevealPlay
     // The winning slot (1/2) the page bolds (CONTEXT: Bracket topology) — null while undecided, or when the
     // winner is neither slot (a hard-deleted registration, ADR-0035). Same rule the schedule feed reads.
     winner: winningSlot(m),
+    // The result on the bracket's **own** wire (ADR-0070): status, outcome and score travel here rather
+    // than being joined off the schedule feed, because this feed is gated on the reveal cursor alone while
+    // the schedule is gated on the publish flag (ADR-0041). Joining them would silently couple a recorded
+    // result to a plan the operator can reset — the cheap change ADR-0070 exists to forbid.
+    status: m.status,
+    // A round-1 bye is bracket structure, not a result a cell reports („Freilos" already says it), so the
+    // store's `bye` outcome degrades to null for the wire's entered-outcome enum — the same mapping the
+    // schedule feed makes.
+    outcome: m.outcome === 'bye' ? null : m.outcome,
+    score: m.score,
     slot1: toSlot(slot1),
     slot2: toSlot(slot2)
   }))

@@ -70,6 +70,10 @@ const drawCompetitions = competitions
   .dm {
     --dm-line: color-mix(in srgb, var(--color-navy) 22%, transparent);
     --dm-gap: 34px;
+    /* One column's width. Wider since the cell carries its score (ADR-0070): seed · name · LK · sets still
+       has to fit on one line at 13px, and the name's ellipsis is the last resort, not the first. Four rounds
+       — our deepest field — still land inside a laptop's width without horizontal scrolling. */
+    --dm-col: 258px;
   }
 
   /* — Tabs — */
@@ -181,7 +185,7 @@ const drawCompetitions = competitions
   .dm-third {
     display: flex;
     flex-direction: column;
-    width: 232px;
+    width: var(--dm-col);
     padding-top: 20px;
     border-top: 1px dashed color-mix(in srgb, var(--color-navy) 20%, transparent);
   }
@@ -248,7 +252,7 @@ const drawCompetitions = competitions
     display: flex;
     flex-direction: column;
     flex: 0 0 auto;
-    width: 232px;
+    width: var(--dm-col);
   }
   .dm-round__label {
     flex: 0 0 auto;
@@ -286,13 +290,20 @@ const drawCompetitions = competitions
     position: relative;
   }
 
-  /* The court + „ca." time caption above a placed matchup (#159): „Platz 3 · Sa ca. 14:00". Small, muted, and
-     tabular so the times align down a column; only present once the schedule is published and the match is
-     placed, so the bracket reads cleanly without it. Spacing reads it as the pairing's header: more air
-     above (`margin-top`, separating it from the matchup above) than below, so it binds to its own pair — the
-     two slots stay one tight unit (the `.dm-match` gap). The margin is symmetric across a column's matches, so
-     they keep equal height and the elbow connectors stay aligned. */
+  /* The caption above a matchup (#159): court + day, then the floor („ab 14:00" / „im Anschluss · nicht vor
+     ca. 14:00", ADR-0069) and — for a match on court right now — the „läuft" badge. Small, muted and tabular
+     so the times align down a column.
+
+     In the live tree it is emitted even when empty, because it is the **gated** half of the cell (ADR-0070):
+     it disappears with an unpublished or reset plan while the score stays, and an emptied header must not
+     change a column's heights or the elbow connectors would fall out of alignment. Spacing reads it as the
+     pairing's header — more air above than below, so it binds to its own pair while the two slots stay one
+     tight unit (the `.dm-match` gap). */
   .dm-when {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 15px;
     margin-top: 14px;
     margin-bottom: 3px;
     padding-left: 6px;
@@ -301,6 +312,33 @@ const drawCompetitions = competitions
     letter-spacing: 0.02em;
     font-variant-numeric: tabular-nums;
     color: color-mix(in srgb, var(--color-navy) 50%, transparent);
+  }
+  /* The floor reads quieter as a follow-on than as an anchored start: „ab 14:00" is a time the court holds,
+     „im Anschluss …" is a bound on one that can only move later. It is also the longest string in the
+     header, so it takes the ellipsis rather than pushing the court out. */
+  .dm-when__time {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .dm-when__time--follows {
+    font-weight: 600;
+    color: color-mix(in srgb, var(--color-navy) 42%, transparent);
+  }
+  /* „läuft" — the one status the bracket marks, in the same live tint the schedule board uses (#306). It is
+     what tells a match on court right now from one not yet started while no set has been saved. */
+  .dm-live {
+    flex-shrink: 0;
+    margin-left: auto;
+    padding: 1px 6px;
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--color-live);
+    background: color-mix(in srgb, var(--color-live) 12%, transparent);
+    border-radius: 999px;
   }
 
   /* Elbow connectors: each non-final match draws a horizontal stub at each slot-pair
@@ -462,6 +500,50 @@ const drawCompetitions = competitions
   .dm-lk--pending {
     color: color-mix(in srgb, var(--color-navy) 40%, transparent);
   }
+  /* — A live cell's line: the score column beside the identity (ADR-0070) — */
+  /* The sets, right-aligned and tabular so they line up between the two contestant lines and read down a
+     column. Emitted even when empty, so a walkover's „w.o." can never slide into the sets' place. The
+     winner's sets ink fully; the loser's line fades as a whole (`.dm-slot--loser`). */
+  .dm-games {
+    flex-shrink: 0;
+    min-width: 34px;
+    text-align: right;
+    font-size: 12px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0.06em;
+    color: color-mix(in srgb, var(--color-navy) 60%, transparent);
+  }
+  .dm-slot--winner .dm-games {
+    color: var(--color-navy);
+  }
+  /* „· Aufg." / „w.o." — the outcome where a reader looks for the score, terse and quiet beside the sets it
+     qualifies, rather than spelled out at the far end of a meta line. */
+  .dm-outcome {
+    flex-shrink: 0;
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: 0.04em;
+    color: color-mix(in srgb, var(--color-navy) 55%, transparent);
+  }
+  /* The winner is marked twice — this check and the line's navy accent bar. The redundancy is the reference
+     tournaments' convention and it is deliberate: on a phone in bright sunlight a weight difference alone
+     does not survive. */
+  .dm-check {
+    flex-shrink: 0;
+    font-size: 11px;
+    line-height: 1;
+    color: var(--color-blue);
+  }
+  /* A cell line packs more than a preview line does, so it gives the name every pixel the fixed pieces do
+     not need — and tightens the gaps rather than letting the ellipsis start early. */
+  .dm-slot--cell {
+    gap: 6px;
+  }
+  .dm-slot--cell .dm-name {
+    font-size: 12.5px;
+  }
+
   .dm-q {
     font-size: 15px;
     font-weight: 800;
@@ -587,8 +669,9 @@ const drawCompetitions = competitions
         byComp.set(e.competition, arr)
       }
     }
-    // One topology index over the whole feed (#159), shared by every bracket — the publish/reveal gates
-    // already filtered the matches, so a node simply isn't here when it shouldn't show its time.
+    // One topology index over the whole feed (#159) for the **reveal** phase's court/time caption — the
+    // publish/reveal gates already filtered the matches, so a node simply isn't here when it shouldn't show
+    // its time. The live phase reads the feed itself (see `renderLive`).
     const scheduleIndex = indexScheduleByNode(schedule.matches)
     const bracketByComp = new Map(brackets.map(b => [b.competition as string, b]))
     // Learn each field's redaction decision from the wire: the participants list carries it per row, the
@@ -611,8 +694,10 @@ const drawCompetitions = competitions
           segmentsEl,
           bracket,
           entry,
-          entry.main.redacted,
-          scheduleIndex,
+          // The whole feed, not the per-node index: the cell footer states a floor („im Anschluss · nicht
+          // vor ca. 14:00", ADR-0069), which depends on the court's other reservations — including matches
+          // of fields this tree never draws. The score is not taken from here (ADR-0070).
+          schedule,
           segmentByComp.get(slug) ?? 'main',
           seg => {
             segmentByComp.set(slug, seg)

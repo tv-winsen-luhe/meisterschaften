@@ -132,6 +132,88 @@ describe('projections.publicDraws — live phase (ADR-0046)', () => {
     expect(advanced?.kind).toBe('player')
   })
 
+  // ── The result on the bracket's own wire (ADR-0070, #311) ──────────────────────────────
+
+  it('carries score, outcome and status — with the schedule plan unpublished', async () => {
+    const { projections, drawStore } = await drawn8(false)
+    const target = (await drawStore.listMatches()).find(m => m.bracket === 'main' && m.round === 1)!
+    await drawStore.recordResult(target.id, {
+      winnerRegId: target.slot1RegId!,
+      outcome: null,
+      score: { set1: [6, 3], set2: [7, 6], mtb: null }
+    })
+
+    const [live] = await projections.publicDraws()
+    if (live.phase !== 'live') throw new Error('expected live phase')
+    const decided = live.main.matches.find(m => m.round === 1 && m.position === target.position)
+    // The whole point of ADR-0070: the plan is withheld and the result is here anyway, because this feed is
+    // gated on the reveal cursor and never on `schedule_published`. Joining the score off the schedule feed
+    // would have made this case empty.
+    expect(decided?.score).toEqual({ set1: [6, 3], set2: [7, 6], mtb: null })
+    expect(decided?.status).toBe('done')
+    expect(decided?.outcome).toBeNull()
+  })
+
+  it('carries a retirement and a walkover as the entered outcome', async () => {
+    const { projections, drawStore } = await drawn8()
+    const [first, second] = (await drawStore.listMatches()).filter(m => m.bracket === 'main' && m.round === 1)
+    await drawStore.recordResult(first.id, {
+      winnerRegId: first.slot1RegId!,
+      outcome: 'retirement',
+      score: { set1: [6, 3], set2: [3, 1], mtb: null }
+    })
+    await drawStore.recordResult(second.id, {
+      winnerRegId: second.slot1RegId!,
+      outcome: 'walkover',
+      score: EMPTY_SCORE
+    })
+
+    const [live] = await projections.publicDraws()
+    if (live.phase !== 'live') throw new Error('expected live phase')
+    const at = (position: number) => live.main.matches.find(m => m.round === 1 && m.position === position)
+    expect(at(first.position)?.outcome).toBe('retirement')
+    expect(at(second.position)?.outcome).toBe('walkover')
+  })
+
+  it('carries a partial score while a match is still running', async () => {
+    const { projections, drawStore } = await drawn8()
+    const target = (await drawStore.listMatches()).find(m => m.bracket === 'main' && m.round === 1)!
+    await drawStore.setMatchStatus(target.id, 'running')
+
+    const [live] = await projections.publicDraws()
+    if (live.phase !== 'live') throw new Error('expected live phase')
+    const running = live.main.matches.find(m => m.round === 1 && m.position === target.position)
+    // No set saved yet — `status` is the only thing that separates a match on court right now from one that
+    // has not started, which is why it rides along with the score.
+    expect(running?.status).toBe('running')
+    expect(running?.winner).toBeNull()
+  })
+
+  it('reports a round-1 bye as a null outcome — a bye is structure, not a result', async () => {
+    // A 5-field draws to 8 with three byes; each is a resolved match whose store outcome is 'bye'. The wire
+    // carries entered outcomes only, so it degrades to null — the „Freilos“ line already says what happened.
+    const drawStore = createInMemoryDrawStore()
+    const registrationsStore = createInMemoryRegistrationsStore(field(5))
+    const appStateStore = createInMemoryAppStateStore('tournament', false)
+    const svc = createDrawService({
+      registrationsStore,
+      drawStore,
+      randomSource: createFakeRandomSource(Array<number>(20).fill(0))
+    })
+    await svc.draw({ competition: 'mens', phase: 'tournament', cancelled: false, now: 'now' })
+    let r = await svc.advance('mens', 'forward')
+    while (r.ok && r.cursor < r.total) r = await svc.advance('mens', 'forward')
+
+    const projections = createProjections({ drawStore, registrationsStore, appStateStore })
+    const [live] = await projections.publicDraws()
+    if (live.phase !== 'live') throw new Error('expected live phase')
+    const byeMatches = live.main.matches.filter(
+      m => m.round === 1 && (m.slot1.kind === 'bye' || m.slot2.kind === 'bye')
+    )
+    expect(byeMatches.length).toBeGreaterThan(0)
+    expect(byeMatches.every(m => m.outcome === null)).toBe(true)
+  })
+
   it('projects the consolation bracket once it is drawn (public immediately, no gate, ADR-0004)', async () => {
     const { projections, drawStore, svc } = await drawn8()
     await decideRound(drawStore, 1) // opens the consolation gate (every first match decided)

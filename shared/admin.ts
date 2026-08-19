@@ -311,15 +311,35 @@ export type LiveBracketSlot = z.infer<typeof liveBracketSlotSchema>
 
 // One resolved match of the live bracket: its bracket position (the client lays out the round columns
 // from it), its stable number (a feeder points at it by number), which slot won (so the page bolds the
-// winner + fades the loser), and the two resolved slots. The third-place playoff rides along in the main
-// bracket's match list, marked `thirdPlace` (its round is the final's, position 1) — the client pulls it
-// out into its own „Spiel um Platz 3" box. Court/time is not here (that is the schedule feed's join, #159).
+// winner + fades the loser), the **result** (below), and the two resolved slots. The third-place playoff
+// rides along in the main bracket's match list, marked `thirdPlace` (its round is the final's, position 1)
+// — the client pulls it out into its own „Spiel um Platz 3" box.
+//
+// The **result rides this wire and the plan does not**, and that asymmetry is the load-bearing decision of
+// ADR-0070, not an oversight to tidy away. `/api/draw` is gated on the reveal cursor alone and *never* on
+// the schedule publish flag (ADR-0046, verbatim: a result is reality, ADR-0032, not the plan, ADR-0041), so
+// a score carried here survives „Spielplan zurücksetzen" — which is correct, because the result stays true
+// after the plan that described it is withdrawn. **Court and planned time stay the (gated) schedule join**
+// (`indexScheduleByNode`, #159) and their disappearing with the plan is equally correct. The score must
+// therefore never be joined off the schedule feed, however few lines that would take.
 export const liveBracketMatchSchema = z.object({
   round: z.number().int().positive(),
   position: z.number().int().min(0),
   thirdPlace: z.boolean(),
   number: z.number().int().positive(),
   winner: z.union([z.literal(1), z.literal(2)]).nullable(),
+  // The live signal (ADR-0032). It goes beyond the score + outcome ADR-0070 names because it is the same
+  // ungated truth, and without it a match **on court right now** is indistinguishable from one not yet
+  // started for as long as no set has been saved — which is most of a first set.
+  status: z.enum(MATCH_STATUSES),
+  // The entered outcome, shown as a terse token in the score's position („Aufg.", „w.o."). A round-1 bye
+  // is a `bye` outcome in the store, which is bracket *structure* rather than a result a cell reports, so
+  // it degrades to null for this entered-outcome enum — the „Freilos" line already says it.
+  outcome: z.enum(ENTERED_OUTCOMES).nullable(),
+  // The sets, formatted by the one score formatter at the edge (ADR-0045, #305). Partial while a match
+  // runs, all-null before it starts and for a walkover. Nothing here is strength, so the redaction seam
+  // (ADR-0048) has nothing to take.
+  score: matchScoreSchema,
   slot1: liveBracketSlotSchema,
   slot2: liveBracketSlotSchema
 })
