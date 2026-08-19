@@ -902,6 +902,32 @@ const sunday = [
       transition: none;
     }
   }
+
+  /* ── Print ────────────────────────────────────────────────────────────────────────────────────── */
+  /* The paper copy of the draw at the results desk (#313), the counterpart of /spielplan's sheet (#310) —
+     a stylesheet, not a PDF generator. „Der Draw" lives on the front page, so what has to be decided here
+     is what the *page* prints; the bracket's own anatomy on paper is decided beside the bracket, in
+     tournament-draw.astro.
+
+     Once there is a draw, the front page prints as the draw's sheet: the marketing sections around it are
+     the pitch, and a pitch on a results-desk sheet is paper nobody reads. Guarded on the draw actually
+     being revealed (`#draw` ships with [data-phase-gate] during signup, ADR-0042) — during signup the
+     front page keeps printing as itself, because a sheet with nothing but a hidden section on it would be
+     a blank page. */
+  @media print {
+    @page {
+      margin: 12mm;
+    }
+    body:has(#draw:not([data-phase-gate])) :is(header, footer, .skip-link, section:not(#draw)) {
+      display: none !important;
+    }
+    /* The section is the sheet now: no rule above it, no vertical air meant to separate it from the
+       sections that are no longer there. */
+    #draw:not([data-phase-gate]) {
+      border-top: 0;
+      padding: 0;
+    }
+  }
 </style>
 
 <script>
