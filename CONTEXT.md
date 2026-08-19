@@ -607,11 +607,30 @@ reveal sequence }`. Randomness enters through an injected **`RandomSource`** por
   live board (what is on court right now), both derived from the same match records. The public always
   shows the **current truth, never the stale plan**: a match's court is the **actual** live court once it
   is running (falling back to the planned court only before it starts), so a spectator is never sent to
-  the wrong court. Published planned **times** stay static ("ca."); their drift is communicated through
-  Match status (läuft/beendet), not by continuously rescheduling — but the **court** always reflects
-  reality. It is **one event-wide page** across all competitions (a competition filter, not per-field
-  pages), led by a „jetzt auf dem Platz" courts board; the per-competition brackets stay separate
-  surfaces that fill with the same results. _(See ADR-0008, ADR-0032.)_
+  the wrong court. Published planned times stay static — they are stated as a **Published time** (below),
+  a floor rather than a point — and their drift is communicated through Match status (läuft/beendet), not
+  by continuously rescheduling; the **court** always reflects reality. It is **one event-wide page** across
+  all competitions (a competition filter, not per-field pages), grouped **day → court** and led by a
+  „jetzt auf dem Platz" courts board; the per-competition brackets stay separate surfaces that fill with
+  the same results. _(See ADR-0008, ADR-0032, ADR-0069.)_
+- **Published time** (de: veröffentlichte Zeit) — how a planned start is **said** on a public surface, as
+  opposed to the `(day, slot)` the operator placed. A placement reserves its court for 90 minutes, and
+  those 90 minutes are an **average from experience, not a match length** — so a later match on a court can
+  only ever be late, never early. The published time is therefore a **floor**: **„ab HH:MM"** for a court's
+  first match of the day and for every match that opens a new block after a **gap** in that court's
+  reservation chain, **„im Anschluss · nicht vor ca. HH:MM"** where the reservations abut. A gap breaks the
+  chain — the Mixer block, an evening window or plain air re-anchors the row that follows it with its own
+  clock time. „Im Anschluss" is only true inside **one court's column**, which is why the schedule's
+  grouping is fixed day → court. Derived from day, slot and chain alone: there is **no clock** in it, and
+  „läuft" comes from the Match status, never from comparing a time against now. _(See ADR-0069, ADR-0032,
+  ADR-0040.)_
+- **Match row** (de: Match-Zeile) — the one shape a match is displayed in on the public surfaces: its two
+  contestant lines (name or „Freilos"/„Sieger M3"/„offen", each with that slot's games and the winner
+  marked), its Published time, its meta line (round · match number · competition, plus „Walkover"/„Aufgabe"
+  for a special outcome), and its Match status. It is the output of one projection (`shared/match-view`),
+  and every string in it is finished German — a renderer iterates and never sorts, concatenates or formats.
+  Today it is the **schedule's** row; the public bracket still builds its own contestant lines, and folding
+  that surface into the same row is what makes „it exists once" true. _(See ADR-0069, ADR-0028, ADR-0035.)_
 
 ## System
 

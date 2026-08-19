@@ -13,9 +13,12 @@ import { parallelLimitViolation } from './court-plan'
 export type { HardViolation, PlacementCandidate, PlacementValidation, SoftViolation } from './placement-violation'
 import type { HardViolation, PlacementCandidate, PlacementValidation, SoftViolation } from './placement-violation'
 
-// The courts×time grid the operator places matches on (ADR-0005, ADR-0040). A match is a fixed
-// **90 minutes**, but its **start** is set on a **30-minute** cadence, so a `slot` is a 30-minute index
-// (a match spans three steps — SLOT_SPAN — and reserves its court for the interval [start, start+90)).
+// The courts×time grid the operator places matches on (ADR-0005, ADR-0040). A placement reserves its court
+// for a fixed **90 minutes**, but its **start** is set on a **30-minute** cadence, so a `slot` is a
+// 30-minute index (a placement spans three steps — SLOT_SPAN — and holds its court for [start, start+90)).
+// The 90 minutes is a **reservation width**, an average from experience — not a match length, which varies
+// widely (ADR-0069). The occupancy arithmetic here is right either way; what it must not do is let a public
+// surface state a later match's start as a clock time it can only miss in one direction.
 // Each event day has its own first start (Saturday 10:30, Sunday 10:00 — ADR-0068), so `slotTime` is day-aware. The
 // numeric shape lives here (the single source both clients size the grid from); the day *labels*
 // („Samstag 22.08.") stay in src/data/tournament.ts, the home of the event's date copy. Per-court evening
@@ -24,8 +27,9 @@ import type { HardViolation, PlacementCandidate, PlacementValidation, SoftViolat
 export const SCHEDULE = {
   courts: 6,
   days: 2,
-  // The fixed match length and the start cadence, in minutes. A match spans `matchMinutes / slotMinutes`
-  // slots (SLOT_SPAN).
+  // The reservation width and the start cadence, in minutes. A placement spans `matchMinutes /
+  // slotMinutes` slots (SLOT_SPAN). `matchMinutes` is what a match is planned to *occupy*, not how long one
+  // lasts (ADR-0069) — the name is kept because it is what the grid reserves per match.
   matchMinutes: 90,
   slotMinutes: 30,
   // 30-minute start slots per day, sized by the **earliest-starting** day's reach to 20:30 (the latest
