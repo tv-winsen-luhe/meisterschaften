@@ -409,10 +409,10 @@ const defaultMixerBlock = resolveSocialMixerBlock({ ...SOCIAL_MIXER_DEFAULT_PLAC
 
 <script>
   import { hc } from 'hono/client'
-  import { COURT_NUMBERS, resolveSocialMixerBlock, roundLabel, slotGames, slotLabel, slotTime } from '../../shared'
+  import { COURT_NUMBERS, resolveSocialMixerBlock, roundLabel, scoreLine, slotLabel, slotTime } from '../../shared'
   import { competitions, socialMixerWhen, tournament } from '../data/tournament'
   import type { AppType } from '../../worker/app'
-  import type { MatchScore, ScheduleMatch, ScheduleResponse, ScheduleSlot } from '../../shared'
+  import type { ScheduleMatch, ScheduleResponse, ScheduleSlot } from '../../shared'
 
   const client = hc<AppType>(location.origin)
 
@@ -464,12 +464,6 @@ const defaultMixerBlock = resolveSocialMixerBlock({ ...SOCIAL_MIXER_DEFAULT_PLAC
     slot.kind === 'player'
       ? { text: `${slot.firstName} ${slot.lastName}`.trim(), tbd: false }
       : { text: slotLabel(slot), tbd: true }
-
-  // One slot's games across the three sets as a line, e.g. „6 4 10" — the shared `slotGames` (the single
-  // „which games" rule, also read by the admin results surface) joined with a space. Empty when nothing is
-  // recorded, so an unplayed (or walkover) match shows no trailing numbers, and a running match with an
-  // opportunistically-saved set shows just that set (ADR-0032 §20).
-  const gamesLine = (score: MatchScore, slot: 1 | 2): string => slotGames(score, slot).join(' ')
 
   // A player line: the name (truncated), the slot's games (if any), and the winner emphasised. Shared by
   // the courts board and the schedule rows.
@@ -530,8 +524,8 @@ const defaultMixerBlock = resolveSocialMixerBlock({ ...SOCIAL_MIXER_DEFAULT_PLAC
     const players = document.createElement('div')
     players.className = 'court__players'
     // Running — no winner yet; show any opportunistically-saved set games.
-    players.appendChild(playerLine(match.slot1, gamesLine(match.score, 1), false))
-    players.appendChild(playerLine(match.slot2, gamesLine(match.score, 2), false))
+    players.appendChild(playerLine(match.slot1, scoreLine(match.score, 1), false))
+    players.appendChild(playerLine(match.slot2, scoreLine(match.score, 2), false))
     cell.appendChild(players)
 
     const meta = document.createElement('div')
@@ -604,8 +598,8 @@ const defaultMixerBlock = resolveSocialMixerBlock({ ...SOCIAL_MIXER_DEFAULT_PLAC
 
     const players = document.createElement('div')
     players.className = 'sched-match__players'
-    players.appendChild(playerLine(m.slot1, gamesLine(m.score, 1), m.winner === 1))
-    players.appendChild(playerLine(m.slot2, gamesLine(m.score, 2), m.winner === 2))
+    players.appendChild(playerLine(m.slot1, scoreLine(m.score, 1), m.winner === 1))
+    players.appendChild(playerLine(m.slot2, scoreLine(m.score, 2), m.winner === 2))
     const meta = document.createElement('div')
     meta.className = 'sched-match__meta'
     // The round („Achtelfinale" … „Finale", „Nebenrunde · …"), the match number, the field, and — for a

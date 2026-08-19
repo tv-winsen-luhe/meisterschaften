@@ -13,7 +13,7 @@ import {
   type MatchStatus,
   resolveBracket,
   roundLabel,
-  slotGames,
+  scoreLine,
   slotLabel,
   type SlotView,
   winningSlot
@@ -230,13 +230,13 @@ const MatchRow = ({ row, nameById, onOpen, onSetStatus }: MatchRowProps) => {
 
       <Contestant
         label={slotName(slot1, nameById)}
-        score={scoreFor(match.score, 1)}
+        score={scoreLine(match.score, 1)}
         winner={winnerSlot === 1}
         muted={slot1.kind !== 'player'}
       />
       <Contestant
         label={slotName(slot2, nameById)}
-        score={scoreFor(match.score, 2)}
+        score={scoreLine(match.score, 2)}
         winner={winnerSlot === 2}
         muted={slot2.kind !== 'player'}
       />
@@ -313,7 +313,3 @@ const Contestant = ({ label, score, winner, muted }: ContestantProps) => (
 // A slot's display name: the joined player name, or the shared German label for a feeder/bye/loser/offen.
 const slotName = (view: SlotView, nameById: Map<number, string>): string =>
   view.kind === 'player' ? (nameById.get(view.regId) ?? `#${view.regId}`) : slotLabel(view)
-
-// One slot's score across the three sets, e.g. „6 4 10" — the shared `slotGames` (the single „which
-// games" rule, reused by the public live board #91), joined for this surface with a wider gap.
-const scoreFor = (score: MatchScore, slot: 1 | 2): string => slotGames(score, slot).join('  ')
