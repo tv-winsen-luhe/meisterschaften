@@ -1,6 +1,7 @@
 import { COURT_NUMBERS, roundLabel, slotLabel, slotTime, SLOT_SPAN } from './schedule'
 import { scoreLine } from './score'
 import type { ScheduleMatch, ScheduleResponse, ScheduleSlot } from './admin'
+import type { Club } from './club'
 
 /**
  * The public weekend surfaces' projection (ADR-0069): the one place that turns a feed into the finished
@@ -36,10 +37,50 @@ export interface SlotText {
   tbd: boolean
 }
 
-/** One contestant's line on a match row: how they are named, that slot's set scores, and whether they won. */
+/**
+ * A seeded player's trailing token (#309): the number as it is printed, and the sentence that names it for
+ * a reader who cannot see that the small number after a name means a seeding. Both finished, so the
+ * renderer prints a token and titles it without knowing what a seed is.
+ */
+export interface SeedToken {
+  text: string
+  label: string
+}
+
+/**
+ * One contestant's line on a match row (CONTEXT: Match row): how they are named, the club behind their
+ * crest, their seed token, that slot's set scores, and whether they won.
+ *
+ * `club` is the one structural value on this interface that is not finished text, and deliberately so: the
+ * crest is an image whose URL the page owns (the assets are bundled per surface), so the view names *which*
+ * club and the renderer resolves the asset. Null on a placeholder line, which has no person behind it, and
+ * null for a club the wire could not name — no crest beats the wrong crest.
+ *
+ * There is **no `lk`**. The schedule answers „when and where"; „how strong is this half" is the bracket's
+ * question. The silence is the row's economy, not an omission (ADR-0070).
+ */
 export interface RowSlot extends SlotText {
+  club: Club | null
+  seed: SeedToken | null
   /** „6 3 10", or „" when nothing is recorded — the one score formatter (#305). */
   games: string
+  /**
+   * The match's outcome, in the score column where a reader looks for it (#309): „· Aufg." behind the sets
+   * that were actually played, „w.o." in their place when there are none. Null on a normal scored result,
+   * whose sets *are* the outcome — and null on the other contestant's line.
+   *
+   * It rides a **line** rather than the match because the score column is per line, and *which* line the
+   * token belongs on is a decision, not a rendering detail: it goes on the winner's, the way a result is
+   * quoted („6:3 3:1 Aufg."), so the renderer prints it beside that line's games and inherits the
+   * alignment for free. Finished including its separator, so nothing is concatenated downstream — which is
+   * also how a retirement before the first set was saved avoids a „·" dangling off nothing.
+   */
+  outcome: string | null
+  /**
+   * Whether this line won. One fact, read twice by the renderer — bold **and** a check. The redundancy is
+   * the reference tournaments' convention and it is deliberate: it survives a phone in bright sunlight,
+   * where a weight difference alone does not.
+   */
   winner: boolean
 }
 
@@ -59,7 +100,7 @@ export interface MatchRow {
   followsOn: boolean
   slot1: RowSlot
   slot2: RowSlot
-  /** „Achtelfinale · M3 · Herren", with „· Walkover"/„· Aufgabe" appended for a special outcome. */
+  /** „Achtelfinale · M3 · Herren" — round, match number, competition, and nothing else. */
   meta: string
   status: ScheduleMatch['status']
   /** „geplant" / „läuft" / „beendet". */
@@ -149,11 +190,33 @@ const STATUS_LABELS: Record<ScheduleMatch['status'], string> = {
   done: 'beendet'
 }
 
-// The German note for a special outcome (ADR-0032), appended to a finished match's meta line. A normal
-// scored result carries no note — its set scores are the result.
-const OUTCOME_NOTES: Record<NonNullable<ScheduleMatch['outcome']>, string> = {
-  walkover: 'Walkover',
-  retirement: 'Aufgabe'
+// The terse token a special outcome reads as in the **score column** (#309, ADR-0032) — the abbreviations a
+// tennis reader already knows, not the spelled-out „Walkover"/„Aufgabe" that used to sit at the far end of
+// the meta line. A normal scored result carries no token: its set scores are the result.
+const OUTCOME_TOKENS: Record<NonNullable<ScheduleMatch['outcome']>, string> = {
+  walkover: 'w.o.',
+  retirement: 'Aufg.'
+}
+
+/**
+ * How the outcome is said in the score column, and on which contestant's line.
+ *
+ * The token goes on the **winner's** line, the way a result is quoted — „6:3 3:1 Aufg." — so it reads
+ * behind the sets rather than beside the name of whoever stopped. With no winner recorded (only reachable
+ * for a decided match whose winning slot no longer resolves, ADR-0035) it falls to the first line, because
+ * the outcome is still true of the match and dropping it would leave a finished row looking unplayed.
+ *
+ * A retirement follows the sets already played, so it takes a separator — unless there are none, which is
+ * reachable: a player can retire during the first set before anyone saved it, and a leading „·" would then
+ * hang off nothing. A walkover never has sets (the score rules reject one, ADR-0045), so its token stands
+ * alone in the score's place.
+ */
+const outcomeToken = (match: ScheduleMatch, slot: 1 | 2): string | null => {
+  if (!match.outcome) return null
+  if (slot !== (match.winner ?? 1)) return null
+  const token = OUTCOME_TOKENS[match.outcome]
+  const played = scoreLine(match.score, 1) !== '' || scoreLine(match.score, 2) !== ''
+  return match.outcome === 'retirement' && played ? `· ${token}` : token
 }
 
 // A player's name, or the shared German label for a „Freilos"/„Sieger M{n}"/„Verlierer M{n}"/„offen" line.
@@ -165,11 +228,24 @@ const slotText = (slot: ScheduleSlot): SlotText => {
   return name ? { text: name, tbd: false } : { text: slotLabel({ kind: 'unknown' }), tbd: true }
 }
 
-const rowSlot = (match: ScheduleMatch, slot: 1 | 2): RowSlot => ({
-  ...slotText(slot === 1 ? match.slot1 : match.slot2),
-  games: scoreLine(match.score, slot),
-  winner: match.winner === slot
-})
+// The seed as the small trailing token the references all put behind the name, plus the sentence that says
+// what the number is — a bare „3" beside a name means nothing read aloud.
+const seedToken = (seed: number | null): SeedToken | null =>
+  seed === null ? null : { text: String(seed), label: `An ${seed} gesetzt` }
+
+const rowSlot = (match: ScheduleMatch, slot: 1 | 2): RowSlot => {
+  const wire = slot === 1 ? match.slot1 : match.slot2
+  return {
+    ...slotText(wire),
+    // A placeholder line („Freilos", „Sieger M3", „offen") has no person behind it, so it flies no crest and
+    // wears no seed — the two fall out of the wire's discriminator rather than needing a rule of their own.
+    club: wire.kind === 'player' ? wire.club : null,
+    seed: wire.kind === 'player' ? seedToken(wire.seed) : null,
+    games: scoreLine(match.score, slot),
+    outcome: outcomeToken(match, slot),
+    winner: match.winner === slot
+  }
+}
 
 const courtLabel = (court: number): string => `Platz ${court}`
 
@@ -271,9 +347,7 @@ export const scheduleView = (
       followsOn,
       slot1: rowSlot(m, 1),
       slot2: rowSlot(m, 2),
-      meta: [roundText(m), `M${m.number}`, competitionLabel(competitions, m.competition)]
-        .concat(m.outcome ? [OUTCOME_NOTES[m.outcome]] : [])
-        .join(' · '),
+      meta: [roundText(m), `M${m.number}`, competitionLabel(competitions, m.competition)].join(' · '),
       status: m.status,
       statusLabel: STATUS_LABELS[m.status]
     }

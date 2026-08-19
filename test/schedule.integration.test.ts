@@ -62,9 +62,14 @@ describe('projections.schedule', () => {
     expect((await projections.schedule()).matches).toEqual([])
   })
 
-  it('emits a placed semifinal with both players joined by name', async () => {
+  it('emits a placed semifinal with both players joined by name, club and seed', async () => {
     const { projections, drawStore } = await drawn()
-    const semi = (await drawStore.listMatches()).find(m => m.round === 1)!
+    // The 4-draw fixes seeds 1 and 2 on lines 0 and 3, so the position-0 semifinal is the top seed against
+    // an unseeded player — one match carrying both seeding cases. The club and the seed are joins the client
+    // cannot make (the club lives on the registration, the seed on the frozen draw), so both ride the wire
+    // beside the name for the match row's crest and seed token (#309, ADR-0070). Unseeded is an explicit
+    // `null`, never an absent field a client could read as a seed.
+    const semi = (await drawStore.listMatches()).find(m => m.round === 1 && m.position === 0)!
     await drawStore.placeMatch(semi.id, { court: 2, day: 0, slot: 1 })
 
     const { matches } = await projections.schedule()
@@ -74,8 +79,8 @@ describe('projections.schedule', () => {
       day: 0,
       slot: 1,
       status: 'planned',
-      slot1: { kind: 'player' },
-      slot2: { kind: 'player' }
+      slot1: { kind: 'player', firstName: 'P1', lastName: 'Player1', club: 'TV Winsen', seed: 1 },
+      slot2: { kind: 'player', firstName: 'P3', lastName: 'Player3', club: 'TV Winsen', seed: null }
     })
   })
 

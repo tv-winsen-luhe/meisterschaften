@@ -50,7 +50,9 @@ export const createInMemoryRegistrationsStore = (seed: RegistrationRow[] = []): 
     async revealPlayers(ids) {
       const wanted = new Set(ids)
       return new Map(
-        rows.filter(r => wanted.has(r.id)).map(r => [r.id, { firstName: r.firstName, lastName: r.lastName, lk: r.lk }])
+        rows
+          .filter(r => wanted.has(r.id))
+          .map(r => [r.id, { firstName: r.firstName, lastName: r.lastName, lk: r.lk, club: r.club }])
       )
     },
 

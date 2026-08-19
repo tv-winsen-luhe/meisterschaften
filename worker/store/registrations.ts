@@ -109,12 +109,16 @@ export interface ConfirmedParticipant {
   seedRank: number | null
 }
 
-// The display fields the public draw reveal joins onto each reveal step by registration id (the
-// matches/reveal sequence carry only ids). Name + the frozen LK — what a bracket slot shows.
+// The display fields the public projections join onto a slot by registration id (the matches/reveal
+// sequence carry only ids). Name + the frozen LK — what a bracket slot shows — plus the `club` the schedule
+// row's crest reads (#309). One join type for both surfaces rather than two nearly identical ones: the
+// projections each pick the fields their wire carries, and a surface that later wants a field it already
+// has does not need a second query.
 export interface RevealPlayer {
   firstName: string
   lastName: string
   lk: string | null
+  club: string
 }
 
 // A person within a single competition — the key the registration lifecycle matches on.
@@ -324,11 +328,12 @@ export const createD1RegistrationsStore = (d1: D1Database): RegistrationsStore =
           id: registrations.id,
           firstName: registrations.firstName,
           lastName: registrations.lastName,
-          lk: registrations.lk
+          lk: registrations.lk,
+          club: registrations.club
         })
         .from(registrations)
         .where(inArray(registrations.id, ids))
-      return new Map(rows.map(r => [r.id, { firstName: r.firstName, lastName: r.lastName, lk: r.lk }]))
+      return new Map(rows.map(r => [r.id, { firstName: r.firstName, lastName: r.lastName, lk: r.lk, club: r.club }]))
     },
 
     async findById(id) {

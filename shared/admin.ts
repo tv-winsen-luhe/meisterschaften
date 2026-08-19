@@ -399,7 +399,19 @@ export type PlaceMatchResponse = z.infer<typeof placeMatchResponseSchema>
 // resolves the shared SlotView (shared/schedule.ts) and joins the player name, so the public page
 // renders without the registration list.
 export const scheduleSlotSchema = z.discriminatedUnion('kind', [
-  z.object({ kind: z.literal('player'), firstName: z.string(), lastName: z.string() }),
+  // A named contestant, carrying the two things the match row shows beside the name (CONTEXT: Match row):
+  // the `club` behind the crest and the frozen `seed`, null when unseeded. Both are joins the public page
+  // cannot make — the club lives on the registration, the seed on the draw — so they ride the wire. No
+  // `lk`: the schedule's silence about strength is deliberate (ADR-0070).
+  z.object({
+    kind: z.literal('player'),
+    firstName: z.string(),
+    lastName: z.string(),
+    // Nullable for the same reason a slot degrades to „offen" (ADR-0035): the stored club is untyped text,
+    // so a value outside the closed set renders no crest rather than a wrong one, and never 500s the feed.
+    club: clubSchema.nullable(),
+    seed: z.number().int().positive().nullable()
+  }),
   z.object({ kind: z.literal('bye') }),
   z.object({ kind: z.literal('feeder'), matchNumber: z.number().int().positive() }),
   // The third-place playoff's open slots wait on a semifinal *loser* („Verlierer M{n}", #90), distinct from

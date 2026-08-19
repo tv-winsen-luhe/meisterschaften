@@ -627,13 +627,23 @@ reveal sequence }`. Randomness enters through an injected **`RandomSource`** por
   „im Anschluss" would throw away. Because „im Anschluss" only means anything **inside one court's
   column**, the public schedule groups **day → court** as a fixed hierarchy; there is no day-vs-court
   grouping choice, and „what is on right now" is the Live board's job, not a grouping's. _(See ADR-0069.)_
-- **Match row** (de: Match-Zeile) — the one shape a match is displayed in on the public surfaces: its two
-  contestant lines (name or „Freilos"/„Sieger M3"/„offen", each with that slot's games and the winner
-  marked), its Published time, its meta line (round · match number · competition, plus „Walkover"/„Aufgabe"
-  for a special outcome), and its Match status. It is the output of one projection (`shared/match-view`),
-  and every string in it is finished German — a renderer iterates and never sorts, concatenates or formats.
-  Today it is the **schedule's** row; the public bracket still builds its own contestant lines, and folding
-  that surface into the same row is what makes „it exists once" true. _(See ADR-0069, ADR-0028, ADR-0035.)_
+- **Match row** (de: Match-Zeile) — the one shape a match is displayed in on the public surfaces, in the
+  anatomy a tennis spectator already reads fluently (ADR-0070): its two **contestant lines** — club crest,
+  full name (never an initial), the **seed** as a small trailing token, and that slot's games — its
+  Published time, its meta line (round · match number · competition, and nothing else), and its Match
+  status. A placeholder line („Freilos" / „Sieger M3" / „offen") carries neither crest nor seed, because
+  there is no person behind it. The **winner is marked twice**, bold _and_ a check: the redundancy is the
+  references' convention and it is what survives a phone in bright sunlight. A special **outcome** reads in
+  the **score column**, not the meta line — „· Aufg." behind the sets actually played, „w.o." in their
+  place — because that is where a reader looks for how a match ended; it rides the winner's line, the way a
+  result is quoted. The row carries **no LK**: the schedule answers „when and where", the bracket answers
+  „how strong is this half", and that silence is deliberate economy. It is the output of one projection
+  (`shared/match-view`), and every string in it is finished German — a renderer iterates and never sorts,
+  concatenates or formats. The one structural exception is the **club**, which names _which_ crest so the
+  page can resolve its own bundled asset (`src/components/club-crest.ts`, shared with the participant
+  list). Today it is the **schedule's** row; the public bracket still builds its own contestant lines, and
+  folding that surface into the same row is what makes „it exists once" true.
+  _(See ADR-0070, ADR-0069, ADR-0028, ADR-0035.)_
 
 ## System
 
