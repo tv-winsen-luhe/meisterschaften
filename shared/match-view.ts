@@ -1,6 +1,6 @@
 import { COURT_NUMBERS, roundLabel, slotLabel, slotTime, SLOT_SPAN } from './schedule'
 import { scoreLine } from './score'
-import type { ScheduleMatch, ScheduleResponse, ScheduleSlot } from './admin'
+import type { LiveBracketSlot, MatchScore, ScheduleMatch, ScheduleResponse, ScheduleSlot } from './admin'
 import type { Club } from './club'
 
 /**
@@ -8,7 +8,10 @@ import type { Club } from './club'
  * tree a page renders. Pure computation — no I/O, no state, no clock — so it is tested directly through its
  * interface, and it joins the display layer beside `slotLabel`, `roundLabel` and `slotGames` rather than
  * growing `schedule.ts`, which is at its size budget (ADR-0068). The schedule view is here; the public
- * bracket's view joins it as a second entry point (#304).
+ * bracket's view is the second entry point (#311) and lives in the sibling `bracket-view.ts` — a different
+ * tree, the same row inside it. The two are one seam split across two files only because a file here is
+ * capped at 300 code lines; what they share — the row, the score column, the reservation chain — is exported
+ * from here and imported there, so neither can grow its own second answer to a question this one settles.
  *
  * Four facts about this interface, each load-bearing:
  *
@@ -184,7 +187,31 @@ export interface ScheduleViewOptions {
 
 // ── The pieces every row is made of ──────────────────────────────────────────────────────────────
 
-const STATUS_LABELS: Record<ScheduleMatch['status'], string> = {
+/**
+ * The three fields a match's **score column** is a function of. Both wires carry them — the schedule feed
+ * since #91, the draw wire since ADR-0070 — so the column is computed once here rather than once per
+ * surface. Named for the row rather than for the match (shared/advancement already owns `MatchResult`, a different idea entirely), and structural rather than a union of the two match types, so neither surface's unrelated fields
+ * leak into the rule.
+ */
+export interface RowResult {
+  winner: 1 | 2 | null
+  outcome: NonNullable<ScheduleMatch['outcome']> | null
+  score: MatchScore
+}
+
+/**
+ * A contestant slot as either wire spells it. The two agree on the discriminator and on every placeholder
+ * member, and differ only in what a **player** carries: the schedule joins the club (for the crest), the
+ * draw joins the LK (the bracket's strength signal). Everything the shared row reads sits in the
+ * intersection; each extra is picked up only where it exists.
+ */
+export type ViewSlot = ScheduleSlot | LiveBracketSlot
+
+/**
+ * The three states a match is in, said in German. Shared with the bracket view (shared/bracket-view), which
+ * marks only one of them — see `BracketCell.statusLabel` on why.
+ */
+export const STATUS_LABELS: Record<ScheduleMatch['status'], string> = {
   planned: 'geplant',
   running: 'läuft',
   done: 'beendet'
@@ -211,7 +238,7 @@ const OUTCOME_TOKENS: Record<NonNullable<ScheduleMatch['outcome']>, string> = {
  * hang off nothing. A walkover never has sets (the score rules reject one, ADR-0045), so its token stands
  * alone in the score's place.
  */
-const outcomeToken = (match: ScheduleMatch, slot: 1 | 2): string | null => {
+const outcomeToken = (match: RowResult, slot: 1 | 2): string | null => {
   if (!match.outcome) return null
   if (slot !== (match.winner ?? 1)) return null
   const token = OUTCOME_TOKENS[match.outcome]
@@ -222,7 +249,7 @@ const outcomeToken = (match: ScheduleMatch, slot: 1 | 2): string | null => {
 // A player's name, or the shared German label for a „Freilos"/„Sieger M{n}"/„Verlierer M{n}"/„offen" line.
 // A player slot with no name left in it falls through to „offen" rather than rendering a blank line — the
 // „it never throws" promise reaches the empty case, not only the unknown one (ADR-0035).
-const slotText = (slot: ScheduleSlot): SlotText => {
+const slotText = (slot: ViewSlot): SlotText => {
   if (slot.kind !== 'player') return { text: slotLabel(slot), tbd: true }
   const name = `${slot.firstName} ${slot.lastName}`.trim()
   return name ? { text: name, tbd: false } : { text: slotLabel({ kind: 'unknown' }), tbd: true }
@@ -233,21 +260,25 @@ const slotText = (slot: ScheduleSlot): SlotText => {
 const seedToken = (seed: number | null): SeedToken | null =>
   seed === null ? null : { text: String(seed), label: `An ${seed} gesetzt` }
 
-const rowSlot = (match: ScheduleMatch, slot: 1 | 2): RowSlot => {
-  const wire = slot === 1 ? match.slot1 : match.slot2
-  return {
-    ...slotText(wire),
-    // A placeholder line („Freilos", „Sieger M3", „offen") has no person behind it, so it flies no crest and
-    // wears no seed — the two fall out of the wire's discriminator rather than needing a rule of their own.
-    club: wire.kind === 'player' ? wire.club : null,
-    seed: wire.kind === 'player' ? seedToken(wire.seed) : null,
-    games: scoreLine(match.score, slot),
-    outcome: outcomeToken(match, slot),
-    winner: match.winner === slot
-  }
-}
+export const rowSlot = (match: RowResult, wire: ViewSlot, slot: 1 | 2): RowSlot => ({
+  ...slotText(wire),
+  // A placeholder line („Freilos", „Sieger M3", „offen") has no person behind it, so it flies no crest and
+  // wears no seed — the two fall out of the wire's discriminator rather than needing a rule of their own.
+  // A bracket line carries no crest either: the draw wire never joined the club. Its strength signal is the
+  // LK, which the cell adds beside this shape rather than inside it (see `cellSlot`).
+  club: wire.kind === 'player' && 'club' in wire ? wire.club : null,
+  seed: wire.kind === 'player' ? seedToken(wire.seed) : null,
+  games: scoreLine(match.score, slot),
+  outcome: outcomeToken(match, slot),
+  winner: match.winner === slot
+})
 
-const courtLabel = (court: number): string => `Platz ${court}`
+// The schedule feed's row: both slots come off the one wire match, so the shared piece above keeps only
+// what the two surfaces genuinely share and neither has to hand it a slot it does not have.
+const scheduleRowSlot = (match: ScheduleMatch, slot: 1 | 2): RowSlot =>
+  rowSlot(match, slot === 1 ? match.slot1 : match.slot2, slot)
+
+export const courtLabel = (court: number): string => `Platz ${court}`
 
 // The field's German label; falls back to the wire slug rather than rendering nothing for a field whose
 // label the client's copy does not know.
@@ -263,7 +294,7 @@ const roundText = (m: ScheduleMatch): string =>
 
 // The floor as both the sentence a reader gets and the fact a caller styles on — one return, so the two
 // can never disagree and nobody has to recover the second by pattern-matching the first.
-interface PublishedTime {
+export interface PublishedTime {
   label: string
   followsOn: boolean
 }
@@ -295,6 +326,33 @@ const publishedTime = (day: number, slot: number, previousSlot: number | null): 
   const clock = slotTime(day, slot)
   const followsOn = previousSlot !== null && slot === previousSlot + SLOT_SPAN
   return { label: followsOn ? `im Anschluss · nicht vor ca. ${clock}` : `ab ${clock}`, followsOn }
+}
+
+/**
+ * Every placed match's floor, keyed by match id.
+ *
+ * Built over the **whole feed** rather than per rendered group, because a court's reservation chain is a
+ * fact about the court: the men's match hidden by a competition filter still occupies the court, and the
+ * women's match behind it must keep reading „im Anschluss" rather than being promoted to „ab". Same reason
+ * the bracket cannot compute this from the one node it is rendering — it is exactly the neighbour knowledge
+ * a per-row helper would have made every caller carry.
+ */
+export const publishedTimes = (matches: readonly ScheduleMatch[]): Map<number, PublishedTime> => {
+  const chains = new Map<string, ScheduleMatch[]>()
+  for (const m of matches) {
+    const key = `${m.day}|${m.court}`
+    const chain = chains.get(key)
+    if (chain) chain.push(m)
+    else chains.set(key, [m])
+  }
+  const floors = new Map<number, PublishedTime>()
+  for (const chain of chains.values()) {
+    // Order of play on that court; the id breaks a tie no valid plan produces but a moved live match can
+    // (ADR-0032), so the order is total either way.
+    chain.sort((a, b) => a.slot - b.slot || a.id - b.id)
+    chain.forEach((m, i) => floors.set(m.id, publishedTime(m.day, m.slot, i === 0 ? null : chain[i - 1].slot)))
+  }
+  return floors
 }
 
 // ── The filter ───────────────────────────────────────────────────────────────────────────────────
@@ -339,14 +397,17 @@ export const scheduleView = (
   const offered = filterOptions(competitions, matches)
   const selected = effectiveSelection(offered, competition)
 
-  const row = (m: ScheduleMatch, previousSlot: number | null): MatchRow => {
-    const { label, followsOn } = publishedTime(m.day, m.slot, previousSlot)
+  // Every court's chain, built before the filter narrows anything — see `publishedTimes`.
+  const floors = publishedTimes(matches)
+
+  const row = (m: ScheduleMatch): MatchRow => {
+    const { label, followsOn } = floors.get(m.id)!
     return {
       id: m.id,
       publishedTime: label,
       followsOn,
-      slot1: rowSlot(m, 1),
-      slot2: rowSlot(m, 2),
+      slot1: scheduleRowSlot(m, 1),
+      slot2: scheduleRowSlot(m, 2),
       meta: [roundText(m), `M${m.number}`, competitionLabel(competitions, m.competition)].join(' · '),
       status: m.status,
       statusLabel: STATUS_LABELS[m.status]
@@ -364,12 +425,11 @@ export const scheduleView = (
       label: days[day] ? `${days[day].weekday} · ${days[day].short}` : `Tag ${day + 1}`,
       courts: courts
         .map(court => {
-          // The whole court's chain first — then the filter, so the time statements survive it.
-          const chain = onDay.filter(m => m.court === court).sort((a, b) => a.slot - b.slot || a.id - b.id)
-          const rows = chain
-            .map((m, i) => ({ m, row: row(m, i === 0 ? null : chain[i - 1].slot) }))
-            .filter(({ m }) => selected === null || m.competition === selected)
-            .map(({ row: r }) => r)
+          const rows = onDay
+            .filter(m => m.court === court)
+            .sort((a, b) => a.slot - b.slot || a.id - b.id)
+            .filter(m => selected === null || m.competition === selected)
+            .map(row)
           return { court, label: courtLabel(court), rows }
         })
         .filter(group => group.rows.length > 0)
@@ -390,8 +450,8 @@ export const scheduleView = (
     return {
       ...base,
       free: false,
-      slot1: rowSlot(live, 1),
-      slot2: rowSlot(live, 2),
+      slot1: scheduleRowSlot(live, 1),
+      slot2: scheduleRowSlot(live, 2),
       meta: `${roundText(live)} · ${competitionLabel(competitions, live.competition)}`
     }
   })

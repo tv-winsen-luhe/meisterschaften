@@ -641,9 +641,22 @@ reveal sequence }`. Randomness enters through an injected **`RandomSource`** por
   (`shared/match-view`), and every string in it is finished German — a renderer iterates and never sorts,
   concatenates or formats. The one structural exception is the **club**, which names _which_ crest so the
   page can resolve its own bundled asset (`src/components/club-crest.ts`, shared with the participant
-  list). Today it is the **schedule's** row; the public bracket still builds its own contestant lines, and
-  folding that surface into the same row is what makes „it exists once" true.
+  list). Both public surfaces read it: the schedule row and the **Bracket cell** (below) are the same row
+  inside, which is what makes „it exists once" true rather than aspirational.
   _(See ADR-0070, ADR-0069, ADR-0028, ADR-0035.)_
+- **Bracket cell** (de: Tableau-Zelle) — one match as the **public bracket** shows it: the Match row's two
+  contestant lines — plus the **LK**, which is the bracket's own question and the schedule's deliberate
+  silence — over a footer carrying the court, the Published time and, for a match on court right now, a
+  „läuft" badge. It shows the **score in the cell**, so a finished field records _how_ a match was won and
+  not only by whom (ADR-0070). **Two facts about one match arrive on two wires, with two different
+  visibility rules, and collapsing them is the mistake to avoid:** the **result** (score, outcome, status)
+  rides the **draw** wire, gated on the reveal cursor alone, so it survives „Spielplan zurücksetzen" —
+  a result is reality (ADR-0032); the **court and planned time** stay the **schedule** join, gated on the
+  publish flag, so they disappear with a withheld plan, and that is correct — the plan is what the
+  organiser withholds (ADR-0041). Joining the score off the schedule feed is a few lines and is wrong.
+  The „Spiel um Platz 3" is a cell like any other, under its own label, because it shares the final's
+  round. Projected by `shared/bracket-view`, a sibling of the schedule's projection that imports the row
+  rather than restating it. _(See ADR-0070, ADR-0069, ADR-0046, ADR-0032, ADR-0041, ADR-0004.)_
 
 ## System
 
