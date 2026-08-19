@@ -147,7 +147,10 @@ concept here drifts or a new one appears, update this file rather than inventing
   Matchday conversation with Judica Klages) — the mixer is the format that fixes exactly that (find new
   partners, meet the others), which is how the Damen validation probe pitches it (ADR-0054), not as
   generic „Geselligkeit". It produces **no system result**: no draw, no seeding, no bracket,
-  no consolation / third-place, no champion, no live board — the tournament engine never touches it. The
+  no consolation / third-place, no champion, no live board — the tournament engine never touches it. So in
+  the `tournament` phase its surface is the **Spielplan's mixer block**, and only that: it is **absent from
+  the public draw's tab list** rather than present with an empty bracket, because a tab it can never fill
+  reads as „not drawn yet" for a field that is never drawn at all. The
   app's only job is the **signup surface**: it reuses the Registration lifecycle (`new → confirmed →
 cancelled`, duplicate check, capacity, first-come cut) **unchanged**, with one relaxation — being
   unseeded, an entry carries **no LK** and `confirm` needs **no seeding basis** (seedability is a property

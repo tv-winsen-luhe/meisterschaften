@@ -2,12 +2,13 @@ import {
   bracketStructure,
   bracketView,
   displayDrawSize,
+  isUnseededCompetition,
   MIN_DRAW_ENTRIES,
   revealedBracket,
   roundLabel,
   scheduleNodeKey
 } from '../../shared'
-import { tournament } from '../data/tournament'
+import { type Competition, tournament } from '../data/tournament'
 import type {
   BracketCell,
   BracketSegment,
@@ -66,6 +67,24 @@ const roundLabels = (totalRounds: number, bracket: Segment): string[] =>
 // The event's date copy, handed to the view like the schedule page hands it (src/data/tournament.ts is the
 // client's, and `shared/` must not reach into it). The view abbreviates it to „Sa"/„So" for the tight cell
 // footer; the full „Samstag · 22.08." stays on /spielplan.
+// Which competitions get a draw tab. Two facts decide it, and both are read here rather than implied by
+// a slug list: a field must be **offered** (open, with a capacity) and it must be **seeded** — an unseeded
+// field is never drawn at all (ADR-0058/0066, the server refuses it outright in worker/draw.ts), so a tab
+// for it could only ever show a bracket of "?" placeholders for a bracket that cannot exist.
+//
+// `DRAW_ORDER` is the display order and nothing else. A slug missing from it sorts **last**, never first:
+// an unknown field must not become the pre-selected tab the reader lands on.
+const DRAW_ORDER = ['mens', 'mens-challenger', 'womens']
+const drawRank = (slug: string): number => {
+  const i = DRAW_ORDER.indexOf(slug)
+  return i === -1 ? DRAW_ORDER.length : i
+}
+
+export const drawableCompetitions = (all: readonly Competition[]): Competition[] =>
+  all
+    .filter(c => c.status === 'open' && c.capacity && !isUnseededCompetition(c.slug))
+    .sort((a, b) => drawRank(a.slug) - drawRank(b.slug))
+
 const DAYS = [tournament.saturday, tournament.sunday]
 // The reveal phase still builds its own caption from the older per-node index (see `scheduleNoteEl`), so it
 // keeps the two-letter form here.

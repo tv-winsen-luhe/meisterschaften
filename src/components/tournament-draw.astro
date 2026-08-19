@@ -1,14 +1,13 @@
 ---
 import { competitions } from '@/data/tournament'
+import { drawableCompetitions } from './tournament-draw.render'
 
 // Live draw per competition: the seeded players fill in from the participant feed,
 // every other slot is a "?" until the draw. Challenger has a draw too — unlike
 // the participant list it is seeded here, since a draw without seeds makes no sense.
-const drawOrder = ['mens', 'mens-challenger', 'womens']
-const drawCompetitions = competitions
-  .filter(c => c.status === 'open' && c.capacity)
-  .slice()
-  .sort((a, b) => drawOrder.indexOf(a.slug) - drawOrder.indexOf(b.slug))
+// Which fields appear (and in which order) is `drawableCompetitions`, so the rule is
+// stated once and testable; cancelled fields lose their tab client-side (ADR-0062).
+const drawCompetitions = drawableCompetitions(competitions)
 ---
 
 <div class="dm" data-draw>
