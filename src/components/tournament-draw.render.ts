@@ -1,6 +1,5 @@
 import {
   bracketStructure,
-  bracketView,
   displayDrawSize,
   isUnseededCompetition,
   MIN_DRAW_ENTRIES,
@@ -10,24 +9,24 @@ import {
 } from '../../shared'
 import { type Competition, tournament } from '../data/tournament'
 import type {
-  BracketCell,
   BracketSegment,
-  BracketView,
-  CellSlot,
-  CellSchedule,
   NodeSchedule,
   Participant,
   PlayerDisplay,
   PublicCompetitionBracket,
-  PublicRevealStep,
-  ScheduleResponse
+  PublicRevealStep
 } from '../../shared'
 
-// The public bracket's DOM layer (ADR-0046): every builder that turns bracket data into elements, split
-// out of tournament-draw.astro so the component's `<script>` stays a thin fetch/state/poll controller.
-// Pure and framework-free — it takes data + a render target and returns/fills DOM, holding no state of its
-// own (the selected segment + the re-render trigger are passed in). The three phase renderers at the bottom
-// (`renderPreview` / `renderReveal` / `renderLive`) are the module's surface; everything above is internal.
+// The public bracket's DOM layer for the two phases **before** a field is resolved (ADR-0046): the pre-draw
+// preview and the reveal show. Split out of tournament-draw.astro so the component's `<script>` stays a thin
+// fetch/state/poll controller. Pure and framework-free — it takes data + a render target and fills DOM,
+// holding no state of its own. `renderPreview` and `renderReveal` are the module's surface; everything else is
+// internal, bar the two element helpers the live layer shares (see `elem`, `tbdEl`).
+//
+// The fully-revealed phase lives in **tournament-draw.live.ts**, the same split `shared/` makes between
+// `match-view` and `bracket-view`: these two phases draw a *topology* — lines addressed by index into a draw
+// size, with no result anywhere — while the live layer translates a finished `bracketView` and shares nothing
+// of that arithmetic. They met here only by both being „the draw's DOM", and the file had outgrown its budget.
 
 export type Entry = Participant
 // A round-1 line of the pre-draw preview. A `seed` line is a seed the DTB table fixes (Nr. 1, Nr. 2 —
@@ -38,10 +37,9 @@ type Slot = { kind: 'seed'; seed: number; player: Entry } | { kind: 'lot'; seeds
 // PlayerDisplay (shared) is the display fields a bracket line shows — the wire contract's reveal-step
 // player. A Participant is structurally assignable to it, so the preview and the reveal share one shape.
 
-// The two members of the per-competition bracket union (ADR-0046), narrowed for the renderers below: a
-// still-revealing field (cursor-sliced reveal steps) vs. a fully-revealed one (resolved live brackets).
+// The still-revealing member of the per-competition bracket union (ADR-0046) — cursor-sliced reveal steps.
+// The fully-revealed one is narrowed next door, where it is rendered.
 export type RevealingBracket = Extract<PublicCompetitionBracket, { phase: 'revealing' }>
-export type LiveCompetition = Extract<PublicCompetitionBracket, { phase: 'live' }>
 // Which bracket a live competition's segment shows — the main KO tree or the consolation (ADR-0046).
 // Re-exported from the view module rather than redeclared, so the controller's state and the view's
 // parameter are the same type by construction.
@@ -49,7 +47,9 @@ export type Segment = BracketSegment
 
 // createElement + className (+ optional text) in one — the module's many small line-builders lean on it, so
 // each element is one statement rather than the create/className/textContent triple repeated ~30 times.
-const elem = (tag: string, className: string, text?: string): HTMLElement => {
+// Exported for the live layer next door: the two halves of one surface share it rather than keeping a copy
+// each, which is what the sibling *surfaces* (participant-list, schedule-board) legitimately do.
+export const elem = (tag: string, className: string, text?: string): HTMLElement => {
   const node = document.createElement(tag)
   node.className = className
   if (text !== undefined) node.textContent = text
@@ -64,9 +64,6 @@ const elem = (tag: string, className: string, text?: string): HTMLElement => {
 const roundLabels = (totalRounds: number, bracket: Segment): string[] =>
   Array.from({ length: totalRounds }, (_, r) => roundLabel({ bracket, round: r + 1, totalRounds }))
 
-// The event's date copy, handed to the view like the schedule page hands it (src/data/tournament.ts is the
-// client's, and `shared/` must not reach into it). The view abbreviates it to „Sa"/„So" for the tight cell
-// footer; the full „Samstag · 22.08." stays on /spielplan.
 // Which competitions get a draw tab. Two facts decide it, and both are read here rather than implied by
 // a slug list: a field must be **offered** (open, with a capacity) and it must be **seeded** — an unseeded
 // field is never drawn at all (ADR-0058/0066, the server refuses it outright in worker/draw.ts), so a tab
@@ -85,13 +82,18 @@ export const drawableCompetitions = (all: readonly Competition[]): Competition[]
     .filter(c => c.status === 'open' && c.capacity && !isUnseededCompetition(c.slug))
     .sort((a, b) => drawRank(a.slug) - drawRank(b.slug))
 
-const DAYS = [tournament.saturday, tournament.sunday]
+// The event's date copy, handed to the view like the schedule page hands it (src/data/tournament.ts is the
+// client's, and `shared/` must not reach into it). The view abbreviates it to „Sa"/„So" for the tight cell
+// footer; the full „Samstag · 22.08." stays on /spielplan. Exported for the live layer next door, which hands
+// the same two days to `bracketView` — two copies of the event's own calendar would be one too many.
+export const DAYS = [tournament.saturday, tournament.sunday]
 // The reveal phase still builds its own caption from the older per-node index (see `scheduleNoteEl`), so it
 // keeps the two-letter form here.
 const DAY_ABBR = DAYS.map(d => d.weekday.slice(0, 2))
 
-// An empty „?" line — not yet drawn (a round-1 line before its reveal, or any later-round feeder).
-const tbdEl = (): HTMLElement => {
+// An empty „?" line — not yet drawn (a round-1 line before its reveal, or any later-round feeder). One shape
+// for all three phases, so the live layer imports it rather than growing a second „?".
+export const tbdEl = (): HTMLElement => {
   const el = elem('div', 'dm-slot dm-slot--tbd')
   const q = elem('span', 'dm-q', '?')
   q.setAttribute('aria-label', 'Wird ausgelost')
@@ -237,129 +239,6 @@ const needFourEl = (count: number): HTMLElement => {
   return wrap
 }
 
-// ── The live bracket's cell (ADR-0070, #311) ─────────────────────────────────────────────────────
-//
-// Everything below is a **translation** of the finished `bracketView` tree: no sorting, no label building,
-// no „is this decided" arithmetic, and no German assembled from parts. The one thing this layer decides is
-// which class carries which fact, which is what a stylesheet is for.
-
-// One contestant line of a cell: seed · name · LK, then the score column, in the tennis anatomy the schedule
-// row uses (#309). The winner is marked twice — an inked line with a navy accent bar (the class) *and* a
-// check — because a weight difference alone does not survive a phone in bright sunlight.
-const cellSlotEl = (slot: CellSlot): HTMLElement => {
-  const el = elem('div', 'dm-slot dm-slot--cell')
-  // A placeholder line („Freilos", „Sieger M3", „offen") wears the dashed, muted treatment; the view already
-  // decided it is one, so this never re-reads the label to find out.
-  if (slot.tbd) el.classList.add('dm-slot--feeder')
-  else el.classList.add('dm-slot--seed')
-  if (slot.winner) el.classList.add('dm-slot--winner')
-  if (slot.loser) el.classList.add('dm-slot--loser')
-
-  if (slot.seed) {
-    const no = elem('span', 'dm-seedno', slot.seed.text)
-    // „An 3 gesetzt" — a bare number beside a name means nothing read aloud.
-    no.title = slot.seed.label
-    no.setAttribute('aria-label', slot.seed.label)
-    el.append(no)
-  }
-  el.append(elem('span', slot.tbd ? 'dm-feeder' : 'dm-name', slot.text))
-  if (slot.lk) el.append(elem('span', slot.lk.pending ? 'dm-lk dm-lk--pending' : 'dm-lk', slot.lk.text))
-  if (slot.winner) {
-    const check = elem('span', 'dm-check', '✓')
-    check.title = 'Sieger'
-    check.setAttribute('role', 'img')
-    check.setAttribute('aria-label', 'Sieger')
-    el.append(check)
-  }
-  // The games span is emitted even when empty, so the sets keep their column and line up between the two
-  // contestant lines — a skipped cell would slide a walkover's „w.o." into the sets' place.
-  el.append(elem('span', 'dm-games', slot.games))
-  if (slot.outcome) el.append(elem('span', 'dm-outcome', slot.outcome))
-  return el
-}
-
-// The court + floor caption („Platz 3 · Sa" / „ab 14:00"), the **gated** half of the cell (ADR-0070): it is
-// simply absent when the plan is withheld, while the score above stays. The floor is its own span so it can
-// read quieter as a follow-on, and so the „ab" / „nicht vor ca." wording is the schedule's verbatim.
-const whenEl = (when: CellSchedule): DocumentFragment => {
-  const frag = document.createDocumentFragment()
-  frag.append(elem('span', 'dm-when__where', when.where))
-  const time = elem('span', 'dm-when__time', when.time)
-  if (when.followsOn) time.classList.add('dm-when__time--follows')
-  frag.append(time)
-  return frag
-}
-
-// One cell: its header line (court + floor, and „läuft" for a match on court right now), then the two
-// contestant lines. The header is emitted even when empty so every match in a column keeps the same height
-// and the CSS elbow connectors stay aligned.
-const liveMatchEl = (cell: BracketCell | null): HTMLElement => {
-  const el = elem('div', 'dm-match')
-  const head = elem('div', 'dm-when')
-  if (cell?.schedule) head.append(whenEl(cell.schedule))
-  // The one status worth a badge — the view decided which, so this only asks whether there is one.
-  if (cell?.statusLabel) head.append(elem('span', 'dm-live', cell.statusLabel))
-  el.append(head)
-  el.append(cell ? cellSlotEl(cell.slot1) : tbdEl(), cell ? cellSlotEl(cell.slot2) : tbdEl())
-  return el
-}
-
-// The tree: one column per round, outermost → final, rendered in the order the view hands over. It does not
-// reuse `renderTree` (the preview/reveal shell) because that one addresses slots by index into a draw size,
-// while the view already hands over the columns and their cells — and re-deriving them from `size` here
-// would put the topology back on both sides of the seam.
-const renderLiveTree = (view: BracketView): HTMLElement => {
-  const tree = elem('div', 'dm-tree')
-  for (const round of view.rounds) {
-    const col = elem('div', 'dm-round')
-    const label = elem('div', 'dm-round__label')
-    label.append(round.label, elem('span', 'dm-round__count', String(round.matchCount)))
-    col.append(label)
-
-    const matches = elem('div', 'dm-round__matches')
-    for (const cell of round.cells) matches.append(liveMatchEl(cell))
-    col.append(matches)
-    tree.append(col)
-  }
-  return tree
-}
-
-// The „Spiel um Platz 3" box beneath the Hauptrunde tree (ADR-0046): the playoff resolved like any other
-// cell — score included — under the label the view gives it, because it shares the final's round and would
-// otherwise sit in the final's column.
-const thirdPlaceBox = (cell: BracketCell): HTMLElement => {
-  const box = elem('div', 'dm-third')
-  box.append(elem('div', 'dm-third__label', cell.label ?? ''))
-  const pair = elem('div', 'dm-third__match')
-  const head = elem('div', 'dm-when')
-  if (cell.schedule) head.append(whenEl(cell.schedule))
-  if (cell.statusLabel) head.append(elem('span', 'dm-live', cell.statusLabel))
-  box.append(head)
-  pair.append(cellSlotEl(cell.slot1), cellSlotEl(cell.slot2))
-  box.append(pair)
-  return box
-}
-
-// The Hauptrunde / Nebenrunde segment control (ADR-0046) — the buttons are created once per panel, then
-// re-synced on each render (so a poll never drops focus or duplicates a listener). Clicking calls `onSelect`
-// (the controller switches the panel's segment + re-renders). The 3rd-place box rides under Hauptrunde, so
-// there is no tab for it.
-const renderSegments = (segmentsEl: HTMLElement, selected: Segment, onSelect: (segment: Segment) => void) => {
-  if (segmentsEl.childElementCount === 0) {
-    for (const seg of ['main', 'consolation'] as const) {
-      const btn = elem('button', 'dm-seg', seg === 'main' ? 'Hauptrunde' : 'Nebenrunde') as HTMLButtonElement
-      btn.type = 'button'
-      btn.setAttribute('role', 'tab')
-      btn.dataset.seg = seg
-      btn.addEventListener('click', () => onSelect(seg))
-      segmentsEl.append(btn)
-    }
-  }
-  segmentsEl.querySelectorAll<HTMLButtonElement>('[data-seg]').forEach(btn => {
-    btn.setAttribute('aria-selected', String(btn.dataset.seg === selected))
-  })
-}
-
 // ── The three phase renderers (the module's surface) ──────────────────────────────────────────────
 
 // The provisional preview (before the draw): the strongest LKs sit on their seed lines, every other
@@ -439,34 +318,4 @@ export const renderReveal = (
       }
     )
   )
-}
-
-// A fully-revealed competition (phase two, ADR-0046, ADR-0070): project the field through `bracketView` and
-// render the segment it hands back. The Hauptrunde view is the main KO tree plus the „Spiel um Platz 3" box;
-// the Nebenrunde view is the consolation tree alone. `selected` + `onSelect` carry the segment state, which
-// lives in the controller so it survives a poll — the *effective* segment comes back from the view, which
-// falls back to the main bracket when the one asked for does not exist.
-//
-// It takes the whole schedule **feed** rather than a per-node index, because the cell footer states a floor
-// („im Anschluss · nicht vor ca. 14:00", ADR-0069) and that is a statement about the court's neighbours —
-// mostly matches of other fields this tree never draws. The score does **not** come from here: it rides the
-// draw wire, so it survives a plan the operator has reset (ADR-0070).
-export const renderLive = (
-  segmentsEl: HTMLElement,
-  bracket: HTMLElement,
-  live: LiveCompetition,
-  feed: Pick<ScheduleResponse, 'matches'>,
-  selected: Segment,
-  onSelect: (segment: Segment) => void
-) => {
-  const view = bracketView(live, feed, { days: DAYS, segment: selected })
-  if (view.hasConsolation) {
-    renderSegments(segmentsEl, view.segment, onSelect)
-    segmentsEl.hidden = false
-  } else {
-    segmentsEl.hidden = true
-  }
-  bracket.innerHTML = ''
-  bracket.append(renderLiveTree(view))
-  if (view.thirdPlace) bracket.append(thirdPlaceBox(view.thirdPlace))
 }

@@ -40,7 +40,12 @@ const drawCompetitions = drawableCompetitions(competitions)
           data-panel={c.slug}
           hidden={i !== 0}
         >
-          <div class="dm-segments" role="tablist" aria-label="Runde wählen" data-segments hidden />
+          {/* The two controls, nested rather than stacked as equals (#312, ADR-0004): the bracket is the
+              outer choice — the consolation is a tournament of its own — and the round is a position inside
+              it. The round control is the phone's way through the bracket; the wide tree shows every round
+              at once, so the stylesheet hides it there. */}
+          <div class="dm-segments" role="tablist" aria-label="Hauptrunde oder Nebenrunde wählen" data-segments hidden />
+          <div class="dm-rounds" role="tablist" aria-label="Runde wählen" data-rounds hidden />
           <div class="dm-scroll" data-scroll>
             <div class="dm-bracket" data-bracket />
           </div>
@@ -121,15 +126,16 @@ const drawCompetitions = drawableCompetitions(competitions)
     padding-bottom: 10px;
     -webkit-overflow-scrolling: touch;
   }
-  /* The render target (vertical): the horizontal round-column tree, plus — on the Hauptrunde — the
-     „Spiel um Platz 3" box beneath it (ADR-0046). Left-anchored so both start at the first column. */
+  /* The render target (vertical): the round-column tree and — at phone width instead of it — the chosen
+     round's list (#312). Left-anchored so a preview or reveal tree starts at the first column. */
   .dm-bracket {
     display: flex;
     flex-direction: column;
     align-items: flex-start;
     gap: 30px;
   }
-  /* A bracket's round columns, laid out left→right; the widest thing in the panel, so the scroll rides it. */
+  /* The preview's and the reveal's tree: round columns laid out left→right at their natural width, the widest
+     thing in the panel, so the horizontal scroll rides it. The live bracket does not scroll — see below. */
   .dm-tree {
     display: flex;
     align-items: stretch;
@@ -137,9 +143,36 @@ const drawCompetitions = drawableCompetitions(competitions)
     min-width: min-content;
   }
 
-  /* — Segment control (Hauptrunde / Nebenrunde) — a lighter, secondary tab row inside a live panel, shown
-     only when a consolation bracket exists (ADR-0046). The 3rd-place box rides under Hauptrunde, so there
-     is no tab for it. */
+  /* — The live bracket's tree: a grid, so the whole draw fits the width (#312) —
+     The columns are tracks capped at `--dm-col` but free to shrink (`minmax(0, …)`), so four rounds — our
+     deepest field — land inside a laptop without horizontal scrolling; the name's ellipsis absorbs the last
+     few pixels, which is what it is for. `justify-content: start` keeps a shallow bracket left-anchored
+     instead of stretching two columns across the page.
+
+     The second reason for a grid is the playoff: it takes a row of its own under the final column, and a grid
+     row cannot steal height from the tree row. As a flex item it would have shortened the final's column and
+     pulled the final off the mid-point its two feeders' elbows aim at. */
+  .dm-tree--live {
+    display: grid;
+    grid-template-columns: repeat(var(--dm-cols, 1), minmax(0, var(--dm-col)));
+    justify-content: start;
+    align-items: stretch;
+    column-gap: var(--dm-gap);
+    row-gap: 26px;
+    width: 100%;
+    min-width: 0;
+  }
+  /* A track owns the column's width now, so the fixed width comes off — otherwise it would push the grid
+     back out to the scrolling width the tree used to have. */
+  .dm-tree--live .dm-round {
+    width: auto;
+    min-width: 0;
+  }
+
+  /* — Bracket control („Hauptrunde" / „Nebenrunde") — a lighter, secondary tab row inside a live panel, shown
+     only when a consolation bracket exists (ADR-0046). The „Spiel um Platz 3" rides under the main bracket’s
+     final, so there is no tab for it. This is the *outer* of the two controls (#312): pills, so the joined
+     round control below can never read as a second row of the same rank. */
   .dm-segments {
     display: flex;
     gap: 6px;
@@ -179,31 +212,84 @@ const drawCompetitions = drawableCompetitions(competitions)
     outline-offset: 3px;
   }
 
-  /* — The „Spiel um Platz 3" box beneath the Hauptrunde tree (ADR-0046): a single labelled matchup, set off
-     from the tree by a hairline. Sized to the first column so it reads as a coda to the bracket. */
-  .dm-third {
-    display: flex;
+  /* — Round control (a bracket's rounds) — the phone's way through the bracket (#312), and
+     the *inner* choice: a joined, full-width segmented control, so it never reads as a second row of the
+     pills above it. Its labels are the view's own round names (#307), so nothing here knows any German.
+     Hidden by default because the wide tree shows every round at once and has nothing to navigate; the
+     breakpoint at the end of this stylesheet brings it in. */
+  .dm-rounds {
+    display: none;
+    margin-bottom: 20px;
+    border: 1.5px solid color-mix(in srgb, var(--color-navy) 22%, transparent);
+  }
+  /* Mixed case and no tracking, unlike every other control on this surface — „Achtelfinale" is twelve
+     characters and four of them have to share a phone's width, and uppercase with letter-spacing truncates it
+     to „ACHTELFI…". It also keeps the inner control visibly a rank below the pills above it. */
+  .dm-roundtab {
+    flex: 1 1 0;
+    min-width: 0;
+    font-family: inherit;
+    font-size: 11.5px;
+    font-weight: 700;
+    color: color-mix(in srgb, var(--color-navy) 60%, transparent);
+    background: transparent;
+    border: 0;
+    padding: 10px 4px;
+    cursor: pointer;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    transition:
+      background 0.18s,
+      color 0.18s;
+  }
+  .dm-roundtab + .dm-roundtab {
+    border-left: 1.5px solid color-mix(in srgb, var(--color-navy) 22%, transparent);
+  }
+  .dm-roundtab[aria-selected='true'] {
+    background: var(--color-navy);
+    color: var(--color-text-inverted);
+  }
+  .dm-roundtab:focus-visible {
+    outline: 2px solid var(--color-navy);
+    outline-offset: -2px;
+  }
+
+  /* — The round list: one round read top to bottom, at phone width, in the same cell shape the tree uses
+     (#312, #309). Hidden on a wide screen, where the tree is the layout. */
+  .dm-list {
+    display: none;
+    width: 100%;
     flex-direction: column;
-    width: var(--dm-col);
-    padding-top: 20px;
+    gap: 18px;
+  }
+  /* A list row sizes to its content — the tree's `flex: 1 1 0` exists to divide a column's height, and there
+     is no column here. */
+  .dm-list .dm-match {
+    flex: 0 0 auto;
+  }
+
+  /* — The „Spiel um Platz 3" (ADR-0046, #312): a cell like any other, under the final it shares a round with
+     — in the tree a second grid row beneath the final's column, in the round list the last row of the final
+     round. Its own label, because the round column above it names the final and not this. */
+  .dm-tree--live .dm-match--playoff {
+    grid-row: 2;
+    grid-column: -2 / -1;
+    padding-top: 18px;
     border-top: 1px dashed color-mix(in srgb, var(--color-navy) 20%, transparent);
   }
-  .dm-third__label {
-    height: 34px;
+  /* It grows no elbow stubs of its own accord: both connector rules are scoped to a `.dm-round`, and the
+     playoff is a sibling of the columns rather than a cell inside one — which is right, because nothing in
+     the tree feeds it. It is fed by the semifinals' losers. */
+  .dm-match__label {
     display: flex;
     align-items: center;
-    margin-bottom: 6px;
+    margin-bottom: 2px;
     font-size: 11px;
     font-weight: 800;
     letter-spacing: 0.14em;
     text-transform: uppercase;
     color: var(--color-navy);
-    border-bottom: 2px solid var(--color-navy);
-  }
-  .dm-third__match {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
   }
 
   /* The pre-draw „needs ≥4" notice — shown instead of a bracket while a field is below the draw floor
@@ -342,8 +428,13 @@ const drawCompetitions = drawableCompetitions(competitions)
 
   /* Elbow connectors: each non-final match draws a horizontal stub at each slot-pair
      centre plus half a vertical to the pair mid-point; the next round's match taps in
-     from the left. All percentage-based, so it scales to any round height. */
-  .dm-round:not(:last-child) .dm-match::after {
+     from the left. All percentage-based, so it scales to any round height.
+
+     „Has a round column after it" rather than „is not the last child" (#312): the playoff is a sibling of the
+     columns in the live grid, so the positional test would call the final column non-final and draw a stub out
+     of the champion's match into empty space. The test is on the tree's own structure, which is what the
+     connectors describe. */
+  .dm-round:has(~ .dm-round) .dm-match::after {
     content: '';
     position: absolute;
     left: 100%;
@@ -352,12 +443,12 @@ const drawCompetitions = drawableCompetitions(competitions)
     border-top: 0;
     border-bottom: 0;
   }
-  .dm-round:not(:last-child) .dm-match:nth-child(odd)::after {
+  .dm-round:has(~ .dm-round) .dm-match:nth-child(odd)::after {
     top: 50%;
     height: 50%;
     border-top: 2px solid var(--dm-line);
   }
-  .dm-round:not(:last-child) .dm-match:nth-child(even)::after {
+  .dm-round:has(~ .dm-round) .dm-match:nth-child(even)::after {
     bottom: 50%;
     height: 50%;
     border-bottom: 2px solid var(--dm-line);
@@ -597,6 +688,26 @@ const drawCompetitions = drawableCompetitions(competitions)
     font-size: 14px;
     color: color-mix(in srgb, var(--color-navy) 70%, transparent);
   }
+
+  /* — The phone layout (#312) — Below two columns' worth of width the elbow tree stops being readable, so the
+     live bracket becomes a round control plus one round as a list, and nothing is scrolled sideways. Both
+     layouts are always in the DOM; this is the whole switch, which is why the controller owns no breakpoint.
+
+     The pre-draw preview and the reveal show keep their tree here: they place round-1 lines and their later
+     columns are „?" until the field is drawn, so there is no round to navigate to yet. */
+  @media (max-width: 900px) {
+    .dm-tree--live {
+      display: none;
+    }
+    .dm-list {
+      display: flex;
+    }
+    /* `:not([hidden])` rather than a second rule: the control is hidden outright during the preview and the
+       reveal, and a bare `display: flex` here would out-specify that. */
+    .dm-rounds:not([hidden]) {
+      display: flex;
+    }
+  }
   .dm.is-error .dm-error {
     display: block;
   }
@@ -605,7 +716,8 @@ const drawCompetitions = drawableCompetitions(competitions)
 <script>
   import { hc } from 'hono/client'
   import { indexScheduleByNode } from '../../shared'
-  import { renderLive, renderPreview, renderReveal } from './tournament-draw.render'
+  import { renderLive } from './tournament-draw.live'
+  import { renderPreview, renderReveal } from './tournament-draw.render'
   import type { AppType } from '../../worker/app'
   import type { Entry, Segment } from './tournament-draw.render'
   import type { ParticipantsResponse, PublicCompetitionBracket, ScheduleResponse } from '../../shared'
@@ -624,6 +736,12 @@ const drawCompetitions = drawableCompetitions(competitions)
   // The selected segment (Hauptrunde / Nebenrunde) per live competition — persisted across polls so a
   // re-render keeps the chosen tab. Defaults to the main bracket; only set on a field with a consolation.
   const segmentByComp = new Map<string, Segment>()
+
+  // The selected round per live competition (#312) — the phone's position inside the chosen bracket, kept
+  // here for the same reason as the segment: a poll every 1.5 s must not walk a reader back to round 1. It
+  // is deliberately *not* reset when the segment changes; the view clamps it into whichever bracket is shown,
+  // so switching to a shallower consolation lands on its last round rather than on an empty panel.
+  const roundByComp = new Map<string, number>()
 
   // Latest of each feed; the panels re-render from both whenever either arrives (a competition switches
   // from preview → reveal → live results over its lifetime). `lastBracketsJson` lets the 1.5 s poll skip a
@@ -682,7 +800,8 @@ const drawCompetitions = drawableCompetitions(competitions)
       const slug = panel.dataset.panel!
       const bracket = panel.querySelector<HTMLElement>('[data-bracket]')
       const segmentsEl = panel.querySelector<HTMLElement>('[data-segments]')
-      if (!bracket || !segmentsEl) return
+      const roundsEl = panel.querySelector<HTMLElement>('[data-rounds]')
+      if (!bracket || !segmentsEl || !roundsEl) return
       const entry = bracketByComp.get(slug)
       // Fully revealed → live results (segment control + resolved brackets); still revealing → reveal steps;
       // not yet drawn → the provisional preview. Redaction is read from the wire per phase — the live
@@ -690,22 +809,28 @@ const drawCompetitions = drawableCompetitions(competitions)
       // belongs to the live phase only; the segment state + re-render live here so a switch survives the poll.
       if (entry && entry.phase === 'live') {
         renderLive(
-          segmentsEl,
-          bracket,
+          { segments: segmentsEl, rounds: roundsEl, bracket },
           entry,
           // The whole feed, not the per-node index: the cell footer states a floor („im Anschluss · nicht
           // vor ca. 14:00", ADR-0069), which depends on the court's other reservations — including matches
           // of fields this tree never draws. The score is not taken from here (ADR-0070).
           schedule,
-          segmentByComp.get(slug) ?? 'main',
-          seg => {
-            segmentByComp.set(slug, seg)
-            render()
+          { segment: segmentByComp.get(slug) ?? 'main', round: roundByComp.get(slug) ?? 1 },
+          {
+            segment: seg => {
+              segmentByComp.set(slug, seg)
+              render()
+            },
+            round: round => {
+              roundByComp.set(slug, round)
+              render()
+            }
           }
         )
         return
       }
       segmentsEl.hidden = true
+      roundsEl.hidden = true
       if (entry && entry.phase === 'revealing') renderReveal(bracket, entry, entry.redacted, scheduleIndex)
       else {
         const players = byComp.get(slug) ?? []
