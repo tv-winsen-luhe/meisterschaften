@@ -66,6 +66,9 @@ html {
   --color-border: #e5e5e5;
   --color-border-strong: #d4d4d4;
   --color-ring: #199cf9;
+  /* The „läuft" accent: marks a match on court right now (courts board, status pill). Its own hue
+     because it must not read as navy ink or a clay surface. */
+  --color-live: #1f7a3d;
 }
 
 @utility text-stroke-ink {
