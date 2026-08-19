@@ -7,21 +7,30 @@ import { resolveSocialMixerBlock, SOCIAL_MIXER_DEFAULT_PLACEMENT } from '../../s
 // which this page does not name, so any confirmed count resolves the same line here (ADR-0064).
 const defaultMixerBlock = resolveSocialMixerBlock({ ...SOCIAL_MIXER_DEFAULT_PLACEMENT, confirmed: 0 })!
 
-// The public event-wide schedule + live board (ADR-0005, ADR-0032, issue #91): one page for the whole
-// weekend that always shows the current truth, never the stale plan. It leads with a „Jetzt auf dem Platz"
-// courts board — the 6 courts, each showing what is live on it right now (or „frei") — over a schedule
-// that reflects status (geplant/läuft/beendet) and shows results for finished matches. The schedule can be
-// regrouped „Nach Tag" or „Nach Platz" and filtered by competition. A match's court is the **actual** live
-// court once running (the feed already falls back to the planned court before it starts), so a spectator is
-// never sent to the wrong court. Built with the public site's inline-`<script>` + polling pattern (ADR-0008).
+// The public event-wide schedule + live board (ADR-0005, ADR-0032, ADR-0069, #91, #308): one page for the
+// whole weekend that always shows the current truth, never the stale plan. It leads with a „Jetzt auf dem
+// Platz" courts board — the 6 courts, each showing what is live on it right now (or „frei") — over a
+// schedule grouped **day → court** that reflects status (geplant/läuft/beendet) and shows results for
+// finished matches, and can be filtered by competition.
+//
+// The grouping is fixed, and the old „Nach Tag" / „Nach Platz" toggle is gone on purpose (#308): a planned
+// time is stated as a floor („ab 10:30", „im Anschluss · nicht vor ca. 14:00"), and „im Anschluss" is only
+// true inside one court's column — in a day list ordered by time it would point at a row on another court.
+// „What is on right now" is the courts board's question anyway.
+//
+// A match's court is the **actual** live court once running (the feed already falls back to the planned
+// court before it starts), so a spectator is never sent to the wrong court. Built with the public site's
+// inline-`<script>` + polling pattern (ADR-0008); every projection decision lives in shared/match-view.
 ---
 
 <Layout title="Spielplan & Live — Winsener Meisterschaften 2026" chrome="legal">
   <div class="mx-auto max-w-[900px] px-5 pt-12 pb-20 text-navy md:px-10 md:pt-16 md:pb-[120px]">
     <h1 class="mt-0 mb-3 text-[clamp(36px,6vw,56px)] font-black tracking-[-0.04em] uppercase">Spielplan &amp; Live</h1>
     <p class="mb-10 max-w-[60ch] text-sm leading-[1.6] opacity-70">
-      Oben steht, was gerade auf den sechs Plätzen läuft. Darunter der Spielplan mit Platz und ungefährer Zeit — „ca."
-      und ohne Gewähr. Was wirklich passiert, steht im Status: läuft oder beendet mit Ergebnis.
+      Oben steht, was gerade auf den sechs Plätzen läuft. Darunter der Spielplan, Tag für Tag und Platz für Platz — von
+      oben nach unten die Reihenfolge auf diesem Platz. Zeiten sind eine <strong>Untergrenze</strong>: „ab 10:30" heißt
+      frühestens dann, „im Anschluss" heißt direkt nach dem Match davor auf demselben Platz. Früher fängt nichts an,
+      später schon. Was wirklich passiert, steht im Status: läuft oder beendet mit Ergebnis.
     </p>
 
     <!-- The Social mixer's reserved court-time (ADR-0064, ADR-0063). It sits **outside** `[data-board]` on
@@ -69,12 +78,6 @@ const defaultMixerBlock = resolveSocialMixerBlock({ ...SOCIAL_MIXER_DEFAULT_PLAC
       <section class="board-schedule" aria-label="Spielplan">
         <div class="board-controls" data-controls>
           <div class="board-filter" data-filter aria-label="Konkurrenz filtern" role="group"></div>
-          <div class="board-toggle" role="group" aria-label="Gruppierung" data-grouping>
-            <button type="button" class="board-toggle__btn is-active" data-group="day" aria-pressed="true"
-              >Nach Tag</button
-            >
-            <button type="button" class="board-toggle__btn" data-group="court" aria-pressed="false">Nach Platz</button>
-          </div>
         </div>
 
         <p class="board-empty">
@@ -133,7 +136,7 @@ const defaultMixerBlock = resolveSocialMixerBlock({ ...SOCIAL_MIXER_DEFAULT_PLAC
   [data-board].not-published .board-unpublished {
     display: block;
   }
-  /* The controls (filter + grouping toggle) only mean anything once there are matches. */
+  /* The competition filter only means anything once there are matches. */
   [data-board]:not(.has-matches) .board-controls {
     display: none;
   }
@@ -274,39 +277,15 @@ const defaultMixerBlock = resolveSocialMixerBlock({ ...SOCIAL_MIXER_DEFAULT_PLAC
     color: var(--color-text-inverted);
     background: var(--color-navy);
   }
-  .board-toggle {
-    display: inline-flex;
-    padding: 3px;
-    gap: 2px;
-    background: color-mix(in srgb, var(--color-navy) 6%, transparent);
-    border-radius: 999px;
+  /* ── Schedule sections (day → court) ──────────────────────────────────────────────────────────── */
+  .sched-day {
+    margin-top: 44px;
   }
-  .board-toggle__btn {
-    padding: 6px 14px;
-    font-size: 12px;
-    font-weight: 800;
-    letter-spacing: 0.02em;
-    color: color-mix(in srgb, var(--color-navy) 60%, transparent);
-    background: transparent;
-    border: none;
-    border-radius: 999px;
-    cursor: pointer;
-  }
-  .board-toggle__btn.is-active {
-    color: var(--color-navy);
-    background: var(--color-surface);
-    box-shadow: 0 1px 2px color-mix(in srgb, var(--color-navy) 12%, transparent);
-  }
-
-  /* ── Schedule sections (by day or by court) ───────────────────────────────────────────────────── */
-  .sched-section {
-    margin-top: 40px;
-  }
-  .sched-section:first-child {
+  .sched-day:first-child {
     margin-top: 0;
   }
-  .sched-section__head {
-    margin: 0 0 14px;
+  .sched-day__head {
+    margin: 0 0 6px;
     font-size: 12px;
     font-weight: 800;
     letter-spacing: 0.14em;
@@ -315,9 +294,24 @@ const defaultMixerBlock = resolveSocialMixerBlock({ ...SOCIAL_MIXER_DEFAULT_PLAC
     border-bottom: 2px solid var(--color-navy);
     padding-bottom: 6px;
   }
+  .sched-court {
+    margin-top: 26px;
+  }
+  /* The court is the unit a spectator reads down — top to bottom is the order of play on that court, and
+     the only frame in which „im Anschluss" is true. Its heading is quieter than the day's: the day is the
+     section, the court is the column inside it. */
+  .sched-court__head {
+    margin: 0 0 4px;
+    font-size: 12px;
+    font-weight: 800;
+    letter-spacing: 0.06em;
+    color: color-mix(in srgb, var(--color-navy) 55%, transparent);
+  }
+  /* Time · contestants · status. The time column is wide enough for the two-line „im Anschluss · nicht vor
+     ca. 14:00" without pushing the names around. */
   .sched-match {
     display: grid;
-    grid-template-columns: 74px 1fr auto;
+    grid-template-columns: 96px 1fr auto;
     align-items: center;
     gap: 12px;
     padding: 12px 4px;
@@ -327,7 +321,14 @@ const defaultMixerBlock = resolveSocialMixerBlock({ ...SOCIAL_MIXER_DEFAULT_PLAC
     font-size: 13px;
     font-weight: 800;
     font-variant-numeric: tabular-nums;
+    line-height: 1.35;
     color: var(--color-blue);
+  }
+  /* A follow-on floor is a weaker claim than an anchored start, and it reads that way: „im Anschluss" is
+     the sentence, „nicht vor ca. 14:00" the number you may plan against. */
+  .sched-match__time--follows {
+    font-weight: 700;
+    color: color-mix(in srgb, var(--color-navy) 60%, transparent);
   }
   .sched-match__players {
     min-width: 0;
@@ -373,19 +374,8 @@ const defaultMixerBlock = resolveSocialMixerBlock({ ...SOCIAL_MIXER_DEFAULT_PLAC
     text-transform: uppercase;
     color: color-mix(in srgb, var(--color-navy) 45%, transparent);
   }
-  .sched-match__right {
-    display: flex;
-    flex-direction: column;
-    align-items: flex-end;
-    gap: 4px;
-  }
-  .sched-match__court {
-    font-size: 12px;
-    font-weight: 800;
-    color: var(--color-navy);
-    white-space: nowrap;
-  }
   .sched-status {
+    justify-self: end;
     font-size: 10px;
     font-weight: 800;
     letter-spacing: 0.06em;
@@ -409,24 +399,24 @@ const defaultMixerBlock = resolveSocialMixerBlock({ ...SOCIAL_MIXER_DEFAULT_PLAC
 
 <script>
   import { hc } from 'hono/client'
-  import { resolveSocialMixerBlock } from '../../shared'
-  import {
-    effectiveSelection,
-    presentCompetitions,
-    renderCourts,
-    renderFilter,
-    renderSchedule,
-    syncGrouping
-  } from '../components/schedule-board.render'
-  import { socialMixerWhen } from '../data/tournament'
+  import { resolveSocialMixerBlock, scheduleView } from '../../shared'
+  import { renderCourts, renderFilter, renderSchedule } from '../components/schedule-board.render'
+  import { competitions, socialMixerWhen, tournament } from '../data/tournament'
   import type { AppType } from '../../worker/app'
-  import type { Grouping } from '../components/schedule-board.render'
   import type { ScheduleResponse } from '../../shared'
 
-  // The public schedule board's controller: fetch → state → poll → render. All the DOM building lives in
-  // ../components/schedule-board.render; this script only keeps the feed and the two view controls the
-  // renderers read, and decides when to hand them over.
+  // The public schedule board's controller: fetch → state → poll → project → render. Every decision lives
+  // in `scheduleView` (shared/match-view) and all the DOM building in ../components/schedule-board.render;
+  // this script only keeps the feed and the one view control, and decides when to hand them over.
   const client = hc<AppType>(location.origin)
+
+  // The two pieces of client copy the projection needs as data: the event's dates and the competition
+  // labels. They stay here, with the rest of the event's copy — `shared/` must not reach into src/data, so
+  // the page hands them over rather than the module importing them.
+  const VIEW_COPY = {
+    days: [tournament.saturday, tournament.sunday],
+    competitions: competitions.map(c => ({ slug: c.slug, label: c.label }))
+  }
 
   // The live board polls ~15 s (ADR-0008): a started match, a moved court, or a completed result appears
   // within the interval, light enough for a phone on event Wi-Fi.
@@ -436,13 +426,11 @@ const defaultMixerBlock = resolveSocialMixerBlock({ ...SOCIAL_MIXER_DEFAULT_PLAC
   const courtsEl = root?.querySelector<HTMLElement>('[data-courts]') ?? null
   const filterEl = root?.querySelector<HTMLElement>('[data-filter]') ?? null
   const sectionsEl = root?.querySelector<HTMLElement>('[data-sections]') ?? null
-  const groupButtons = [...(root?.querySelectorAll<HTMLButtonElement>('[data-group]') ?? [])]
 
-  // The last-served feed plus the two view controls. The controls re-render from the cached feed (no
-  // refetch), so a filter or grouping change is instant; the poll only replaces `feed` and re-renders.
+  // The last-served feed plus the one view control. The filter re-renders from the cached feed (no
+  // refetch), so changing it is instant; the poll only replaces `feed` and re-renders.
   let feed: ScheduleResponse = { published: false, matches: [] }
-  let selected: string | null = null // competition slug, or null = „Alle"
-  let grouping: Grouping = 'day'
+  let selectedCompetition: string | null = null // competition slug, or null = „Alle"
 
   const render = () => {
     if (!root) return
@@ -452,23 +440,26 @@ const defaultMixerBlock = resolveSocialMixerBlock({ ...SOCIAL_MIXER_DEFAULT_PLAC
     root.classList.toggle('not-published', !published && matches.length === 0)
     root.classList.toggle('has-matches', matches.length > 0)
 
-    const present = presentCompetitions(matches)
-    selected = effectiveSelection(present, selected)
+    const {
+      competitions: options,
+      selected,
+      courts,
+      days
+    } = scheduleView(feed, {
+      ...VIEW_COPY,
+      competition: selectedCompetition
+    })
+    // The view decides whether the stored selection still applies (a field the feed stopped carrying, or a
+    // page with nothing left to choose between), so the controller adopts its verdict rather than holding
+    // on to a selection the page no longer offers.
+    selectedCompetition = selected
 
-    renderFilter(filterEl, present, selected, slug => {
-      selected = slug
+    renderFilter(filterEl, options, selected, slug => {
+      selectedCompetition = slug
       render()
     })
-    syncGrouping(groupButtons, grouping)
-    renderCourts(courtsEl, matches, selected)
-    renderSchedule(sectionsEl, matches, selected, grouping)
-  }
-
-  for (const btn of groupButtons) {
-    btn.addEventListener('click', () => {
-      grouping = btn.dataset.group === 'court' ? 'court' : 'day'
-      render()
-    })
+    renderCourts(courtsEl, courts)
+    renderSchedule(sectionsEl, days)
   }
 
   let lastJson = ''
@@ -480,8 +471,8 @@ const defaultMixerBlock = resolveSocialMixerBlock({ ...SOCIAL_MIXER_DEFAULT_PLAC
       const body: ScheduleResponse = await res.json()
       root.classList.remove('is-error')
       // Skip the rebuild when nothing changed since the last poll — the publish flag is part of the
-      // signature so a publish/reset toggles the page on the next poll. View-control changes bypass this
-      // (they call render() directly), so a filter/grouping toggle is always instant.
+      // signature so a publish/reset toggles the page on the next poll. The filter bypasses this (it calls
+      // render() directly), so changing it is always instant.
       const sig = JSON.stringify({ published: body.published, matches: body.matches })
       if (sig === lastJson) return
       lastJson = sig
