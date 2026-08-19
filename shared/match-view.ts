@@ -45,12 +45,18 @@ export interface RowSlot extends SlotText {
 
 /**
  * One match as the schedule reads it (CONTEXT: Match row). Every field is finished display text except the
- * two structural ones the renderer needs for its classes (`id`, `status`).
+ * structural ones the renderer needs for its classes (`id`, `status`, `followsOn`).
  */
 export interface MatchRow {
   id: number
   /** „ab 10:30" or „im Anschluss · nicht vor ca. 12:00" — a floor, never a point (ADR-0069). */
-  time: string
+  publishedTime: string
+  /**
+   * Whether that floor is a follow-on rather than an anchored start. Carried as a fact rather than left for
+   * a caller to recover from the string: re-reading a decision out of finished German prose is the seam
+   * leaking, and a reworded label would silently stop matching.
+   */
+  followsOn: boolean
   slot1: RowSlot
   slot2: RowSlot
   /** „Achtelfinale · M3 · Herren", with „· Walkover"/„· Aufgabe" appended for a special outcome. */
@@ -74,21 +80,34 @@ export interface DayGroup {
   courts: CourtGroup[]
 }
 
+interface CourtCellBase {
+  court: number
+  label: string
+  /** Whether the cell sits outside the filtered field — faded back, never relabelled „frei". */
+  dim: boolean
+}
+
+/** A court with nothing on it right now. It carries no contestants, so it cannot be asked for any. */
+export interface FreeCourtCell extends CourtCellBase {
+  free: true
+}
+
+/** A court with a match on it right now: its two contestants and „Achtelfinale · Herren". */
+export interface LiveCourtCell extends CourtCellBase {
+  free: false
+  slot1: RowSlot
+  slot2: RowSlot
+  meta: string
+}
+
 /**
  * One cell of the „Jetzt auf dem Platz" board: what is on this court **right now**. Live truth, so it is
  * driven by the match status and never by the plan — a `planned` match leaves its court „frei".
+ *
+ * A union rather than a cell with nullable contestants, so „is this court free" has exactly one answer a
+ * caller can branch on, and an empty cell cannot be asked for a name that is not there.
  */
-export interface CourtCell {
-  court: number
-  label: string
-  free: boolean
-  /** Whether the cell sits outside the filtered field — faded back, never relabelled „frei". */
-  dim: boolean
-  slot1: RowSlot | null
-  slot2: RowSlot | null
-  /** „Achtelfinale · Herren", or „" for a free court. */
-  meta: string
-}
+export type CourtCell = FreeCourtCell | LiveCourtCell
 
 /** A competition the filter may offer: its wire slug and its German label. */
 export interface CompetitionOption {
@@ -166,6 +185,13 @@ const roundText = (m: ScheduleMatch): string =>
 
 // ── The published time (ADR-0069) ────────────────────────────────────────────────────────────────
 
+// The floor as both the sentence a reader gets and the fact a caller styles on — one return, so the two
+// can never disagree and nobody has to recover the second by pattern-matching the first.
+interface PublishedTime {
+  label: string
+  followsOn: boolean
+}
+
 /**
  * How a match's planned start is *said*. The 90 minutes behind a placement is a court **reservation** built
  * from experience, not a match length, so a later match's clock time is only ever wrong in one direction —
@@ -180,11 +206,19 @@ const roundText = (m: ScheduleMatch): string =>
  * first. A gap breaks the chain: that is the point where the Grand Slam convention is not copied blindly
  * but fed with the grid information we actually have — a mixer block, an evening window or plain air makes
  * a real hole, and a row after a hole re-anchors.
+ *
+ * Abutting is `previousSlot + SLOT_SPAN` **exactly**. On a valid plan there is no other way for two
+ * reservations to meet: court occupancy is interval-based and server-enforced (ADR-0040), so two starts on
+ * one court are never fewer than SLOT_SPAN steps apart. A closer pair can still reach this page — the feed
+ * reports a **running** match on its *actual* court (ADR-0032), so an operator who moves a live match onto
+ * a busy court puts it inside that court's chain. That is an overlap, not a follow-on: the previous
+ * reservation is still covering this start, so „nicht vor ca. HH:MM" would state a floor already known to
+ * be broken. It anchors instead, which is the weaker and therefore safe claim.
  */
-const publishedTime = (day: number, slot: number, previousSlot: number | null): string => {
+const publishedTime = (day: number, slot: number, previousSlot: number | null): PublishedTime => {
   const clock = slotTime(day, slot)
-  const abuts = previousSlot !== null && slot <= previousSlot + SLOT_SPAN
-  return abuts ? `im Anschluss · nicht vor ca. ${clock}` : `ab ${clock}`
+  const followsOn = previousSlot !== null && slot === previousSlot + SLOT_SPAN
+  return { label: followsOn ? `im Anschluss · nicht vor ca. ${clock}` : `ab ${clock}`, followsOn }
 }
 
 // ── The filter ───────────────────────────────────────────────────────────────────────────────────
@@ -196,7 +230,7 @@ const filterOptions = (
   competitions: readonly CompetitionOption[],
   matches: readonly ScheduleMatch[]
 ): CompetitionOption[] => {
-  const present = competitions.filter(c => matches.some(m => m.competition === c.slug)).map(c => ({ ...c }))
+  const present = competitions.filter(c => matches.some(m => m.competition === c.slug))
   return present.length < 2 ? [] : present
 }
 
@@ -229,17 +263,21 @@ export const scheduleView = (
   const offered = filterOptions(competitions, matches)
   const selected = effectiveSelection(offered, competition)
 
-  const row = (m: ScheduleMatch, previousSlot: number | null): MatchRow => ({
-    id: m.id,
-    time: publishedTime(m.day, m.slot, previousSlot),
-    slot1: rowSlot(m, 1),
-    slot2: rowSlot(m, 2),
-    meta: [roundText(m), `M${m.number}`, competitionLabel(competitions, m.competition)]
-      .concat(m.outcome ? [OUTCOME_NOTES[m.outcome]] : [])
-      .join(' · '),
-    status: m.status,
-    statusLabel: STATUS_LABELS[m.status]
-  })
+  const row = (m: ScheduleMatch, previousSlot: number | null): MatchRow => {
+    const { label, followsOn } = publishedTime(m.day, m.slot, previousSlot)
+    return {
+      id: m.id,
+      publishedTime: label,
+      followsOn,
+      slot1: rowSlot(m, 1),
+      slot2: rowSlot(m, 2),
+      meta: [roundText(m), `M${m.number}`, competitionLabel(competitions, m.competition)]
+        .concat(m.outcome ? [OUTCOME_NOTES[m.outcome]] : [])
+        .join(' · '),
+      status: m.status,
+      statusLabel: STATUS_LABELS[m.status]
+    }
+  }
 
   // Day → court, both ascending and both derived from what the feed carries, so a match is never dropped
   // because an axis was sized from a constant that has moved on.
@@ -269,18 +307,18 @@ export const scheduleView = (
   const running = new Map<number, ScheduleMatch>()
   for (const m of matches) if (m.status === 'running') running.set(m.court, m)
 
-  const courts = COURT_NUMBERS.map(court => {
+  const courts = COURT_NUMBERS.map((court): CourtCell => {
     const live = running.get(court)
+    // Courts outside the focused field fade back — including free ones — so „mein Feld" pops without ever
+    // relabelling a physically busy court „frei".
+    const base = { court, label: courtLabel(court), dim: selected !== null && live?.competition !== selected }
+    if (!live) return { ...base, free: true }
     return {
-      court,
-      label: courtLabel(court),
-      free: !live,
-      // Courts outside the focused field fade back — including free ones — so „mein Feld" pops without
-      // ever relabelling a physically busy court „frei".
-      dim: selected !== null && live?.competition !== selected,
-      slot1: live ? rowSlot(live, 1) : null,
-      slot2: live ? rowSlot(live, 2) : null,
-      meta: live ? `${roundText(live)} · ${competitionLabel(competitions, live.competition)}` : ''
+      ...base,
+      free: false,
+      slot1: rowSlot(live, 1),
+      slot2: rowSlot(live, 2),
+      meta: `${roundText(live)} · ${competitionLabel(competitions, live.competition)}`
     }
   })
 

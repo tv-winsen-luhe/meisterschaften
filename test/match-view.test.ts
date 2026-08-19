@@ -57,7 +57,7 @@ const view = (matches: ScheduleMatch[], over: Partial<ScheduleViewOptions> = {})
 const times = (matches: ScheduleMatch[], court = 1): string[] =>
   view(matches)
     .days[0].courts.find(c => c.court === court)
-    ?.rows.map(r => r.time) ?? []
+    ?.rows.map(r => r.publishedTime) ?? []
 
 describe('scheduleView · the published time is a floor, never a point (ADR-0069)', () => {
   it('states a clock time for a court’s first match of the day', () => {
@@ -113,8 +113,25 @@ describe('scheduleView · the published time is a floor, never a point (ADR-0069
     // a court’s chain never runs across the night.
     const { days } = view([match({ id: 1, court: 1, slot: 0, day: 0 }), match({ id: 2, court: 1, slot: 0, day: 1 })])
     expect(days.map(d => d.label)).toEqual(['Samstag · 22.08.', 'Sonntag · 23.08.'])
-    expect(days[0].courts[0].rows.map(r => r.time)).toEqual(['ab 10:30'])
-    expect(days[1].courts[0].rows.map(r => r.time)).toEqual(['ab 10:00'])
+    expect(days[0].courts[0].rows.map(r => r.publishedTime)).toEqual(['ab 10:30'])
+    expect(days[1].courts[0].rows.map(r => r.publishedTime)).toEqual(['ab 10:00'])
+  })
+
+  it('carries whether the floor is a follow-on, so a caller never reads the German back', () => {
+    const { rows } = view([match({ id: 1, court: 1, slot: 0 }), match({ id: 2, court: 1, slot: 3 })]).days[0].courts[0]
+    expect(rows.map(r => r.followsOn)).toEqual([false, true])
+  })
+
+  it('anchors an overlapping pair rather than claiming a floor it already broke', () => {
+    // Two starts on one court are never closer than a full reservation on a valid plan — occupancy is
+    // interval-based and server-enforced (ADR-0040). But a *running* match reports its **actual** court
+    // (ADR-0032), so an operator moving a live match onto a busy court puts it inside that court's chain.
+    // The previous reservation is then still covering this start, so „nicht vor ca. 10:30" would state a
+    // floor already known to be broken. „ab" is the weaker and therefore safe claim.
+    const { rows } = view([match({ id: 1, court: 1, slot: 0 }), match({ id: 2, court: 1, slot: 1, status: 'running' })])
+      .days[0].courts[0]
+    expect(rows.map(r => r.publishedTime)).toEqual(['ab 10:30', 'ab 11:00'])
+    expect(rows.map(r => r.followsOn)).toEqual([false, false])
   })
 
   it('reads the chain off the whole court, not off the filtered rows', () => {
@@ -126,7 +143,7 @@ describe('scheduleView · the published time is a floor, never a point (ADR-0069
       match({ id: 2, court: 1, slot: 3, competition: 'womens' })
     ]
     const filtered = view(matches, { competition: 'womens' })
-    expect(filtered.days[0].courts[0].rows.map(r => r.time)).toEqual(['im Anschluss · nicht vor ca. 12:00'])
+    expect(filtered.days[0].courts[0].rows.map(r => r.publishedTime)).toEqual(['im Anschluss · nicht vor ca. 12:00'])
   })
 })
 
@@ -242,6 +259,16 @@ describe('scheduleView · the competition filter', () => {
     ])
   })
 
+  it('leaves no trace of a field the feed stopped carrying', () => {
+    // A cancelled field leaves the whole page, not only the filter (ADR-0062) — and it needs no gate of its
+    // own to do it: the feed simply stops carrying its matches, so there is nothing to group.
+    const result = view([match({ id: 1, court: 1, slot: 0, competition: 'mens' })])
+    const rows = result.days.flatMap(d => d.courts.flatMap(c => c.rows))
+    expect(rows).toHaveLength(1)
+    expect(result.competitions.some(c => c.slug === 'womens')).toBe(false)
+    expect(rows.every(r => r.meta.includes('Herren'))).toBe(true)
+  })
+
   it('narrows the tree to the selected field', () => {
     const result = view(
       [
@@ -271,6 +298,8 @@ describe('scheduleView · the courts board reads live truth', () => {
     expect(result.courts).toHaveLength(6)
     const two = result.courts[1]
     expect(two).toMatchObject({ court: 2, label: 'Platz 2', free: false, dim: false })
+    // Narrow the union — a free cell carries no contestants to ask about.
+    if (two.free) throw new Error('Platz 2 should be live')
     expect(two.meta).toBe('Viertelfinale · Herren')
     expect(two.slot1).toMatchObject({ text: 'Jan Behrens', games: '6' })
     // A planned match never occupies a court on the board — only a running one does (ADR-0032).

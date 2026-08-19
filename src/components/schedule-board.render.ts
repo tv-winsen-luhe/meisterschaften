@@ -35,17 +35,17 @@ const playerLine = (slot: RowSlot): HTMLElement => {
 
 const courtCell = (cell: CourtCell): HTMLElement => {
   const el = elem('div', 'court')
-  if (!cell.free) el.classList.add('court--live')
   // Courts outside the focused field fade back — including free ones — so „mein Feld" pops without ever
   // relabelling a busy court „frei".
   if (cell.dim) el.classList.add('court--dim')
   el.append(elem('div', 'court__no', cell.label))
 
-  if (!cell.slot1 || !cell.slot2) {
+  if (cell.free) {
     el.append(elem('div', 'court__free', 'frei'))
     return el
   }
 
+  el.classList.add('court--live')
   const players = elem('div', 'court__players')
   players.append(playerLine(cell.slot1), playerLine(cell.slot2))
   el.append(players, elem('div', 'court__meta', cell.meta))
@@ -56,10 +56,11 @@ const courtCell = (cell: CourtCell): HTMLElement => {
 
 const matchRow = (row: MatchRow): HTMLElement => {
   const el = elem('div', 'sched-match')
-  // „ab 10:30" or „im Anschluss · nicht vor ca. 14:00" — a floor, never a point (ADR-0069). The class
-  // marks the two shapes apart so the follow-on line can read quieter than an anchored start.
-  const time = elem('div', 'sched-match__time', row.time)
-  if (row.time.startsWith('im Anschluss')) time.classList.add('sched-match__time--follows')
+  // „ab 10:30" or „im Anschluss · nicht vor ca. 14:00" — a floor, never a point (ADR-0069). Which of the
+  // two it is comes from the view as a fact, never from reading the German back: the follow-on line reads
+  // quieter than an anchored start, and a reworded label must not silently drop the distinction.
+  const time = elem('div', 'sched-match__time', row.publishedTime)
+  if (row.followsOn) time.classList.add('sched-match__time--follows')
   el.append(time)
 
   const players = elem('div', 'sched-match__players')

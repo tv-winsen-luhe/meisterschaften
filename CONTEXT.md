@@ -627,10 +627,10 @@ reveal sequence }`. Randomness enters through an injected **`RandomSource`** por
 - **Match row** (de: Match-Zeile) — the one shape a match is displayed in on the public surfaces: its two
   contestant lines (name or „Freilos"/„Sieger M3"/„offen", each with that slot's games and the winner
   marked), its Published time, its meta line (round · match number · competition, plus „Walkover"/„Aufgabe"
-  for a special outcome), and its Match status. It exists **once**, as the output of one projection
-  (`shared/match-view`), so a change to how a match reads cannot land on one surface and miss the other.
-  Every string in it is finished German — a renderer iterates and never sorts, concatenates or formats.
-  _(See ADR-0069, ADR-0028, ADR-0035.)_
+  for a special outcome), and its Match status. It is the output of one projection (`shared/match-view`),
+  and every string in it is finished German — a renderer iterates and never sorts, concatenates or formats.
+  Today it is the **schedule's** row; the public bracket still builds its own contestant lines, and folding
+  that surface into the same row is what makes „it exists once" true. _(See ADR-0069, ADR-0028, ADR-0035.)_
 
 ## System
 
