@@ -647,7 +647,8 @@ beendet mit Score` in place rather than migrating to a separate results page (AD
   disagree. It is **present only while it has an answer**: with no match running the strip is **absent
   entirely** — no heading, no row of „frei" cells, and no line announcing the absence. Six cells all saying
   „nothing" is a screen of scroll spent before the schedule starts, and what is next is the rows' job, not
-  the strip's. „Scoreboard" is **not** a term in this project: it is a useful word for arguing about how the
+  the strip's. The presence rule reads the **Match status** alone and admits no clock (#347).
+  „Scoreboard" is **not** a term in this project: it is a useful word for arguing about how the
   weekend surfaces should be _read_, but the things it would name already have names.
   _(See ADR-0008, ADR-0032, ADR-0072.)_
 - **Published time** (de: veröffentlichte Zeit) — what the public schedule says about _when_. It is always a

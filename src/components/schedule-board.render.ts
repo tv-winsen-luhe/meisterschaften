@@ -165,9 +165,22 @@ const daySection = (day: DayGroup, logos: Logos): HTMLElement => {
 // ── The three renderers (the module's surface) ───────────────────────────────────────────────────
 
 // The „Jetzt auf dem Platz" board: the six courts, each showing what is live on it right now (or „frei").
-export const renderCourts = (courtsEl: HTMLElement | null, courts: CourtCell[], logos: Logos) => {
-  if (!courtsEl) return
-  courtsEl.replaceChildren(...courts.map(cell => courtCell(cell, logos)))
+//
+// Built here rather than sitting in the page's markup, because the section is present only while it has an
+// answer (#347): with no cells arriving there is no heading and no placeholder line either, which a static
+// `<h2>` in the page could not withdraw. The same shape `renderFilter` uses — empty it and hide it — so a
+// board that comes back later reuses the container it left behind.
+export const renderCourts = (boardEl: HTMLElement | null, courts: CourtCell[] | undefined, logos: Logos) => {
+  if (!boardEl) return
+  if (!courts) {
+    boardEl.replaceChildren()
+    boardEl.hidden = true
+    return
+  }
+  boardEl.hidden = false
+  const grid = elem('div', 'courts')
+  grid.append(...courts.map(cell => courtCell(cell, logos)))
+  boardEl.replaceChildren(elem('h2', 'board-heading', 'Jetzt auf dem Platz'), grid)
 }
 
 // The competition filter chips: „Alle" (slug null) or one field. The active chip narrows the schedule to

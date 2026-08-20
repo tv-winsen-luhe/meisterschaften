@@ -315,14 +315,14 @@ describe('scheduleView · the courts board reads live truth', () => {
       match({ id: 2, court: 3, slot: 0, status: 'planned' })
     ])
     expect(result.courts).toHaveLength(6)
-    const two = result.courts[1]
+    const two = result.courts![1]
     expect(two).toMatchObject({ court: 2, label: 'Platz 2', free: false, dim: false })
     // Narrow the union — a free cell carries no contestants to ask about.
     if (two.free) throw new Error('Platz 2 should be live')
     expect(two.meta).toBe('Viertelfinale · Herren')
     expect(two.slot1).toMatchObject({ text: 'Jan Behrens', games: '6' })
     // A planned match never occupies a court on the board — only a running one does (ADR-0032).
-    expect(result.courts[2]).toMatchObject({ court: 3, free: true })
+    expect(result.courts![2]).toMatchObject({ court: 3, free: true })
   })
 
   it('fades the courts outside the filtered field instead of blanking them', () => {
@@ -333,8 +333,8 @@ describe('scheduleView · the courts board reads live truth', () => {
       ],
       { competition: 'womens' }
     )
-    expect(result.courts[0]).toMatchObject({ free: false, dim: true })
-    expect(result.courts[1]).toMatchObject({ free: false, dim: false })
-    expect(result.courts[2]).toMatchObject({ free: true, dim: true })
+    expect(result.courts![0]).toMatchObject({ free: false, dim: true })
+    expect(result.courts![1]).toMatchObject({ free: false, dim: false })
+    expect(result.courts![2]).toMatchObject({ free: true, dim: true })
   })
 })

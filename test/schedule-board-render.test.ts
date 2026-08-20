@@ -26,6 +26,7 @@ interface FakeEl {
   tagName: string
   className: string
   textContent: string
+  hidden: boolean
   children: FakeEl[]
   append: (...nodes: FakeEl[]) => void
   replaceChildren: (...nodes: FakeEl[]) => void
@@ -42,6 +43,7 @@ const createElement = (tag: string): FakeEl => {
     tagName: tag,
     className: '',
     textContent: '',
+    hidden: false,
     children: [],
     append: (...nodes: FakeEl[]) => el.children.push(...nodes),
     replaceChildren: (...nodes: FakeEl[]) => {
@@ -182,7 +184,7 @@ describe('schedule board · a contestant line always occupies all three columns 
     // The courts cell reuses the line outside the grid, where the empty outcome is hidden in CSS
     // (`.court__players .sched-match__outcome:empty`). The DOM stays uniform across both surfaces, so
     // neither can drift into a shape the other's layout does not expect.
-    const courtsEl = createElement('div')
+    const boardEl = createElement('section')
     const view = scheduleView(
       {
         published: true,
@@ -190,9 +192,11 @@ describe('schedule board · a contestant line always occupies all three columns 
       },
       OPTIONS
     )
-    renderCourts(courtsEl as unknown as HTMLElement, view.courts, LOGOS)
+    renderCourts(boardEl as unknown as HTMLElement, view.courts, LOGOS)
 
-    const live = courtsEl.children.find(c => c.className.includes('court--live'))!
+    // The renderer builds the heading and the grid; the cells sit inside the grid (#347).
+    const grid = boardEl.children.find(c => c.className === 'courts')!
+    const live = grid.children.find(c => c.className.includes('court--live'))!
     const lines = live.children.find(c => c.className === 'court__players')!.children
     expect(lines).toHaveLength(2)
     for (const line of lines) {
