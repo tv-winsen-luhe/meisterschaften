@@ -164,6 +164,20 @@
   }
 </style>
 
+<!-- The motion above hides before it shows, so with scripting off nothing ever gets `is-visible` and the
+     porch is a blank page. The content is the point; the animation is the garnish. -->
+<noscript>
+  <style>
+    .reveal,
+    .sect__headline-clip,
+    .stagger {
+      opacity: 1;
+      transform: none;
+      clip-path: none;
+    }
+  </style>
+</noscript>
+
 <script>
   if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
     const observer = new IntersectionObserver(
@@ -175,8 +189,28 @@
           }
         })
       },
-      { threshold: 0.15 }
+      // Position, not proportion. A ratio threshold asks „how much of this element is on screen", which an
+      // element taller than the viewport can only ever answer up to `viewportHeight / elementHeight` — on a
+      // short phone screen a tall section cannot reach 0.15 at all, and stays at `opacity: 0`. A trigger
+      // line 15% up from the bottom edge reads the same for a one-line paragraph and for a tall section.
+      { threshold: 0, rootMargin: '0px 0px -15% 0px' }
     )
-    document.querySelectorAll('.reveal, .sect, .cat-grid').forEach(el => observer.observe(el))
+    const targets = [...document.querySelectorAll('.reveal, .sect, .cat-grid')]
+    targets.forEach(el => observer.observe(el))
+
+    // A fragment load lands the reader deep in the page, and that jump can settle *after* the observer has
+    // reported on the old scroll position — leaving something the reader is looking straight at at
+    // `opacity: 0` until a stray scroll nudges it loose. Sweep once, when loading is done. (index.astro
+    // runs its own copy of this observer and the same sweep.)
+    window.addEventListener(
+      'load',
+      () => {
+        targets.forEach(el => {
+          const box = el.getBoundingClientRect()
+          if (box.top < window.innerHeight && box.bottom > 0) el.classList.add('is-visible')
+        })
+      },
+      { once: true }
+    )
   }
 </script>

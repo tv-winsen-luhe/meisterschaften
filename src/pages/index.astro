@@ -930,6 +930,20 @@ const sunday = [
   }
 </style>
 
+<!-- The reveal hides before it shows, so with scripting off nothing ever gets `is-visible` and the front
+     door — hero, „Der Draw", the whole page — is blank. The draw is the content; the motion is garnish. -->
+<noscript>
+  <style>
+    .reveal,
+    .sect__headline-clip,
+    .stagger {
+      opacity: 1;
+      transform: none;
+      clip-path: none;
+    }
+  </style>
+</noscript>
+
 <script>
   if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
     const observer = new IntersectionObserver(
@@ -941,9 +955,31 @@ const sunday = [
           }
         })
       },
-      { threshold: 0.15 }
+      // Position, not proportion. A ratio threshold asks „how much of this element is on screen", which an
+      // element taller than the viewport can only ever answer up to `viewportHeight / elementHeight` — on a
+      // short phone screen a full bracket cannot reach 0.15 at all, and stays at `opacity: 0`. A trigger
+      // line 15% up from the bottom edge reads the same for a one-line paragraph and for a full bracket.
+      // Mirrored in scroll-motion.astro, the porch's copy.
+      { threshold: 0, rootMargin: '0px 0px -15% 0px' }
     )
-    document.querySelectorAll('.reveal, .sect, .cat-grid').forEach(el => observer.observe(el))
+    const targets = [...document.querySelectorAll('.reveal, .sect, .cat-grid')]
+    targets.forEach(el => observer.observe(el))
+
+    // „Der Draw" has opened blank on a shared `/#draw` link (#313): a fragment load lands the reader deep in
+    // the page, and that jump can settle *after* the observer has already reported on the old scroll
+    // position — leaving a heading the reader is looking straight at still at `opacity: 0` until some stray
+    // scroll nudges it loose. So sweep once, when loading is done: whatever is on screen by then is
+    // something the reader can see, and it has to be visible whether or not the observer noticed it arrive.
+    window.addEventListener(
+      'load',
+      () => {
+        targets.forEach(el => {
+          const box = el.getBoundingClientRect()
+          if (box.top < window.innerHeight && box.bottom > 0) el.classList.add('is-visible')
+        })
+      },
+      { once: true }
+    )
   }
 </script>
 
