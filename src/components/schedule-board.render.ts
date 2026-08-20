@@ -9,8 +9,12 @@ import type { CourtCell, DayGroup, MatchRow, CompetitionOption, RowSlot } from '
 // Deliberately **thin**. Every decision — the day → court grouping, the ordering, the plain „HH:MM" against
 // the hedged „ca. HH:MM", the labels, the score line, the degradation to „offen" — lives
 // behind `scheduleView` in shared/match-view. What is left here is a translation: this module sorts nothing
-// and concatenates no display string, it only puts finished German text into finished nodes. That is what
-// makes it uninteresting enough not to need a DOM test (#304).
+// and concatenates no display string, it only puts finished German text into finished nodes.
+//
+// Thin is not the same as untestable, which is what this module claimed until #343. Carrying no *decision*
+// says nothing about carrying the right *shape*, and the shape is load-bearing here: the contestant lines
+// dissolve into one grid, so which cells a line emits decides where every later cell lands. That is pinned
+// in test/schedule-board-render.test.ts, against the same `document` shim the sibling render tests use.
 
 // createElement + className (+ optional text) in one — the same helper both sibling render modules keep
 // (tournament-draw.render.ts, participant-list.render.ts), so each element is one statement rather than the
@@ -68,12 +72,21 @@ const playerLine = (slot: RowSlot, logos: Logos): HTMLElement => {
 
   // Sets and outcome are appended as **siblings** of the identity, never wrapped together: on the schedule
   // the two contestant lines share one grid, so each of the three is its own column and the sets line up
-  // between the lines. The games span is emitted even when empty, because a skipped cell would slide the
-  // outcome into the sets' column — which is exactly what a walkover ("w.o." with no sets) would do.
+  // between the lines.
+  //
+  // Both spans are emitted **even when empty**, and that is the line's one rule rather than a quirk of the
+  // sets: a skipped cell does not leave a gap, it slides everything after it one cell along. The sets' span
+  // was already unconditional for that reason; the outcome's was not, and a row with no special outcome —
+  // which is nearly every row — therefore supplied two items to a three-track grid and pushed the second
+  // contestant's name into the first line's outcome column (#343). Emitting the cell is what keeps
+  // auto-placement honest, so neither span may become conditional again.
   el.append(elem('span', 'sched-match__games', slot.games))
   // „· Aufg." behind the sets, or „w.o." in their place — in the score column, where a reader looks for the
-  // outcome, rather than at the far end of the meta line where it used to sit.
-  if (slot.outcome) el.append(elem('span', 'sched-match__outcome', slot.outcome))
+  // outcome, rather than at the far end of the meta line where it used to sit. Empty on the line that has
+  // no token, which is every line of a normally scored match: the courts board reuses this line outside the
+  // grid and hides the empty span there (`:empty`, spielplan.astro), because a flex row wants the opposite
+  // of what a grid does.
+  el.append(elem('span', 'sched-match__outcome', slot.outcome ?? ''))
   return el
 }
 
