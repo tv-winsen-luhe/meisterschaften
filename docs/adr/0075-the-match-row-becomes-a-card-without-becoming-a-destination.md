@@ -1,6 +1,6 @@
 # ADR-0075: The match row becomes a card without becoming a destination
 
-- Status: accepted
+- Status: accepted (rule 3 amended by ADR-0076)
 - Date: 2026-08-20
 - Refines: ADR-0069 / ADR-0071 (the published time, its hedge, and the day → court hierarchy), ADR-0072
   (the weekend surfaces are scanned, not read)
@@ -60,9 +60,14 @@ is a place where the borrowing stops.
    card that swallowed the time would be the first half of an argument whose second half is dropping the
    follow-on times — and that was considered and rejected (below).
 
-3. **The card promises nothing.** A border and a radius; no fill, no shadow, no hover lift, no link. Cards
+3. **The card promises nothing.** A border; no fill, no shadow, no hover lift, no link. Cards
    are the language of tappability, most of all on a phone, and there is nowhere for a tap to go: this
    project has no match detail page. A flat frame states „this match ends here" and claims nothing else.
+
+   > **Amended by ADR-0076 (2026-08-20).** This rule originally read „a border **and a radius**", and the
+   > radius was its one exception — a rounded rectangle being the strongest tappability cue in the
+   > stylesheet, the single property the rule kept was the one arguing against it. The radius is gone; the
+   > rule's intent is unchanged and better served without it.
 
 4. **The block boundary is carried by the gap and the weight, not by a second divider.** Within a court, a
    card whose time is anchored — the first of the day there, or the first after a gap in the reservation
