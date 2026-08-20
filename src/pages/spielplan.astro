@@ -435,6 +435,15 @@ const defaultMixerBlock = resolveSocialMixerBlock({ ...SOCIAL_MIXER_DEFAULT_PLAC
     justify-content: space-between;
     gap: 10px;
   }
+  /* The one place the two surfaces genuinely want opposite things (#343). In the grid above, an outcome
+     cell must exist even when it holds nothing, or everything after it slides one cell along — so the
+     renderer emits it unconditionally. Here, `space-between` distributes by item count, and a third,
+     empty item would pull the sets away from the right edge toward the middle of the cell. Hence the
+     suppression, and hence it is **scoped to the courts board**: applied globally, `:empty` would take
+     the grid item back out and bring the shift straight back. */
+  .court__players .sched-match__outcome:empty {
+    display: none;
+  }
   /* Crest · name · seed · check, in the order a tennis reader expects them (#309). */
   .sched-match__ident {
     display: flex;

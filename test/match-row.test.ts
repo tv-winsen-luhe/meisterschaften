@@ -7,8 +7,10 @@ import type { ScheduleViewOptions } from '../shared/match-view'
 // projection's grouping and its published-time floor. Split by question rather than by size: that file asks
 // „is the tree right", this one asks „does one row read like a tennis result".
 //
-// Asserted at the interface only, in finished German. The renderer that turns this into nodes is a
-// translation with no branch worth pinning, and is deliberately left untested (#304).
+// Asserted at the interface only, in finished German — this file asks what the row *says*. What it does
+// not cover is the shape the renderer builds out of that: #343 was a missing cell, not a wrong word, and
+// no assertion on finished German could have caught it. That half lives in
+// test/schedule-board-render.test.ts.
 
 const NO_SCORE: MatchScore = { set1: null, set2: null, mtb: null }
 
