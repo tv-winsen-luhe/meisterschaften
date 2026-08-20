@@ -498,8 +498,12 @@ const drawCompetitions = drawableCompetitions(competitions)
     font-weight: 600;
     color: color-mix(in srgb, var(--color-navy) 42%, transparent);
   }
-  /* „läuft" — the one status the bracket marks, in the same live tint the schedule board uses (#306). It is
-     what tells a match on court right now from one not yet started while no set has been saved. */
+  /* „läuft" — the one status the bracket marks, in the same live accent the schedule board uses (#306,
+     ADR-0072 rule 3: the brand accent, filled, with navy ink). It is what tells a match on court right now
+     from one not yet started while no set has been saved, and the two surfaces hold one stance on how a
+     live match looks (ADR-0070 §4) — a green pill here and a lime one there would be two. The cell needs no
+     rail to survive greyscale the way the row does: the bracket prints this badge on a running match and on
+     nothing else, so its presence is already the non-colour signal. */
   .dm-live {
     flex-shrink: 0;
     margin-left: auto;
@@ -508,8 +512,8 @@ const drawCompetitions = drawableCompetitions(competitions)
     font-weight: 800;
     letter-spacing: 0.06em;
     text-transform: uppercase;
-    color: var(--color-live);
-    background: color-mix(in srgb, var(--color-live) 12%, transparent);
+    color: var(--color-navy);
+    background: var(--color-live);
     border-radius: 999px;
   }
 
