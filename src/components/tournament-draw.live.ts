@@ -220,9 +220,9 @@ export interface LiveHandlers {
 // *effective* segment and round come back from the view, which falls back to the main bracket when the one
 // asked for does not exist and clamps the round into the segment actually shown.
 //
-// It takes the whole schedule **feed** rather than a per-node index, because the cell footer states a floor
-// („im Anschluss · nicht vor ca. 14:00", ADR-0069) and that is a statement about the court's neighbours —
-// mostly matches of other fields this tree never draws. The score does **not** come from here: it rides the
+// It takes the whole schedule **feed** rather than a per-node index, because whether the cell footer hedges
+// its time („ca. 14:00", ADR-0071) is a statement about the court's neighbours — mostly matches of other
+// fields this tree never draws. The score does **not** come from here: it rides the
 // draw wire, so it survives a plan the operator has reset (ADR-0070).
 // It hands the view back so the controller can adopt the segment that was actually shown (#313). That matters
 // for one case: a `consolation` asked for by a link, on a field whose consolation does not exist. The view

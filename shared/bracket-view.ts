@@ -59,14 +59,14 @@ export interface CellSlot extends RowSlot {
  * placed yet) while the score above it stays. That disappearance is correct: the plan is what the organiser
  * withholds (ADR-0041), the result is not.
  *
- * Split into two strings rather than one, so the floor reads exactly as it does on /spielplan („ab 14:00",
- * „im Anschluss · nicht vor ca. 14:00") instead of being nested inside a „Platz 3 · Sa · …" chain whose
- * separators would then mean two different things.
+ * Split into two strings rather than one, so the time reads exactly as it does on /spielplan („14:00",
+ * „ca. 14:00") instead of being nested inside a „Platz 3 · Sa · …" chain whose separators would then mean
+ * two different things.
  */
 export interface CellSchedule {
   /** „Platz 3 · Sa" — the court is the *actual* one once a match is running (ADR-0032). */
   where: string
-  /** „ab 14:00" or „im Anschluss · nicht vor ca. 14:00" — a floor, never a point (ADR-0069). */
+  /** „14:00" when nothing can push it, „ca. 14:00" when it follows on that court (ADR-0071). */
   time: string
   followsOn: boolean
 }
@@ -175,22 +175,23 @@ const cellSlot = (match: LiveBracketMatch, slot: 1 | 2, redacted: boolean): Cell
 }
 
 /**
- * The schedule join, keyed by bracket topology (`scheduleNodeKey`, #159) and carrying the **floor** rather
- * than the bare clock time the caption used to claim (ADR-0069).
+ * The schedule join, keyed by bracket topology (`scheduleNodeKey`, #159) and carrying the same published
+ * time /spielplan states, hedged or plain (ADR-0071).
  *
- * The floors come from `publishedTimes` over the whole feed, which is why the bracket takes the feed rather
- * than a pre-built node index: a node's „im Anschluss" is a statement about its court's neighbours, and
- * those neighbours are mostly matches of *other* fields that this bracket never renders.
+ * The times come from `publishedTimes` over the whole feed, which is why the bracket takes the feed rather
+ * than a pre-built node index: whether a node's start can be pushed is a statement about its court's
+ * neighbours, and those neighbours are mostly matches of *other* fields that this bracket never renders. A
+ * cell that said something different from the schedule row for the same match would simply be a bug.
  */
 const scheduleByNode = (matches: readonly ScheduleMatch[], days: readonly DayCopy[]): Map<string, CellSchedule> => {
-  const floors = publishedTimes(matches)
+  const published = publishedTimes(matches)
   const index = new Map<string, CellSchedule>()
   for (const m of matches) {
-    const floor = floors.get(m.id)!
+    const when = published.get(m.id)!
     index.set(scheduleNodeKey(m.competition, m.bracket, m.round, m.position), {
       where: `${courtLabel(m.court)} · ${dayAbbr(days, m.day)}`,
-      time: floor.label,
-      followsOn: floor.followsOn
+      time: when.label,
+      followsOn: when.followsOn
     })
   }
   return index

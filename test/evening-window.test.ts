@@ -29,9 +29,9 @@ describe('isFloodlit / courtEndMinutes', () => {
 
 describe('withinEveningWindow', () => {
   // A 90-minute match must *finish* by the court's bound, and the slot→clock arithmetic runs off each
-  // day's own first start (Saturday 10:30, Sunday 10:00 — ADR-0068). The last legal start is therefore a
-  // *clock* time (18:30 dark, 20:30 floodlit) at a different slot index per day — derived here rather
-  // than hard-coded, so a moved first start re-aims the test instead of breaking it.
+  // day's own first start (both 10:00 today — ADR-0071). The last legal start is therefore a *clock* time
+  // (18:30 dark, 20:30 floodlit) whose slot index follows that day's start — derived here rather than
+  // hard-coded, so a moved or diverging first start re-aims the test instead of breaking it.
   const lastStart = (day: number, endMinutes: number) => slotAtMinutes(day, endMinutes - SCHEDULE.matchMinutes)
 
   it('lets a dark court (1–4) start only up to a finish by ~20:00 (last start 18:30)', () => {
@@ -55,18 +55,24 @@ describe('withinEveningWindow', () => {
 
   it('is exactly as tall as the earliest-starting day’s curfew reach', () => {
     // The grid height is uniform across days, so it is sized by whichever day opens earliest — every row
-    // it offers is one *some* court can take, and none beyond. Saturday opens later, so its last rows are
-    // disabled by this very rule rather than by a shorter column.
+    // it offers is one *some* court can take, and none beyond. Both days open at 10:00 today (ADR-0071);
+    // should one open later again, its last rows are disabled by this very rule rather than by a shorter
+    // column.
     const earliest = SCHEDULE.dayStartMinutes.indexOf(Math.min(...SCHEDULE.dayStartMinutes))
     expect(SCHEDULE.slotsPerDay - 1).toBe(lastStart(earliest, SCHEDULE.curfewMinutes))
   })
 
   it('applies the window per day off each day’s own start', () => {
-    // Sunday opens half an hour earlier, so its last legal dark-court start sits one slot higher than
-    // Saturday's — the same 18:30 on the clock.
-    expect(lastStart(1, SCHEDULE.daylightEndMinutes)).toBe(lastStart(0, SCHEDULE.daylightEndMinutes) + 1)
-    expect(withinEveningWindow(1, 1, lastStart(1, SCHEDULE.daylightEndMinutes))).toBe(true)
-    expect(withinEveningWindow(1, 1, lastStart(1, SCHEDULE.daylightEndMinutes) + 1)).toBe(false)
+    // The bound is a *clock* time, so the last legal dark-court start is 18:30 on every day — whatever slot
+    // index that lands on for that day's first start. Asserted as the clock time rather than as an index
+    // offset between the days: the two open at the same time today (ADR-0071), and an offset assertion would
+    // both be degenerate now and go stale the moment they diverge again.
+    for (const day of [0, 1]) {
+      const last = lastStart(day, SCHEDULE.daylightEndMinutes)
+      expect(slotTime(day, last)).toBe('18:30')
+      expect(withinEveningWindow(1, day, last)).toBe(true)
+      expect(withinEveningWindow(1, day, last + 1)).toBe(false)
+    }
   })
 })
 

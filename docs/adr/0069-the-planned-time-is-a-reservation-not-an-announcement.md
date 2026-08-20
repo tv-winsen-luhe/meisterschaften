@@ -7,6 +7,11 @@
   organiser's day shape)
 - Relates to: ADR-0041 (the publish gate is a plan gate), ADR-0032 (the live phase records reality),
   ADR-0035 (the feed degrades per slot), ADR-0028 (English everywhere except user-facing copy)
+- Revised by: ADR-0071 (§1 stands — the 90 minutes is a reservation width. §2's **sentence** does not: the
+  row states a plain „HH:MM" where nothing can push it and „ca. HH:MM" where something can, putting the
+  number in front of the hedge instead of behind it. §3's chain arithmetic is untouched. §4's conclusion —
+  fixed day → court grouping, no toggle — is kept, but on a different reason: absolute times make a day-wide
+  list coherent again, and it stays gone because it is not wanted, not because it would lie.)
 
 ## Context
 

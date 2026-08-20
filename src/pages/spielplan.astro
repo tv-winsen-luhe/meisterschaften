@@ -15,10 +15,10 @@ const defaultMixerBlock = resolveSocialMixerBlock({ ...SOCIAL_MIXER_DEFAULT_PLAC
 // schedule grouped **day → court** that reflects status (geplant/läuft/beendet) and shows results for
 // finished matches, and can be filtered by competition.
 //
-// The grouping is fixed, and the old „Nach Tag" / „Nach Platz" toggle is gone on purpose (#308): a planned
-// time is stated as a floor („ab 10:30", „im Anschluss · nicht vor ca. 14:00"), and „im Anschluss" is only
-// true inside one court's column — in a day list ordered by time it would point at a row on another court.
-// „What is on right now" is the courts board's question anyway.
+// The grouping is fixed, and the old „Nach Tag" / „Nach Platz" toggle stays gone (ADR-0071): the court is
+// the column a player reads down to find their own afternoon, and „what is on right now" is the courts
+// board's question anyway. Each court's first match carries a plain time („10:00"); everything that follows
+// on that court carries „ca. 14:00", because a reservation is 90 minutes on average, not by rule.
 //
 // A match's court is the **actual** live court once running (the feed already falls back to the planned
 // court before it starts), so a spectator is never sent to the wrong court. Built with the public site's
@@ -30,9 +30,11 @@ const defaultMixerBlock = resolveSocialMixerBlock({ ...SOCIAL_MIXER_DEFAULT_PLAC
     <h1 class="mt-0 mb-3 text-[clamp(36px,6vw,56px)] font-black tracking-[-0.04em] uppercase">Spielplan &amp; Live</h1>
     <p class="mb-10 max-w-[60ch] text-sm leading-[1.6] opacity-70">
       Oben steht, was gerade auf den sechs Plätzen läuft. Darunter der Spielplan, Tag für Tag und Platz für Platz — von
-      oben nach unten die Reihenfolge auf diesem Platz. Zeiten sind eine <strong>Untergrenze</strong>: „ab 10:30" heißt
-      frühestens dann, „im Anschluss" heißt direkt nach dem Match davor auf demselben Platz. Früher fängt nichts an,
-      später schon. Was wirklich passiert, steht im Status: läuft oder beendet mit Ergebnis.
+      oben nach unten die Reihenfolge auf diesem Platz. Das erste Match auf einem Platz hat eine
+      <strong>feste Zeit</strong> — davor liegt nichts, was es verschieben könnte. Alle weiteren stehen mit
+      <strong>„ca."</strong>: sie fangen an, wenn das Match davor auf diesem Platz fertig ist, und 90 Minuten sind ein
+      Erfahrungswert, keine Regel. Früher fängt also nichts an, später schon. Was wirklich passiert, steht im Status:
+      läuft oder beendet mit Ergebnis.
     </p>
 
     <!-- The Social mixer's reserved court-time (ADR-0064, ADR-0063). It sits **outside** `[data-board]` on
@@ -303,7 +305,7 @@ const defaultMixerBlock = resolveSocialMixerBlock({ ...SOCIAL_MIXER_DEFAULT_PLAC
     margin-top: 26px;
   }
   /* The court is the unit a spectator reads down — top to bottom is the order of play on that court, and
-     the only frame in which „im Anschluss" is true. Its heading is quieter than the day's: the day is the
+     the frame in which a „ca." earns its hedge. Its heading is quieter than the day's: the day is the
      section, the court is the column inside it. */
   .sched-court__head {
     margin: 0 0 4px;
@@ -312,11 +314,11 @@ const defaultMixerBlock = resolveSocialMixerBlock({ ...SOCIAL_MIXER_DEFAULT_PLAC
     letter-spacing: 0.06em;
     color: color-mix(in srgb, var(--color-navy) 55%, transparent);
   }
-  /* Time · contestants · status. The time column is wide enough for the two-line „im Anschluss · nicht vor
-     ca. 14:00" without pushing the names around. */
+  /* Time · contestants · status. The time column now holds at most „ca. 14:00" on one line (ADR-0071), so it
+     is narrower than the two-line floor needed — the names get the width back. */
   .sched-match {
     display: grid;
-    grid-template-columns: 96px 1fr auto;
+    grid-template-columns: 68px 1fr auto;
     align-items: center;
     gap: 12px;
     padding: 12px 4px;
@@ -329,8 +331,8 @@ const defaultMixerBlock = resolveSocialMixerBlock({ ...SOCIAL_MIXER_DEFAULT_PLAC
     line-height: 1.35;
     color: var(--color-blue);
   }
-  /* A follow-on floor is a weaker claim than an anchored start, and it reads that way: „im Anschluss" is
-     the sentence, „nicht vor ca. 14:00" the number you may plan against. */
+  /* A follow-on time is a weaker claim than a court's first match, and it reads that way. The „ca." carries
+     that in two characters; this carries it a second time, for a phone in bright sunlight. */
   .sched-match__time--follows {
     font-weight: 700;
     color: color-mix(in srgb, var(--color-navy) 60%, transparent);

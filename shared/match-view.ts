@@ -93,12 +93,13 @@ export interface RowSlot extends SlotText {
  */
 export interface MatchRow {
   id: number
-  /** „ab 10:30" or „im Anschluss · nicht vor ca. 12:00" — a floor, never a point (ADR-0069). */
+  /** „10:00" when nothing can push it, „ca. 12:00" when it follows on that court (ADR-0071). */
   publishedTime: string
   /**
-   * Whether that floor is a follow-on rather than an anchored start. Carried as a fact rather than left for
+   * Whether that time is a follow-on rather than an anchored start. Carried as a fact rather than left for
    * a caller to recover from the string: re-reading a decision out of finished German prose is the seam
-   * leaking, and a reworded label would silently stop matching.
+   * leaking, and a reworded label would silently stop matching. It is also the only thing a renderer can
+   * style on — „ca." is two characters, and two characters do not survive a phone in bright sunlight.
    */
   followsOn: boolean
   slot1: RowSlot
@@ -290,9 +291,9 @@ const competitionLabel = (competitions: readonly CompetitionOption[], slug: stri
 const roundText = (m: ScheduleMatch): string =>
   roundLabel({ bracket: m.bracket, round: m.round, totalRounds: m.totalRounds, thirdPlace: m.thirdPlace })
 
-// ── The published time (ADR-0069) ────────────────────────────────────────────────────────────────
+// ── The published time (ADR-0071, revising ADR-0069) ─────────────────────────────────────────────
 
-// The floor as both the sentence a reader gets and the fact a caller styles on — one return, so the two
+// The time as both the sentence a reader gets and the fact a caller styles on — one return, so the two
 // can never disagree and nobody has to recover the second by pattern-matching the first.
 export interface PublishedTime {
   label: string
@@ -300,40 +301,43 @@ export interface PublishedTime {
 }
 
 /**
- * How a match's planned start is *said*. The 90 minutes behind a placement is a court **reservation** built
- * from experience, not a match length, so a later match's clock time is only ever wrong in one direction —
- * late. The page therefore states a floor:
+ * How a match's planned start is *said*. Two forms, and which one a row gets is a statement about what can
+ * still move it (ADR-0071):
  *
- * - **„ab HH:MM"** when nothing on this court is reserved to run into this match: its first match of the
- *   day, and every match that opens a new block after a gap. Nothing can push it, so its time holds.
- * - **„im Anschluss · nicht vor ca. HH:MM"** when the previous reservation on this court abuts this one.
- *   „Im Anschluss" alone would leave a player without anything to plan against, so the floor stays.
+ * - **„HH:MM"**, plain, when nothing on this court is reserved to run into this match: its first match of
+ *   the day, and every match that opens a new block after a gap. Nothing in front of it can push it, so
+ *   the time is not an estimate — it is the appointment, and it says so by carrying no hedge.
+ * - **„ca. HH:MM"** when the previous reservation on this court abuts this one. The 90 minutes behind a
+ *   placement is a court **reservation** built from experience, not a match length (ADR-0069 §1, which
+ *   stands), so a chained start can drift — late, and only late. „ca." is the hedge; the number stays in
+ *   front of it, because the number is what a player plans the drive around.
  *
  * `previousSlot` is the start of the preceding reservation **on the same court and day**, or null for the
- * first. A gap breaks the chain: that is the point where the Grand Slam convention is not copied blindly
- * but fed with the grid information we actually have — a mixer block, an evening window or plain air makes
- * a real hole, and a row after a hole re-anchors.
+ * first. A gap breaks the chain, and the row behind the gap re-anchors to a plain time: the match in front
+ * of it finished long ago and cannot push it. A mixer block, an evening window or plain air all make such
+ * a hole, and the grid already records them, so the rule reads the operator's real plan rather than
+ * importing a convention blind.
  *
  * Abutting is `previousSlot + SLOT_SPAN` **exactly**. On a valid plan there is no other way for two
  * reservations to meet: court occupancy is interval-based and server-enforced (ADR-0040), so two starts on
  * one court are never fewer than SLOT_SPAN steps apart. A closer pair can still reach this page — the feed
  * reports a **running** match on its *actual* court (ADR-0032), so an operator who moves a live match onto
- * a busy court puts it inside that court's chain. That is an overlap, not a follow-on: the previous
- * reservation is still covering this start, so „nicht vor ca. HH:MM" would state a floor already known to
- * be broken. It anchors instead, which is the weaker and therefore safe claim.
+ * a busy court puts it inside that court's chain. That is an overlap, not a follow-on, and it anchors: an
+ * overlapping start is not a chained one, and the plain time is the claim that makes no promise about a
+ * predecessor it does not actually follow.
  */
 const publishedTime = (day: number, slot: number, previousSlot: number | null): PublishedTime => {
   const clock = slotTime(day, slot)
   const followsOn = previousSlot !== null && slot === previousSlot + SLOT_SPAN
-  return { label: followsOn ? `im Anschluss · nicht vor ca. ${clock}` : `ab ${clock}`, followsOn }
+  return { label: followsOn ? `ca. ${clock}` : clock, followsOn }
 }
 
 /**
- * Every placed match's floor, keyed by match id.
+ * Every placed match's published time, keyed by match id.
  *
  * Built over the **whole feed** rather than per rendered group, because a court's reservation chain is a
  * fact about the court: the men's match hidden by a competition filter still occupies the court, and the
- * women's match behind it must keep reading „im Anschluss" rather than being promoted to „ab". Same reason
+ * women's match behind it must keep its „ca." rather than being promoted to a plain time. Same reason
  * the bracket cannot compute this from the one node it is rendering — it is exactly the neighbour knowledge
  * a per-row helper would have made every caller carry.
  */
@@ -345,14 +349,14 @@ export const publishedTimes = (matches: readonly ScheduleMatch[]): Map<number, P
     if (chain) chain.push(m)
     else chains.set(key, [m])
   }
-  const floors = new Map<number, PublishedTime>()
+  const times = new Map<number, PublishedTime>()
   for (const chain of chains.values()) {
     // Order of play on that court; the id breaks a tie no valid plan produces but a moved live match can
     // (ADR-0032), so the order is total either way.
     chain.sort((a, b) => a.slot - b.slot || a.id - b.id)
-    chain.forEach((m, i) => floors.set(m.id, publishedTime(m.day, m.slot, i === 0 ? null : chain[i - 1].slot)))
+    chain.forEach((m, i) => times.set(m.id, publishedTime(m.day, m.slot, i === 0 ? null : chain[i - 1].slot)))
   }
-  return floors
+  return times
 }
 
 // ── The filter ───────────────────────────────────────────────────────────────────────────────────
@@ -380,14 +384,13 @@ const effectiveSelection = (offered: CompetitionOption[], selected: string | nul
  * The public schedule as one finished tree: the courts board, the filter's options, and the matches grouped
  * **day → court** with each court's column in order of play (ADR-0069, #308).
  *
- * The grouping is fixed rather than a two-way toggle on purpose: „im Anschluss" only means anything inside
- * one court's column. In a day list ordered by time it would point at the row above, which is on another
- * court, and the sentence would be false. „What is on right now" is the courts board's question, not the
- * schedule's.
+ * The grouping stays fixed rather than becoming a two-way toggle again (ADR-0071): the court is the column a
+ * player reads down to find their own afternoon, and „what is on right now" is the courts board's question,
+ * not the schedule's. Absolute times would make a day-wide list *coherent* — they do not make it wanted.
  *
  * The competition filter narrows the **rows**, never the chain: a court's reservation chain is a fact about
  * the court, so it is built from every match on it before the filter applies. Hiding a men's match must not
- * promote the women's match behind it from „im Anschluss" to „ab".
+ * promote the women's match behind it from „ca. 12:00" to a plain, unpushable 12:00.
  */
 export const scheduleView = (
   feed: Pick<ScheduleResponse, 'matches'>,
@@ -398,10 +401,10 @@ export const scheduleView = (
   const selected = effectiveSelection(offered, competition)
 
   // Every court's chain, built before the filter narrows anything — see `publishedTimes`.
-  const floors = publishedTimes(matches)
+  const published = publishedTimes(matches)
 
   const row = (m: ScheduleMatch): MatchRow => {
-    const { label, followsOn } = floors.get(m.id)!
+    const { label, followsOn } = published.get(m.id)!
     return {
       id: m.id,
       publishedTime: label,

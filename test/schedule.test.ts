@@ -30,17 +30,17 @@ const m = (id: number, round: number, position: number, slot1: number | null = n
 
 describe('slotTime', () => {
   it('counts up from each day’s own first start at the 30-minute cadence (ADR-0040)', () => {
-    // The two days open at different times (Saturday 10:30, Sunday 10:00 — ADR-0068); a slot is a
-    // 30-minute step from that day's own start, which is the whole point of the per-day array.
-    expect(slotTime(0, 0)).toBe('10:30')
-    expect(slotTime(0, 1)).toBe('11:00')
-    expect(slotTime(0, 2)).toBe('11:30')
+    // Both days currently open at 10:00 (ADR-0071); a slot is a 30-minute step from that day's own start,
+    // which is what the per-day array is for — asserted per day so a divergent start would be caught here.
+    expect(slotTime(0, 0)).toBe('10:00')
+    expect(slotTime(0, 1)).toBe('10:30')
+    expect(slotTime(0, 2)).toBe('11:00')
     expect(slotTime(1, 0)).toBe('10:00')
     expect(slotTime(1, 2)).toBe('11:00')
   })
 
   it('falls back to the first day’s start for an out-of-range day rather than NaN', () => {
-    expect(slotTime(99, 0)).toBe('10:30')
+    expect(slotTime(99, 0)).toBe('10:00')
   })
 })
 
