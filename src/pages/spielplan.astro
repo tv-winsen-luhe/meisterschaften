@@ -199,10 +199,19 @@ const defaultMixerBlock = resolveSocialMixerBlock({ ...SOCIAL_MIXER_DEFAULT_PLAC
   .board-courts {
     margin-bottom: 44px;
   }
+  /* A fixed column count rather than `auto-fit`, because the number of courts is a fact about the club, not
+     about the viewport: `minmax(150px, 1fr)` fitted 5 across and left the sixth court stranded on a row of
+     its own, which reads as a broken grid rather than as six courts. 2 then 3 columns divide 6 evenly, and
+     three wider cards hold „Steffen Brettschneider" where five narrow ones truncated it. */
   .courts {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 10px;
+  }
+  @media (min-width: 640px) {
+    .courts {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
   }
   .court {
     display: flex;
