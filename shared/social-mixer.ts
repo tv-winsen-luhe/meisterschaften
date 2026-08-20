@@ -27,6 +27,12 @@ export interface SocialMixerBlock extends SocialMixerPlacement {
   endMinutes: number
 }
 
+// The Social mixer's own `competition` slug. Named because two surfaces now have to ask „is this the
+// mixer" rather than only „is this cancelled": the schedule's competition filter offers the mixer as a
+// field of its own although it carries no match (ADR-0074), and the public page reads the same slug out of
+// the cancellation list (ADR-0062).
+export const SOCIAL_MIXER_COMPETITION = 'womens-social'
+
 // Sunday (the finals day) at 12:00 — the placement the event was planned around (ADR-0051 §5) and the
 // column default behind `app_state`. Inside the busy day rather than a dead evening slot, and ending at
 // 15:00 so the mixer's players are at the Siegerehrung rather than beside it. The slot index is relative

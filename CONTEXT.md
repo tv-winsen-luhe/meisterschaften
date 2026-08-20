@@ -148,9 +148,11 @@ concept here drifts or a new one appears, update this file rather than inventing
   partners, meet the others), which is how the Damen validation probe pitches it (ADR-0054), not as
   generic „Geselligkeit". It produces **no system result**: no draw, no seeding, no bracket,
   no consolation / third-place, no champion, no live board — the tournament engine never touches it. So in
-  the `tournament` phase its surface is the **Spielplan's mixer block**, and only that: it is **absent from
-  the public draw's tab list** rather than present with an empty bracket, because a tab it can never fill
-  reads as „not drawn yet" for a field that is never drawn at all. The
+  the `tournament` phase its surface is the **Spielplan's mixer block** — plus the one control that points
+  at it: the Schedule & results page's competition filter offers the mixer as a **field of its own although
+  it carries no match**, and selecting it narrows the page to that appointment and nothing else (ADR-0074).
+  It stays **absent from the public draw's tab list** rather than present with an empty bracket, because a
+  tab it can never fill reads as „not drawn yet" for a field that is never drawn at all. The
   app's only job is the **signup surface**: it reuses the Registration lifecycle (`new → confirmed →
 cancelled`, duplicate check, capacity, first-come cut) **unchanged**, with one relaxation — being
   unseeded, an entry carries **no LK** and `confirm` needs **no seeding basis** (seedability is a property
@@ -663,28 +665,6 @@ beendet mit Score` in place rather than migrating to a separate results page (AD
   player who drives home between matches plans against. The public schedule groups **day → court** as a fixed
   hierarchy — the court is the column a player reads down for their own afternoon — and „what is on right
   now" is the Live board's job, not a grouping's. _(See ADR-0071, revising ADR-0069.)_
-- **Undetermined column** (de: noch offene Spalte) — a **group** of the public schedule whose **every** match
-  has a **feeder placeholder** („Sieger M9" / „Verlierer M9") for both contestants, so between them the rows
-  name nobody. The group is the schedule's own unit — **one court's column within a day** — not the bracket
-  round: the column is what a reader scrolls past, so it is what may collapse, and a column carrying one
-  named match keeps all its rows because that column is worth reading down. It is called a **column** for
-  exactly that reason; „Undetermined round" was the earlier name and it fought this definition, because the
-  block does now **name the rounds inside it** (below). Such a group **collapses to one summarised block**
-  that states, in clock order, **each match's round and its Published time** — „Halbfinale 12:00 · Finale
-  ca. 15:00 · noch ohne Namen" — and expands to the unchanged rows on interaction: twelve consecutive rows
-  reading „Sieger M11 — Sieger M12" are noise in a list, and a reader looking for their own afternoon should
-  not have to scroll past them. The **round names are the point of the summary**: collapsing a column of
-  placeholders threw away the one fact those rows carried that anybody wanted — _when is the final_ — and a
-  Finaltag column is precisely where that matters. The **match count is not stated**: with the rounds listed
-  it is redundant. „noch ohne Namen" stays, because it is the part that explains _why_ a named round shows no
-  players. Collapsing **per round** instead of per column is rejected: on a two-parallel Finaltag it would
-  produce blocks of one match each, longer than the row they hide, and collapse only pays when it hides
-  several rows. „Freilos" and „offen" are deliberately **not** feeder
-  placeholders here: a bye is already decided and „offen" is a slot that failed to resolve (ADR-0035), so
-  summarising either would hide a fact. The dashed placeholder stays right in a **Bracket cell**, where
-  topology makes „not yet" meaningful — this scopes that device, it does not retire it. Whether a group is
-  undetermined is decided in the **projection** (`shared/match-view`), because it is a statement about the
-  content; whether the block is **open** is the renderer's own state. _(See ADR-0072, ADR-0071, ADR-0068.)_
 - **Match row** (de: Match-Zeile) — the one shape a match is displayed in on the public surfaces, in the
   anatomy a tennis spectator already reads fluently (ADR-0070): its two **contestant lines** — club crest,
   full name (never an initial), the **seed** as a small trailing token, and that slot's games — its

@@ -1,5 +1,6 @@
 import { COURT_NUMBERS, roundLabel, slotLabel, slotTime, SLOT_SPAN } from './schedule'
 import { scoreLine } from './score'
+import { SOCIAL_MIXER_COMPETITION } from './social-mixer'
 import type { LiveBracketSlot, MatchScore, ScheduleMatch, ScheduleResponse, ScheduleSlot } from './admin'
 import type { Club } from './club'
 
@@ -116,46 +117,11 @@ export interface MatchRow {
   statusLabel: string | null
 }
 
-/** One match inside a collapsed block: which round it is and when it starts. */
-export interface UndeterminedMatch {
-  /** „Halbfinale", „Spiel um Platz 3", „Nebenrunde · Finale" — the shared `roundLabel` (ADR-0028). */
-  round: string
-  /** That match's Published time, hedged where the court's reservations touch it (ADR-0071). */
-  publishedTime: string
-}
-
-/**
- * What stands in for a group of matches that names nobody yet (CONTEXT: Undetermined column): which rounds
- * wait there and when each of them starts, as one finished line (#346). No match count — with the rounds
- * listed it says nothing more, and it was all the block used to say.
- *
- * The block is specified as stating those facts, so `matches` is carried as facts rather than only baked
- * into the sentence: what the block must say is then asserted directly instead of by pattern-matching German
- * that a rewording would silently break.
- */
-export interface UndeterminedColumn {
-  /** „Halbfinale 12:00 · Finale ca. 15:00 · noch ohne Namen" — the whole block's line. */
-  summary: string
-  /** The matches it holds, in clock order — the order of play the rows behind it are in. */
-  matches: UndeterminedMatch[]
-}
-
 /** One court's column within a day: „Platz 3" and its matches in order of play. */
 export interface CourtGroup {
   court: number
   label: string
   rows: MatchRow[]
-  /**
-   * Non-null when **every** match in this column has a feeder placeholder for both contestants — Sunday's
-   * wall of „Sieger M11 — Sieger M12" — and then it is the summary the column collapses to. Null the moment
-   * one real player is in there, because a column that names somebody is worth reading down.
-   *
-   * Decided here rather than in the renderer: „does this group name anybody" is a statement about the
-   * content, and a renderer that answered it would have to inspect slot kinds — reading the wire's
-   * discriminator back out of a finished tree, which is the seam leaking. Whether the block is **open** is
-   * the renderer's own state; it is not a fact about the schedule.
-   */
-  undetermined: UndeterminedColumn | null
 }
 
 /** One event day: „Samstag · 22.08." and the courts that carry a match on it, ascending. */
@@ -202,8 +168,9 @@ export interface CompetitionOption {
 
 export interface ScheduleView {
   /**
-   * The filter's options, in display order: the fields the feed actually carries, or empty when there is
-   * nothing to choose between (fewer than two). A caller renders whatever arrives and hides an empty list.
+   * The filter's options, in display order: the fields the feed actually carries — plus the Social mixer
+   * when the caller says it takes place (ADR-0074) — or empty when there is nothing to choose between
+   * (fewer than two). A caller renders whatever arrives and hides an empty list.
    */
   competitions: CompetitionOption[]
   /** The selection that actually applies (see `effectiveSelection` below). */
@@ -231,6 +198,13 @@ export interface ScheduleViewOptions {
   competitions: readonly CompetitionOption[]
   /** The competition filter's selection, or null/absent for „Alle". */
   competition?: string | null
+  /**
+   * Whether the Social mixer takes place, and with it whether the filter offers it as a field (ADR-0074).
+   * The caller's to answer rather than the feed's: the mixer runs no match the engine models, so no feed
+   * carries it, and its cancellation arrives on the `/api/phase` read the mixer's own band already does.
+   * Absent means „do not offer it", so a caller that knows nothing about the mixer gets today's filter.
+   */
+  socialMixer?: boolean
 }
 
 // ── The pieces every row is made of ──────────────────────────────────────────────────────────────
@@ -427,51 +401,26 @@ export const publishedTimes = (matches: readonly ScheduleMatch[]): Map<number, P
   return times
 }
 
-// ── The undetermined column (#333, #346) ─────────────────────────────────────────────────────────
-
-// A contestant that is still the *match in front of it* — „Sieger M9", „Verlierer M9". „Freilos" and „offen"
-// are placeholders too and deliberately not this: a bye is already decided, and „offen" is a slot that
-// failed to resolve (ADR-0035). Only a feeder is genuinely waiting on a result, and only that wait is what
-// makes a whole column of rows say nothing.
-const isFeederPlaceholder = (slot: ScheduleSlot): boolean => slot.kind === 'feeder' || slot.kind === 'loser'
-
-/**
- * The summary a group collapses to, or null when it names somebody. It lists each match's **round** and
- * Published time (#346): collapsing the placeholder rows removed the one fact they carried that anybody
- * wanted — when the Halbfinale and the Finale are — and the block is where it belongs now. Round names come
- * from `roundText`, so „Spiel um Platz 3" and „Nebenrunde · Finale" read as they do on the bracket.
- *
- * Takes the group's `matches` **and** the rows they produced, index-aligned, because the two questions live
- * on different sides of the projection: „is every contestant a feeder" is only answerable on the wire
- * (`MatchRow` has finished the discriminator into German), and „when does this start" is only answerable on
- * the row (the hedge is the row's, not the feed's). Both are the *rendered* set, so a filtered column
- * summarises exactly what it shows.
- *
- * `rows` arrives in order of play, so the summary is in clock order for free — hedges included, because a
- * start inside the block is a follow-on exactly as often as the row beneath it is (ADR-0071).
- */
-const undeterminedColumn = (
-  matches: readonly ScheduleMatch[],
-  rows: readonly MatchRow[]
-): UndeterminedColumn | null => {
-  if (rows.length === 0) return null
-  if (!matches.every(m => isFeederPlaceholder(m.slot1) && isFeederPlaceholder(m.slot2))) return null
-  const held = matches.map((m, i) => ({ round: roundText(m), publishedTime: rows[i].publishedTime }))
-  const listed = held.map(m => `${m.round} ${m.publishedTime}`).join(' · ')
-  return { summary: `${listed} · noch ohne Namen`, matches: held }
-}
-
 // ── The filter ───────────────────────────────────────────────────────────────────────────────────
 
 // What the filter offers: the fields the feed carries, in display order — but nothing at all below two,
 // because a single field is not a choice. This is also how a cancelled field leaves the filter (ADR-0062):
 // the feed stops carrying its matches, so it stops being an option, and nobody has to tell the filter.
+//
+// The Social mixer is the one exception, and it is one on purpose (ADR-0074): it runs no match the engine
+// knows about, so the feed can never carry it in, and the caller has to say whether it takes place — its
+// cancellation rides a different signal (`/api/phase`) than the matches do. It is offered **after** the
+// present fields, which is where it already sits in display order, and only alongside them: the list stays
+// „nothing at all below two", so a page with a single drawn field does not grow a filter it did not have.
 const filterOptions = (
   competitions: readonly CompetitionOption[],
-  matches: readonly ScheduleMatch[]
+  matches: readonly ScheduleMatch[],
+  socialMixer: boolean
 ): CompetitionOption[] => {
   const present = competitions.filter(c => matches.some(m => m.competition === c.slug))
-  return present.length < 2 ? [] : present
+  if (present.length < 2) return []
+  const mixer = socialMixer ? competitions.filter(c => c.slug === SOCIAL_MIXER_COMPETITION) : []
+  return [...present.filter(c => c.slug !== SOCIAL_MIXER_COMPETITION), ...mixer]
 }
 
 // The selection that actually applies. A field that is not on offer — dropped by a reset, cancelled, or
@@ -493,13 +442,17 @@ const effectiveSelection = (offered: CompetitionOption[], selected: string | nul
  * The competition filter narrows the **rows**, never the chain: a court's reservation chain is a fact about
  * the court, so it is built from every match on it before the filter applies. Hiding a men's match must not
  * promote the women's match behind it from „ca. 12:00" to a plain, unpushable 12:00.
+ *
+ * A field with no matches narrows the schedule to **nothing**, and `days` comes back empty — which is the
+ * whole answer for the Social mixer (ADR-0074): its court-time is an appointment the page states outside
+ * this tree, not a row in it, so selecting it leaves exactly that appointment standing.
  */
 export const scheduleView = (
   feed: Pick<ScheduleResponse, 'matches'>,
-  { days, competitions, competition = null }: ScheduleViewOptions
+  { days, competitions, competition = null, socialMixer = false }: ScheduleViewOptions
 ): ScheduleView => {
   const { matches } = feed
-  const offered = filterOptions(competitions, matches)
+  const offered = filterOptions(competitions, matches, socialMixer)
   const selected = effectiveSelection(offered, competition)
 
   // Every court's chain, built before the filter narrows anything — see `publishedTimes`.
@@ -535,7 +488,7 @@ export const scheduleView = (
             .sort((a, b) => a.slot - b.slot || a.id - b.id)
             .filter(m => selected === null || m.competition === selected)
           const rows = onCourt.map(row)
-          return { court, label: courtLabel(court), rows, undetermined: undeterminedColumn(onCourt, rows) }
+          return { court, label: courtLabel(court), rows }
         })
         .filter(group => group.rows.length > 0)
     }
