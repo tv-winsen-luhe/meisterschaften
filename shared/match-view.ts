@@ -200,7 +200,14 @@ export interface ScheduleView {
   competitions: CompetitionOption[]
   /** The selection that actually applies (see `effectiveSelection` below). */
   selected: string | null
-  courts: CourtCell[]
+  /**
+   * The „Jetzt auf dem Platz" board's six cells, or **absent** when no match is running (#347). The board
+   * answers one question — „what is on right now" — so with nothing running it has no answer and no job:
+   * the caller renders no section rather than a heading over six „frei" cells, and what is *next* stays the
+   * rows' job. Absent rather than an empty array, so „there is no board" and „the board is empty" cannot be
+   * confused; the rule reads the running status alone and admits no clock.
+   */
+  courts?: CourtCell[]
   days: DayGroup[]
 }
 
@@ -518,20 +525,24 @@ export const scheduleView = (
   const running = new Map<number, ScheduleMatch>()
   for (const m of matches) if (m.status === 'running') running.set(m.court, m)
 
-  const courts = COURT_NUMBERS.map((court): CourtCell => {
-    const live = running.get(court)
-    // Courts outside the focused field fade back — including free ones — so „mein Feld" pops without ever
-    // relabelling a physically busy court „frei".
-    const base = { court, label: courtLabel(court), dim: selected !== null && live?.competition !== selected }
-    if (!live) return { ...base, free: true }
-    return {
-      ...base,
-      free: false,
-      slot1: scheduleRowSlot(live, 1),
-      slot2: scheduleRowSlot(live, 2),
-      meta: `${roundText(live)} · ${competitionLabel(competitions, live.competition)}`
-    }
-  })
+  // Nothing running, no board (#347) — the section's whole content would be the absence of content.
+  const courts =
+    running.size === 0
+      ? undefined
+      : COURT_NUMBERS.map((court): CourtCell => {
+          const live = running.get(court)
+          // Courts outside the focused field fade back — including free ones — so „mein Feld" pops without ever
+          // relabelling a physically busy court „frei".
+          const base = { court, label: courtLabel(court), dim: selected !== null && live?.competition !== selected }
+          if (!live) return { ...base, free: true }
+          return {
+            ...base,
+            free: false,
+            slot1: scheduleRowSlot(live, 1),
+            slot2: scheduleRowSlot(live, 2),
+            meta: `${roundText(live)} · ${competitionLabel(competitions, live.competition)}`
+          }
+        })
 
   return { competitions: offered, selected, courts, days: dayGroups.filter(d => d.courts.length > 0) }
 }

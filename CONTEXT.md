@@ -637,12 +637,14 @@ beendet mit Score` in place rather than migrating to a separate results page (AD
   communicated through **Match status**, not by continuously rescheduling; the **court** always reflects
   reality. _(See ADR-0008, ADR-0032, ADR-0069, ADR-0070.)_
 - **Live board** (de: Live-Board) — the „jetzt auf dem Platz" **courts strip** that leads the Schedule &
-  results page: one cell per court, showing what is on that court **right now**. It names the strip, not
-  the page around it — the page is the **Schedule & results page** (above), and the word was previously
-  doing both jobs. Derived from the same match records as the rows beneath it, so the two can never
+  results page **while anything is on**: one cell per court, showing what is on that court **right now**.
+  With no match running it is **absent altogether** — no heading and no line announcing the absence — because
+  its whole job is „what is on right now" and what is _next_ is the rows' job (#347). The rule reads the
+  **Match status** alone and no clock. It names the strip, not the page around it — the page is the
+  **Schedule & results page** (above), and the word was previously doing both jobs. Derived from the same match records as the rows beneath it, so the two can never
   disagree. „Scoreboard" is **not** a term in this project: it is a useful word for arguing about how the
   weekend surfaces should be _read_, but the things it would name already have names.
-  _(See ADR-0008, ADR-0032.)_
+  _(See ADR-0008, ADR-0032, ADR-0072.)_
 - **Published time** (de: veröffentlichte Zeit) — what the public schedule says about _when_. It is always a
   **clock time**, and the only question is whether it carries a hedge, which is a statement about what can
   still move it (ADR-0071): a court's first match of the day — and every match that opens a fresh block

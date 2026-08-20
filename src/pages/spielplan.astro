@@ -10,8 +10,9 @@ import { resolveSocialMixerBlock, SOCIAL_MIXER_DEFAULT_PLACEMENT } from '../../s
 const defaultMixerBlock = resolveSocialMixerBlock({ ...SOCIAL_MIXER_DEFAULT_PLACEMENT, confirmed: 0 })!
 
 // The public event-wide schedule + live board (ADR-0005, ADR-0032, ADR-0069, #91, #308): one page for the
-// whole weekend that always shows the current truth, never the stale plan. It leads with a „Jetzt auf dem
-// Platz" courts board — the 6 courts, each showing what is live on it right now (or „frei") — over a
+// whole weekend that always shows the current truth, never the stale plan. While anything is on it leads
+// with a „Jetzt auf dem Platz" courts board — the 6 courts, each showing what is live on it right now (or
+// „frei"); with nothing running the board is absent altogether (#347), because it has no answer — over a
 // schedule grouped **day → court** that marks the match on court right now („läuft" — the page's only badge,
 // #327) and shows results for finished matches, and can be filtered by competition.
 //
@@ -91,10 +92,10 @@ const defaultMixerBlock = resolveSocialMixerBlock({ ...SOCIAL_MIXER_DEFAULT_PLAC
       </p>
       <p class="board-error">Der Spielplan lässt sich gerade nicht laden. Bitte später erneut versuchen.</p>
 
-      <section class="board-courts" aria-label="Jetzt auf dem Platz">
-        <h2 class="board-heading">Jetzt auf dem Platz</h2>
-        <div class="courts" data-courts></div>
-      </section>
+      <!-- The live board is present only while something is live (#347), so heading and cells alike are the
+           renderer's — a static `<h2>` here could not withdraw with them. Starts empty and hidden: with
+           nothing running, the reader meets the schedule straight away. -->
+      <section class="board-courts" aria-label="Jetzt auf dem Platz" data-courts hidden></section>
 
       <section class="board-schedule" aria-label="Spielplan">
         <div class="board-controls" data-controls>
