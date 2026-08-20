@@ -159,7 +159,6 @@ const home = import.meta.env.BASE_URL || '/'
     border-bottom: 1px solid var(--color-navy);
     transition:
       background-color 0.3s ease,
-      backdrop-filter 0.3s ease,
       padding 0.3s ease,
       border-color 0.3s ease;
     padding-block: 18px;
@@ -234,10 +233,16 @@ const home = import.meta.env.BASE_URL || '/'
   }
 
   /* Stuck (condensed) state — brand swap applies on all viewports */
+  /* Fully opaque on purpose. This bar sits over the draw, where what scrolls under it is navy player
+     names and bracket cells — at 92% alpha they read straight through the wordmark, and a bar you have
+     to look past to read a name is worse than no bar.
+
+     It used to lean on `backdrop-filter: blur(12px)` to earn that alpha, and the blur never reached any
+     browser: the build collapsed the standard property and its `-webkit-` twin down to
+     `-webkit-backdrop-filter` alone, which Chrome does not implement (computed value `none`), so the bar
+     shipped simply see-through. Opacity needs no vendor prefix and no minifier goodwill. */
   .site-header--event.is-stuck {
-    background-color: rgb(245 245 245 / 0.92);
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
+    background-color: var(--color-gray-light);
     padding-block: 10px;
   }
   .site-header--event.is-stuck .site-header__logo--full {
