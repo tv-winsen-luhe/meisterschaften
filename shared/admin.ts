@@ -4,7 +4,7 @@ import { competitionSlug } from './competition'
 import { BRACKETS, ENTERED_OUTCOMES, MATCH_OUTCOMES, MATCH_STATUSES, REVEAL_KINDS, seedingEntrySchema } from './draw'
 import { REGISTRATION_STATUSES } from './registration'
 import { SCHEDULE } from './schedule'
-import { RESULT_SCORE_ERROR_MESSAGE, SCORE_POINT_MAX, resultScoreError } from './score'
+import { RESULT_SCORE_ERROR_MESSAGE, SCORE_POINT_MAX, legalMtb, legalSet, resultScoreError } from './score'
 
 // The admin (operator) contract — the single source of truth for the /api/admin/* JSON
 // shapes, shared by the worker (server validation) and the React admin (typed `hc`).
@@ -563,13 +563,27 @@ export type MatchResultResponse = z.infer<typeof matchResultResponseSchema>
 const setIndex = z.union([z.literal(1), z.literal(2), z.literal(3)], { error: 'Ungültiger Satz.' })
 
 // POST /api/admin/match/set — opportunistically save (or clear) one set's score while a match is ongoing
-// (ADR-0032 §20), so the live board can show „Satz 1: 6:3 · Satz 2 läuft". It never resolves the match —
-// no winner, no advancement; that is the result endpoint. `score` null clears the set back to unplayed.
-export const matchSetRequestSchema = z.object({
-  id,
-  set: setIndex,
-  score: setScore.nullable()
-})
+// (ADR-0032 §20 + Amendment 2026-08-20): the Zwischenstand the operator types at the grounds, which the
+// public surfaces print in their score column beside the „läuft" badge. It never resolves the match — no
+// winner, no advancement, no status change; that is the result endpoint. `score` null clears the set back
+// to unplayed (emptying the fields is how a mistyped set is corrected).
+//
+// A saved set is by definition a **completed** set, so the closed legal space binds here too (ADR-0045):
+// sets 1/2 must be a legal set, set 3 a legal Match-Tie-Break. Without this the 0…99 typo bound would let
+// a `3:2` through on this path, and „an illegal score is impossible" would hold on one write path only.
+// Order is deliberately **not** enforced — clearing set 1 to retype it leaves set 2 briefly standing alone,
+// and that transient is legitimate.
+export const matchSetRequestSchema = z
+  .object({
+    id,
+    set: setIndex,
+    score: setScore.nullable()
+  })
+  .superRefine((val, ctx) => {
+    if (val.score === null) return
+    const legal = val.set === 3 ? legalMtb(val.score) : legalSet(val.score)
+    if (!legal) ctx.addIssue({ code: 'custom', message: RESULT_SCORE_ERROR_MESSAGE['normal-illegal'], path: ['score'] })
+  })
 export type MatchSetRequest = z.infer<typeof matchSetRequestSchema>
 export const matchSetResponseSchema = z.object({ ok: z.literal(true) })
 export type MatchSetResponse = z.infer<typeof matchSetResponseSchema>

@@ -215,9 +215,10 @@ export const AdminApp = () => {
   }, [client, mutate])
 
   // The result-entry seams (ADR-0032, ADR-0026), kept out of the shell like useSchedule/useReveal: the live
-  // status transition (with the actual court) and the result write that advances the bracket. Both ride the
-  // shared `mutate`, so the success reload re-fetches the draws and the bracket reflects the new result.
-  const { recordResult, setMatchStatus } = useResults(client, mutate)
+  // status transition (with the actual court), the result write that advances the bracket, and the interim
+  // set write (the Zwischenstand). All ride the shared `mutate`, so the success reload re-fetches the draws
+  // and the bracket reflects the new result.
+  const { recordResult, setMatchStatus, saveSets } = useResults(client, mutate)
 
   // The debug-only reset levers (ADR-0029): all three go through mutate, so they share the
   // 401-regate/error/toast behaviour, and the success reload re-fetches draws + phase so the UI
@@ -368,6 +369,7 @@ export const AdminApp = () => {
             draws={draws}
             onRecordResult={recordResult}
             onSetStatus={setMatchStatus}
+            onSaveSets={saveSets}
           />
         ) : surface === 'debug' && resetEnabled ? (
           <DebugSurface draws={draws} onUndraw={undraw} onReadmit={readmit} onBackToSignup={backToSignup} />
