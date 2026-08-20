@@ -65,6 +65,15 @@ stance about what a live match looks like must be one stance or the formatter gr
    cover. That leaves exactly one badge, on the one fact worth badging, and returns the ~28% of a mobile row
    the pill was eating.
 
+   **This rule is not invented here — it is being propagated.** The **bracket cell already does it**:
+   `BracketCell.statusLabel` is already `string | null`, documented as „„läuft', and **only** that — null for
+   a planned or a finished match", on the same reasoning („a „geplant' badge on every cell of a fresh draw
+   would be noise on every line at once"), decided in ADR-0070 / #311. It is the **schedule row** that never
+   got it: `MatchRow.statusLabel` is a plain `string`, filled from the status for every row. So the work is
+   bringing the row into line with the cell, on a type shape that is already proven in this codebase — not
+   designing a new one. What §2 genuinely adds is only that the two surfaces must now agree, and that the
+   agreement is the row's to reach.
+
 3. **„läuft" owns the brand accent and a non-colour signal.** The lime accent moves from the CTA — absent
    during `tournament` anyway (ADR-0042/0060; `index.astro:162-180` swaps the hero CTA for
    `data-phase-lead="tournament-*"`) — onto the live state, on both the Live board strip and the in-list
