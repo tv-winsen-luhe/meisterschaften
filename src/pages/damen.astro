@@ -41,13 +41,15 @@ const headerCta = { href: '#', label: 'Anmelden', competition: primary.slug }
   // changes ~twice in the event's life (ADR-0042). Once registration has closed (phase ≠ signup) a
   // porch has no job, so hand off to the front door, which projects tournament/post-event correctly.
   //
-  // The same one read also carries where the operator has put the Damen-Doppel block (ADR-0064). This
-  // porch renders the very card that advertises the appointment, so it must apply the move like the front
-  // door does — patched *before* the redirect check, which may navigate away.
+  // The same one read also carries where the operator has put the Damen-Doppel block and the courts its
+  // head-count earns (ADR-0064, ADR-0073). This porch renders the very card that advertises the
+  // appointment, so it must apply both like the front door does — patched *before* the redirect check,
+  // which may navigate away.
   fetch('/api/phase', { headers: { accept: 'application/json' } })
     .then(res => (res.ok ? res.json() : null))
     .then((data: Partial<PhaseResponse> | null) => {
-      if (data?.socialMixerPlacement) applyMixerAppointment(data.socialMixerPlacement)
+      if (data?.socialMixerPlacement && data.socialMixerCourts)
+        applyMixerAppointment(data.socialMixerPlacement, data.socialMixerCourts)
       if (data?.phase && data.phase !== 'signup') window.location.replace('/')
     })
     .catch(() => {})

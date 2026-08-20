@@ -150,7 +150,8 @@ describe('POST /api/admin/competition/cancel + the public wires', () => {
     expect(await phase()).toEqual({
       phase: 'signup',
       cancelledCompetitions: [],
-      socialMixerPlacement: SOCIAL_MIXER_DEFAULT_PLACEMENT
+      socialMixerPlacement: SOCIAL_MIXER_DEFAULT_PLACEMENT,
+      socialMixerCourts: [6]
     })
 
     const res = await setCancelled('womens-social', true)
@@ -159,7 +160,8 @@ describe('POST /api/admin/competition/cancel + the public wires', () => {
     expect(await phase()).toEqual({
       phase: 'signup',
       cancelledCompetitions: ['womens-social'],
-      socialMixerPlacement: SOCIAL_MIXER_DEFAULT_PLACEMENT
+      socialMixerPlacement: SOCIAL_MIXER_DEFAULT_PLACEMENT,
+      socialMixerCourts: [6]
     })
 
     // Taking it back needs no confirmation and no reconciliation — the flag materialized nothing.
@@ -167,7 +169,8 @@ describe('POST /api/admin/competition/cancel + the public wires', () => {
     expect(await phase()).toEqual({
       phase: 'signup',
       cancelledCompetitions: [],
-      socialMixerPlacement: SOCIAL_MIXER_DEFAULT_PLACEMENT
+      socialMixerPlacement: SOCIAL_MIXER_DEFAULT_PLACEMENT,
+      socialMixerCourts: [6]
     })
   })
 

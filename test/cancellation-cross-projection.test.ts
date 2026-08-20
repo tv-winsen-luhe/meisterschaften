@@ -125,7 +125,8 @@ describe('a cancelled competition is missing from every public wire (ADR-0062 §
     expect(phase).toEqual({
       phase: 'tournament',
       cancelledCompetitions: ['womens'],
-      socialMixerPlacement: SOCIAL_MIXER_DEFAULT_PLACEMENT
+      socialMixerPlacement: SOCIAL_MIXER_DEFAULT_PLACEMENT,
+      socialMixerCourts: [6]
     })
   })
 
@@ -155,7 +156,8 @@ describe('a cancelled competition is missing from every public wire (ADR-0062 §
     expect(await wires.phase()).toEqual({
       phase: 'tournament',
       cancelledCompetitions: [],
-      socialMixerPlacement: SOCIAL_MIXER_DEFAULT_PLACEMENT
+      socialMixerPlacement: SOCIAL_MIXER_DEFAULT_PLACEMENT,
+      socialMixerCourts: [6]
     })
   })
 })

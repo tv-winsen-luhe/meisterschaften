@@ -172,26 +172,37 @@ export const tournament = {
 }
 
 /**
- * The Social mixer's appointment as one German line („Sonntag, 23.08. · 12:00–15:00 Uhr"), derived from the
- * resolved block (ADR-0064) and the event's date copy. The one place this sentence is written: the public
- * schedule section and the front-door card both render it, so the time the participants read can never
- * drift from the time the schedule validator reserves — and because the block is movable, both surfaces
- * re-render it from the one signal they already fetch.
+ * The block's courts as one German phrase („Platz 6", „Platz 5 und 6", „Platz 4, 5 und 6"). One wording for
+ * both sentences below, so the public line and the operator's cannot state the same reservation differently.
+ * Courts are named by **number only** — never „Nebenplätze" and never a ranking, which is a venue fact for
+ * the auto-suggest and not copy (ADR-0073, ADR-0051 §5).
+ */
+const socialMixerCourtPhrase = (courts: number[]): string => `Platz ${courts.join(', ').replace(/, (\d+)$/, ' und $1')}`
+
+/**
+ * The Social mixer's appointment as one German line („Sonntag, 23.08. · 12:00–15:00 Uhr · Platz 5 und 6"),
+ * derived from the resolved block (ADR-0064) and the event's date copy. The one place this sentence is
+ * written: the public schedule's mixer band and the front-door card both render it, so the time the
+ * participants read can never drift from the time the schedule validator reserves — and because the block
+ * is movable, both surfaces re-render it from the one signal they already fetch.
  *
- * Deliberately **without court numbers** (ADR-0064 §6): what is public is the appointment, and a derived
- * court number that shifts with the head-count is not a promise worth making to someone who will be shown
- * their court on arrival anyway.
+ * The courts are **named** (ADR-0073, superseding ADR-0064 §6): they are what a participant walks to, and
+ * naming them is what lets the block sit inside its day like every other field rather than as a tile above
+ * the board. They arrive on the block as the **resolved list** — the head-count that sized them is not
+ * public — so a one-court reservation reads „Platz 6" and never „Platz 5 und 6".
  */
 export const socialMixerWhen = (block: SocialMixerBlock): string => {
   const day = [tournament.saturday, tournament.sunday][block.day] ?? tournament.sunday
-  return `${day.weekday}, ${day.short} · ${socialMixerBlockTime(block)} Uhr`
+  return `${day.weekday}, ${day.short} · ${socialMixerBlockTime(block)} Uhr · ${socialMixerCourtPhrase(block.courts)}`
 }
 
-/** The same appointment for the operator, courts included („Sonntag · 12:00–15:00 · Platz 5 und 6"). */
+/**
+ * The same appointment for the operator („Sonntag · 12:00–15:00 · Platz 5 und 6"). Since ADR-0073 the two
+ * differ only in framing — the public line carries the date, this one is read beside the grid it shades.
+ */
 export const socialMixerWhenAndWhere = (block: SocialMixerBlock): string => {
   const day = [tournament.saturday, tournament.sunday][block.day] ?? tournament.sunday
-  const courts = block.courts.join(', ').replace(/, (\d+)$/, ' und $1')
-  return `${day.weekday} · ${socialMixerBlockTime(block)} · Platz ${courts}`
+  return `${day.weekday} · ${socialMixerBlockTime(block)} · ${socialMixerCourtPhrase(block.courts)}`
 }
 
 export const signupDeadline = {

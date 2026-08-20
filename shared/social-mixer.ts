@@ -88,6 +88,14 @@ export const socialMixerPlacementSchema = z
   .refine(isValidSocialMixerPlacement, { error: 'Der Block muss an einem Spieltag liegen und bis 20:00 Uhr enden.' })
 
 /**
+ * The courts' wire form — the **resolved list**, on `/api/phase` (read only, ADR-0073). The server runs
+ * `socialMixerCourts` and ships the result, so the public line can name the courts while the confirmed
+ * head-count that sized them stays unpublished: `[5, 6]` means 8–11 entries, not a number. Never zero — no
+ * block at all is a cancellation, said by the cancelled set beside it.
+ */
+export const socialMixerCourtsSchema = z.array(z.number().int().min(1).max(SCHEDULE.courts)).min(1).max(MAX_COURTS)
+
+/**
  * The block as it currently stands, or `null` when there is none. A **cancelled** mixer resolves to `null`
  * and `null` means „no block" everywhere: no shading, no violation, nothing reserved, no public line
  * (ADR-0062) — the one place that fact is decided, rather than each surface remembering to ask.
@@ -97,16 +105,18 @@ export const resolveSocialMixerBlock = ({
   startSlot,
   confirmed,
   cancelled = false
-}: SocialMixerPlacement & { confirmed: number; cancelled?: boolean }): SocialMixerBlock | null => {
-  if (cancelled) return null
+}: SocialMixerPlacement & { confirmed: number; cancelled?: boolean }): SocialMixerBlock | null =>
+  cancelled ? null : socialMixerBlockOn({ day, startSlot }, socialMixerCourts(confirmed))
+
+/**
+ * The same block for a surface that was **given** the courts instead of the head-count: the public pages
+ * read the resolved list off `/api/phase` (ADR-0073), because the count that produced it is not public. The
+ * two constructors meet here, so a public line and the operator's grid can never span different hours for
+ * the same placement.
+ */
+export const socialMixerBlockOn = ({ day, startSlot }: SocialMixerPlacement, courts: number[]): SocialMixerBlock => {
   const startMinutes = slotStartMinutes(day, startSlot)
-  return {
-    day,
-    startSlot,
-    courts: socialMixerCourts(confirmed),
-    startMinutes,
-    endMinutes: startMinutes + SOCIAL_MIXER_BLOCK_MINUTES
-  }
+  return { day, startSlot, courts, startMinutes, endMinutes: startMinutes + SOCIAL_MIXER_BLOCK_MINUTES }
 }
 
 /** The block's clock window as „HH:MM–HH:MM" — one formatting, shared by the operator and public copy. */

@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import { cancelledCompetitionsSchema } from './cancellation'
-import { socialMixerPlacementSchema } from './social-mixer'
+import { socialMixerCourtsSchema, socialMixerPlacementSchema } from './social-mixer'
 
 // The operator-controlled phase contract (ADR-0006, ADR-0027) — the single source of truth for
 // the phase value and the /api/phase + /api/admin/phase JSON shapes, shared by the worker
@@ -29,12 +29,14 @@ export const DEFAULT_PHASE: Phase = 'signup'
 // has cancelled (ADR-0062) and where the Social mixer's block currently sits (ADR-0064). Both ride along
 // here rather than on their own endpoints: this is the one call every public surface already makes, so it
 // is one poll and one signal — and the same Zod schema stays the single source of the wire form
-// (ADR-0048). The mixer carries its *placement*, not a resolved block: the courts follow the confirmed
-// head-count, which is not public, and the public line names only day and time anyway.
+// (ADR-0048). The mixer carries two things that do not replace each other (ADR-0073): its *placement*, the
+// operator's own state, and its **resolved court list**, derived here from the confirmed head-count so the
+// public line can name the courts without the count ever being published.
 export const phaseResponseSchema = z.object({
   phase: phaseSchema,
   cancelledCompetitions: cancelledCompetitionsSchema,
-  socialMixerPlacement: socialMixerPlacementSchema
+  socialMixerPlacement: socialMixerPlacementSchema,
+  socialMixerCourts: socialMixerCourtsSchema
 })
 export type PhaseResponse = z.infer<typeof phaseResponseSchema>
 

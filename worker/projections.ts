@@ -5,6 +5,7 @@ import {
   clubSchema,
   isCancelledCompetition,
   isFullyRevealed,
+  isUnseededCompetition,
   type LiveBracket,
   type LiveBracketSlot,
   type Match,
@@ -17,6 +18,8 @@ import {
   type ScheduleMatch,
   type ScheduleSlot,
   type SlotView,
+  socialMixerCourts,
+  type SocialMixerPlacement,
   strengthRedacted,
   winningSlot
 } from '../shared'
@@ -48,6 +51,16 @@ export interface ProjectionsDeps {
 export interface ScheduleFeed {
   published: boolean
   matches: ScheduleMatch[]
+}
+
+// The Social mixer's two public facts, as `/api/phase` carries them (ADR-0073). They do not replace each
+// other: the placement is the operator's own state, the court list is **derived** from state the wire does
+// not carry — the field's confirmed head-count, which appears on no public surface. Shipping the resolved
+// list is the narrower disclosure and the more useful one: `[5, 6]` is what a participant walks to, and it
+// does not recover to a number (it means 8–11 entries, not one of them).
+export interface SocialMixerSignal {
+  socialMixerPlacement: SocialMixerPlacement
+  socialMixerCourts: number[]
 }
 
 // Resolve one fully-revealed competition+bracket draw into its live wire shape (ADR-0046): the `matches`
@@ -167,6 +180,22 @@ export const createProjections = (deps: ProjectionsDeps) => {
   }
 
   return {
+    /**
+     * The mixer's public signal: where the operator has put the block, and the courts its confirmed
+     * head-count earns (ADR-0073). The clamp itself stays in `socialMixerCourts`, so no surface
+     * re-implements it — this only counts the field's confirmed entries, off the same list the participant
+     * list reads (small N, ADR-0021). A **cancelled** mixer is said by the cancelled set beside this on the
+     * wire, not by an empty court list: no block at all is that set's answer (ADR-0062).
+     */
+    async socialMixerSignal(): Promise<SocialMixerSignal> {
+      const [socialMixerPlacement, confirmed] = await Promise.all([
+        appStateStore.getSocialMixerPlacement(),
+        registrationsStore.listConfirmed()
+      ])
+      const entries = confirmed.filter(p => isUnseededCompetition(p.competition)).length
+      return { socialMixerPlacement, socialMixerCourts: socialMixerCourts(entries) }
+    },
+
     /**
      * The public bracket (ADR-0046), a **two-phase** projection switched per competition on its main
      * bracket's reveal cursor:
