@@ -3,8 +3,9 @@ import { scheduleView } from '../shared/match-view'
 import type { MatchScore, ScheduleMatch, ScheduleSlot } from '../shared'
 import type { ScheduleViewOptions } from '../shared/match-view'
 
-// The undetermined round (#333): a group of the public schedule whose every match still has a **feeder
-// placeholder** for both contestants collapses to one summarised block. A sibling of match-view.test.ts and
+// The undetermined column (#333, #346): a group of the public schedule whose every match still has a **feeder
+// placeholder** for both contestants collapses to one summarised block, and that block names the rounds it
+// holds and when each starts — the one fact the rows it hides were carrying. A sibling of match-view.test.ts and
 // match-row.test.ts, split by question the way those two are — that file asks „is the tree right", the row's
 // asks „does one row read like a tennis result", and this one asks „does a group that names nobody say so".
 // Its own file rather than more of match-view.test.ts because that file is at the repo's 300-line budget;
@@ -64,20 +65,38 @@ const view = (matches: ScheduleMatch[], over: Partial<ScheduleViewOptions> = {})
 const court = (matches: ScheduleMatch[], over: Partial<ScheduleViewOptions> = {}) =>
   view(matches, over).days[0].courts[0]
 
-describe('scheduleView · an undetermined round collapses to one summarised block (#333)', () => {
-  it('summarises a group whose every match names nobody', () => {
-    // Sunday's wall: consecutive rows reading „Sieger M11 — Sieger M12". Between them they say exactly one
-    // useful thing — how many matches wait on this court, and roughly when the first of them starts.
+describe('scheduleView · an undetermined column collapses to one summarised block (#333, #346)', () => {
+  it('names the rounds it holds and when each of them starts, in clock order', () => {
+    // Sunday's wall: consecutive rows reading „Sieger M11 — Sieger M12". Between them they carry exactly one
+    // fact anybody wanted — when the Halbfinale and the Finale are — so that is what the block says. The
+    // match count is gone with them: once the rounds are listed, it is redundant.
     const { undetermined } = court([
-      match({ id: 1, slot: 0 }),
-      match({ id: 2, slot: 3, slot1: loser(11), slot2: loser(12) }),
-      match({ id: 3, slot: 6, slot1: feeder(1), slot2: loser(2) })
+      match({ id: 1, slot: 0, round: 2 }),
+      match({ id: 2, slot: 3, round: 2, slot1: loser(11), slot2: loser(12) }),
+      match({ id: 3, slot: 9, round: 3, slot1: feeder(1), slot2: loser(2) })
     ])
     expect(undetermined).toEqual({
-      matchCount: 3,
-      earliestTime: '10:00',
-      summary: '3 Spiele · ab 10:00 · noch ohne Namen'
+      matches: [
+        { round: 'Halbfinale', publishedTime: '10:00' },
+        { round: 'Halbfinale', publishedTime: 'ca. 11:30' },
+        { round: 'Finale', publishedTime: '14:30' }
+      ],
+      summary: 'Halbfinale 10:00 · Halbfinale ca. 11:30 · Finale 14:30 · noch ohne Namen'
     })
+  })
+
+  it('reads its round names exactly as the bracket does — „Spiel um Platz 3" and the consolation prefix', () => {
+    // The names come from the shared `roundLabel` (ADR-0028), so the third-place match reads as the placement
+    // match it is rather than as a round, and a consolation final never reads as the real one (ADR-0004).
+    const { undetermined } = court([
+      match({ id: 1, slot: 0, round: 3, thirdPlace: true }),
+      match({ id: 2, slot: 3, round: 3, bracket: 'consolation' })
+    ])
+    expect(undetermined?.matches).toEqual([
+      { round: 'Spiel um Platz 3', publishedTime: '10:00' },
+      { round: 'Nebenrunde · Finale', publishedTime: 'ca. 11:30' }
+    ])
+    expect(undetermined?.summary).toBe('Spiel um Platz 3 10:00 · Nebenrunde · Finale ca. 11:30 · noch ohne Namen')
   })
 
   it('keeps the full rows behind the summary rather than dropping them', () => {
@@ -108,7 +127,7 @@ describe('scheduleView · an undetermined round collapses to one summarised bloc
   })
 
   it('hedges the summary’s time exactly where the reservations touch (ADR-0071)', () => {
-    // The block's earliest start is a follow-on like any other row's, so it carries the same hedge with the
+    // A start inside the block is a follow-on like any other row's, so it carries the same hedge with the
     // number still in front of it — the summary states the plan, it does not restate the convention. And it
     // follows the women's match filtered out of this column, because the chain is a fact about the court.
     const { undetermined } = court(
@@ -119,13 +138,12 @@ describe('scheduleView · an undetermined round collapses to one summarised bloc
       { competition: 'mens' }
     )
     expect(undetermined).toEqual({
-      matchCount: 1,
-      earliestTime: 'ca. 11:30',
-      summary: '1 Spiel · ab ca. 11:30 · noch ohne Namen'
+      matches: [{ round: 'Halbfinale', publishedTime: 'ca. 11:30' }],
+      summary: 'Halbfinale ca. 11:30 · noch ohne Namen'
     })
   })
 
-  it('leaves the Live board untouched — a running match is never in an undetermined round', () => {
+  it('leaves the Live board untouched — a running match is never in an undetermined column', () => {
     // A match on court has two people on it, so its group cannot be all-placeholder. The board reads live
     // truth either way: the collapse is a statement about the plan and reaches only the day → court tree.
     const result = view([
