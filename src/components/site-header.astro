@@ -316,6 +316,14 @@ const home = import.meta.env.BASE_URL || '/'
     z-index: 50;
     background-color: var(--color-surface);
   }
+  /* The pinned bar's height, stated once here because a page that stacks something else under it has to
+     know it (the Schedule & results page pins its day headings below this bar). A constant rather than a
+     measurement: this variant has no condense transition and its inner row is a 24px signet beside a
+     single line of text, so the height is 16px padding × 2 + 24px + the 1px border and does not move. If
+     the bar ever gains a state that changes its height, this is the one place that has to learn about it. */
+  :root {
+    --site-header-legal-h: 57px;
+  }
   .site-header__back {
     margin-right: auto;
     font-size: 11px;

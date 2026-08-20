@@ -167,3 +167,29 @@ listed so the spec is not re-derived):
   here argues about that surface.
 - **This ADR does not build anything.** The four rules are the hard-to-reverse part; the presentation detail
   above goes to a spec and then to tickets.
+
+## Amendment (2026-08-20): the placeholder column stops collapsing
+
+Read in the built page at the state it was designed for — Sunday, before the first semifinal has a winner —
+the collapse reversed its own intent. „Consequent presentation" above hides a placeholder column behind a
+line reading „Halbfinale 10:30 · Halbfinale ca. 12:00 · Spiel um Platz 3 ca. 13:30 · Spiel um Platz 3
+ca. 15:00 · noch ohne Namen", and on the Finaltag that is **every** column: the page whose one job is „wann
+spiele ich" answers it only after a tap, and answers it in a summary of four matches that the four rows
+underneath state anyway.
+
+- **A column that names nobody renders all its rows, everywhere.** `UndeterminedColumn` and
+  `undeterminedColumn()` are gone from `shared/match-view`, the renderer's `<details>` branch and its CSS
+  (screen and print) with them. The guard moves to `test/placeholder-column.test.ts`, which now asserts the
+  opposite: every row, with its round in `meta` and its hedged time in front of it.
+- **Not scoped to Sunday.** The rule it replaces was about content, not about a date — it happens to catch
+  the whole Finaltag at the start and to dissolve there by itself as results arrive. A day-shaped exception
+  would be a new special case for a problem that knows nothing about days.
+- **The noise the collapse was aimed at is accepted as the cheaper cost.** Twelve rows reading „Sieger M11 —
+  Sieger M12" are still noise; #346 had already conceded the point once by putting the round names back into
+  the summary, which is the admission that the rows carried something worth keeping. A reader scrolling past
+  a quiet, muted row loses seconds. A reader who has to open every column of the Finaltag to find their own
+  match may not find it at all.
+
+The four **rules** of this ADR are untouched — this reverses one presentation detail, at the place that
+decided it. What is retired with it: the print rule that existed only to unfold the block on paper (#333),
+and the `sched-round` styles.

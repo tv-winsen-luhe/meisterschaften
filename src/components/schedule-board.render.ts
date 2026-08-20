@@ -145,18 +145,11 @@ const daySection = (day: DayGroup, logos: Logos): HTMLElement => {
   for (const court of day.courts) {
     const column = elem('div', 'sched-court')
     column.append(elem('h3', 'sched-court__head', court.label))
-    const rows = court.rows.map(row => matchRow(row, logos))
-    // A column that names nobody yet collapses behind its summary (#333) — the view already decided that,
-    // and „is it open" is the browser's business: a native `<details>` needs no script for the toggle, no
-    // state for this module to hold, and hides nothing from a reader without one, since the rows are inside
-    // it either way. Still a translation: the summary line arrives finished.
-    if (court.undetermined) {
-      const block = elem('details', 'sched-round')
-      block.append(elem('summary', 'sched-round__summary', court.undetermined.summary), ...rows)
-      column.append(block)
-    } else {
-      column.append(...rows)
-    }
+    // Every row, always. A column whose contestants are all still „Sieger M11" used to collapse behind a
+    // summary line (#333, #346); it no longer does — the rows a reader came for are the rows they get, and a
+    // disclosure that has to be tapped before a Finaltag says when the Halbfinale is was the wrong trade
+    // (ADR-0072 amendment 2026-08-20).
+    column.append(...court.rows.map(row => matchRow(row, logos)))
     el.append(column)
   }
   return el
