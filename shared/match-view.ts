@@ -107,8 +107,13 @@ export interface MatchRow {
   /** „Achtelfinale · M3 · Herren" — round, match number, competition, and nothing else. */
   meta: string
   status: ScheduleMatch['status']
-  /** „geplant" / „läuft" / „beendet". */
-  statusLabel: string
+  /**
+   * „läuft", and **only** that — null for a planned or a finished match, exactly as the bracket cell has
+   * read since ADR-0070 (see `BracketCell.statusLabel`). „geplant" was the default state printed on every
+   * row of the page, and „beendet" explained a row that already carries „6:4 6:2". Both views take the
+   * decision from `statusLabel` below, so neither can answer it differently.
+   */
+  statusLabel: string | null
 }
 
 /**
@@ -236,14 +241,27 @@ export interface RowResult {
 export type ViewSlot = ScheduleSlot | LiveBracketSlot
 
 /**
- * The three states a match is in, said in German. Shared with the bracket view (shared/bracket-view), which
- * marks only one of them — see `BracketCell.statusLabel` on why.
+ * The three states a match is in, said in German — the vocabulary for **Match status**, which is why all
+ * three stay here even though the public surfaces print only one of them (see `statusLabel`).
  */
 export const STATUS_LABELS: Record<ScheduleMatch['status'], string> = {
   planned: 'geplant',
   running: 'läuft',
   done: 'beendet'
 }
+
+/**
+ * Which state a public surface **marks**: „läuft", and only that. The one state a reader needs marked is the
+ * match on court right now — a finished match says so with its score, a planned one with its time — and a
+ * „geplant" badge would sit on twenty-odd rows of a fresh page at once, marking nothing by marking
+ * everything.
+ *
+ * One function rather than the same conditional in the row and in the cell (#327): a badge rule that lives
+ * in two places is a badge rule that drifts, and this one already did — the cell has read this way since
+ * ADR-0070 while the row still printed all three.
+ */
+export const statusLabel = (status: ScheduleMatch['status']): string | null =>
+  status === 'running' ? STATUS_LABELS.running : null
 
 // The terse token a special outcome reads as in the **score column** (#309, ADR-0032) — the abbreviations a
 // tennis reader already knows, not the spelled-out „Walkover"/„Aufgabe" that used to sit at the far end of
@@ -469,7 +487,7 @@ export const scheduleView = (
       slot2: scheduleRowSlot(m, 2),
       meta: [roundText(m), `M${m.number}`, competitionLabel(competitions, m.competition)].join(' · '),
       status: m.status,
-      statusLabel: STATUS_LABELS[m.status]
+      statusLabel: statusLabel(m.status)
     }
   }
 

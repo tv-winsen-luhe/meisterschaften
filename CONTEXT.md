@@ -597,8 +597,8 @@ reveal sequence }`. Randomness enters through an injected **`RandomSource`** por
   the whole plan unseen and reveals it in one act („Veröffentlichen"). Scope is **global** (one flag for the
   event), not per-competition — the draws happen together at the Auslosungs-Show. The gate covers only the
   **forward plan**; the **Mixer block** is outside it too (a fixed appointment, not a plan under
-  construction — ADR-0063), and the Live board (the „jetzt auf dem Platz" courts board and a running/done match's actual
-  court + status) is **current truth and is never gated** (ADR-0032). It is a legitimate **manual** flag,
+  construction — ADR-0063), and **current truth is never gated** (ADR-0032) — the Live board strip, plus a
+  running/done match's actual court + status wherever it is shown. It is a legitimate **manual** flag,
   not a derivable state (ADR-0027): "the plan is ready" is an operator judgment with no clean derived trigger
   ("backlog empty" is wrong — matches may be left unplaced on purpose), and a forgotten publish shows a loud
   „noch nicht veröffentlicht", not a silently-wrong surface. After publishing, edits stay **live** — no
@@ -617,17 +617,26 @@ reveal sequence }`. Randomness enters through an injected **`RandomSource`** por
   what is on court now. The status transition is itself the **live signal**: set scores may be saved
   opportunistically per completed set, but there is **no game- or point-level live scoring** — the single
   desk has no courtside data source. _(See ADR-0032.)_
-- **Live board** (de: Live-Board) — the public weekend view: a schedule (who plays when/where) and a
-  live board (what is on court right now), both derived from the same match records. The public always
-  shows the **current truth, never the stale plan**: a match's court is the **actual** live court once it
-  is running (falling back to the planned court only before it starts), so a spectator is never sent to
-  the wrong court. Published planned times stay static — they are stated as a **Published time** (below),
-  hedged with „ca." wherever a match waits on the one in front of it — and their drift is communicated
-  through Match status (läuft/beendet), not
-  by continuously rescheduling; the **court** always reflects reality. It is **one event-wide page** across
-  all competitions (a competition filter, not per-field pages), grouped **day → court** and led by a
-  „jetzt auf dem Platz" courts board; the per-competition brackets stay separate surfaces that fill with
-  the same results. _(See ADR-0008, ADR-0032, ADR-0069.)_
+- **Schedule & results page** (de: Spielplan & Ergebnisse) — the public weekend page at `/spielplan`, and
+  the **one** surface that owns the schedule and the results together: a row moves `geplant → läuft →
+beendet mit Score` in place rather than migrating to a separate results page (ADR-0070 §1). It is **one
+  event-wide page** across all competitions (a competition filter, not per-field pages), grouped **day →
+  court** and led by the **Live board** (below). The per-competition brackets stay separate surfaces that
+  fill with the same results. Do **not** call it the „public schedule" — `publicSchedule()` is the
+  projection carrying only the _gated plan_, and the page also carries ungated results (Public bracket,
+  ADR-0070 §3). The page always shows the **current truth, never the stale plan**: a match's court is the
+  **actual** live court once it is running (falling back to the planned court only before it starts), so a
+  spectator is never sent to the wrong court. Published planned times stay static — stated as a **Published
+  time** (below), hedged with „ca." wherever a match waits on the one in front of it — and their drift is
+  communicated through **Match status**, not by continuously rescheduling; the **court** always reflects
+  reality. _(See ADR-0008, ADR-0032, ADR-0069, ADR-0070.)_
+- **Live board** (de: Live-Board) — the „jetzt auf dem Platz" **courts strip** that leads the Schedule &
+  results page: one cell per court, showing what is on that court **right now**. It names the strip, not
+  the page around it — the page is the **Schedule & results page** (above), and the word was previously
+  doing both jobs. Derived from the same match records as the rows beneath it, so the two can never
+  disagree. „Scoreboard" is **not** a term in this project: it is a useful word for arguing about how the
+  weekend surfaces should be _read_, but the things it would name already have names.
+  _(See ADR-0008, ADR-0032.)_
 - **Published time** (de: veröffentlichte Zeit) — what the public schedule says about _when_. It is always a
   **clock time**, and the only question is whether it carries a hedge, which is a statement about what can
   still move it (ADR-0071): a court's first match of the day — and every match that opens a fresh block

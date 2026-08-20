@@ -16,6 +16,7 @@ import {
   scoreLine,
   slotLabel,
   type SlotView,
+  STATUS_LABELS,
   winningSlot
 } from '../../../shared'
 import { cn } from '@/admin/lib/utils'
@@ -60,8 +61,6 @@ export interface ResultMatch {
   slot1: SlotView
   slot2: SlotView
 }
-
-const STATUS_LABEL: Record<MatchStatus, string> = { planned: 'geplant', running: 'läuft', done: 'beendet' }
 
 // One bracket's real matches, resolved + numbered over its whole set (so „Sieger M{n}" is stable) and
 // grouped by round label in match order — the third-place playoff sorts after the final (it shares the
@@ -288,9 +287,12 @@ const MatchRow = ({ row, nameById, onOpen, onSetStatus }: MatchRowProps) => {
 interface StatusBadgeProps {
   status: MatchStatus
 }
+// The operator sees all three states — this is the desk where a match is moved between them, so „geplant"
+// is information here in a way it is not on the public row (#327). The labels come from the shared
+// vocabulary rather than a fourth hand-copied literal.
 const StatusBadge = ({ status }: StatusBadgeProps) => (
   <Badge variant={status === 'running' ? 'default' : status === 'done' ? 'secondary' : 'outline'}>
-    {STATUS_LABEL[status]}
+    {STATUS_LABELS[status]}
   </Badge>
 )
 

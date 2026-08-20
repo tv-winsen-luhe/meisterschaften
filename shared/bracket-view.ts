@@ -1,4 +1,4 @@
-import { courtLabel, publishedTimes, rowSlot, STATUS_LABELS } from './match-view'
+import { courtLabel, publishedTimes, rowSlot, statusLabel } from './match-view'
 import { roundLabel, roundName, scheduleNodeKey } from './schedule'
 import type { DayCopy, RowSlot } from './match-view'
 import type {
@@ -82,7 +82,8 @@ export interface BracketCell {
    * „läuft", and **only** that — null for a planned or a finished match. The one state a reader needs
    * marked is the match on court right now (a finished cell says so with its score, a planned one with its
    * footer), and a „geplant" badge on every cell of a fresh draw would be noise on every line at once.
-   * Which states earn a badge is a decision, so it is made here rather than by a branch in the renderer.
+   * Which states earn a badge is a decision, so it is made in the shared `statusLabel` (shared/match-view)
+   * rather than by a branch in the renderer — and the schedule's `MatchRow` reads the same one (#327).
    */
   statusLabel: string | null
   /** Null when the plan is withheld or the match is unplaced — see `CellSchedule`. */
@@ -240,7 +241,7 @@ export const bracketView = (
     slot1: cellSlot(m, 1, bracket.redacted),
     slot2: cellSlot(m, 2, bracket.redacted),
     status: m.status,
-    statusLabel: m.status === 'running' ? STATUS_LABELS.running : null,
+    statusLabel: statusLabel(m.status),
     schedule: schedules.get(scheduleNodeKey(live.competition, shown, m.round, m.position)) ?? null,
     label: m.thirdPlace
       ? roundLabel({ bracket: shown, round: m.round, totalRounds: bracket.totalRounds, thirdPlace: true })
