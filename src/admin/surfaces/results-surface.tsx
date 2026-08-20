@@ -26,6 +26,7 @@ import { NativeSelect } from '@/admin/ui/native-select'
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/admin/ui/empty'
 import { competitionLabel } from './registration-detail'
 import { ResultDrawer } from './result-drawer'
+import type { SetWrite } from './result-save'
 
 // The Ergebnisse surface (UI: „Ergebnisse", ADR-0032, issue #90): the operator's result workbench. It is
 // phone-first — one operator at the desk (ADR-0001) — so it reads as a round-grouped list, not a wide
@@ -50,6 +51,9 @@ interface ResultsSurfaceProps {
   // only on success). Mark a match läuft / beendet, capturing the actual court. Both via the shell's mutate.
   onRecordResult: (id: number, payload: ResultPayload) => Promise<boolean>
   onSetStatus: (id: number, status: MatchStatus, liveCourt?: number) => Promise<boolean>
+  // Save a running match's interim score (ADR-0032, Amendment 2026-08-20): one /set call per changed set,
+  // no winner, no advancement, no status move.
+  onSaveSets: (id: number, writes: SetWrite[]) => Promise<boolean>
 }
 
 // One match resolved for the list: the wire row plus its display number and two slot views (player names
@@ -88,7 +92,13 @@ const matchGroups = (draw: CompetitionDraw): [string, ResultMatch[]][] => {
   return [...byLabel.entries()]
 }
 
-export const ResultsSurface = ({ registrations, draws, onRecordResult, onSetStatus }: ResultsSurfaceProps) => {
+export const ResultsSurface = ({
+  registrations,
+  draws,
+  onRecordResult,
+  onSetStatus,
+  onSaveSets
+}: ResultsSurfaceProps) => {
   const nameById = useMemo(() => {
     const map = new Map<number, string>()
     for (const r of registrations) map.set(r.id, `${r.firstName} ${r.lastName}`.trim())
@@ -189,6 +199,11 @@ export const ResultsSurface = ({ registrations, draws, onRecordResult, onSetStat
         onClose={() => setEditing(null)}
         onSubmit={async (id, payload) => {
           const ok = await onRecordResult(id, payload)
+          if (ok) setEditing(null)
+          return ok
+        }}
+        onSaveSets={async (id, writes) => {
+          const ok = await onSaveSets(id, writes)
           if (ok) setEditing(null)
           return ok
         }}

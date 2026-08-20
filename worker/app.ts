@@ -428,9 +428,11 @@ export const createApp = (makeDeps: (env: Env) => Deps = createDepsFromEnv) =>
       return c.json({ ok: true } satisfies MatchResultResponse)
     })
     // POST /api/admin/match/set — opportunistically save (or clear) one set's score while a match is
-    // ongoing (ADR-0032 §20): the live board can show „Satz 1: 6:3 · Satz 2 läuft" without the match being
-    // over. It never resolves the match — no winner, no advancement (that is /result); `score` null clears
-    // the set back to unplayed.
+    // ongoing (ADR-0032 §20 + Amendment 2026-08-20): the Zwischenstand, which the public surfaces print in
+    // their score column beside the „läuft" badge without the match being over. It never resolves the match
+    // — no winner, no advancement, and no status move either (only the operator knows the actual court a
+    // `running` match is on); `score` null clears the set back to unplayed. The schema holds the set to the
+    // same closed legal space a result is held to (ADR-0045).
     .post('/api/admin/match/set', parseGuard, v(matchSetRequestSchema), async c => {
       const { id, set, score } = c.req.valid('json')
       await c.var.deps.draws.saveSet(id, set, score)

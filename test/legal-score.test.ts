@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest'
 import type { MatchScore, ResultScoreError } from '../shared'
-import { RESULT_SCORE_ERROR_MESSAGE, checkNormalScore, legalMtb, legalSet, resultScoreError } from '../shared'
+import {
+  RESULT_SCORE_ERROR_MESSAGE,
+  checkNormalScore,
+  legalMtb,
+  legalSet,
+  matchSetRequestSchema,
+  resultScoreError
+} from '../shared'
 
 // The legal score space (CONTEXT: Legal score, ADR-0045): Winsen plays two sets + a Match-Tie-Break to
 // 10 as the third set (DTB §37.1), so the legal space is *closed* — an illegal score is impossible, not
@@ -158,4 +165,38 @@ describe('resultScoreError', () => {
       expect(RESULT_SCORE_ERROR_MESSAGE[code]).toMatch(/\S/)
     }
   )
+})
+
+// The same closed space on the **second** write path (ADR-0032, Amendment 2026-08-20). Saving a single set
+// while the match is on court is still saving a *completed* set, so `3:2` is not a permitted coarse reading
+// of a running set — it is an illegal set. Without this the schema's 0…99 typo bound would let it through,
+// and „an illegal score is impossible" would hold on the result path only.
+describe('matchSetRequestSchema · a saved set is a completed set', () => {
+  const parse = (set: 1 | 2 | 3, score: [number, number] | null) =>
+    matchSetRequestSchema.safeParse({ id: 1, set, score })
+
+  it('accepts a legal set', () => {
+    expect(parse(1, [6, 3]).success).toBe(true)
+    expect(parse(2, [7, 6]).success).toBe(true)
+  })
+
+  it('accepts a legal Match-Tie-Break as set 3', () => {
+    expect(parse(3, [10, 8]).success).toBe(true)
+    expect(parse(3, [12, 10]).success).toBe(true)
+  })
+
+  it('rejects a set that is not a finished set', () => {
+    expect(parse(1, [3, 2]).success).toBe(false)
+    expect(parse(2, [6, 5]).success).toBe(false)
+  })
+
+  it('rejects Match-Tie-Break points that no MTB ever ends on', () => {
+    expect(parse(3, [10, 9]).success).toBe(false)
+    // A legal *set* is not a legal MTB — set 3 is judged by its own rule.
+    expect(parse(3, [6, 3]).success).toBe(false)
+  })
+
+  it('accepts null — clearing a set back to unplayed is how a mistyped set is corrected', () => {
+    expect(parse(1, null).success).toBe(true)
+  })
 })

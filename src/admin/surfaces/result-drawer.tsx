@@ -8,9 +8,7 @@ import {
   resultScoreError,
   winningSlot
 } from '../../../shared'
-import { cn } from '@/admin/lib/utils'
 import { Button } from '@/admin/ui/button'
-import { Input } from '@/admin/ui/input'
 import { Label } from '@/admin/ui/label'
 import { Drawer, DrawerContent, DrawerDescription, DrawerFooter, DrawerHeader, DrawerTitle } from '@/admin/ui/drawer'
 import {
@@ -24,6 +22,8 @@ import {
   AlertDialogTitle
 } from '@/admin/ui/alert-dialog'
 import type { ResultMatch, ResultPayload } from './results-surface'
+import { changedSets, offersPartialSave, type SetWrite } from './result-save'
+import { type Pair, ScoreRow } from './result-score-row'
 
 // The result-entry drawer (ADR-0032/0045, issue #90): a bottom sheet (phone-first) where the operator picks
 // the outcome (a normal scored result, a Walkover, or a Retirement) and the two-set + Match-Tie-
@@ -33,6 +33,12 @@ import type { ResultMatch, ResultPayload } from './results-surface'
 // hard-validated against the closed legal space (ADR-0045): Save is disabled with an inline reason and the
 // offending row is flagged until the result is legal and decisive — it is never silently greyed. Correcting
 // a finished match's **winner** warns first (it cascade-clears dependent downstream results, ADR-0026).
+//
+// The drawer has a **second** save path (ADR-0032, Amendment 2026-08-20): while a match is `running` and its
+// score is legal but not yet decisive, the button that used to sit disabled becomes „Zwischenstand speichern"
+// and posts each changed set to /api/admin/match/set — the operator's interim score, which the public
+// surfaces print in their score column beside the „läuft" badge. It never resolves the match and never moves
+// its status. Which path a given drawer state takes lives in result-save.ts.
 
 interface ResultDrawerProps {
   editing: ResultMatch | null
@@ -40,13 +46,23 @@ interface ResultDrawerProps {
   onClose: () => void
   // Resolves to whether the result persisted — the parent closes the drawer only on success.
   onSubmit: (id: number, payload: ResultPayload) => Promise<boolean>
+  // Save an interim score: one /api/admin/match/set call per changed set. Resolves like onSubmit.
+  onSaveSets: (id: number, writes: SetWrite[]) => Promise<boolean>
 }
 
-export const ResultDrawer = ({ editing, nameById, onClose, onSubmit }: ResultDrawerProps) => (
+export const ResultDrawer = ({ editing, nameById, onClose, onSubmit, onSaveSets }: ResultDrawerProps) => (
   <Drawer open={editing !== null} onOpenChange={open => !open && onClose()}>
     <DrawerContent>
       {/* Keyed on the match so the form re-seeds from each match's own state on open. */}
-      {editing && <ResultForm key={editing.match.id} match={editing} nameById={nameById} onSubmit={onSubmit} />}
+      {editing && (
+        <ResultForm
+          key={editing.match.id}
+          match={editing}
+          nameById={nameById}
+          onSubmit={onSubmit}
+          onSaveSets={onSaveSets}
+        />
+      )}
     </DrawerContent>
   </Drawer>
 )
@@ -58,8 +74,6 @@ const OUTCOME_LABELS: Record<OutcomeChoice, string> = {
   retirement: 'Aufgabe'
 }
 
-// Two input strings for a set's two slots; '' when not entered.
-type Pair = [string, string]
 const pairToStrings = (pair: readonly [number, number] | null): Pair =>
   pair ? [String(pair[0]), String(pair[1])] : ['', '']
 // The set's winning slot from its two inputs: 0 when either is blank or it is a tie (no winner yet). Drives
@@ -76,8 +90,9 @@ interface ResultFormProps {
   match: ResultMatch
   nameById: Map<number, string>
   onSubmit: (id: number, payload: ResultPayload) => Promise<boolean>
+  onSaveSets: (id: number, writes: SetWrite[]) => Promise<boolean>
 }
-const ResultForm = ({ match: row, nameById, onSubmit }: ResultFormProps) => {
+const ResultForm = ({ match: row, nameById, onSubmit, onSaveSets }: ResultFormProps) => {
   const { match, number, roundLabel } = row
   // Both slots are known by the time the drawer opens (the row only offers entry then), so the names resolve.
   const name1 = nameById.get(match.slot1RegId ?? -1) ?? 'Slot 1'
@@ -118,19 +133,33 @@ const ResultForm = ({ match: row, nameById, onSubmit }: ResultFormProps) => {
   const effectiveWinner: 1 | 2 | null = outcome === 'normal' ? derivedWinner : winner
   const canSave = outcome === 'normal' ? Boolean(normalCheck?.ok) : winner !== null
 
+  // The second save path (ADR-0032, Amendment 2026-08-20): a running match whose score is legal but not yet
+  // decisive saves a **Zwischenstand** instead — the changed sets, one /set call each. With nothing changed
+  // there is nothing to save, so the button stays disabled and says so.
+  const enteredOutcome = outcome === 'normal' ? null : outcome
+  const partial = offersPartialSave(match.status, enteredOutcome, score)
+  const setWrites: SetWrite[] = partial ? changedSets(match.score, score, showMtb) : []
+  const canSavePartial = partial && setWrites.length > 0
+
   // Why Save is disabled — surfaced inline so the button is never mysteriously greyed (the reported bug). A
   // normal result's reason flows through the shared validator + message map (one owner, ADR-0045); a special
   // outcome only needs an explicit Sieger.
   const normalError = outcome === 'normal' ? resultScoreError(null, score, effectiveWinner ?? 1) : null
   const disabledReason: string | null = saving
     ? null
-    : outcome === 'normal'
-      ? normalError
-        ? RESULT_SCORE_ERROR_MESSAGE[normalError]
-        : null
-      : winner === null
-        ? 'Bitte Sieger wählen.'
-        : null
+    : partial
+      ? // The Zwischenstand path: saveable ⇒ nothing to explain; nothing changed ⇒ say that rather than
+        // „der Sieger steht noch nicht fest", which is the point of this state, not an obstacle in it.
+        canSavePartial
+        ? null
+        : 'Noch kein geänderter Satz.'
+      : outcome === 'normal'
+        ? normalError
+          ? RESULT_SCORE_ERROR_MESSAGE[normalError]
+          : null
+        : winner === null
+          ? 'Bitte Sieger wählen.'
+          : null
 
   // A row is flagged only for a normal result (a retirement's score is legitimately partial), once both slots
   // are filled and the pair is not a legal set / MTB.
@@ -154,7 +183,22 @@ const ResultForm = ({ match: row, nameById, onSubmit }: ResultFormProps) => {
     }
   }
 
+  // Save the interim score: one call per changed set (at most three), no winner and no status move — the
+  // match stays on court and keeps the actual court the operator gave it when starting it.
+  const submitPartial = async () => {
+    setSaving(true)
+    try {
+      await onSaveSets(match.id, setWrites)
+    } finally {
+      setSaving(false)
+    }
+  }
+
   const onSave = () => {
+    if (canSavePartial) {
+      void submitPartial()
+      return
+    }
     if (!canSave || effectiveWinner === null) return
     // Changing a recorded winner cascade-clears downstream results — warn first; everything else saves directly.
     if (isWinnerChange) setConfirming(true)
@@ -263,8 +307,12 @@ const ResultForm = ({ match: row, nameById, onSubmit }: ResultFormProps) => {
       </div>
 
       <DrawerFooter>
-        <Button onClick={onSave} disabled={!canSave || saving}>
-          {match.status === 'done' ? 'Ergebnis korrigieren' : 'Ergebnis speichern'}
+        <Button onClick={onSave} disabled={(!canSave && !canSavePartial) || saving}>
+          {partial
+            ? 'Zwischenstand speichern'
+            : match.status === 'done'
+              ? 'Ergebnis korrigieren'
+              : 'Ergebnis speichern'}
         </Button>
         {disabledReason && <p className="text-muted-foreground text-center text-xs">{disabledReason}</p>}
       </DrawerFooter>
@@ -287,54 +335,3 @@ const ResultForm = ({ match: row, nameById, onSubmit }: ResultFormProps) => {
     </div>
   )
 }
-
-// One set's two score inputs: the two slots' games (or, for the MTB, points), with the player names above.
-// `invalid` flags an impossible score (a normal result only) so the operator sees which row blocks the save.
-interface ScoreRowProps {
-  label: string
-  name1: string
-  name2: string
-  value: Pair
-  onChange: (next: Pair) => void
-  invalid?: boolean
-}
-const ScoreRow = ({ label, name1, name2, value, onChange, invalid = false }: ScoreRowProps) => (
-  <div className="flex flex-col gap-1">
-    <span className="text-muted-foreground text-xs font-medium">{label}</span>
-    <div className="flex items-center gap-2">
-      <ScoreInput
-        aria-label={`${label} — ${name1}`}
-        value={value[0]}
-        onChange={v => onChange([v, value[1]])}
-        invalid={invalid}
-      />
-      <span className="text-muted-foreground">:</span>
-      <ScoreInput
-        aria-label={`${label} — ${name2}`}
-        value={value[1]}
-        onChange={v => onChange([value[0], v])}
-        invalid={invalid}
-      />
-    </div>
-    {invalid && <span className="text-destructive text-xs">Kein gültiges Ergebnis</span>}
-  </div>
-)
-
-interface ScoreInputProps {
-  value: string
-  onChange: (value: string) => void
-  invalid?: boolean
-  'aria-label': string
-}
-const ScoreInput = ({ value, onChange, invalid = false, ...rest }: ScoreInputProps) => (
-  <Input
-    {...rest}
-    type="number"
-    inputMode="numeric"
-    min={0}
-    max={99}
-    value={value}
-    onChange={e => onChange(e.target.value)}
-    className={cn('w-16 text-center tabular-nums', invalid && 'border-destructive focus-visible:ring-destructive')}
-  />
-)
