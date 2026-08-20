@@ -12,8 +12,8 @@ const defaultMixerBlock = resolveSocialMixerBlock({ ...SOCIAL_MIXER_DEFAULT_PLAC
 // The public event-wide schedule + live board (ADR-0005, ADR-0032, ADR-0069, #91, #308): one page for the
 // whole weekend that always shows the current truth, never the stale plan. It leads with a „Jetzt auf dem
 // Platz" courts board — the 6 courts, each showing what is live on it right now (or „frei") — over a
-// schedule grouped **day → court** that reflects status (geplant/läuft/beendet) and shows results for
-// finished matches, and can be filtered by competition.
+// schedule grouped **day → court** that marks the match on court right now („läuft" — the page's only badge,
+// #327) and shows results for finished matches, and can be filtered by competition.
 //
 // The grouping is fixed, and the old „Nach Tag" / „Nach Platz" toggle stays gone (ADR-0071): the court is
 // the column a player reads down to find their own afternoon, and „what is on right now" is the courts
@@ -28,14 +28,28 @@ const defaultMixerBlock = resolveSocialMixerBlock({ ...SOCIAL_MIXER_DEFAULT_PLAC
 <Layout title="Spielplan & Live — Winsener Meisterschaften 2026" chrome="legal">
   <div data-sheet class="mx-auto max-w-[900px] px-5 pt-12 pb-20 text-navy md:px-10 md:pt-16 md:pb-[120px]">
     <h1 class="mt-0 mb-3 text-[clamp(36px,6vw,56px)] font-black tracking-[-0.04em] uppercase">Spielplan &amp; Live</h1>
-    <p class="mb-10 max-w-[60ch] text-sm leading-[1.6] opacity-70">
-      Oben steht, was gerade auf den sechs Plätzen läuft. Darunter der Spielplan, Tag für Tag und Platz für Platz — von
-      oben nach unten die Reihenfolge auf diesem Platz. Das erste Match auf einem Platz hat eine{' '}
-      <strong>feste Zeit</strong> — davor liegt nichts, was es verschieben könnte. Alle weiteren stehen mit{' '}
-      <strong>„ca."</strong>: sie fangen an, wenn das Match davor auf diesem Platz fertig ist, und 90 Minuten sind ein
-      Erfahrungswert, keine Regel. Früher fängt also nichts an, später schon. Was wirklich passiert, steht im Status:
-      läuft oder beendet mit Ergebnis.
+    <!-- One sentence, then the convention behind a disclosure (ADR-0072). Eight lines on „ca." above the
+         first match is a preface on a page whose one job is „wann spiele ich" — and ADR-0071 is what makes
+         the demotion safe: the number comes before the hedge, so „ca. 14:00" carries its own caveat at the
+         point of reading and needs no preamble. Nothing is dropped, it just stops being the lead.
+         A native <details>: keyboard-operable and openable with the page's inline script dead, which a
+         scripted accordion would not be. -->
+    <p class="mb-3 max-w-[60ch] text-sm leading-[1.6] opacity-70">
+      Oben steht, was gerade auf den sechs Plätzen läuft; darunter der Spielplan, Tag für Tag und Platz für Platz.
     </p>
+    <details class="intro-note mb-10 max-w-[60ch]">
+      <summary class="intro-note__q flex items-center gap-2 text-sm font-bold tracking-[-0.01em]">
+        Wann fängt mein Match an — und was heißt „ca."?
+      </summary>
+      <p class="mt-3 text-sm leading-[1.6] opacity-70">
+        Der Spielplan steht Tag für Tag und Platz für Platz, von oben nach unten die Reihenfolge auf diesem Platz. Das
+        erste Match auf einem Platz hat eine <strong>feste Zeit</strong> — davor liegt nichts, was es verschieben könnte.
+        Alle weiteren stehen mit <strong>„ca."</strong>: sie fangen an, wenn das Match davor auf diesem Platz fertig
+        ist, und 90 Minuten sind ein Erfahrungswert, keine Regel. Früher fängt also nichts an, später schon. Was
+        wirklich passiert, steht in der Zeile: <strong>„läuft"</strong> beim Match, das gerade auf dem Platz ist — und beim
+        fertigen das Ergebnis.
+      </p>
+    </details>
 
     <!-- The Social mixer's reserved court-time (ADR-0064, ADR-0063). It sits **outside** `[data-board]` on
          purpose: it is neither the forward plan the publish gate hides (ADR-0041) nor live truth — it is an
@@ -97,6 +111,26 @@ const defaultMixerBlock = resolveSocialMixerBlock({ ...SOCIAL_MIXER_DEFAULT_PLAC
 </Layout>
 
 <style is:global>
+  /* ── Intro disclosure ─────────────────────────────────────────────────────────────────────────── */
+  /* The same caret as the collapsed round below (#333), for the same reason it was chosen there: our own
+     marker instead of the platform one, so it sits on the text baseline on every browser. Two disclosures
+     on one page have to read as one control — a reader who learns the caret on the intro must recognise it
+     on a collapsed round — so this follows the page's own device rather than the front door's FAQ `+`. */
+  .intro-note__q {
+    list-style: none;
+    cursor: pointer;
+  }
+  .intro-note__q::-webkit-details-marker {
+    display: none;
+  }
+  .intro-note__q::before {
+    content: '▸';
+    font-size: 10px;
+  }
+  .intro-note[open] > .intro-note__q::before {
+    content: '▾';
+  }
+
   /* ── State visibility ─────────────────────────────────────────────────────────────────────────── */
   /* The initial loading state (before the first poll, or if the script never runs): hide the whole board
      and every notice, show only „lädt…". Cleared by the first successful render or a failed poll. */
@@ -323,11 +357,41 @@ const defaultMixerBlock = resolveSocialMixerBlock({ ...SOCIAL_MIXER_DEFAULT_PLAC
     letter-spacing: 0.06em;
     color: color-mix(in srgb, var(--color-navy) 55%, transparent);
   }
+  /* A round whose contestants are all still „Sieger M11" is one line until the reader asks for the rows
+     (#333). It reads as the quiet thing it is — no time column, no status, muted — because the loudest cell
+     in a block that names nobody used to be its timestamp. A native `<details>`, so the toggle needs no
+     script and the rows are in the document either way. */
+  .sched-round__summary {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 4px;
+    font-size: 13px;
+    font-weight: 700;
+    color: color-mix(in srgb, var(--color-navy) 55%, transparent);
+    border-bottom: 1px solid color-mix(in srgb, var(--color-navy) 12%, transparent);
+    cursor: pointer;
+    /* Our own caret instead of the platform marker, so it sits on the text baseline on every browser. */
+    list-style: none;
+  }
+  .sched-round__summary::-webkit-details-marker {
+    display: none;
+  }
+  .sched-round__summary::before {
+    content: '▸';
+    font-size: 10px;
+  }
+  .sched-round[open] > .sched-round__summary::before {
+    content: '▾';
+  }
   /* Time · contestants · status. The time column now holds at most „ca. 14:00" on one line (ADR-0071), so it
-     is narrower than the two-line floor needed — the names get the width back. */
+     is narrower than the two-line floor needed — the names get the width back. The status column is
+     **implicit** (two declared tracks, flow by column), because only a running match carries a badge (#327):
+     a third declared track would hold a 12px gap open on every other row, reserving space for nothing. */
   .sched-match {
     display: grid;
-    grid-template-columns: 68px 1fr auto;
+    grid-template-columns: 68px 1fr;
+    grid-auto-flow: column;
     align-items: center;
     gap: 12px;
     padding: 12px 4px;
@@ -470,17 +534,11 @@ const defaultMixerBlock = resolveSocialMixerBlock({ ...SOCIAL_MIXER_DEFAULT_PLAC
     padding: 2px 7px;
     border-radius: 999px;
   }
-  .sched-status--planned {
-    color: color-mix(in srgb, var(--color-navy) 60%, transparent);
-    background: color-mix(in srgb, var(--color-navy) 7%, transparent);
-  }
+  /* „läuft" is the only badge the page prints, so it is the only one tinted — a planned or finished row
+     appends no status element at all, and the quiet grey pills those two used to wear are gone with them. */
   .sched-status--running {
     color: var(--color-live);
     background: color-mix(in srgb, var(--color-live) 12%, transparent);
-  }
-  .sched-status--done {
-    color: color-mix(in srgb, var(--color-navy) 55%, transparent);
-    background: color-mix(in srgb, var(--color-navy) 5%, transparent);
   }
 
   /* ── Print ────────────────────────────────────────────────────────────────────────────────────── */
@@ -504,6 +562,28 @@ const defaultMixerBlock = resolveSocialMixerBlock({ ...SOCIAL_MIXER_DEFAULT_PLAC
     footer,
     .board-controls {
       display: none !important;
+    }
+    /* The intro's disclosure prints **expanded**, the same treatment a collapsed round gets below and for
+       the same reason: paper has no disclosure to tap, and the „ca." convention is exactly what a reader
+       holding a sheet full of „ca. 14:00" needs. Caret off, question kept — on an engine without
+       `::details-content` the block stays closed, and then the question line is what tells the reader the
+       explanation exists at all. */
+    .intro-note__q::before {
+      content: none;
+    }
+    .intro-note::details-content {
+      content-visibility: visible;
+      block-size: auto;
+    }
+    /* Sized in pt like every other line on the sheet — the screen's `text-sm` on the body paragraph would
+       otherwise print a step larger than the sentence above it. */
+    .intro-note {
+      margin-bottom: 12pt;
+    }
+    .intro-note__q,
+    .intro-note p {
+      font-size: 9pt;
+      opacity: 1;
     }
     /* The live board is a snapshot; on paper it is stale before the page leaves the printer. */
     .board-courts {
@@ -561,6 +641,20 @@ const defaultMixerBlock = resolveSocialMixerBlock({ ...SOCIAL_MIXER_DEFAULT_PLAC
     .sched-court {
       margin-top: 14pt;
       break-inside: avoid;
+    }
+    /* A collapsed round prints **expanded** (#333): paper has no disclosure to tap, so a summary line
+       standing in for three rows would be content lost rather than content deferred. Its caret goes, the
+       line itself stays: an engine without `::details-content` keeps a closed block closed, and then the
+       summary is the only thing on the sheet saying those matches exist at all. */
+    .sched-round__summary {
+      color: #000;
+    }
+    .sched-round__summary::before {
+      content: none;
+    }
+    .sched-round::details-content {
+      content-visibility: visible;
+      block-size: auto;
     }
     .sched-court__head {
       font-size: 10pt;

@@ -24,12 +24,16 @@ type Client = ReturnType<typeof hc<AppType>>
 //                 rather than revealed.
 //   4. reorder  — from `tournament` onward the page and its nav present their sections in the
 //                 results order, via one class on <body> (ADR-0060 §5).
+//   4b. repace  — during `tournament` the section rhythm tightens, via a second class on <body>
+//                 (ADR-0072). Same mechanism as the reorder, and a separate class because the two
+//                 answer different questions: `post-event` reads in the results order but is still
+//                 paced like a marketing page.
 //   5. cancel   — [data-competition="<slug>"] marks every element that belongs to exactly one field
 //                 (a card, a participant group). One that is not among the fields the page shows is
 //                 gated, and the derived FAQ line is filled in and revealed (ADR-0062).
 //
 // Order matters: the reveal must read the gates that shipped in the markup before step 2 adds more.
-const project = ({ leads, order, competitions, cancellationNote }: FrontDoor) => {
+const project = ({ leads, order, pacing, competitions, cancellationNote }: FrontDoor) => {
   document.querySelectorAll('[data-phase-gate]').forEach(el => el.removeAttribute('data-phase-gate'))
   document
     .querySelectorAll('[data-signup-open], [data-signup-lead]')
@@ -39,6 +43,7 @@ const project = ({ leads, order, competitions, cancellationNote }: FrontDoor) =>
     else el.setAttribute('data-phase-gate', '')
   })
   if (order === 'results') document.body.classList.add('is-results-order')
+  if (pacing === 'board') document.body.classList.add('is-board-pacing')
 
   document.querySelectorAll('[data-competition]').forEach(el => {
     const slug = el.getAttribute('data-competition')

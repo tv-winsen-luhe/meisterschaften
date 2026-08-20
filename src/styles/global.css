@@ -144,6 +144,26 @@ html {
   order: 8;
 }
 
+/* The board pacing (ADR-0072). The generous section rhythm the page ships with is right for the
+   months of `signup`, when the front door genuinely is a marketing surface — and wrong during
+   `tournament`, when the same page is read like a board and ~280px of nothing between the hero and
+   „Auslosung" is space the reader has to scroll past to reach what is going on. It tightens under
+   the `is-board-pacing` body class the phase read sets for `tournament` alone (`post-event` reads in
+   the results order but keeps the marketing rhythm — that reader is browsing an archive).
+
+   One rule on the shared `.sect` hook rather than a conditional class per section: this is a decision
+   about the whole page, and `padding-block` here outranks the sections' own Tailwind utilities on
+   specificity. The hero is deliberately left alone — it is `min-h-dvh`, so its padding does not size
+   it and tightening it would only re-centre the title inside the same box. */
+.is-board-pacing .sect {
+  padding-block: 48px;
+}
+@media (min-width: 768px) {
+  .is-board-pacing .sect {
+    padding-block: 72px;
+  }
+}
+
 /* Shared CTA buttons — used by the front door, the competition cards, the signup modal and the
    header, so they live here rather than in any one page (the cards render on the outreach porches
    too — ADR-0052). */

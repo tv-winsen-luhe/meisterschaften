@@ -399,7 +399,13 @@ byeWinners }` in `shared/reveal.ts`. It is **not** the whole story of the public
   four rounds — fits without horizontal scrolling; on a phone a **round control** inside the bracket choice
   and that one round as a **list** of the same cells, because the phone is the device the audience actually
   holds and a sideways-scrolling tree is unusable on it. The nesting mirrors the domain: the consolation is a
-  tournament of its own with its own draw and byes (ADR-0004), a round is a position inside one. The „Spiel um
+  tournament of its own with its own draw and byes (ADR-0004), a round is a position inside one.
+  The three controls are ranked by the kind of question they answer, and drawn so the rank is visible: the
+  **competition tabs** are a _which thing_ choice — linkable and persisted (ADR-0028) — and stay the loudest;
+  the bracket choice sits inside them; the **round pager** is purely _where inside it_, so it is a rail rather
+  than a boxed switch, and it states each round's **match count** and whether that round **has any result**
+  yet — derived from the score and outcome the bracket wire already carries (ADR-0070), never from a bye,
+  which advances a player without a match being played. The „Spiel um
   Platz 3" belongs to the **final round** in both layouts — under the final's column in the tree, the last row
   of the final round's list — because that is where it is played. _(See ADR-0046, ADR-0070, ADR-0004.)_
 - **Draw reveal show** (de: Auslosungs-Show; operator UI label: „Auslosung") — the **operator-paced**
@@ -649,6 +655,19 @@ beendet mit Score` in place rather than migrating to a separate results page (AD
   player who drives home between matches plans against. The public schedule groups **day → court** as a fixed
   hierarchy — the court is the column a player reads down for their own afternoon — and „what is on right
   now" is the Live board's job, not a grouping's. _(See ADR-0071, revising ADR-0069.)_
+- **Undetermined round** (de: noch offene Runde) — a **group** of the public schedule whose **every** match
+  has a **feeder placeholder** („Sieger M9" / „Verlierer M9") for both contestants, so between them the rows
+  name nobody. The group is the schedule's own unit — **one court's column within a day** — not the bracket
+  round: the column is what a reader scrolls past, so it is what may collapse, and a column carrying one
+  named match keeps all its rows because that column is worth reading down. Such a group **collapses to one summarised block** — its match count and its earliest **Published
+  time**, hedged where the reservations touch — and expands to the unchanged rows on interaction: twelve
+  consecutive rows reading „Sieger M11 — Sieger M12" are noise in a list, and a reader looking for their own
+  afternoon should not have to scroll past them. „Freilos" and „offen" are deliberately **not** feeder
+  placeholders here: a bye is already decided and „offen" is a slot that failed to resolve (ADR-0035), so
+  summarising either would hide a fact. The dashed placeholder stays right in a **Bracket cell**, where
+  topology makes „not yet" meaningful — this scopes that device, it does not retire it. Whether a group is
+  undetermined is decided in the **projection** (`shared/match-view`), because it is a statement about the
+  content; whether the block is **open** is the renderer's own state. _(See ADR-0072, ADR-0071.)_
 - **Match row** (de: Match-Zeile) — the one shape a match is displayed in on the public surfaces, in the
   anatomy a tennis spectator already reads fluently (ADR-0070): its two **contestant lines** — club crest,
   full name (never an initial), the **seed** as a small trailing token, and that slot's games — its
