@@ -249,10 +249,21 @@ const defaultMixerBlock = resolveSocialMixerBlock({ ...SOCIAL_MIXER_DEFAULT_PLAC
     background: color-mix(in srgb, var(--color-navy) 2%, transparent);
     transition: opacity 0.15s ease;
   }
-  /* A court running a match gets a live accent; an empty one stays quiet. */
+  /* A court running a match wears the brand accent and a filled left rail; an empty one stays quiet
+     (ADR-0072 rule 3). Two signals for one fact, on purpose: the wash says „live" in colour, the rail says
+     it without — 4px of ink against the idle cell's hairline is still there in greyscale and for a
+     colourblind reader, which a green tint alone never was.
+     The rail is a **border**, and that is the whole reason it is not the tidier `box-shadow: inset` (which
+     would have followed the radius and cost no padding compensation): a forced-colours mode — Windows High
+     Contrast, the same class of override `color-scheme: only light` already guards the page against — drops
+     shadows and repaints backgrounds, so a shadow rail would take the non-colour signal with it in the one
+     mode a reader turns on *because* they need contrast. A border is kept and recoloured. The left padding
+     pays for the extra 3px, so a live cell's content sits where a free cell's does.
+     No transition: a cell that goes live is re-rendered, not animated. */
   .court--live {
-    border-color: color-mix(in srgb, var(--color-live) 35%, transparent);
-    background: color-mix(in srgb, var(--color-live) 6%, transparent);
+    background: color-mix(in srgb, var(--color-live) 22%, transparent);
+    border-left: 4px solid var(--color-navy);
+    padding-left: 11px;
   }
   /* When a competition filter is active, courts that are not the focused field fade back — never blanked
      to „frei" (that would lie about a physically busy court), just de-emphasised (ADR-0032: stay truthful). */
@@ -266,8 +277,10 @@ const defaultMixerBlock = resolveSocialMixerBlock({ ...SOCIAL_MIXER_DEFAULT_PLAC
     text-transform: uppercase;
     color: color-mix(in srgb, var(--color-navy) 55%, transparent);
   }
+  /* Full-strength ink on a live cell: there the eyebrow heads a match rather than labelling an empty box.
+     The accent cannot take this job — lime is a fill, not a text colour. */
   .court--live .court__no {
-    color: var(--color-live);
+    color: var(--color-navy);
   }
   .court__free {
     margin: auto 0;
@@ -535,10 +548,35 @@ const defaultMixerBlock = resolveSocialMixerBlock({ ...SOCIAL_MIXER_DEFAULT_PLAC
     border-radius: 999px;
   }
   /* „läuft" is the only badge the page prints, so it is the only one tinted — a planned or finished row
-     appends no status element at all, and the quiet grey pills those two used to wear are gone with them. */
+     appends no status element at all, and the quiet grey pills those two used to wear are gone with them.
+     It is tinted with the **brand accent** (ADR-0072 rule 3), filled, navy ink on it — the pairing the
+     signup CTA the lime comes from already used. */
   .sched-status--running {
-    color: var(--color-live);
-    background: color-mix(in srgb, var(--color-live) 12%, transparent);
+    color: var(--color-navy);
+    background: var(--color-live);
+  }
+  /* The rail: the half of the „läuft" signal that is not colour. A live row carries a filled bar in the
+     sheet's gutter as well as the badge, so live-versus-planned survives greyscale.
+     Three things it deliberately is not:
+     — not a class of its own — the badge already *is* the „is this running" fact, so `:has` reads it there
+       rather than having the renderer emit a second hook for one status (#304 keeps it a translation);
+     — not inside the row's padding — a rail paid for out of that would step the time column right on the
+       one row a reader is hunting for, so it is drawn out of flow into the gutter and moves nothing. Out of
+       flow also keeps it out of the row's grid, which would otherwise place it as an item;
+     — not animated — the accent and the rail already say it, and motion would owe a reduced-motion branch.
+     A zero-width box wearing a 4px border, rather than a 4px box wearing a background, for the reason the
+     Live board cell's rail gives: a forced-colours mode repaints backgrounds and would erase a painted bar,
+     while a border is kept and recoloured. Same rail, same reason, on both surfaces. */
+  .sched-match:has(.sched-status--running) {
+    position: relative;
+  }
+  .sched-match:has(.sched-status--running)::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: -8px;
+    border-left: 4px solid var(--color-navy);
   }
 
   /* ── Print ────────────────────────────────────────────────────────────────────────────────────── */
@@ -679,11 +717,18 @@ const defaultMixerBlock = resolveSocialMixerBlock({ ...SOCIAL_MIXER_DEFAULT_PLAC
     .sched-match__check {
       color: #000;
     }
-    /* The status keeps its word and loses its pill — the tint is what carried it on screen. */
+    /* The status keeps its word and loses its pill — the tint is what carried it on screen. The rail goes
+       with the tint: „läuft" is true for the minute the sheet was printed, and a bar in the margin would
+       still be claiming it an hour later. */
     .sched-status {
       padding: 0;
       background: none !important;
       color: #000 !important;
+    }
+    /* Selected exactly as on screen, `:has` included: `:has()` carries the specificity of its argument, so
+       a plain `.sched-match::before` here would lose to the screen rule and print the bar anyway. */
+    .sched-match:has(.sched-status--running)::before {
+      content: none;
     }
   }
 </style>
