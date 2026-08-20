@@ -108,6 +108,37 @@ export interface BracketRound {
    */
   name: string
   matchCount: number
+  /**
+   * Whether anything has happened in this round yet — true as soon as one of its matches carries a score or
+   * an outcome, the playoff included (#334). It is what makes the round pager worth aiming at: „Runde 2"
+   * alone says where a reader would land, not whether there is anything there.
+   *
+   * A **bye is not a result**: it advances a player without a match being played (§31), and its cell carries
+   * no score — the same reading the cell itself takes, so a fresh draw's first round reads as untouched even
+   * where byes have already resolved.
+   *
+   * Derived from the cells this view has just built rather than from a new wire field: score and outcome ride
+   * the draw wire already (ADR-0070 §2), so this costs a render and no projection change.
+   *
+   * It counts the **playoff** while `matchCount` does not, and the asymmetry is deliberate: the count is the
+   * round's cell count, the same „8/4/2/1" the tree's column heads print, while this answers „is there
+   * anything to see if I go there" about the list a reader actually lands on — and the „Spiel um Platz 3" is
+   * a row of that list. A decided playoff under an open final therefore reads „1 ●". Counting it in
+   * `matchCount` instead would say „2" on the phone and „1" on the tree for the same round, which is the one
+   * drift between the two layouts this view exists to prevent.
+   */
+  hasResults: boolean
+  /**
+   * The whole position read as one sentence — „Viertelfinale, 4 Matches, mit Ergebnissen" (#334). The pager
+   * lays its three facts out for the eye (a name, a bare number, a dot); read aloud they would be „Runde 2 4",
+   * three loose tokens, so the spoken form is a string of its own — the same one-fact-two-readings shape as
+   * the seed token's `label`.
+   *
+   * It is built here, not in the renderer, because every string this view emits is finished German
+   * (ADR-0028): the pager's DOM layer spells no German at all, and a plural rule is exactly the kind of
+   * thing that drifts once two places know it.
+   */
+  spoken: string
   cells: (BracketCell | null)[]
   /**
    * The „Spiel um Platz 3" of this round — set on the **final** round of a main bracket and null everywhere
@@ -173,6 +204,22 @@ const cellSlot = (match: LiveBracketMatch, slot: 1 | 2, redacted: boolean): Cell
     loser: match.winner !== null && match.winner !== slot
   }
 }
+
+// Whether a cell reports a result, read off the cell's own two lines rather than off the wire again: `games`
+// is the one score formatter's output (#305) and `outcome` carries „w.o."/„Aufg." — so a walkover, which
+// finishes a match without a single set, counts, and a bye, which carries neither, does not.
+const cellHasResult = (cell: BracketCell | null): boolean =>
+  cell !== null && [cell.slot1, cell.slot2].some(slot => slot.games !== '' || slot.outcome !== null)
+
+// The pager position read aloud — see `BracketRound.spoken`. „Match" is the German the rest of the surface
+// uses for one of these („höchstens zwei Einzel pro Tag" aside, the draw calls them Matches), and the plural
+// rule lives here so no renderer has to know it.
+const spokenRound = (name: string, matchCount: number, hasResults: boolean): string =>
+  [
+    name,
+    `${matchCount} ${matchCount === 1 ? 'Match' : 'Matches'}`,
+    hasResults ? 'mit Ergebnissen' : 'noch keine Ergebnisse'
+  ].join(', ')
 
 /**
  * The schedule join, keyed by bracket topology (`scheduleNodeKey`, #159) and carrying the same published
@@ -256,18 +303,27 @@ export const bracketView = (
   const rounds = Array.from({ length: bracket.totalRounds }, (_, i): BracketRound => {
     const round = i + 1
     const matchCount = bracket.size / 2 ** round
+    const cells = Array.from({ length: matchCount }, (_, position) => {
+      const m = inTree.get(`${round}-${position}`)
+      return m ? cell(m) : null
+    })
+    // The final's round, wherever the wire says the playoff is played — read off the match rather than
+    // assumed to be `totalRounds`, which is the same fact stated twice.
+    const playoff = third && third.round === round ? cell(third) : null
+    const name = roundName({ round, totalRounds: bracket.totalRounds })
+    // The playoff is asked too: it is played in this round, so a decided „Spiel um Platz 3" is progress in
+    // it even while the final itself is still open. See `BracketRound.hasResults` on why `matchCount` does
+    // not follow it there.
+    const hasResults = [...cells, playoff].some(cellHasResult)
     return {
       round,
       label: roundLabel({ bracket: shown, round, totalRounds: bracket.totalRounds }),
-      name: roundName({ round, totalRounds: bracket.totalRounds }),
+      name,
       matchCount,
-      cells: Array.from({ length: matchCount }, (_, position) => {
-        const m = inTree.get(`${round}-${position}`)
-        return m ? cell(m) : null
-      }),
-      // The final's round, wherever the wire says the playoff is played — read off the match rather than
-      // assumed to be `totalRounds`, which is the same fact stated twice.
-      playoff: third && third.round === round ? cell(third) : null
+      hasResults,
+      spoken: spokenRound(name, matchCount, hasResults),
+      cells,
+      playoff
     }
   })
 

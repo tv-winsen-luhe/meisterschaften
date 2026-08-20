@@ -276,6 +276,57 @@ describe('bracketView · the tree is finished — rounds, the playoff, the segme
   })
 })
 
+// What the round pager shows besides a round's name (#334): how big the round is, and whether anything has
+// happened in it. A pager is a positional control, and „where has something happened" is the fact that makes
+// one position worth jumping to. Both are read off the tree this view has already built — the score and the
+// outcome ride the draw wire (ADR-0070 §2), so no projection and no wire field is added for it.
+describe('bracketView · a round carries its own progress', () => {
+  const decided = { status: 'done', winner: 1, score: { set1: [6, 3], set2: [6, 4], mtb: null } } as const
+
+  // `spoken` is the same position said as one sentence — the form a screen reader gets, and the reason the
+  // plural rule lives behind this seam rather than in the pager's DOM layer.
+  it('reports no result, and says so, on a freshly drawn round', () => {
+    const view = bview([bMatch({ round: 1, position: 0, number: 1 }), bMatch({ round: 1, position: 1, number: 2 })])
+    expect(view.rounds.map(r => ({ matchCount: r.matchCount, hasResults: r.hasResults, spoken: r.spoken }))).toEqual([
+      { matchCount: 2, hasResults: false, spoken: 'Halbfinale, 2 Matches, noch keine Ergebnisse' },
+      { matchCount: 1, hasResults: false, spoken: 'Finale, 1 Match, noch keine Ergebnisse' }
+    ])
+  })
+
+  it('reports a result as soon as one cell of the round carries a score', () => {
+    const view = bview([
+      bMatch({ round: 1, position: 0, number: 1, ...decided }),
+      bMatch({ round: 1, position: 1, number: 2 })
+    ])
+    expect(view.rounds[0]).toMatchObject({ hasResults: true, spoken: 'Halbfinale, 2 Matches, mit Ergebnissen' })
+    // …and only in the round that has one: progress must not bleed into the rounds still waiting.
+    expect(view.rounds[1].hasResults).toBe(false)
+  })
+
+  it('counts a walkover, which finishes a match without a single set', () => {
+    const view = bview([bMatch({ round: 1, position: 0, number: 1, status: 'done', winner: 2, outcome: 'walkover' })])
+    expect(view.rounds[0].hasResults).toBe(true)
+  })
+
+  // A „Freilos" advances a player without a match being played (§31), so the round it sits in has had no
+  // result — the same reading the cell itself takes, where a bye line carries no score.
+  it('does not count a bye as a result', () => {
+    const view = bview([bMatch({ round: 1, position: 0, number: 1, slot2: { kind: 'bye' }, winner: 1 })])
+    expect(view.rounds[0].hasResults).toBe(false)
+  })
+
+  // The playoff shares the final's round but sits beside its cells, so a check that only walked `cells` would
+  // miss it — and a decided „Spiel um Platz 3" is a result of that round like any other. `matchCount`
+  // deliberately does not follow it there; see `BracketRound.hasResults`.
+  it('counts the „Spiel um Platz 3" as a result of the round it is played in', () => {
+    const view = bview([
+      bMatch({ round: 2, position: 0, number: 3 }),
+      bMatch({ round: 2, position: 1, number: 4, thirdPlace: true, ...decided })
+    ])
+    expect(view.rounds[1]).toMatchObject({ matchCount: 1, hasResults: true })
+  })
+})
+
 // The round a reader has navigated to (#312). The tree shows every round at once, so this matters only to
 // the phone's round list — but *which* round a selection resolves to is a decision, so it is settled here
 // rather than in a renderer, and the next slice can hand it straight in from the URL.

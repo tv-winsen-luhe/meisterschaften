@@ -3,6 +3,7 @@ import { DAYS, elem, tbdEl } from './tournament-draw.render'
 import type { Segment } from './tournament-draw.render'
 import type {
   BracketCell,
+  BracketRound,
   BracketView,
   CellSchedule,
   CellSlot,
@@ -164,32 +165,52 @@ const renderSegments = (segmentsEl: HTMLElement, selected: Segment, onSelect: (s
   })
 }
 
-// The round control, nested inside the segment choice (#312) — the phone's way through the bracket, and the
-// only control the wide tree does not need. Its buttons carry the view's `name`, the bracket-less reading of
-// the same round-name rule the columns use (#307, ADR-0028): the control above already names the bracket, and
-// repeating it on every button would not fit a segment anyway. No round names are spelled here.
+// The round pager, nested inside the segment choice (#312, #334) — the phone's way through the bracket, and
+// the only control the wide tree does not need. Its buttons carry the view's `name`, the bracket-less reading
+// of the same round-name rule the columns use (#307, ADR-0028): the control above already names the bracket,
+// and repeating it on every button would not fit a segment anyway. No round names are spelled here.
 //
-// Rebuilt only when the rounds themselves change (a segment switch changes their number and their names);
-// otherwise the buttons are left in place and re-synced, so a poll mid-tournament never steals focus from a
-// reader's thumb.
+// It is a **positional** control, not a mode switch (#334), so it says three things about each position and
+// nothing about a mode: which round, how many matches it holds, and whether anything has happened in it. All
+// three are the view's own `name`/`matchCount`/`hasResults`, so this asks rather than counts — and the dot's
+// spoken counterpart is the view's `spoken`, so no German is assembled here either.
+//
+// Rebuilt only when the rounds themselves change (a segment switch changes their number, their names and
+// their sizes); otherwise the buttons are left in place and re-synced, so a poll mid-tournament never steals
+// focus from a reader's thumb — and progress arriving on a poll is exactly a re-sync, not a rebuild.
+const roundTabEl = (round: BracketRound, onSelect: (round: number) => void): HTMLButtonElement => {
+  const btn = elem('button', 'dm-roundtab') as HTMLButtonElement
+  btn.type = 'button'
+  btn.setAttribute('role', 'tab')
+  btn.dataset.round = String(round.round)
+  btn.append(elem('span', 'dm-roundtab__name', round.name))
+  // The count and the dot share a second line under the name — see the stylesheet on why they are not beside
+  // it.
+  const meta = elem('span', 'dm-roundtab__meta')
+  meta.append(elem('span', 'dm-roundtab__count', String(round.matchCount)))
+  // Emitted on every round and lit by the sync pass below, so a round that gains its first result mid-poll
+  // does not need the pager rebuilt around it.
+  meta.append(elem('span', 'dm-roundtab__dot'))
+  btn.append(meta)
+  btn.addEventListener('click', () => onSelect(round.round))
+  return btn
+}
+
 const renderRounds = (roundsEl: HTMLElement, view: BracketView, onSelect: (round: number) => void) => {
-  const signature = view.rounds.map(r => r.name).join('|')
+  const signature = view.rounds.map(r => `${r.name}:${r.matchCount}`).join('|')
   if (roundsEl.dataset.rounds !== signature) {
     roundsEl.dataset.rounds = signature
-    roundsEl.replaceChildren(
-      ...view.rounds.map(round => {
-        const btn = elem('button', 'dm-roundtab', round.name) as HTMLButtonElement
-        btn.type = 'button'
-        btn.setAttribute('role', 'tab')
-        btn.dataset.round = String(round.round)
-        btn.addEventListener('click', () => onSelect(round.round))
-        return btn
-      })
-    )
+    roundsEl.replaceChildren(...view.rounds.map(round => roundTabEl(round, onSelect)))
   }
-  roundsEl.querySelectorAll<HTMLButtonElement>('[data-round]').forEach(btn => {
-    btn.setAttribute('aria-selected', String(Number(btn.dataset.round) === view.round))
-  })
+  for (const round of view.rounds) {
+    const btn = roundsEl.querySelector<HTMLButtonElement>(`[data-round="${round.round}"]`)
+    if (!btn) continue
+    btn.setAttribute('aria-selected', String(round.round === view.round))
+    // The dot and the bare count are laid out for the eye; the accessible name is the same position said as
+    // one sentence, which is why the view hands it over finished.
+    btn.setAttribute('aria-label', round.spoken)
+    btn.classList.toggle('dm-roundtab--results', round.hasResults)
+  }
 }
 
 /** The three elements a live panel renders into: its two controls and the bracket target itself. */
