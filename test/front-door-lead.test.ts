@@ -25,9 +25,10 @@ describe('frontDoorLead', () => {
   it('is total across phase × drawn × schedulePublished × cancelled', () => {
     expect(cross).toHaveLength(48)
     for (const input of cross) {
-      const { leads, order, competitions, cancellationNote } = frontDoorLead(input)
+      const { leads, order, pacing, competitions, cancellationNote } = frontDoorLead(input)
       expect(leads.length).toBeGreaterThan(0)
       expect(['marketing', 'results']).toContain(order)
+      expect(['marketing', 'board']).toContain(pacing)
       expect(competitions).toHaveLength(COMPETITION_SLUGS.length - input.cancelled.length)
       expect(cancellationNote === null || cancellationNote.length > 0).toBe(true)
     }
@@ -40,6 +41,22 @@ describe('frontDoorLead', () => {
       const { leads, order } = frontDoorLead({ ...input, cancelled: [] })
       expect(frontDoorLead(input).leads).toEqual(leads)
       expect(frontDoorLead(input).order).toBe(order)
+    }
+  })
+
+  // The section rhythm (ADR-0072): the front door is a marketing page during `signup` and a board
+  // during `tournament`, so the pacing rides on the same derivation as the lead and the order rather
+  // than on a second phase read. `post-event` keeps the marketing rhythm — its reader is browsing an
+  // archive from a sofa, not standing at the courts choosing which one to walk to.
+  it('only tournament is paced as a board', () => {
+    for (const input of cross) {
+      expect(frontDoorLead(input).pacing).toBe(input.phase === 'tournament' ? 'board' : 'marketing')
+    }
+  })
+
+  it('the cancelled set does not move the pacing', () => {
+    for (const input of cross) {
+      expect(frontDoorLead(input).pacing).toBe(frontDoorLead({ ...input, cancelled: [] }).pacing)
     }
   })
 
@@ -63,6 +80,7 @@ describe('frontDoorLead', () => {
     expect(frontDoorLead({ phase: 'tournament', drawn: false, schedulePublished: false, cancelled: [] })).toEqual({
       leads: ['tournament', 'tournament-field'],
       order: 'results',
+      pacing: 'board',
       competitions: [...COMPETITION_SLUGS],
       cancellationNote: null
     })

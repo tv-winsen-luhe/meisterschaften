@@ -48,6 +48,12 @@ export interface FrontDoor {
   leads: Lead[]
   /** `marketing` is the document order (signup); `results` puts draw and field directly under the hero. */
   order: 'marketing' | 'results'
+  /**
+   * The section rhythm (ADR-0072). `marketing` is the generous spacing the page ships with; `board`
+   * tightens it, because during `tournament` the front door is read like a board, and roughly 280px of
+   * empty space between the hero and „Auslosung" is a marketing-page pace applied to one.
+   */
+  pacing: 'marketing' | 'board'
   /** The fields the page shows — the offered line-up minus the cancelled ones (ADR-0062 §5). */
   competitions: CompetitionSlug[]
   /** The one factual line a cancellation leaves behind, or `null` while nothing is cancelled. */
@@ -85,6 +91,11 @@ const cancellationNote = (cancelled: readonly string[]): string | null => {
  * extra read is passed in as `false`, which lands on stage 1 — understating what exists is safe,
  * overstating it sends visitors to an empty page (ADR-0060 §8).
  *
+ * The pacing follows the phase alone, not the stage: it answers „is this page a board or a marketing
+ * surface", and inside `tournament` it is a board whether or not anything is drawn yet. `post-event`
+ * keeps the marketing rhythm even though it reads in the results order — its reader is browsing an
+ * archive, not standing at the courts (ADR-0072).
+ *
  * The cancellation is independent of the stage: which fields exist and what is going on are two
  * different questions, so a cancelled competition never moves the lead. It is applied in every
  * phase — the phase does not make a cancelled field happen — and an empty set is the common case
@@ -92,11 +103,11 @@ const cancellationNote = (cancelled: readonly string[]): string | null => {
  */
 export const frontDoorLead = ({ phase, drawn, schedulePublished, cancelled }: FrontDoorInput): FrontDoor => {
   const fields = { competitions: activeCompetitions(cancelled), cancellationNote: cancellationNote(cancelled) }
-  if (phase === 'signup') return { leads: ['signup'], order: 'marketing', ...fields }
-  if (phase === 'post-event') return { leads: ['post-event'], order: 'results', ...fields }
+  if (phase === 'signup') return { leads: ['signup'], order: 'marketing', pacing: 'marketing', ...fields }
+  if (phase === 'post-event') return { leads: ['post-event'], order: 'results', pacing: 'marketing', ...fields }
 
   const stage = schedulePublished ? 'tournament-schedule' : drawn ? 'tournament-draw' : 'tournament-field'
-  return { leads: ['tournament', stage], order: 'results', ...fields }
+  return { leads: ['tournament', stage], order: 'results', pacing: 'board', ...fields }
 }
 
 /**
