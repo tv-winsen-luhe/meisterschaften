@@ -1,7 +1,7 @@
 import { hc } from 'hono/client'
 import type { AppType } from '../../worker/app'
 import { frontDoorLead, matchesLead, type FrontDoor } from './front-door-lead'
-import { resolveSocialMixerBlock, type SocialMixerPlacement } from '../../shared'
+import { socialMixerBlockOn, type SocialMixerPlacement } from '../../shared'
 import { socialMixerWhen } from '../data/tournament'
 
 type Client = ReturnType<typeof hc<AppType>>
@@ -88,14 +88,17 @@ interface Options {
   frontDoor?: boolean
 }
 
-// Rewrite the Social mixer's appointment wherever it is rendered, from the operator's stored placement
-// (ADR-0064). The statically built line already names the default placement, so this only ever changes
-// something once the block has actually been moved. Any confirmed count resolves the same sentence — only
-// the block's *courts* follow the head-count, and no public line names them.
-export const applyMixerAppointment = (placement: SocialMixerPlacement) => {
-  const block = resolveSocialMixerBlock({ ...placement, confirmed: 0 })
-  if (!block) return
-  const line = socialMixerWhen(block)
+// Rewrite the Social mixer's appointment wherever it is rendered, from the operator's stored placement and
+// the **resolved court list** the same signal carries (ADR-0064, ADR-0073). The statically built line names
+// the default placement on a single court, so unlike the placement the courts nearly always change here:
+// the head-count they follow is only known to the server, which is why the wire ships the list rather than
+// the count.
+// A response carrying no courts leaves the built line standing rather than rewriting it to a line with no
+// courts in it: fail-open, the same posture as a failed read, and it keeps a payload from an older worker
+// from taking the rest of the projection down with it through the shared catch.
+export const applyMixerAppointment = (placement: SocialMixerPlacement, courts: number[] | undefined) => {
+  if (!courts?.length) return
+  const line = socialMixerWhen(socialMixerBlockOn(placement, courts))
   for (const el of document.querySelectorAll<HTMLElement>('[data-mixer-when]')) el.textContent = line
 }
 
@@ -107,12 +110,12 @@ export const projectPhaseOnLoad = async ({ frontDoor = false }: Options = {}) =>
   try {
     const res = await client.api.phase.$get()
     if (!res.ok) return
-    const { phase, cancelledCompetitions, socialMixerPlacement } = await res.json()
+    const { phase, cancelledCompetitions, socialMixerPlacement, socialMixerCourts } = await res.json()
     // The mixer's appointment first, and **before** the signup early-return: the block is never gated by a
     // phase or by the schedule publish flag (ADR-0063 §3), it is simply where the operator has put it
     // (ADR-0064). Every surface that renders the line carries `data-mixer-when`; a surface without one is
     // simply not patched.
-    applyMixerAppointment(socialMixerPlacement)
+    applyMixerAppointment(socialMixerPlacement, socialMixerCourts)
     // The cancelled set rides on the same read (ADR-0062), so `signup` still costs one call. It only
     // takes effect from `tournament` on: during signup the „ab 4" notice is the recruiting call the
     // cancellation replaces, and a field is not cancelled before its window has even closed.

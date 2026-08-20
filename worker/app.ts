@@ -140,15 +140,16 @@ export const createApp = (makeDeps: (env: Env) => Deps = createDepsFromEnv) =>
     // Access: every surface (the public list, later the draw/live views) reads it at runtime.
     // PUBLIC_LIST_ENABLED stays an orthogonal kill-switch — the phase does not gate the list.
     .get('/api/phase', async c => {
-      // Two independent reads of the same singleton row, issued together rather than serially. The
-      // cancelled set rides this response rather than a second endpoint (ADR-0062): one poll, one signal
-      // every public surface already makes, so nothing has to re-derive „does this field take place".
-      const [phase, cancelledCompetitions, socialMixerPlacement] = await Promise.all([
+      // Three independent reads, issued together rather than serially. The cancelled set and the mixer's
+      // signal ride this response rather than endpoints of their own (ADR-0062, ADR-0064): one poll, one
+      // signal every public surface already makes, so nothing has to re-derive „does this field take place"
+      // — or where the mixer is and on which courts (ADR-0073, resolved in the projection).
+      const [phase, cancelledCompetitions, mixer] = await Promise.all([
         c.var.deps.appState.getPhase(),
         c.var.deps.appState.getCancelledCompetitions(),
-        c.var.deps.appState.getSocialMixerPlacement()
+        c.var.deps.projections.socialMixerSignal()
       ])
-      return c.json({ phase, cancelledCompetitions, socialMixerPlacement } satisfies PhaseResponse, 200, NO_STORE)
+      return c.json({ phase, cancelledCompetitions, ...mixer } satisfies PhaseResponse, 200, NO_STORE)
     })
     // GET /api/draw — the public two-phase bracket (ADR-0046). Per competition: while its main bracket is
     // still revealing it carries the cursor-sliced reveal steps (the suspense invariant, ADR-0003); once

@@ -15,6 +15,7 @@ import {
   SOCIAL_MIXER_DEFAULT_PLACEMENT
 } from '../shared/social-mixer'
 import { suggestSchedule } from '../shared/suggest-schedule'
+import { socialMixerWhen } from '../src/data/tournament'
 import type { Placement } from '../shared/schedule'
 
 // The Social mixer's reserved court block (CONTEXT: Mixer block, ADR-0064, ADR-0063). The mixer is never
@@ -220,5 +221,30 @@ describe('social mixer block · downstream (ADR-0063)', () => {
       for (const court of [1, 2, 3, 4, 5, 6].filter(c => !courts.includes(c)))
         expect(header).not.toContain(`Platz ${court}`)
     }
+  })
+})
+
+describe('social mixer block · the public line names its courts (ADR-0073)', () => {
+  // ADR-0073 reverses ADR-0064 §6: the public line regains its court numbers, which is what lets the block
+  // be a line *inside* Sunday instead of a tile above the board. Asserted at all three reservation sizes,
+  // because the courts are a function of the head-count and „Platz 5 und 6" printed for a one-court
+  // reservation is the exact failure the ADR names.
+  const lineAt = (confirmed: number) =>
+    socialMixerWhen(resolveSocialMixerBlock({ ...SOCIAL_MIXER_DEFAULT_PLACEMENT, confirmed })!)
+
+  it('names one court in the singular', () => {
+    expect(lineAt(4)).toBe('Sonntag, 23.08. · 12:00–15:00 Uhr · Platz 6')
+  })
+
+  it('joins two courts with „und"', () => {
+    expect(lineAt(8)).toBe('Sonntag, 23.08. · 12:00–15:00 Uhr · Platz 5 und 6')
+  })
+
+  it('lists three courts, the last joined with „und"', () => {
+    expect(lineAt(12)).toBe('Sonntag, 23.08. · 12:00–15:00 Uhr · Platz 4, 5 und 6')
+  })
+
+  it('names the courts by number only — „Nebenplätze" is not public copy', () => {
+    expect(lineAt(8)).not.toContain('Nebenplätze')
   })
 })

@@ -40,8 +40,10 @@ const blurbColor = { light: 'opacity-65', dark: 'text-white/80', clay: 'text-whi
 // The Social mixer is the one field with an **appointment** rather than an ansetzung — it is never drawn,
 // so no schedule row will ever carry its time (ADR-0063). The line comes from `socialMixerWhen`, derived
 // from the same block the schedule validator reserves, so the card, the public schedule and the grid can
-// never disagree. Built at the block's default placement and patched by the same one-shot `/api/phase`
-// read that applies a cancellation (ADR-0064) — the card carries `data-mixer-when` for it. Checked here in
+// never disagree. Built at the block's default placement on the one court a head-count of nothing earns,
+// and patched by the same one-shot `/api/phase` read that applies a cancellation (ADR-0064) — that read
+// carries the resolved court list (ADR-0073), the only place the real courts are known, so the built line
+// is a correct-without-JS default rather than the last word. The card carries `data-mixer-when`. Checked in
 // the one shared card rather than threaded as a prop, so the front door and the Damen porch (ADR-0052)
 // both pick it up without either page knowing.
 const appointment =
