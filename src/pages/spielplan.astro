@@ -228,7 +228,6 @@ const defaultMixerBlock = resolveSocialMixerBlock({ ...SOCIAL_MIXER_DEFAULT_PLAC
     margin: 14px 0 0;
     padding: 16px 18px;
     border: 1px solid color-mix(in srgb, var(--color-navy) 12%, transparent);
-    border-radius: 12px;
     background: color-mix(in srgb, var(--color-navy) 3%, transparent);
   }
   .mixer-band[hidden] {
@@ -292,7 +291,6 @@ const defaultMixerBlock = resolveSocialMixerBlock({ ...SOCIAL_MIXER_DEFAULT_PLAC
     min-height: 104px;
     padding: 12px 14px;
     border: 1px solid color-mix(in srgb, var(--color-navy) 14%, transparent);
-    border-radius: 10px;
     background: color-mix(in srgb, var(--color-navy) 2%, transparent);
     transition: opacity 0.15s ease;
   }
@@ -363,6 +361,10 @@ const defaultMixerBlock = resolveSocialMixerBlock({ ...SOCIAL_MIXER_DEFAULT_PLAC
     flex-wrap: wrap;
     gap: 6px;
   }
+  /* The same chip the front door already had (ADR-0076). Its inactive fill is `navy 6%` — byte-identical
+     to the format chips on the competition cards (`bg-navy/[0.06]`), at the same size, weight and tracking.
+     The only thing that ever differed was the shape: a pill here against a rectangle there, which read as
+     two components rather than one. Squared, it *is* that chip. */
   .board-chip {
     padding: 6px 12px;
     font-size: 12px;
@@ -371,7 +373,6 @@ const defaultMixerBlock = resolveSocialMixerBlock({ ...SOCIAL_MIXER_DEFAULT_PLAC
     color: color-mix(in srgb, var(--color-navy) 65%, transparent);
     background: color-mix(in srgb, var(--color-navy) 6%, transparent);
     border: 1px solid transparent;
-    border-radius: 999px;
     cursor: pointer;
   }
   .board-chip.is-active {
@@ -492,12 +493,14 @@ const defaultMixerBlock = resolveSocialMixerBlock({ ...SOCIAL_MIXER_DEFAULT_PLAC
      grid (`display: contents`) and keep their element only as the hook the winner/tbd rules select on. */
   /* This grid is also **the card** (ADR-0075). Roland-Garros' order of play is what prompted it, and the
      card is where the borrowing stops: it is a **boundary**, saying where one match ends, and not a
-     destination. So a border and a radius, and none of the things that promise a tap — no fill, no shadow,
-     no hover lift — because there is nowhere for a tap to go. It wraps the contestants, their sets and the
-     meta line only: the time stays outside it in the left gutter and the „läuft" badge in the right one, so
-     the column keeps a straight edge of times to read down. Roland-Garros can afford the time inside the
-     card because only its first match of a block carries one; every card here has a time (ADR-0071), which
-     is exactly what makes the gutter worth keeping. */
+     destination. So a border, and none of the things that promise a tap — no fill, no shadow, no hover
+     lift, **and no radius** — because there is nowhere for a tap to go. The radius was rule 3's own
+     exception and ADR-0076 closed it: a rounded rectangle is the single strongest tappability cue this
+     stylesheet had, so the one property the rule kept was the one working against it.
+     It wraps the contestants, their sets and the meta line only: the time stays outside it in the left
+     gutter and the „läuft" badge in the right one, so the column keeps a straight edge of times to read
+     down. Roland-Garros can afford the time inside the card because only its first match of a block carries
+     one; every card here has a time (ADR-0071), which is exactly what makes the gutter worth keeping. */
   .sched-match__players {
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto auto;
@@ -506,7 +509,6 @@ const defaultMixerBlock = resolveSocialMixerBlock({ ...SOCIAL_MIXER_DEFAULT_PLAC
     min-width: 0;
     padding: 10px 12px;
     border: 1px solid color-mix(in srgb, var(--color-navy) 14%, transparent);
-    border-radius: 8px;
   }
   .sched-match__players .sched-match__player {
     display: contents;
@@ -636,7 +638,6 @@ const defaultMixerBlock = resolveSocialMixerBlock({ ...SOCIAL_MIXER_DEFAULT_PLAC
     letter-spacing: 0.06em;
     text-transform: uppercase;
     padding: 2px 7px;
-    border-radius: 999px;
   }
   /* „läuft" is the only badge the page prints, so it is the only one tinted — a planned or finished row
      appends no status element at all, and the quiet grey pills those two used to wear are gone with them.
@@ -806,7 +807,6 @@ const defaultMixerBlock = resolveSocialMixerBlock({ ...SOCIAL_MIXER_DEFAULT_PLAC
     .sched-match__players {
       padding: 0;
       border: none;
-      border-radius: 0;
     }
     .sched-match__time,
     .sched-match__time--follows {

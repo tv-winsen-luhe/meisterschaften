@@ -208,8 +208,11 @@ const drawCompetitions = drawableCompetitions(competitions)
 
   /* — Bracket control („Hauptrunde" / „Nebenrunde") — a lighter, secondary tab row inside a live panel, shown
      only when a consolation bracket exists (ADR-0046). The „Spiel um Platz 3" rides under the main bracket’s
-     final, so there is no tab for it. This is the *outer* of the two controls (#312): pills, so the joined
-     round control below can never read as a second row of the same rank. */
+     final, so there is no tab for it. This is the *outer* of the two controls (#312): a bordered box, so the
+     round control below can never read as a second row of the same rank. That separation used to be
+     credited to the radius, and checking it under ADR-0076 showed it never was — `.dm-roundtab` is an
+     underline tab with no box at all, transparent and railed along one edge. Bordered box against underline
+     tab, uppercase-and-tracked against mixed case: the rank is stated three times over without a curve. */
   .dm-segments {
     display: flex;
     gap: 6px;
@@ -227,7 +230,6 @@ const drawCompetitions = drawableCompetitions(competitions)
     color: color-mix(in srgb, var(--color-navy) 55%, transparent);
     background: transparent;
     border: 1.5px solid color-mix(in srgb, var(--color-navy) 18%, transparent);
-    border-radius: 999px;
     padding: 6px 15px;
     cursor: pointer;
     transition:
@@ -266,7 +268,7 @@ const drawCompetitions = drawableCompetitions(competitions)
   }
   /* Mixed case and no tracking, unlike every other control on this surface: uppercase with letter-spacing
      truncates the longest round name to „ACHTELFI…" at a phone's width (see `.dm-roundtab__meta` on the width
-     this control is working in). It also keeps the pager visibly a rank below the pills above it. */
+     this control is working in). It also keeps the pager visibly a rank below the segments above it. */
   .dm-roundtab {
     flex: 1 1 0;
     min-width: 0;
@@ -501,9 +503,10 @@ const drawCompetitions = drawableCompetitions(competitions)
   /* „läuft" — the one status the bracket marks, in the same live accent the schedule board uses (#306,
      ADR-0072 rule 3: the brand accent, filled, with navy ink). It is what tells a match on court right now
      from one not yet started while no set has been saved, and the two surfaces hold one stance on how a
-     live match looks (ADR-0070 §4) — a green pill here and a lime one there would be two. The cell needs no
-     rail to survive greyscale the way the row does: the bracket prints this badge on a running match and on
-     nothing else, so its presence is already the non-colour signal. */
+     live match looks (ADR-0070 §4) — a green badge here and a lime one there would be two, and so would a
+     rounded one here against a squared one there, which is why ADR-0076 squared both in the same pass.
+     The cell needs no rail to survive greyscale the way the row does: the bracket prints this badge on a
+     running match and on nothing else, so its presence is already the non-colour signal. */
   .dm-live {
     flex-shrink: 0;
     margin-left: auto;
@@ -514,7 +517,6 @@ const drawCompetitions = drawableCompetitions(competitions)
     text-transform: uppercase;
     color: var(--color-navy);
     background: var(--color-live);
-    border-radius: 999px;
   }
 
   /* Elbow connectors: each non-final match draws a horizontal stub at each slot-pair
@@ -608,7 +610,6 @@ const drawCompetitions = drawableCompetitions(competitions)
     font-size: 12px;
     font-weight: 800;
     font-variant-numeric: tabular-nums;
-    border-radius: 11px;
   }
   .dm-lot {
     flex-shrink: 0;
@@ -857,7 +858,6 @@ const drawCompetitions = drawableCompetitions(competitions)
       padding: 0;
       background: none;
       border: 0;
-      border-radius: 0;
       color: #000;
       font-size: 12px;
     }
