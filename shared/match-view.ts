@@ -115,10 +115,9 @@ export interface MatchRow {
  * What stands in for a group of matches that names nobody yet (#333): how many matches wait there and
  * roughly when the first of them starts, as one finished line.
  *
- * The `matchCount` and `earliestTime` facts ride beside the finished `summary` for the same reason
- * `followsOn` rides beside `publishedTime`: a caller that wants one of them — a test, a second surface
- * laying the block out differently — reads the fact rather than pattern-matching the German back out of a
- * sentence a rewording would silently break.
+ * The block is specified as stating both facts (#333), so `matchCount` and `earliestTime` are carried as
+ * facts rather than only baked into the sentence: what the block must say is then asserted directly instead
+ * of by pattern-matching German that a rewording would silently break.
  */
 export interface UndeterminedRound {
   /** „3 Spiele · ab ca. 11:30 · noch ohne Namen" — the whole block's line. */
@@ -393,18 +392,23 @@ export const publishedTimes = (matches: readonly ScheduleMatch[]): Map<number, P
 // are placeholders too and deliberately not this: a bye is already decided, and „offen" is a slot that
 // failed to resolve (ADR-0035). Only a feeder is genuinely waiting on a result, and only that wait is what
 // makes a whole column of rows say nothing.
-const feederPlaceholder = (slot: ScheduleSlot): boolean => slot.kind === 'feeder' || slot.kind === 'loser'
+const isFeederPlaceholder = (slot: ScheduleSlot): boolean => slot.kind === 'feeder' || slot.kind === 'loser'
 
 /**
  * The summary a group collapses to, or null when it names somebody.
  *
+ * Takes the group's `matches` **and** the rows they produced, index-aligned, because the two questions live
+ * on different sides of the projection: „is every contestant a feeder" is only answerable on the wire
+ * (`MatchRow` has finished the discriminator into German), and „when does this start" is only answerable on
+ * the row (the hedge is the row's, not the feed's). Both are the *rendered* set, so a filtered column
+ * summarises exactly what it shows.
+ *
  * `rows` arrives in order of play, so the earliest Published time is simply the first — hedge included,
- * because the block's start is a follow-on exactly as often as its first row is (ADR-0071). Both are read
- * off the **rendered** rows rather than the feed, so a filtered column summarises what it actually shows.
+ * because the block's start is a follow-on exactly as often as its first row is (ADR-0071).
  */
 const undeterminedRound = (matches: readonly ScheduleMatch[], rows: readonly MatchRow[]): UndeterminedRound | null => {
   if (rows.length === 0) return null
-  if (!matches.every(m => feederPlaceholder(m.slot1) && feederPlaceholder(m.slot2))) return null
+  if (!matches.every(m => isFeederPlaceholder(m.slot1) && isFeederPlaceholder(m.slot2))) return null
   const earliestTime = rows[0].publishedTime
   const matchCount = rows.length
   const plural = matchCount === 1 ? 'Spiel' : 'Spiele'

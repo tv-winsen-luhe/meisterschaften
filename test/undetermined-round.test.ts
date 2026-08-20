@@ -7,6 +7,8 @@ import type { ScheduleViewOptions } from '../shared/match-view'
 // placeholder** for both contestants collapses to one summarised block. A sibling of match-view.test.ts and
 // match-row.test.ts, split by question the way those two are — that file asks „is the tree right", the row's
 // asks „does one row read like a tennis result", and this one asks „does a group that names nobody say so".
+// Its own file rather than more of match-view.test.ts because that file is at the repo's 300-line budget;
+// the same reason the row's cases live apart from the tree's.
 //
 // Asserted at the interface only, in finished German. The collapse is a decision about the content and lives
 // in the projection; whether the block is **open** is renderer state, and the renderer that turns this tree

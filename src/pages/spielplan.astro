@@ -590,10 +590,14 @@ const defaultMixerBlock = resolveSocialMixerBlock({ ...SOCIAL_MIXER_DEFAULT_PLAC
       break-inside: avoid;
     }
     /* A collapsed round prints **expanded** (#333): paper has no disclosure to tap, so a summary line
-       standing in for three rows would be content lost rather than content deferred. The summary itself goes
-       — on a sheet the rows are right there under it. */
+       standing in for three rows would be content lost rather than content deferred. Its caret goes, the
+       line itself stays: an engine without `::details-content` keeps a closed block closed, and then the
+       summary is the only thing on the sheet saying those matches exist at all. */
     .sched-round__summary {
-      display: none;
+      color: #000;
+    }
+    .sched-round__summary::before {
+      content: none;
     }
     .sched-round::details-content {
       content-visibility: visible;

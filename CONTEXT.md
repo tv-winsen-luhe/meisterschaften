@@ -640,9 +640,11 @@ reveal sequence }`. Randomness enters through an injected **`RandomSource`** por
   player who drives home between matches plans against. The public schedule groups **day → court** as a fixed
   hierarchy — the court is the column a player reads down for their own afternoon — and „what is on right
   now" is the Live board's job, not a grouping's. _(See ADR-0071, revising ADR-0069.)_
-- **Undetermined round** (de: noch offene Runde) — a group of the public schedule whose **every** match has a
-  **feeder placeholder** („Sieger M9" / „Verlierer M9") for both contestants, so between them the rows name
-  nobody. Such a group **collapses to one summarised block** — its match count and its earliest **Published
+- **Undetermined round** (de: noch offene Runde) — a **group** of the public schedule whose **every** match
+  has a **feeder placeholder** („Sieger M9" / „Verlierer M9") for both contestants, so between them the rows
+  name nobody. The group is the schedule's own unit — **one court's column within a day** — not the bracket
+  round: the column is what a reader scrolls past, so it is what may collapse, and a column carrying one
+  named match keeps all its rows because that column is worth reading down. Such a group **collapses to one summarised block** — its match count and its earliest **Published
   time**, hedged where the reservations touch — and expands to the unchanged rows on interaction: twelve
   consecutive rows reading „Sieger M11 — Sieger M12" are noise in a list, and a reader looking for their own
   afternoon should not have to scroll past them. „Freilos" and „offen" are deliberately **not** feeder
