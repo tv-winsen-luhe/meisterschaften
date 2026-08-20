@@ -97,7 +97,7 @@ where something in front of it can push it.**
   contestant names get the width back.
 - `followsOn` survives as a fact on the row and keeps its quieter styling. With „im Anschluss" gone, „ca."
   is the only word carrying the distinction, and two characters do not survive a phone in bright sunlight —
-  the dimming states it a second time. Same redundancy as the winner being both bold and checked.
+  the dimming states it a second time. Same redundancy as the winner being stated twice. (That second statement was the `✓`; ADR-0072 deletes the glyph and has the winner own the higher scores on its own line instead — the redundancy principle here is untouched, only its illustration.)
 - ADR-0069 keeps its text and gains a `Revised by` pointer (the ADR-0044 → ADR-0048 pattern). Its §1 and §3
   are still the operative decisions; only its §2 sentence and its §4 reasoning are superseded here.
 - **ADR-0069's real consequence still stands:** the order within a court is load-bearing. „ca. 14:00" on the

@@ -114,7 +114,9 @@ const matchRow = (row: MatchRow, logos: Logos): HTMLElement => {
   players.append(playerLine(row.slot1, logos), playerLine(row.slot2, logos), elem('div', 'sched-match__meta', row.meta))
   el.append(players)
 
-  el.append(elem('span', `sched-status sched-status--${row.status}`, row.statusLabel))
+  // The one status worth a badge — the view decided which, so this only asks whether there is one. Nothing
+  // is appended when there is not: the status column is implicit, so an unbadged row keeps the width.
+  if (row.statusLabel) el.append(elem('span', `sched-status sched-status--${row.status}`, row.statusLabel))
   return el
 }
 
@@ -127,7 +129,18 @@ const daySection = (day: DayGroup, logos: Logos): HTMLElement => {
   for (const court of day.courts) {
     const column = elem('div', 'sched-court')
     column.append(elem('h3', 'sched-court__head', court.label))
-    for (const row of court.rows) column.append(matchRow(row, logos))
+    const rows = court.rows.map(row => matchRow(row, logos))
+    // A column that names nobody yet collapses behind its summary (#333) — the view already decided that,
+    // and „is it open" is the browser's business: a native `<details>` needs no script for the toggle, no
+    // state for this module to hold, and hides nothing from a reader without one, since the rows are inside
+    // it either way. Still a translation: the summary line arrives finished.
+    if (court.undetermined) {
+      const block = elem('details', 'sched-round')
+      block.append(elem('summary', 'sched-round__summary', court.undetermined.summary), ...rows)
+      column.append(block)
+    } else {
+      column.append(...rows)
+    }
     el.append(column)
   }
   return el
