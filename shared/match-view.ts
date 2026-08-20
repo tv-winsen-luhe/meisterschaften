@@ -241,9 +241,12 @@ export const STATUS_LABELS: Record<ScheduleMatch['status'], string> = {
 
 /**
  * Which state a public surface **marks**: „läuft", and only that. The one state a reader needs marked is the
- * match on court right now — a finished match says so with its score, a planned one with its time — and a
- * „geplant" badge would sit on twenty-odd rows of a fresh page at once, marking nothing by marking
- * everything.
+ * match on court right now, and a „geplant" badge would sit on twenty-odd rows of a fresh page at once,
+ * marking nothing by marking everything.
+ *
+ * Since the Zwischenstand (ADR-0032, Amendment 2026-08-20) a running match may already carry a score, so a
+ * score no longer says „finished" on its own. This badge and the **absent winner mark** carry that
+ * distinction instead: a running match has no `winnerRegId`, so neither of its lines is bold or checked.
  *
  * One function rather than the same conditional in the row and in the cell (#327): a badge rule that lives
  * in two places is a badge rule that drifts, and this one already did — the cell has read this way since

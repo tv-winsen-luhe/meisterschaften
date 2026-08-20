@@ -170,6 +170,15 @@ describe('POST /api/admin/match/{status,result,set} (#90)', () => {
     expect(await rowAt(1, 0)).toMatchObject({ set1_slot1: 6, set1_slot2: 3, winner_reg_id: null, status: 'planned' })
   })
 
+  it('rejects a set that is not a finished set — the closed legal space binds on this path too', async () => {
+    // A saved set is by definition a completed one (ADR-0032 Amendment, ADR-0045), so `3:2` is not a coarse
+    // reading of a running set; it is illegal, and the row keeps its old value.
+    await drawField()
+    const semi = (await rowAt(1, 0))!
+    expect((await post('/api/admin/match/set', { id: semi.id, set: 1, score: [3, 2] })).status).toBe(400)
+    expect(await rowAt(1, 0)).toMatchObject({ set1_slot1: null, set1_slot2: null })
+  })
+
   it('serves the actual (live) court on the public schedule once a match is running (ADR-0032)', async () => {
     await drawField()
     const semi = (await rowAt(1, 0))!
