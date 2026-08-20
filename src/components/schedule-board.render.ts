@@ -114,7 +114,9 @@ const matchRow = (row: MatchRow, logos: Logos): HTMLElement => {
   players.append(playerLine(row.slot1, logos), playerLine(row.slot2, logos), elem('div', 'sched-match__meta', row.meta))
   el.append(players)
 
-  el.append(elem('span', `sched-status sched-status--${row.status}`, row.statusLabel))
+  // The one status worth a badge — the view decided which, so this only asks whether there is one. Nothing
+  // is appended when there is not: the status column is implicit, so an unbadged row keeps the width.
+  if (row.statusLabel) el.append(elem('span', `sched-status sched-status--${row.status}`, row.statusLabel))
   return el
 }
 

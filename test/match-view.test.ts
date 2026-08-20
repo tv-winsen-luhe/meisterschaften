@@ -180,7 +180,8 @@ describe('scheduleView · the tree is finished — grouped, ordered, labelled', 
     const [row] = view([match({ id: 1, court: 1, slot: 0, number: 3, round: 2, totalRounds: 3 })]).days[0].courts[0]
       .rows
     expect(row.meta).toBe('Halbfinale · M3 · Herren')
-    expect(row.statusLabel).toBe('geplant')
+    // A planned row carries no badge: „geplant" was the default state printed on every row of the page.
+    expect(row.statusLabel).toBe(null)
   })
 
   it('carries a running match’s status and its partial score', () => {
@@ -211,7 +212,8 @@ describe('scheduleView · the tree is finished — grouped, ordered, labelled', 
         score: { set1: [6, 3], set2: [4, 6], mtb: [8, 10] }
       })
     ]).days[0].courts[0].rows
-    expect(row.statusLabel).toBe('beendet')
+    // No „beendet" either — the score is what says the match is over.
+    expect(row.statusLabel).toBe(null)
     expect(row.slot1.games).toBe('6 4 8')
     expect(row.slot2.games).toBe('3 6 10')
     expect(row.slot2.winner).toBe(true)
