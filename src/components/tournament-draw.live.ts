@@ -98,10 +98,11 @@ const liveMatchEl = (cell: BracketCell | null): HTMLElement => {
 // `size` here would put the topology back on both sides of the seam.
 //
 // A **grid** rather than a flex row (#312), for two reasons that are really one: the columns are tracks that
-// share the available width, so the whole bracket fits a laptop without horizontal scrolling at our field
-// sizes; and the playoff can take a second grid row under the final column without stealing height from the
-// tree row — in a flex row it would push the final off the mid-point its two feeders' elbows aim at. The
-// column count rides a custom property so the track list stays in the stylesheet.
+// divide the available width, so the whole bracket fits a laptop without horizontal scrolling and the cells
+// spend the canvas rather than leaving it empty (ADR-0072 §4, #331); and the grid is the positioning context
+// the playoff is laid over, at the foot of the final's column — in a flex row it would push the final off the
+// mid-point its two feeders' elbows aim at. The column count rides a custom property so the track list stays
+// in the stylesheet.
 const renderLiveTree = (view: BracketView): HTMLElement => {
   const tree = elem('div', 'dm-tree dm-tree--live')
   tree.style.setProperty('--dm-cols', String(view.rounds.length))
@@ -117,7 +118,8 @@ const renderLiveTree = (view: BracketView): HTMLElement => {
     tree.append(col)
     // The „Spiel um Platz 3" of this round (ADR-0046, #312) — a sibling of the columns rather than a cell
     // inside one, so it stays out of the elbow connectors, which describe the tree's own wiring. The
-    // stylesheet puts it in the second grid row under this column; this only asks the round for it.
+    // stylesheet lays it over the foot of this column, in the void beside the final (ADR-0072 §4, #331);
+    // this only asks the round for it.
     if (round.playoff) tree.append(liveMatchEl(round.playoff))
   }
   return tree

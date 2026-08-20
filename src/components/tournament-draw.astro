@@ -74,10 +74,27 @@ const drawCompetitions = drawableCompetitions(competitions)
   .dm {
     --dm-line: color-mix(in srgb, var(--color-navy) 22%, transparent);
     --dm-gap: 34px;
-    /* One column's width. Wider since the cell carries its score (ADR-0070): seed · name · LK · sets still
-       has to fit on one line at 13px, and the name's ellipsis is the last resort, not the first. Four rounds
-       — our deepest field — still land inside a laptop's width without horizontal scrolling. */
+    /* One column's width in the preview's and the reveal's flex tree, where the columns lay out at their
+       natural width and the panel scrolls sideways. Wider since the cell carries its score (ADR-0070):
+       seed · name · LK · sets still has to fit on one line at 13px, and the name's ellipsis is the last
+       resort, not the first. */
     --dm-col: 258px;
+    /* A column's *ceiling* in the live grid, which divides the canvas rather than adding up to it
+       (ADR-0072 §1, #331). The cells take every pixel the canvas has and stop here, so a shallow draw's
+       two columns do not sprawl to half a page each. Sized so the longest name on a real field
+       („Steffen Brettschneider") fits beside a seed chip, an LK badge and two set scores without yielding
+       anything — that is the whole point of spending the void on the cells. */
+    --dm-col-max: 356px;
+    /* The two heights the live tree's clearance floor is built from: the „Spiel um Platz 3" box (its label,
+       two slots and the rule above them) and one matchup's cell (its header line and two slots). Named here
+       rather than inlined, because the floor is arithmetic about them and reads as a magic number otherwise.
+
+       They are per-medium, and the print block below re-states both: on screen a name that does not fit
+       ellipsises, so a slot is exactly one line tall and these are measurements; on paper it wraps instead
+       (the rule further down), so both boxes grow and a floor built from screen heights would let the playoff
+       land on the final. Whatever changes a slot's height has to be reflected here. */
+    --dm-playoff-h: 150px;
+    --dm-cell-h: 112px;
   }
 
   /* — Tabs — */
@@ -144,23 +161,40 @@ const drawCompetitions = drawableCompetitions(competitions)
   }
 
   /* — The live bracket's tree: a grid, so the whole draw fits the width (#312) —
-     The columns are tracks capped at `--dm-col` but free to shrink (`minmax(0, …)`), so four rounds — our
-     deepest field — land inside a laptop without horizontal scrolling; the name's ellipsis absorbs the last
-     few pixels, which is what it is for. `justify-content: start` keeps a shallow bracket left-anchored
-     instead of stretching two columns across the page.
+     The columns are equal `1fr` tracks, so they **divide the canvas** instead of adding up to a width and
+     leaving the remainder empty (ADR-0072 §1, #331). The dead space to the right of the final was never
+     waste to tolerate: it is the budget the yield rule spends, and a cell that owns it is a cell whose name
+     does not have to give up characters. `--dm-col-max` is the ceiling, applied as the tree's `max-width`
+     rather than as a track maximum, because a track cannot be both „share the width" and „stop at 356px" —
+     capping the box does both, and the tree stays left-anchored (`.dm-bracket` aligns its items to the start).
 
-     The second reason for a grid is the playoff: it takes a row of its own under the final column, and a grid
-     row cannot steal height from the tree row. As a flex item it would have shortened the final's column and
-     pulled the final off the mid-point its two feeders' elbows aim at. */
+     It is also the positioning context for the „Spiel um Platz 3", which is laid **over** the foot of the
+     final's column rather than into a row of its own beneath the whole tree (ADR-0072 §1, #331). That row
+     was the void below round 1; out of flow, there is no row left to be empty, and the playoff fills the
+     void beside the final instead. Out of flow is also the only placement the tree can offer it: an item
+     with a cell of its own displaces the round auto-placed into that cell, and a flex item would have
+     shortened the final's column and pulled the final off the mid-point its two feeders' elbows aim at.
+
+     `min-height` is the clearance that keeps the two apart. The final is centred in the column's full
+     height, so half of every pixel the tree gains goes *above* it — which means a shallow draw, where round
+     1 is only two cells tall, would let the playoff ride up onto the final. The floor is what that centring
+     costs: twice the playoff's height plus twice the air wanted below the final, plus one cell and the round
+     label. It is a floor, not a height — a real 16-draw's round-1 column is nearly twice this, so on every
+     field that has a deep bracket it never bites. */
   .dm-tree--live {
+    position: relative;
     display: grid;
-    grid-template-columns: repeat(var(--dm-cols, 1), minmax(0, var(--dm-col)));
-    justify-content: start;
+    grid-template-columns: repeat(var(--dm-cols, 1), minmax(0, 1fr));
     align-items: stretch;
     column-gap: var(--dm-gap);
-    row-gap: 26px;
     width: 100%;
+    max-width: calc(var(--dm-cols, 1) * var(--dm-col-max) + (var(--dm-cols, 1) - 1) * var(--dm-gap));
     min-width: 0;
+  }
+  /* Only a tree that *has* a playoff owes it clearance — a consolation has none, and a floor there would be
+     empty canvas bought for nothing, which is the thing this change is about not doing. */
+  .dm-tree--live:has(.dm-match--playoff) {
+    min-height: calc(2 * (var(--dm-playoff-h) + 24px) + var(--dm-cell-h) + 40px);
   }
   /* A track owns the column's width now, so the fixed width comes off — otherwise it would push the grid
      back out to the scrolling width the tree used to have. */
@@ -270,11 +304,20 @@ const drawCompetitions = drawableCompetitions(competitions)
   }
 
   /* — The „Spiel um Platz 3" (ADR-0046, #312): a cell like any other, under the final it shares a round with
-     — in the tree a second grid row beneath the final's column, in the round list the last row of the final
-     round. Its own label, because the round column above it names the final and not this. */
+     — in the tree the foot of the final's own column, in the round list the last row of the final round. Its
+     own label, because the round column above it names the final and not this.
+
+     It takes the foot of the final's column, which is the vertical void beside the final — where the match
+     belongs and where a reader finds it without hunting (ADR-0072 §1, #331). The width is the same track
+     arithmetic the columns divide the canvas by, because out of flow it cannot inherit a track. The final is
+     centred in that column and the tree's `min-height` keeps the two clear of each other. The dashed rule
+     stays: it is what says „a separate match", now that the two are neighbours rather than a tree and a
+     strip beneath it. */
   .dm-tree--live .dm-match--playoff {
-    grid-row: 2;
-    grid-column: -2 / -1;
+    position: absolute;
+    right: 0;
+    bottom: 0;
+    width: calc((100% - (var(--dm-cols, 1) - 1) * var(--dm-gap)) / var(--dm-cols, 1));
     padding-top: 18px;
     border-top: 1px dashed color-mix(in srgb, var(--color-navy) 20%, transparent);
   }
@@ -731,10 +774,17 @@ const drawCompetitions = drawableCompetitions(competitions)
     /* Ink is expensive and the tints are decoration: black on white, and the lines dark enough to read as
        the tree's wiring rather than as a smudge. */
     .dm {
-      /* A track's *maximum*, and the tracks shrink below it (`minmax(0, …)`), so the deepest field's four
-         rounds land inside a portrait page without anything being cut off the right edge. */
+      /* The columns divide the sheet's width (`1fr`), so the deepest field's four rounds land inside a
+         portrait page by construction — nothing can be cut off the right edge. The ceiling is only here to
+         stop a two-round bracket from printing two half-page-wide cells. */
       --dm-col: 168px;
+      --dm-col-max: 220px;
       --dm-gap: 18px;
+      /* A printed name wraps rather than ellipsising, so a slot can be two lines tall and both boxes the
+         playoff's clearance is measured against grow with it. Sized for a two-line wrap at the narrowest
+         track a four-round sheet produces — the case that made a screen-sized floor leave 2px of air. */
+      --dm-playoff-h: 190px;
+      --dm-cell-h: 150px;
       --dm-line: #000;
       color: #000;
     }
