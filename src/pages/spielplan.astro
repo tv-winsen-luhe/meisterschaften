@@ -23,9 +23,12 @@ const defaultMixerBlock = resolveSocialMixerBlock({ ...SOCIAL_MIXER_DEFAULT_PLAC
 // A match's court is the **actual** live court once running (the feed already falls back to the planned
 // court before it starts), so a spectator is never sent to the wrong court. Built with the public site's
 // inline-`<script>` + polling pattern (ADR-0008); every projection decision lives in shared/match-view.
+//
+// `headerSticky` (#349): this is the one page in the site read by scrolling a long board, so the bar
+// carrying „← Zurück" stays put while the board scrolls under it.
 ---
 
-<Layout title="Spielplan & Live — Winsener Meisterschaften 2026" chrome="legal">
+<Layout title="Spielplan & Live — Winsener Meisterschaften 2026" chrome="legal" headerSticky>
   <div data-sheet class="mx-auto max-w-[900px] px-5 pt-12 pb-20 text-navy md:px-10 md:pt-16 md:pb-[120px]">
     <h1 class="mt-0 mb-3 text-[clamp(36px,6vw,56px)] font-black tracking-[-0.04em] uppercase">Spielplan &amp; Live</h1>
     <!-- One sentence, then the convention behind a disclosure (ADR-0072). Eight lines on „ca." above the
