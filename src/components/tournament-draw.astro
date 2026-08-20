@@ -80,7 +80,10 @@ const drawCompetitions = drawableCompetitions(competitions)
     --dm-col: 258px;
   }
 
-  /* — Tabs — */
+  /* — Tabs — The competition choice: which field am I looking at. The **loudest** control on the surface
+     (#334) — it is a „which thing" question, it is linkable and it persists (ADR-0028, #313), and everything
+     below it is a position inside the answer. It is sized and inked to say so: the largest type here, a
+     boxed, filled selected state, and no other control on the panel is allowed either. */
   .dm-tabs {
     display: flex;
     flex-wrap: wrap;
@@ -89,14 +92,14 @@ const drawCompetitions = drawableCompetitions(competitions)
   }
   .dm-tab {
     font-family: inherit;
-    font-size: 12px;
+    font-size: 13px;
     font-weight: 800;
     letter-spacing: 0.1em;
     text-transform: uppercase;
     color: var(--color-navy);
     background: transparent;
-    border: 1.5px solid color-mix(in srgb, var(--color-navy) 25%, transparent);
-    padding: 9px 16px;
+    border: 2px solid color-mix(in srgb, var(--color-navy) 25%, transparent);
+    padding: 11px 20px;
     cursor: pointer;
     transition:
       background 0.18s,
@@ -212,43 +215,84 @@ const drawCompetitions = drawableCompetitions(competitions)
     outline-offset: 3px;
   }
 
-  /* — Round control (a bracket's rounds) — the phone's way through the bracket (#312), and
-     the *inner* choice: a joined, full-width segmented control, so it never reads as a second row of the
-     pills above it. Its labels are the view's own round names (#307), so nothing here knows any German.
+  /* — Round pager (a bracket's rounds) — the phone's way through the bracket (#312), and the innermost of the
+     three controls: „where inside this bracket am I". Purely **positional** (#334), and drawn as one: an
+     underlined rail rather than boxes, no fill, no border cage. The boxed-and-filled treatment is the
+     competition tabs' alone — a positional control wearing it invites the tap that changes field.
      Hidden by default because the wide tree shows every round at once and has nothing to navigate; the
-     breakpoint at the end of this stylesheet brings it in. */
+     breakpoint at the end of this stylesheet brings it in.
+
+     Each position states how big it is and whether anything has happened in it — the view's `matchCount` and
+     `hasResults`, laid out under the round's name. Nothing here knows any German: the name is the view's
+     (#307) and the dot is a shape. */
   .dm-rounds {
     display: none;
     margin-bottom: 20px;
-    border: 1.5px solid color-mix(in srgb, var(--color-navy) 22%, transparent);
+    border-bottom: 1.5px solid color-mix(in srgb, var(--color-navy) 18%, transparent);
   }
-  /* Mixed case and no tracking, unlike every other control on this surface — „Achtelfinale" is twelve
-     characters and four of them have to share a phone's width, and uppercase with letter-spacing truncates it
-     to „ACHTELFI…". It also keeps the inner control visibly a rank below the pills above it. */
+  /* Mixed case and no tracking, unlike every other control on this surface: uppercase with letter-spacing
+     truncates the longest round name to „ACHTELFI…" at a phone's width (see `.dm-roundtab__meta` on the width
+     this control is working in). It also keeps the pager visibly a rank below the pills above it. */
   .dm-roundtab {
     flex: 1 1 0;
     min-width: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 3px;
     font-family: inherit;
     font-size: 11.5px;
-    font-weight: 700;
-    color: color-mix(in srgb, var(--color-navy) 60%, transparent);
+    font-weight: 600;
+    color: color-mix(in srgb, var(--color-navy) 55%, transparent);
     background: transparent;
     border: 0;
-    padding: 10px 4px;
+    /* The rail is the whole selected state, and it sits ON the control's own bottom line rather than above
+       it — hence the negative margin, which pulls the 2px rail over the 1.5px rule. */
+    border-bottom: 2px solid transparent;
+    margin-bottom: -1.5px;
+    padding: 8px 4px;
     cursor: pointer;
+    transition:
+      color 0.18s,
+      border-color 0.18s;
+  }
+  .dm-roundtab__name {
+    max-width: 100%;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-    transition:
-      background 0.18s,
-      color 0.18s;
   }
-  .dm-roundtab + .dm-roundtab {
-    border-left: 1.5px solid color-mix(in srgb, var(--color-navy) 22%, transparent);
+  /* The round's size and its progress on a second line *under* the name rather than beside it: „Achtelfinale"
+     is twelve characters and four rounds share a phone's width, so anything on the name's line would be taken
+     out of the name. Stacked, „4 ●" costs height, which the pager has. */
+  .dm-roundtab__meta {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 10px;
+    font-weight: 700;
+    opacity: 0.75;
+  }
+  .dm-roundtab__count {
+    font-variant-numeric: tabular-nums;
+  }
+  /* „This round has at least one result" (#334). Present on every button and merely invisible where there is
+     nothing to report, so the pager's positions keep one height and the row does not shift as results land.
+     A dot rather than a tint: the signal is a shape, so it survives greyscale and a colourblind reader — and
+     the lime accent stays reserved for „läuft" (ADR-0072). */
+  .dm-roundtab__dot {
+    width: 5px;
+    height: 5px;
+    border-radius: 999px;
+    background: currentColor;
+    visibility: hidden;
+  }
+  .dm-roundtab--results .dm-roundtab__dot {
+    visibility: visible;
   }
   .dm-roundtab[aria-selected='true'] {
-    background: var(--color-navy);
-    color: var(--color-text-inverted);
+    color: var(--color-navy);
+    border-bottom-color: var(--color-navy);
   }
   .dm-roundtab:focus-visible {
     outline: 2px solid var(--color-navy);

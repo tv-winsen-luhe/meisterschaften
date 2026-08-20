@@ -399,7 +399,13 @@ byeWinners }` in `shared/reveal.ts`. It is **not** the whole story of the public
   four rounds — fits without horizontal scrolling; on a phone a **round control** inside the bracket choice
   and that one round as a **list** of the same cells, because the phone is the device the audience actually
   holds and a sideways-scrolling tree is unusable on it. The nesting mirrors the domain: the consolation is a
-  tournament of its own with its own draw and byes (ADR-0004), a round is a position inside one. The „Spiel um
+  tournament of its own with its own draw and byes (ADR-0004), a round is a position inside one.
+  The three controls are ranked by the kind of question they answer, and drawn so the rank is visible: the
+  **competition tabs** are a _which thing_ choice — linkable and persisted (ADR-0028) — and stay the loudest;
+  the bracket choice sits inside them; the **round pager** is purely _where inside it_, so it is a rail rather
+  than a boxed switch, and it states each round's **match count** and whether that round **has any result**
+  yet — derived from the score and outcome the bracket wire already carries (ADR-0070), never from a bye,
+  which advances a player without a match being played. The „Spiel um
   Platz 3" belongs to the **final round** in both layouts — under the final's column in the tree, the last row
   of the final round's list — because that is where it is played. _(See ADR-0046, ADR-0070, ADR-0004.)_
 - **Draw reveal show** (de: Auslosungs-Show; operator UI label: „Auslosung") — the **operator-paced**
