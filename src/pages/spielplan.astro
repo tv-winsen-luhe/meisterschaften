@@ -1,9 +1,13 @@
 ---
 import Layout from '@/layouts/default.astro'
-import { socialMixerWhen } from '@/data/tournament'
+import { socialMixerWhen, tournament } from '@/data/tournament'
 import tvLogo from '@/assets/logo.svg'
 import tsvLogo from '@/assets/tsv-winsen.png'
-import { resolveSocialMixerBlock, SOCIAL_MIXER_DEFAULT_PLACEMENT } from '../../shared'
+import { dayLabel, resolveSocialMixerBlock, SOCIAL_MIXER_DEFAULT_PLACEMENT } from '../../shared'
+
+// The event's two days, in wire order — the same copy the client hands the view, needed here too because
+// the mixer's band heads its own day in the delivered HTML (see the band below).
+const viewDays = [tournament.saturday, tournament.sunday]
 
 // The appointment as built: the block at its planned placement, on the single court a head-count of nothing
 // earns. The page names its courts now (ADR-0073) and the real head-count is the server's, so this is the
@@ -102,7 +106,13 @@ const defaultMixerBlock = resolveSocialMixerBlock({ ...SOCIAL_MIXER_DEFAULT_PLAC
          polling: an appointment does not change between polls, so it is read once on load. Fail-open, unlike
          the match feed's fail-closed reveal gate (ADR-0036), because the failure modes are not symmetric:
          withholding an appointment on a network blip is worse than briefly naming one court too few. -->
-    <div data-mixer-home>
+    <div data-mixer-home class="mixer-home">
+      <!-- The band's own day heading, for the states where its day has no section to head: nothing
+           published yet, a reset plan, a failed poll. It reads „Sonntag · 23.08." exactly as the schedule's
+           day heading does — same helper, same words — so the appointment is read as a line inside its day
+           in every state rather than as a loose card at the foot of the page. Hidden the moment the real day
+           section exists and the band moves into it, so the day is never headed twice. -->
+      <h2 class="sched-day__head" data-mixer-day>{dayLabel(viewDays, defaultMixerBlock.day)}</h2>
       <section data-mixer class="mixer-band">
         <h3 class="mixer-band__field">Damen Doppel</h3>
         <p class="mixer-band__when" data-mixer-when>{socialMixerWhen(defaultMixerBlock)}</p>
@@ -202,6 +212,14 @@ const defaultMixerBlock = resolveSocialMixerBlock({ ...SOCIAL_MIXER_DEFAULT_PLAC
      as the day is — which is the opposite of a side-court footnote — and deliberately not styled as a match
      row, because it is an appointment and not an ansetzung. It sits above the day's court columns, so its
      top margin is the day heading's and its bottom margin is the gap before „Platz 1". */
+  /* The band's fallback home, carrying its day heading — see the markup. Spaced like a day section, because
+     in this state it is the only thing standing where a day section would be. */
+  .mixer-home {
+    margin-top: 44px;
+  }
+  .mixer-home[hidden] {
+    display: none;
+  }
   .mixer-band {
     margin: 14px 0 0;
     padding: 16px 18px;
@@ -731,7 +749,7 @@ const defaultMixerBlock = resolveSocialMixerBlock({ ...SOCIAL_MIXER_DEFAULT_PLAC
 
 <script>
   import { hc } from 'hono/client'
-  import { scheduleView, socialMixerBlockOn, SOCIAL_MIXER_DEFAULT_PLACEMENT } from '../../shared'
+  import { dayLabel, scheduleView, socialMixerBlockOn, SOCIAL_MIXER_DEFAULT_PLACEMENT } from '../../shared'
   import { renderCourts, renderFilter, renderSchedule } from '../components/schedule-board.render'
   import { competitions, socialMixerWhen, tournament } from '../data/tournament'
   import type { AppType } from '../../worker/app'
@@ -801,12 +819,15 @@ const defaultMixerBlock = resolveSocialMixerBlock({ ...SOCIAL_MIXER_DEFAULT_PLAC
   // Put the band at the head of its day: after that day's heading, above its first „Platz N" column. The
   // day section is re-created on every render, so the band is re-inserted on every render too — and when
   // its day is not on the page (nothing published, a failed poll, or the plan reset) it goes back to where
-  // it was delivered rather than disappearing with the board. Stated **once**, wherever it currently is.
+  // it was delivered, which carries a day heading of its own so the appointment still reads as a line inside
+  // its day. Stated **once** either way: one element, moved rather than copied, and exactly one of the two
+  // day headings is ever showing.
   const placeMixerBand = () => {
-    if (!mixerEl) return
+    if (!mixerEl || !mixerHomeEl) return
     const head = sectionsEl?.querySelector(`.sched-day[data-day="${mixerDay}"] > .sched-day__head`) ?? null
     if (head) head.after(mixerEl)
-    else mixerHomeEl?.append(mixerEl)
+    else mixerHomeEl.append(mixerEl)
+    mixerHomeEl.hidden = head !== null
   }
 
   const render = () => {
@@ -892,9 +913,14 @@ const defaultMixerBlock = resolveSocialMixerBlock({ ...SOCIAL_MIXER_DEFAULT_PLAC
         return
       }
       const when = mixerEl.querySelector<HTMLElement>('[data-mixer-when]')
-      if (when) when.textContent = socialMixerWhen(socialMixerBlockOn(socialMixerPlacement, socialMixerCourts))
-      // The operator may have moved the block to the other day, so the band follows it there.
+      // No courts on the wire leaves the built line standing — fail-open, as above.
+      if (when && socialMixerCourts?.length)
+        when.textContent = socialMixerWhen(socialMixerBlockOn(socialMixerPlacement, socialMixerCourts))
+      // The operator may have moved the block to the other day, so the band follows it there — and its
+      // fallback heading names the day it followed.
       mixerDay = socialMixerPlacement.day
+      const dayHead = mixerHomeEl?.querySelector('[data-mixer-day]')
+      if (dayHead) dayHead.textContent = dayLabel(VIEW_COPY.days, mixerDay)
       placeMixerBand()
     } catch {
       // Leave the appointment as built — see above.

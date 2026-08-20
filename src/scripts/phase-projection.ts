@@ -93,7 +93,11 @@ interface Options {
 // the default placement on a single court, so unlike the placement the courts nearly always change here:
 // the head-count they follow is only known to the server, which is why the wire ships the list rather than
 // the count.
-export const applyMixerAppointment = (placement: SocialMixerPlacement, courts: number[]) => {
+// A response carrying no courts leaves the built line standing rather than rewriting it to a line with no
+// courts in it: fail-open, the same posture as a failed read, and it keeps a payload from an older worker
+// from taking the rest of the projection down with it through the shared catch.
+export const applyMixerAppointment = (placement: SocialMixerPlacement, courts: number[] | undefined) => {
+  if (!courts?.length) return
   const line = socialMixerWhen(socialMixerBlockOn(placement, courts))
   for (const el of document.querySelectorAll<HTMLElement>('[data-mixer-when]')) el.textContent = line
 }

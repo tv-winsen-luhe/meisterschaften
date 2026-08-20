@@ -48,8 +48,7 @@ const headerCta = { href: '#', label: 'Anmelden', competition: primary.slug }
   fetch('/api/phase', { headers: { accept: 'application/json' } })
     .then(res => (res.ok ? res.json() : null))
     .then((data: Partial<PhaseResponse> | null) => {
-      if (data?.socialMixerPlacement && data.socialMixerCourts)
-        applyMixerAppointment(data.socialMixerPlacement, data.socialMixerCourts)
+      if (data?.socialMixerPlacement) applyMixerAppointment(data.socialMixerPlacement, data.socialMixerCourts)
       if (data?.phase && data.phase !== 'signup') window.location.replace('/')
     })
     .catch(() => {})
