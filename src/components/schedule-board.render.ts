@@ -138,6 +138,9 @@ const matchRow = (row: MatchRow, logos: Logos): HTMLElement => {
 // „ca." earns its hedge (ADR-0071).
 const daySection = (day: DayGroup, logos: Logos): HTMLElement => {
   const el = elem('section', 'sched-day')
+  // The day index on the section, so the page can find the day it has something of its own to put at the
+  // head of — the Social mixer's band, which is the page's to place and not the projection's (ADR-0073).
+  el.setAttribute('data-day', String(day.day))
   el.append(elem('h2', 'sched-day__head', day.label))
   for (const court of day.courts) {
     const column = elem('div', 'sched-court')

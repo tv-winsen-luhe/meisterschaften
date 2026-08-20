@@ -341,6 +341,14 @@ const scheduleRowSlot = (match: ScheduleMatch, slot: 1 | 2): RowSlot =>
 
 export const courtLabel = (court: number): string => `Platz ${court}`
 
+/**
+ * One day section's heading („Samstag · 22.08."), from the date copy the client passes in. Exported because
+ * the schedule is not the only thing that heads a day: the Social mixer's band names its own day when that
+ * day has no section of its own (ADR-0073), and the two must read identically.
+ */
+export const dayLabel = (days: readonly DayCopy[], day: number): string =>
+  days[day] ? `${days[day].weekday} · ${days[day].short}` : `Tag ${day + 1}`
+
 // The field's German label; falls back to the wire slug rather than rendering nothing for a field whose
 // label the client's copy does not know.
 const competitionLabel = (competitions: readonly CompetitionOption[], slug: string): string =>
@@ -519,7 +527,7 @@ export const scheduleView = (
     const courts = [...new Set(onDay.map(m => m.court))].sort((a, b) => a - b)
     return {
       day,
-      label: days[day] ? `${days[day].weekday} · ${days[day].short}` : `Tag ${day + 1}`,
+      label: dayLabel(days, day),
       courts: courts
         .map(court => {
           const onCourt = onDay

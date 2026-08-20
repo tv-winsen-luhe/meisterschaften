@@ -1,12 +1,17 @@
 ---
 import Layout from '@/layouts/default.astro'
-import { socialMixerWhen } from '@/data/tournament'
+import { socialMixerWhen, tournament } from '@/data/tournament'
 import tvLogo from '@/assets/logo.svg'
 import tsvLogo from '@/assets/tsv-winsen.png'
-import { resolveSocialMixerBlock, SOCIAL_MIXER_DEFAULT_PLACEMENT } from '../../shared'
+import { dayLabel, resolveSocialMixerBlock, SOCIAL_MIXER_DEFAULT_PLACEMENT } from '../../shared'
 
-// The appointment as built: the block at its planned placement. The head-count only sizes the *courts*,
-// which this page does not name, so any confirmed count resolves the same line here (ADR-0064).
+// The event's two days, in wire order — the same copy the client hands the view, needed here too because
+// the mixer's band heads its own day in the delivered HTML (see the band below).
+const viewDays = [tournament.saturday, tournament.sunday]
+
+// The appointment as built: the block at its planned placement, on the single court a head-count of nothing
+// earns. The page names its courts now (ADR-0073) and the real head-count is the server's, so this is the
+// correct-without-JS default the one phase read below replaces — not the last word.
 const defaultMixerBlock = resolveSocialMixerBlock({ ...SOCIAL_MIXER_DEFAULT_PLACEMENT, confirmed: 0 })!
 
 // The public event-wide schedule + live board (ADR-0005, ADR-0032, ADR-0069, #91, #308): one page for the
@@ -32,27 +37,6 @@ const defaultMixerBlock = resolveSocialMixerBlock({ ...SOCIAL_MIXER_DEFAULT_PLAC
 <Layout title="Spielplan & Live — Winsener Meisterschaften 2026" chrome="legal" headerSticky>
   <div data-sheet class="mx-auto max-w-[900px] px-5 pt-12 pb-20 text-navy md:px-10 md:pt-16 md:pb-[120px]">
     <h1 class="mt-0 mb-3 text-[clamp(36px,6vw,56px)] font-black tracking-[-0.04em] uppercase">Spielplan &amp; Live</h1>
-    <!-- The Social mixer's reserved court-time (ADR-0064, ADR-0063). It sits **outside** `[data-board]` on
-         purpose: it is neither the forward plan the publish gate hides (ADR-0041) nor live truth — it is an
-         appointment, and its participants must be able to read it whether or not the championship schedule
-         is finished. Built statically at the block's **default** placement, so the page is right without JS
-         and right for the placement the event was planned around; the operator may move the block
-         (ADR-0064), so the one runtime read below patches this line — together with the cancellation
-         (ADR-0062), off the single `/api/phase` signal both already ride (ADR-0048). Still no polling:
-         an appointment does not change between polls, so it is read once on load.
-         Deliberately **without court numbers**: the courts follow the confirmed head-count, and the one who
-         needs them is told on arrival. Both runtime signals are fail-open — the built line stays put on a
-         failed read, unlike the match feed's fail-closed reveal gate (ADR-0036), because the failure modes
-         are not symmetric: withholding an appointment from its participants on a network blip is worse than
-         briefly showing a stale time. -->
-    <section data-mixer class="mixer">
-      <h2 class="board-heading">Damen Doppel</h2>
-      <p class="mixer-when" data-mixer-when>{socialMixerWhen(defaultMixerBlock)}</p>
-      <p class="mixer-note">
-        Geselliger Doppel-Spieltag mit wechselnden Partnerinnen — kein Turnierbaum, kein Ergebnis. Die Einteilung macht
-        die Spielleiterin vor Ort; komm einfach zur angegebenen Zeit an die Plätze.
-      </p>
-    </section>
 
     <!-- Starts in the loading state so the board never paints a misleading empty „keine Spiele" grid before
          the first poll resolves — and if the inline script fails to load at all, this benign „lädt…" holding
@@ -89,6 +73,37 @@ const defaultMixerBlock = resolveSocialMixerBlock({ ...SOCIAL_MIXER_DEFAULT_PLAC
       </section>
     </div>
 
+    <!-- The Social mixer's reserved court-time (ADR-0073, ADR-0064, ADR-0063): one **day-level band at the
+         head of its own day's section**, stated once. It is the mixer's place on the grid — the field whose
+         claim is „integration, not sideshow" was the only one not on it — and it is stated once rather than
+         repeated down each reserved court's column, because a three-hour appointment printed twice reads as
+         two events.
+         It lives **outside** `[data-board]` in the delivered HTML and is moved into Sunday's section by the
+         controller once that section exists: the band is neither the forward plan the publish gate hides
+         (ADR-0041) nor live truth, so no board state (loading, error, unpublished) may take it away from the
+         participants who have to be there. Built statically at the block's **default** placement and its
+         default single court, so the page is right without JS; the operator may move the block and the real
+         courts are only known to the server, so the one runtime read below patches this line — together with
+         the cancellation (ADR-0062), off the single `/api/phase` signal all three ride (ADR-0048). Still no
+         polling: an appointment does not change between polls, so it is read once on load. Fail-open, unlike
+         the match feed's fail-closed reveal gate (ADR-0036), because the failure modes are not symmetric:
+         withholding an appointment on a network blip is worse than briefly naming one court too few. -->
+    <div data-mixer-home class="mixer-home">
+      <!-- The band's own day heading, for the states where its day has no section to head: nothing
+           published yet, a reset plan, a failed poll. It reads „Sonntag · 23.08." exactly as the schedule's
+           day heading does — same helper, same words — so the appointment is read as a line inside its day
+           in every state rather than as a loose card at the foot of the page. Hidden the moment the real day
+           section exists and the band moves into it, so the day is never headed twice. -->
+      <h2 class="sched-day__head" data-mixer-day>{dayLabel(viewDays, defaultMixerBlock.day)}</h2>
+      <section data-mixer class="mixer-band">
+        <h3 class="mixer-band__field">Damen Doppel</h3>
+        <p class="mixer-band__when" data-mixer-when>{socialMixerWhen(defaultMixerBlock)}</p>
+        <p class="mixer-band__note">
+          Geselliger Doppel-Spieltag mit wechselnden Partnerinnen — kein Turnierbaum, kein Ergebnis. Die Einteilung
+          macht die Spielleiterin vor Ort; komm einfach zur angegebenen Zeit an die Plätze.
+        </p>
+      </section>
+    </div>
     <!-- The „ca." convention, moved off the top of the page (ADR-0072, #351). It used to be a sentence
          plus an eight-line disclosure above the first match, on a page whose one job is „wann spiele ich".
          ADR-0071 is what makes the foot safe: the number carries its own hedge at the point of reading
@@ -187,26 +202,44 @@ const defaultMixerBlock = resolveSocialMixerBlock({ ...SOCIAL_MIXER_DEFAULT_PLAC
     display: none;
   }
 
-  /* The Social mixer's fixed appointment (ADR-0063): a calm card above the board, deliberately not styled
-     as a match row — it is an appointment, not an ansetzung. Outside [data-board], so no board state
-     (loading, error, unpublished) touches it. */
-  .mixer {
-    margin: 0 0 32px;
-    padding: 18px 20px;
+  /* The Social mixer's fixed appointment (ADR-0073, ADR-0063): a calm band at the head of its day, as wide
+     as the day is — which is the opposite of a side-court footnote — and deliberately not styled as a match
+     row, because it is an appointment and not an ansetzung. It sits above the day's court columns, so its
+     top margin is the day heading's and its bottom margin is the gap before „Platz 1". */
+  /* The band's fallback home, carrying its day heading — see the markup. Spaced like a day section, because
+     in this state it is the only thing standing where a day section would be. */
+  .mixer-home {
+    margin-top: 44px;
+  }
+  .mixer-home[hidden] {
+    display: none;
+  }
+  .mixer-band {
+    margin: 14px 0 0;
+    padding: 16px 18px;
     border: 1px solid color-mix(in srgb, var(--color-navy) 12%, transparent);
     border-radius: 12px;
     background: color-mix(in srgb, var(--color-navy) 3%, transparent);
   }
-  .mixer[hidden] {
+  .mixer-band[hidden] {
     display: none;
   }
-  .mixer-when {
+  /* Quieter than the day heading and louder than a court's: the band is one field inside the day, and the
+     line under it is the fact the reader came for. */
+  .mixer-band__field {
+    margin: 0 0 4px;
+    font-size: 12px;
+    font-weight: 800;
+    letter-spacing: 0.06em;
+    color: color-mix(in srgb, var(--color-navy) 55%, transparent);
+  }
+  .mixer-band__when {
     margin: 0 0 8px;
     font-size: 17px;
     font-weight: 800;
     letter-spacing: -0.01em;
   }
-  .mixer-note,
+  .mixer-band__note,
   .time-note__body {
     margin: 0;
     max-width: 60ch;
@@ -636,16 +669,21 @@ const defaultMixerBlock = resolveSocialMixerBlock({ ...SOCIAL_MIXER_DEFAULT_PLAC
       font-size: 24pt;
       margin-bottom: 6pt;
     }
-    .mixer {
-      margin-bottom: 12pt;
+    .mixer-band {
+      margin: 6pt 0 12pt;
       padding: 8pt 10pt;
       background: none;
       border-color: #000;
+      break-inside: avoid;
     }
-    .mixer-when {
+    .mixer-band__field {
+      font-size: 8.5pt;
+      color: #000;
+    }
+    .mixer-band__when {
       font-size: 11pt;
     }
-    .mixer-note,
+    .mixer-band__note,
     .time-note__body {
       font-size: 8.5pt;
       color: #000;
@@ -739,7 +777,7 @@ const defaultMixerBlock = resolveSocialMixerBlock({ ...SOCIAL_MIXER_DEFAULT_PLAC
 
 <script>
   import { hc } from 'hono/client'
-  import { resolveSocialMixerBlock, scheduleView } from '../../shared'
+  import { dayLabel, scheduleView, socialMixerBlockOn, SOCIAL_MIXER_DEFAULT_PLACEMENT } from '../../shared'
   import { renderCourts, renderFilter, renderSchedule } from '../components/schedule-board.render'
   import { competitions, socialMixerWhen, tournament } from '../data/tournament'
   import type { AppType } from '../../worker/app'
@@ -766,6 +804,13 @@ const defaultMixerBlock = resolveSocialMixerBlock({ ...SOCIAL_MIXER_DEFAULT_PLAC
   const courtsEl = root?.querySelector<HTMLElement>('[data-courts]') ?? null
   const filterEl = root?.querySelector<HTMLElement>('[data-filter]') ?? null
   const sectionsEl = root?.querySelector<HTMLElement>('[data-sections]') ?? null
+
+  // The mixer's band and the place it was delivered in. The band belongs at the head of its own day's
+  // section (ADR-0073), but those sections only exist once the plan is published and rendered — so the band
+  // ships outside the board and moves into its day whenever that day is on the page, and moves back out
+  // whenever it is not. Its participants have an appointment either way (ADR-0063 §3).
+  const mixerEl = document.querySelector<HTMLElement>('[data-mixer]')
+  const mixerHomeEl = document.querySelector<HTMLElement>('[data-mixer-home]')
 
   // The crest URLs off the dataset (see the markup above). Empty strings are unreachable in practice; a
   // missing crest would render a broken image, never break the board.
@@ -794,6 +839,24 @@ const defaultMixerBlock = resolveSocialMixerBlock({ ...SOCIAL_MIXER_DEFAULT_PLAC
   // The competition slug, or null = „Alle" — seeded from the URL, so the very first render is already the
   // view the link promised.
   let selectedCompetition: string | null = new URL(location.href).searchParams.get(FILTER_PARAM)
+
+  // The day the mixer's band belongs in: the operator's, once the one phase read lands, and the planned
+  // placement's until then — the same day the band was built naming.
+  let mixerDay: number = SOCIAL_MIXER_DEFAULT_PLACEMENT.day
+
+  // Put the band at the head of its day: after that day's heading, above its first „Platz N" column. The
+  // day section is re-created on every render, so the band is re-inserted on every render too — and when
+  // its day is not on the page (nothing published, a failed poll, or the plan reset) it goes back to where
+  // it was delivered, which carries a day heading of its own so the appointment still reads as a line inside
+  // its day. Stated **once** either way: one element, moved rather than copied, and exactly one of the two
+  // day headings is ever showing.
+  const placeMixerBand = () => {
+    if (!mixerEl || !mixerHomeEl) return
+    const head = sectionsEl?.querySelector(`.sched-day[data-day="${mixerDay}"] > .sched-day__head`) ?? null
+    if (head) head.after(mixerEl)
+    else mixerHomeEl.append(mixerEl)
+    mixerHomeEl.hidden = head !== null
+  }
 
   const render = () => {
     if (!root) return
@@ -824,6 +887,7 @@ const defaultMixerBlock = resolveSocialMixerBlock({ ...SOCIAL_MIXER_DEFAULT_PLAC
     })
     renderCourts(courtsEl, courts, LOGOS)
     renderSchedule(sectionsEl, days, LOGOS)
+    placeMixerBand()
   }
 
   let lastJson = ''
@@ -860,26 +924,32 @@ const defaultMixerBlock = resolveSocialMixerBlock({ ...SOCIAL_MIXER_DEFAULT_PLAC
     }
   }
 
-  // The Social mixer's appointment is built statically, but two facts about it are the server's: whether
-  // the competition still takes place (ADR-0062) and where the operator has put the block (ADR-0064). Both
-  // ride the one `/api/phase` read, done once on load — an appointment does not need polling — and both
-  // fail open: a failed read leaves the built line standing rather than withholding it (see the markup).
+  // The Social mixer's appointment is built statically, but three facts about it are the server's: whether
+  // the competition still takes place (ADR-0062), where the operator has put the block (ADR-0064) and which
+  // courts its confirmed head-count earns (ADR-0073 — the count itself is not public, so the wire carries
+  // the resolved list). All three ride the one `/api/phase` read, done once on load — an appointment does
+  // not need polling — and all three fail open: a failed read leaves the built line standing rather than
+  // withholding it (see the markup).
   const applyMixerState = async () => {
-    const mixer = document.querySelector<HTMLElement>('[data-mixer]')
-    if (!mixer) return
+    if (!mixerEl) return
     try {
       const res = await client.api.phase.$get()
       if (!res.ok) return
-      const { cancelledCompetitions, socialMixerPlacement } = await res.json()
+      const { cancelledCompetitions, socialMixerPlacement, socialMixerCourts } = await res.json()
       if (cancelledCompetitions.includes('womens-social')) {
-        mixer.hidden = true
+        mixerEl.hidden = true
         return
       }
-      const when = mixer.querySelector<HTMLElement>('[data-mixer-when]')
-      // Any confirmed count resolves the same sentence — only the courts follow the head-count, and this
-      // line does not name them.
-      const block = resolveSocialMixerBlock({ ...socialMixerPlacement, confirmed: 0 })
-      if (when && block) when.textContent = socialMixerWhen(block)
+      const when = mixerEl.querySelector<HTMLElement>('[data-mixer-when]')
+      // No courts on the wire leaves the built line standing — fail-open, as above.
+      if (when && socialMixerCourts?.length)
+        when.textContent = socialMixerWhen(socialMixerBlockOn(socialMixerPlacement, socialMixerCourts))
+      // The operator may have moved the block to the other day, so the band follows it there — and its
+      // fallback heading names the day it followed.
+      mixerDay = socialMixerPlacement.day
+      const dayHead = mixerHomeEl?.querySelector('[data-mixer-day]')
+      if (dayHead) dayHead.textContent = dayLabel(VIEW_COPY.days, mixerDay)
+      placeMixerBand()
     } catch {
       // Leave the appointment as built — see above.
     }
