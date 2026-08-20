@@ -116,11 +116,38 @@ export interface MatchRow {
   statusLabel: string | null
 }
 
+/**
+ * What stands in for a group of matches that names nobody yet (#333): how many matches wait there and
+ * roughly when the first of them starts, as one finished line.
+ *
+ * The block is specified as stating both facts (#333), so `matchCount` and `earliestTime` are carried as
+ * facts rather than only baked into the sentence: what the block must say is then asserted directly instead
+ * of by pattern-matching German that a rewording would silently break.
+ */
+export interface UndeterminedRound {
+  /** „3 Spiele · ab ca. 11:30 · noch ohne Namen" — the whole block's line. */
+  summary: string
+  matchCount: number
+  /** The block's earliest Published time, hedged where the court's reservations touch it (ADR-0071). */
+  earliestTime: string
+}
+
 /** One court's column within a day: „Platz 3" and its matches in order of play. */
 export interface CourtGroup {
   court: number
   label: string
   rows: MatchRow[]
+  /**
+   * Non-null when **every** match in this column has a feeder placeholder for both contestants — Sunday's
+   * wall of „Sieger M11 — Sieger M12" — and then it is the summary the column collapses to. Null the moment
+   * one real player is in there, because a column that names somebody is worth reading down.
+   *
+   * Decided here rather than in the renderer: „does this group name anybody" is a statement about the
+   * content, and a renderer that answered it would have to inspect slot kinds — reading the wire's
+   * discriminator back out of a finished tree, which is the seam leaking. Whether the block is **open** is
+   * the renderer's own state; it is not a fact about the schedule.
+   */
+  undetermined: UndeterminedRound | null
 }
 
 /** One event day: „Samstag · 22.08." and the courts that carry a match on it, ascending. */
@@ -377,6 +404,35 @@ export const publishedTimes = (matches: readonly ScheduleMatch[]): Map<number, P
   return times
 }
 
+// ── The undetermined round (#333) ────────────────────────────────────────────────────────────────
+
+// A contestant that is still the *match in front of it* — „Sieger M9", „Verlierer M9". „Freilos" and „offen"
+// are placeholders too and deliberately not this: a bye is already decided, and „offen" is a slot that
+// failed to resolve (ADR-0035). Only a feeder is genuinely waiting on a result, and only that wait is what
+// makes a whole column of rows say nothing.
+const isFeederPlaceholder = (slot: ScheduleSlot): boolean => slot.kind === 'feeder' || slot.kind === 'loser'
+
+/**
+ * The summary a group collapses to, or null when it names somebody.
+ *
+ * Takes the group's `matches` **and** the rows they produced, index-aligned, because the two questions live
+ * on different sides of the projection: „is every contestant a feeder" is only answerable on the wire
+ * (`MatchRow` has finished the discriminator into German), and „when does this start" is only answerable on
+ * the row (the hedge is the row's, not the feed's). Both are the *rendered* set, so a filtered column
+ * summarises exactly what it shows.
+ *
+ * `rows` arrives in order of play, so the earliest Published time is simply the first — hedge included,
+ * because the block's start is a follow-on exactly as often as its first row is (ADR-0071).
+ */
+const undeterminedRound = (matches: readonly ScheduleMatch[], rows: readonly MatchRow[]): UndeterminedRound | null => {
+  if (rows.length === 0) return null
+  if (!matches.every(m => isFeederPlaceholder(m.slot1) && isFeederPlaceholder(m.slot2))) return null
+  const earliestTime = rows[0].publishedTime
+  const matchCount = rows.length
+  const plural = matchCount === 1 ? 'Spiel' : 'Spiele'
+  return { summary: `${matchCount} ${plural} · ab ${earliestTime} · noch ohne Namen`, matchCount, earliestTime }
+}
+
 // ── The filter ───────────────────────────────────────────────────────────────────────────────────
 
 // What the filter offers: the fields the feed carries, in display order — but nothing at all below two,
@@ -446,12 +502,12 @@ export const scheduleView = (
       label: days[day] ? `${days[day].weekday} · ${days[day].short}` : `Tag ${day + 1}`,
       courts: courts
         .map(court => {
-          const rows = onDay
+          const onCourt = onDay
             .filter(m => m.court === court)
             .sort((a, b) => a.slot - b.slot || a.id - b.id)
             .filter(m => selected === null || m.competition === selected)
-            .map(row)
-          return { court, label: courtLabel(court), rows }
+          const rows = onCourt.map(row)
+          return { court, label: courtLabel(court), rows, undetermined: undeterminedRound(onCourt, rows) }
         })
         .filter(group => group.rows.length > 0)
     }
