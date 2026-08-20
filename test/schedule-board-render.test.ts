@@ -208,3 +208,44 @@ describe('schedule board · a contestant line always occupies all three columns 
     }
   })
 })
+
+// The follow-on hook, pinned because the stylesheet now reads it **twice**. `.sched-match__time--follows`
+// started as a typographic weakening of a hedged time; ADR-0075 also hangs the block boundary off it —
+// `.sched-match:not(:has(.sched-match__time--follows))` is what opens the gap in front of a card whose time
+// is anchored. Reading the fact where it already sits follows this file's own stance against a second hook
+// for one status (the „läuft" rail reads the badge the same way), and it turns the class into a **layout**
+// dependency rather than a typographic flourish: were the renderer to stop emitting it, a court would
+// collapse into one undifferentiated stack of cards and no other test would notice.
+describe('schedule board · the follow-on time is the block boundary hook (ADR-0075)', () => {
+  const timesOnCourt = (matches: ScheduleMatch[]): { text: string; className: string }[] => {
+    const sections = createElement('div')
+    const view = scheduleView({ published: true, matches }, OPTIONS)
+    renderSchedule(sections as unknown as HTMLElement, view.days, LOGOS)
+    // A day section leads with its own heading, so its first court column is child 1; a court column leads
+    // with the court heading, so its rows are everything from child 1 on.
+    const court = sections.children[0].children[1]
+    return court.children.slice(1).map(row => {
+      const time = row.children.find(c => c.className.startsWith('sched-match__time'))!
+      return { text: time.textContent, className: time.className }
+    })
+  }
+
+  it('marks the abutting match and leaves the first one on the court anchored', () => {
+    // 10:00, then 11:30 on court 1 — the second reservation starts exactly SLOT_SPAN after the first, so it
+    // abuts, follows on, and reads „ca." (ADR-0071).
+    const times = timesOnCourt([match({ id: 1, slot: 0 }), match({ id: 2, number: 2, slot: 3 })])
+
+    expect(times.map(t => t.text)).toEqual(['10:00', 'ca. 11:30'])
+    expect(times[0].className).toBe('sched-match__time')
+    expect(times[1].className).toContain('sched-match__time--follows')
+  })
+
+  it('leaves a match that opens a fresh block after a gap anchored', () => {
+    // 10:00, then 13:00 — the reservation chain breaks, so the later match owns its time outright and the
+    // stylesheet opens a block boundary in front of its card.
+    const times = timesOnCourt([match({ id: 1, slot: 0 }), match({ id: 2, number: 2, slot: 6 })])
+
+    expect(times.map(t => t.text)).toEqual(['10:00', '13:00'])
+    expect(times[1].className).toBe('sched-match__time')
+  })
+})

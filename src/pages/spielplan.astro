@@ -115,14 +115,20 @@ const defaultMixerBlock = resolveSocialMixerBlock({ ...SOCIAL_MIXER_DEFAULT_PLAC
          out comes looking, and by then they are at the end.
          Plain prose rather than a `<details>`: at the foot, length costs nothing, and a reader who scrolled
          this far is looking for exactly this — so there is nothing left to defer. „läuft" and the result are
-         not explained: the board says both, and neither word was ever confusing. -->
+         not explained: the board says both, and neither word was ever confusing.
+         The last sentence used to read „Früher fängt also nichts an, später schon", and it was **untrue**:
+         a match can be called early when its court comes free. What the planned time actually is, is the
+         point the organisers aim at — an anchor, not a floor — so the note says that instead (ADR-0075).
+         The correction runs one way only: a reader who was promised „never earlier" and turns up on that
+         promise has already missed the match, which is the one failure this page must not cause. -->
+
     <section class="time-note">
       <h2 class="board-heading time-note__head">Was heißt „ca."?</h2>
       <p class="time-note__body">
         Das erste Match auf einem Platz hat eine <strong>feste Zeit</strong> — davor liegt nichts, was es verschieben könnte.
         Alle weiteren stehen mit <strong>„ca."</strong>: sie fangen an, wenn das Match davor auf diesem Platz fertig
-        ist. Pro Match sind 90 Minuten reserviert, und das ist ein Erfahrungswert, keine Regel. Früher fängt also nichts
-        an, später schon.
+        ist. Pro Match sind 90 Minuten reserviert, und das ist ein Erfahrungswert, keine Regel. Die Turnierleitung
+        orientiert sich dabei an den geplanten Zeiten — es kann aber auch etwas früher losgehen.
       </p>
     </section>
   </div>
@@ -405,18 +411,32 @@ const defaultMixerBlock = resolveSocialMixerBlock({ ...SOCIAL_MIXER_DEFAULT_PLAC
     padding-top: 8px;
     background-color: var(--color-surface);
   }
+  /* The three vertical gaps inside a day are a **ranked set**, and the numbers are chosen against each other
+     rather than each on its own (ADR-0075 rule 4): 8px between two cards on the same court, 22px at a block
+     boundary within a court, 36px between two courts — on top of which only the court gets a heading and a
+     rule. A block boundary that out-measured a court boundary would say the chain matters more than the
+     column, which is the inversion this change exists to undo. */
   .sched-court {
-    margin-top: 26px;
+    margin-top: 36px;
   }
   /* The court is the unit a spectator reads down — top to bottom is the order of play on that court, and
-     the frame in which a „ca." earns its hedge. Its heading is quieter than the day's: the day is the
-     section, the court is the column inside it. */
+     the frame in which a „ca." earns its hedge. It used to whisper: 55% navy at 12px, on the reasoning that
+     the day is the section and the court is merely the column inside it. **ADR-0075 reverses that.** The
+     hierarchy was real in the view model and invisible on the screen, so the page read as one long list and
+     the grouping a player is meant to read down had to be inferred. The heading now owns its column in full
+     ink, with a rule under it — and the loudness is bought with **ink and a rule, never with size**: it
+     stays at the day heading's 12px, because a court heading that outgrew its day would invert the very
+     hierarchy this change exists to state. What keeps it a rank below is everything else — no uppercase, a
+     1px rule against the day's 2px, and it stays out of the sticky stack (three pinned layers on a phone is
+     most of the viewport, and that reason has not expired). */
   .sched-court__head {
-    margin: 0 0 4px;
+    margin: 0 0 10px;
+    padding-bottom: 5px;
     font-size: 12px;
     font-weight: 800;
-    letter-spacing: 0.06em;
-    color: color-mix(in srgb, var(--color-navy) 55%, transparent);
+    letter-spacing: 0.08em;
+    color: var(--color-navy);
+    border-bottom: 1px solid color-mix(in srgb, var(--color-navy) 18%, transparent);
   }
   /* Time · contestants · status. The time column now holds at most „ca. 14:00" on one line (ADR-0071), so it
      is narrower than the two-line floor needed — the names get the width back. The status column is
@@ -428,8 +448,24 @@ const defaultMixerBlock = resolveSocialMixerBlock({ ...SOCIAL_MIXER_DEFAULT_PLAC
     grid-auto-flow: column;
     align-items: center;
     gap: 12px;
-    padding: 12px 4px;
-    border-bottom: 1px solid color-mix(in srgb, var(--color-navy) 12%, transparent);
+    padding: 0 4px;
+    margin-bottom: 8px;
+  }
+  /* The block boundary (ADR-0075). Within a court, a card whose time is anchored opens a fresh block: it is
+     either the first match of the day there or the first after a gap in the reservation chain, and either
+     way its „HH:MM" is a fact rather than an estimate (ADR-0071). That break is worth seeing, and the fact
+     is already in the DOM as the time's own class — read here with `:has` rather than asking the renderer
+     for a second hook, the way the „läuft" rail reads the badge.
+     Deliberately **only** a gap, not a rule across the column: the boundary must stay a rank below the court
+     heading, or the grouping the heading was just made loud enough to state gets torn up again by a second
+     divider competing with it. Neutralised on the column's first card, where the heading is the boundary.
+     The number is the **whole** gap, not an addition to the 8px below the card before it: adjacent in-flow
+     margins collapse to the larger of the two, so this reads against that 8px rather than on top of it. */
+  .sched-match:not(:has(.sched-match__time--follows)) {
+    margin-top: 22px;
+  }
+  .sched-court__head + .sched-match {
+    margin-top: 0;
   }
   .sched-match__time {
     font-size: 13px;
@@ -439,9 +475,14 @@ const defaultMixerBlock = resolveSocialMixerBlock({ ...SOCIAL_MIXER_DEFAULT_PLAC
     color: var(--color-blue);
   }
   /* A follow-on time is a weaker claim than a court's first match, and it reads that way. The „ca." carries
-     that in two characters; this carries it a second time, for a phone in bright sunlight. */
+     that in two characters; this carries it a second time, for a phone in bright sunlight.
+     The gap widens under ADR-0075, but only on **weight**: with the rows now cards, this contrast also marks
+     a block boundary, so it has to read at a glance rather than on comparison. The tint stays where it was.
+     Fading it further was tried and reverted — a follow-on time is the *common* case on a court, so dimming
+     it to sharpen a boundary would have spent the legibility of most of the column's times on a signal the
+     wider gap above already carries. The weakening a hedge deserves is a lighter weight, not fainter ink. */
   .sched-match__time--follows {
-    font-weight: 700;
+    font-weight: 600;
     color: color-mix(in srgb, var(--color-navy) 60%, transparent);
   }
   /* The two contestant lines share **one** grid — identity · sets · outcome — so the sets line up down a
@@ -449,12 +490,23 @@ const defaultMixerBlock = resolveSocialMixerBlock({ ...SOCIAL_MIXER_DEFAULT_PLAC
      would not do it: „· Aufg." on the winner's line would widen only that line and shove its sets left,
      breaking the column on exactly the case the outcome token introduces. The lines dissolve into this
      grid (`display: contents`) and keep their element only as the hook the winner/tbd rules select on. */
+  /* This grid is also **the card** (ADR-0075). Roland-Garros' order of play is what prompted it, and the
+     card is where the borrowing stops: it is a **boundary**, saying where one match ends, and not a
+     destination. So a border and a radius, and none of the things that promise a tap — no fill, no shadow,
+     no hover lift — because there is nowhere for a tap to go. It wraps the contestants, their sets and the
+     meta line only: the time stays outside it in the left gutter and the „läuft" badge in the right one, so
+     the column keeps a straight edge of times to read down. Roland-Garros can afford the time inside the
+     card because only its first match of a block carries one; every card here has a time (ADR-0071), which
+     is exactly what makes the gutter worth keeping. */
   .sched-match__players {
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto auto;
     align-items: center;
     column-gap: 10px;
     min-width: 0;
+    padding: 10px 12px;
+    border: 1px solid color-mix(in srgb, var(--color-navy) 14%, transparent);
+    border-radius: 8px;
   }
   .sched-match__players .sched-match__player {
     display: contents;
@@ -568,8 +620,17 @@ const defaultMixerBlock = resolveSocialMixerBlock({ ...SOCIAL_MIXER_DEFAULT_PLAC
     text-transform: uppercase;
     color: color-mix(in srgb, var(--color-navy) 45%, transparent);
   }
+  /* Out of flow, in the card's bottom-right corner (ADR-0075). It used to be a grid item in an implicit
+     third column, which was right while the rows were separated by hairlines: an unbadged row simply did
+     not open the track. With the rows now cards that track became visible as a **narrower card on the one
+     running match** — a ragged right edge down the column, and the row a reader is hunting for clipping its
+     name earlier than its neighbours. Taking the badge out of flow gives every card the same width, and it
+     lands inside the frame rather than beside it, in the space the meta line leaves empty. The meta reserves
+     room for it only on the row that has one, so no other row pays. */
   .sched-status {
-    justify-self: end;
+    position: absolute;
+    right: 14px;
+    bottom: 10px;
     font-size: 10px;
     font-weight: 800;
     letter-spacing: 0.06em;
@@ -599,6 +660,12 @@ const defaultMixerBlock = resolveSocialMixerBlock({ ...SOCIAL_MIXER_DEFAULT_PLAC
      while a border is kept and recoloured. Same rail, same reason, on both surfaces. */
   .sched-match:has(.sched-status--running) {
     position: relative;
+  }
+  /* The badge sits over the meta line's tail, which is empty on every row this project produces — but only
+     because the meta is short, not because anything guarantees it. This buys the guarantee, on the one row
+     that needs it. */
+  .sched-match:has(.sched-status--running) .sched-match__meta {
+    padding-right: 56px;
   }
   .sched-match:has(.sched-status--running)::before {
     content: '';
@@ -711,14 +778,35 @@ const defaultMixerBlock = resolveSocialMixerBlock({ ...SOCIAL_MIXER_DEFAULT_PLAC
     }
     .sched-court__head {
       font-size: 10pt;
+      border-bottom-color: #000;
     }
 
     /* No row is ever cut in half by a page break, and none of its parts is cut off by the box either:
-       a name that no longer fits wraps onto a second line rather than ending in an ellipsis. */
+       a name that no longer fits wraps onto a second line rather than ending in an ellipsis.
+       **The card is a screen decision and is undone here** (ADR-0075). Six framed boxes per court is white
+       space the sheet at the results desk cannot spend — it would push the posted sheet onto a second page for a
+       boundary that a hairline states just as well on paper, where nothing scrolls and the eye has the whole
+       court in view at once. So the frame goes back to a rule under the row, and the block boundary keeps a
+       gap in front of it: half the screen's, which is all a stationary page needs. */
     .sched-match {
       break-inside: avoid;
       padding: 5pt 0;
-      border-bottom-color: rgba(0, 0, 0, 0.35);
+      margin-bottom: 0;
+      border-bottom: 0.5pt solid rgba(0, 0, 0, 0.35);
+    }
+    .sched-match:not(:has(.sched-match__time--follows)) {
+      margin-top: 8pt;
+    }
+    /* Repeated inside the query, not inherited from the screen rule: that one has the same specificity and
+       loses on source order to the line above, which would put a block gap above every court's first row —
+       the one place the heading is already the boundary. */
+    .sched-court__head + .sched-match {
+      margin-top: 0;
+    }
+    .sched-match__players {
+      padding: 0;
+      border: none;
+      border-radius: 0;
     }
     .sched-match__time,
     .sched-match__time--follows {
@@ -746,11 +834,19 @@ const defaultMixerBlock = resolveSocialMixerBlock({ ...SOCIAL_MIXER_DEFAULT_PLAC
     }
     /* The status keeps its word and loses its pill — the tint is what carried it on screen. The rail goes
        with the tint: „läuft" is true for the minute the sheet was printed, and a bar in the margin would
-       still be claiming it an hour later. */
+       still be claiming it an hour later.
+       It also goes back **into the flow**, at the row's end: out-of-flow placement exists to stop the badge
+       narrowing a card, and on paper there is no card for it to narrow — while an absolute box on a row a
+       page break may move is a way to print one word on top of another. */
     .sched-status {
+      position: static;
+      justify-self: end;
       padding: 0;
       background: none !important;
       color: #000 !important;
+    }
+    .sched-match:has(.sched-status--running) .sched-match__meta {
+      padding-right: 0;
     }
     /* Selected exactly as on screen, `:has` included: `:has()` carries the specificity of its argument, so
        a plain `.sched-match::before` here would lose to the screen rule and print the bar anyway. */
