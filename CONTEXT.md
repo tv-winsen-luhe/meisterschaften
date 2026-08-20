@@ -501,6 +501,21 @@ reveal sequence }`. Randomness enters through an injected **`RandomSource`** por
   - **Walkover (w.o.)** — opponent didn't appear; winner advances, no score.
   - **Retirement** (de: Aufgabe) — a player retires mid-match; partial score may be recorded.
     Every advancement — byes included — is represented as a match result, so the bracket stays uniform.
+
+  **Zwischenstand** — the same score arriving **early**: while a match is `running` the operator may save a
+  **completed set** as they learn it (a set told to them on the grounds), so the public surfaces show something
+  close to a live score. It is not a second datum and has no English identifier of its own — it is the match's
+  `score` with the later sets still null, written by a **separate act** (`/api/admin/match/set`) that resolves
+  nothing: no winner, no advancement, no status change. „Zwischenstand" is the **German UI word only**;
+  „Live-Stand" is refused for the same reason „Scoreboard" is — it would promise a freshness a single desk
+  cannot keep (ADR-0032 amendment). Because a **decisive** score ends the match, there are only ever two of
+  them: „set 1 stands" and „1:1, the MTB is running". Each saved set is a completed set, so it is bound by
+  **Legal score** like any other — a running set's `3:2` is not a coarse reading, it is an illegal set. It reads
+  in the ordinary **score column** beside the „läuft" badge, with **no winner mark** (there is no `winnerRegId`
+  yet) and no „Satz 2 läuft" phrase; nothing announces the feature anywhere. Its finest grain is the set,
+  permanently: game- and point-level live scoring stays refused (no courtside data source).
+  _(See ADR-0032, ADR-0045.)_
+
 - **Advancement** — how a result propagates through the bracket. Resolving a match writes its
   `winnerRegId` and sends the winner into the **parent** match's open slot (fixed by the child's position
   parity) — that is how "winner M3 vs winner M4" fills in. Semifinals also route their **loser** down a
@@ -627,8 +642,9 @@ reveal sequence }`. Randomness enters through an injected **`RandomSource`** por
   the planned court/slot stay as the published plan while the live court reflects reality. The operator
   updates the status; the public live view reflects it in near-real-time so off-site followers can track
   what is on court now. The status transition is itself the **live signal**: set scores may be saved
-  opportunistically per completed set, but there is **no game- or point-level live scoring** — the single
-  desk has no courtside data source. _(See ADR-0032.)_
+  opportunistically per completed set (the **Zwischenstand**, above — a separate act that never moves the
+  status, so `running` and its live court stay the operator's explicit statement), but there is **no game- or
+  point-level live scoring** — the single desk has no courtside data source. _(See ADR-0032.)_
 - **Schedule & results page** (de: Spielplan & Ergebnisse) — the public weekend page at `/spielplan`, and
   the **one** surface that owns the schedule and the results together: a row moves `geplant → läuft →
 beendet mit Score` in place rather than migrating to a separate results page (ADR-0070 §1). It is **one
