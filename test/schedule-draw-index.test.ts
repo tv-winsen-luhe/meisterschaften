@@ -23,19 +23,19 @@ const node = (competition: string, bracket: string, round: number, position: num
 
 describe('indexScheduleByNode', () => {
   it('keys court + derived ca. time by (competition, bracket, round, position)', () => {
-    // Court 3, Saturday slot 7 → 14:00 (Saturday opens at 10:30, ADR-0068) — the issue's „Platz 3 · Sa 14:00".
-    const index = indexScheduleByNode([node('mens', 'main', 1, 0, { court: 3, day: 0, slot: 7 })])
+    // Court 3, Saturday slot 8 → 14:00 (Saturday opens at 10:00, ADR-0071) — the issue's „Platz 3 · Sa 14:00".
+    const index = indexScheduleByNode([node('mens', 'main', 1, 0, { court: 3, day: 0, slot: 8 })])
     expect(index.get(scheduleNodeKey('mens', 'main', 1, 0))).toEqual({ court: 3, day: 0, time: '14:00' })
   })
 
   it('resolves multiple rounds, each at its own (round, position)', () => {
     // Two semifinals feed the final on the next day — a later round indexes the same way as round 1.
     const index = indexScheduleByNode([
-      node('mens', 'main', 1, 0, { court: 1, day: 0, slot: 0 }), // Saturday 10:30
-      node('mens', 'main', 1, 1, { court: 2, day: 0, slot: 2 }), // Saturday 11:30
+      node('mens', 'main', 1, 0, { court: 1, day: 0, slot: 0 }), // Saturday 10:00
+      node('mens', 'main', 1, 1, { court: 2, day: 0, slot: 3 }), // Saturday 11:30
       node('mens', 'main', 2, 0, { court: 5, day: 1, slot: 4 }) // Sunday 12:00
     ])
-    expect(index.get(scheduleNodeKey('mens', 'main', 1, 0))).toMatchObject({ court: 1, time: '10:30' })
+    expect(index.get(scheduleNodeKey('mens', 'main', 1, 0))).toMatchObject({ court: 1, time: '10:00' })
     expect(index.get(scheduleNodeKey('mens', 'main', 1, 1))).toMatchObject({ court: 2, time: '11:30' })
     expect(index.get(scheduleNodeKey('mens', 'main', 2, 0))).toMatchObject({ court: 5, day: 1, time: '12:00' })
   })

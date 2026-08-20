@@ -3,11 +3,12 @@ import { scheduleView } from '../shared/match-view'
 import type { MatchScore, ScheduleMatch, ScheduleSlot } from '../shared'
 import type { ScheduleViewOptions } from '../shared/match-view'
 
-// The public schedule's projection (ADR-0069, #308): the one place that turns the schedule feed
+// The public schedule's projection (ADR-0071, #308): the one place that turns the schedule feed
 // into the tree the page renders — day → court → rows — and the one place that decides how a planned time
-// is *said*. The rule under test is the floor rule: a court's first match of the day (and every match that
-// opens a new block after a gap in that court's reservation chain) states a clock time, „ab HH:MM"; a match
-// whose reservation abuts the one before it on that court states „im Anschluss · nicht vor ca. HH:MM".
+// is *said*. The rule under test: a court's first match of the day (and every match that opens a new block
+// after a gap in that court's reservation chain) states a plain clock time, „HH:MM", because nothing in
+// front of it can push it; a match whose reservation abuts the one before it on that court hedges,
+// „ca. HH:MM".
 //
 // Asserted at the interface only — finished German strings and a finished order — because that is the whole
 // contract the renderer consumes. There is no clock here and none in the module: every case below is a pure
@@ -67,43 +68,43 @@ const times = (matches: ScheduleMatch[], court = 1): string[] =>
     .days[0].courts.find(c => c.court === court)
     ?.rows.map(r => r.publishedTime) ?? []
 
-describe('scheduleView · the published time is a floor, never a point (ADR-0069)', () => {
-  it('states a clock time for a court’s first match of the day', () => {
-    // Saturday opens at 10:30 (ADR-0068), so slot 0 is 10:30 — and it is the one time on the page that is
-    // an actual start rather than an estimate, because nothing can run late into it.
-    expect(times([match({ id: 1, court: 1, slot: 0 })])).toEqual(['ab 10:30'])
+describe('scheduleView · the time is plain when nothing can push it, hedged when something can (ADR-0071)', () => {
+  it('states a plain clock time for a court’s first match of the day', () => {
+    // Both days open at 10:00 (ADR-0071), so slot 0 is 10:00 — and it carries no „ca.", because nothing can
+    // run late into it. The absence of the hedge is the claim.
+    expect(times([match({ id: 1, court: 1, slot: 0 })])).toEqual(['10:00'])
   })
 
-  it('says „im Anschluss" only where the reservations actually abut', () => {
+  it('hedges with „ca." only where the reservations actually abut', () => {
     // A 90-minute reservation spans three 30-minute steps, so slot 3 begins exactly where slot 0 ends.
-    // 12:00 is then a floor: the match before it can overrun, never underrun.
+    // 11:30 can then only be missed late: the match before it can overrun, never underrun.
     expect(times([match({ id: 1, court: 1, slot: 0 }), match({ id: 2, court: 1, slot: 3 })])).toEqual([
-      'ab 10:30',
-      'im Anschluss · nicht vor ca. 12:00'
+      '10:00',
+      'ca. 11:30'
     ])
   })
 
   it('re-anchors a match that opens a new block after a gap', () => {
-    // Slot 0 ends at 12:00 and the next reservation starts at 13:00 — an hour of air. „Im Anschluss" would
-    // be a lie about that hour, so the row states its own clock time again.
+    // Slot 0 ends at 11:30 and the next reservation starts at 12:30 — an hour of air. Nothing is waiting to
+    // push this start, so the row drops the hedge.
     expect(times([match({ id: 1, court: 1, slot: 0 }), match({ id: 2, court: 1, slot: 5 })])).toEqual([
-      'ab 10:30',
-      'ab 13:00'
+      '10:00',
+      '12:30'
     ])
   })
 
   it('treats the mixer block’s hole in a court as the gap it is (ADR-0064)', () => {
     // The Social mixer holds courts 12:00–15:00 (ADR-0063); a championship match after it starts at 15:00 =
-    // slot 9. The block never reaches this feed — it is simply a court with no reservation in between, and
+    // slot 10. The block never reaches this feed — it is simply a court with no reservation in between, and
     // that is exactly what breaks the chain.
-    expect(times([match({ id: 1, court: 1, slot: 0 }), match({ id: 2, court: 1, slot: 9 })])).toEqual([
-      'ab 10:30',
-      'ab 15:00'
+    expect(times([match({ id: 1, court: 1, slot: 0 }), match({ id: 2, court: 1, slot: 10 })])).toEqual([
+      '10:00',
+      '15:00'
     ])
   })
 
-  it('states a clock time for a court that carries exactly one match', () => {
-    expect(times([match({ id: 1, court: 1, slot: 4 })])).toEqual(['ab 12:30'])
+  it('states a plain time for a court that carries exactly one match', () => {
+    expect(times([match({ id: 1, court: 1, slot: 4 })])).toEqual(['12:00'])
   })
 
   it('chains onward through a three-match court', () => {
@@ -113,45 +114,45 @@ describe('scheduleView · the published time is a floor, never a point (ADR-0069
         match({ id: 2, court: 1, slot: 3 }),
         match({ id: 3, court: 1, slot: 6 })
       ])
-    ).toEqual(['ab 10:30', 'im Anschluss · nicht vor ca. 12:00', 'im Anschluss · nicht vor ca. 13:30'])
+    ).toEqual(['10:00', 'ca. 11:30', 'ca. 13:00'])
   })
 
-  it('gives the second day its own first start', () => {
-    // Sunday opens at 10:00, Saturday at 10:30 (ADR-0068) — the same slot 0 is a different clock time, and
-    // a court’s chain never runs across the night.
+  it('gives each day its own first start', () => {
+    // Both days currently open at 10:00 (ADR-0071), but the arithmetic stays per-day — and a court’s chain
+    // never runs across the night, so day 1 slot 0 anchors on its own rather than following day 0’s last.
     const { days } = view([match({ id: 1, court: 1, slot: 0, day: 0 }), match({ id: 2, court: 1, slot: 0, day: 1 })])
     expect(days.map(d => d.label)).toEqual(['Samstag · 22.08.', 'Sonntag · 23.08.'])
-    expect(days[0].courts[0].rows.map(r => r.publishedTime)).toEqual(['ab 10:30'])
-    expect(days[1].courts[0].rows.map(r => r.publishedTime)).toEqual(['ab 10:00'])
+    expect(days[0].courts[0].rows.map(r => r.publishedTime)).toEqual(['10:00'])
+    expect(days[1].courts[0].rows.map(r => r.publishedTime)).toEqual(['10:00'])
   })
 
-  it('carries whether the floor is a follow-on, so a caller never reads the German back', () => {
+  it('carries whether the time is a follow-on, so a caller never reads the German back', () => {
     const { rows } = view([match({ id: 1, court: 1, slot: 0 }), match({ id: 2, court: 1, slot: 3 })]).days[0].courts[0]
     expect(rows.map(r => r.followsOn)).toEqual([false, true])
   })
 
-  it('anchors an overlapping pair rather than claiming a floor it already broke', () => {
+  it('anchors an overlapping pair rather than hedging against a predecessor it does not follow', () => {
     // Two starts on one court are never closer than a full reservation on a valid plan — occupancy is
     // interval-based and server-enforced (ADR-0040). But a *running* match reports its **actual** court
     // (ADR-0032), so an operator moving a live match onto a busy court puts it inside that court's chain.
-    // The previous reservation is then still covering this start, so „nicht vor ca. 10:30" would state a
-    // floor already known to be broken. „ab" is the weaker and therefore safe claim.
+    // That is an overlap, not a follow-on: the previous reservation is still covering this start, so the
+    // plain time — which promises nothing about a predecessor — is the safe claim.
     const { rows } = view([match({ id: 1, court: 1, slot: 0 }), match({ id: 2, court: 1, slot: 1, status: 'running' })])
       .days[0].courts[0]
-    expect(rows.map(r => r.publishedTime)).toEqual(['ab 10:30', 'ab 11:00'])
+    expect(rows.map(r => r.publishedTime)).toEqual(['10:00', '10:30'])
     expect(rows.map(r => r.followsOn)).toEqual([false, false])
   })
 
   it('reads the chain off the whole court, not off the filtered rows', () => {
     // The reservation chain is a fact about the court; the filter is a fact about the reader. A women’s
     // match that follows a men’s match still follows it, so hiding the men’s row must not promote the
-    // women’s row to „ab".
+    // women’s row to a plain, unpushable time.
     const matches = [
       match({ id: 1, court: 1, slot: 0, competition: 'mens' }),
       match({ id: 2, court: 1, slot: 3, competition: 'womens' })
     ]
     const filtered = view(matches, { competition: 'womens' })
-    expect(filtered.days[0].courts[0].rows.map(r => r.publishedTime)).toEqual(['im Anschluss · nicht vor ca. 12:00'])
+    expect(filtered.days[0].courts[0].rows.map(r => r.publishedTime)).toEqual(['ca. 11:30'])
   })
 })
 

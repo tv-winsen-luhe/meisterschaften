@@ -19,7 +19,7 @@ import type { HardViolation, PlacementCandidate, PlacementValidation, SoftViolat
 // The 90 minutes is a **reservation width**, an average from experience — not a match length, which varies
 // widely (ADR-0069). The occupancy arithmetic here is right either way; what it must not do is let a public
 // surface state a later match's start as a clock time it can only miss in one direction.
-// Each event day has its own first start (Saturday 10:30, Sunday 10:00 — ADR-0068), so `slotTime` is day-aware. The
+// Each event day has its own first start — both open at 10:00 (ADR-0071), so `slotTime` is day-aware. The
 // numeric shape lives here (the single source both clients size the grid from); the day *labels*
 // („Samstag 22.08.") stay in src/data/tournament.ts, the home of the event's date copy. Per-court evening
 // windows below make the grid lopsided — the floodlit pair reach later than the dark four (ADR-0040) —
@@ -32,18 +32,20 @@ export const SCHEDULE = {
   // lasts (ADR-0069) — the name is kept because it is what the grid reserves per match.
   matchMinutes: 90,
   slotMinutes: 30,
-  // 30-minute start slots per day, sized by the **earliest-starting** day's reach to 20:30 (the latest
-  // start the floodlit courts 5 & 6 allow before the 22:00 quiet-hours curfew): Sunday opens at 10:00, so
-  // 10:00 → 20:30 at a 30-minute cadence = 22 slots. A uniform grid height for both days; Saturday opens
-  // later, so its last rows are simply out of every court's window. The per-court evening windows (below)
-  // gate which rows each court may actually take, on both days.
+  // 30-minute start slots per day, sized by each day's reach to 20:30 (the latest start the floodlit
+  // courts 5 & 6 allow before the 22:00 quiet-hours curfew): both days open at 10:00, so 10:00 → 20:30 at
+  // a 30-minute cadence = 22 slots. The per-court evening windows (below) gate which of those rows each
+  // court may actually take.
   slotsPerDay: 22,
-  // Minutes-from-midnight of each day's first start (ADR-0068). The two days differ: **Saturday 10:30**
-  // (the courts carry a youth fixture in the morning and the organizer starts the championship after it),
-  // **Sunday 10:00** (the finals day runs a longer programme). Indexed by the event day (0 = Saturday,
-  // 1 = Sunday) and read by `slotTime` — the per-day start ADR-0040 made expressible, now actually used,
-  // so slot 0 is a different clock time on each day.
-  dayStartMinutes: [10 * 60 + 30, 10 * 60],
+  // Minutes-from-midnight of each day's first start. Both days open at **10:00** (ADR-0071): the youth
+  // fixture that once pushed Saturday to 10:30 (ADR-0068) occupies only courts 5 & 6 until 10:30, and the
+  // championship needs four — so courts 1–4 are free from 10:00 and Saturday no longer has to wait. That
+  // court split is deliberately *not* modelled (ADR-0071): Saturday's parallel cap is already 4, which is
+  // exactly how many courts are free that morning, so the count the desk can carry and the courts the
+  // youth leave over coincide. Indexed by the event day (0 = Saturday, 1 = Sunday) and read by `slotTime`.
+  // The per-day mechanism ADR-0040 made expressible stays even though the two values now agree, so the
+  // days can diverge again without code change.
+  dayStartMinutes: [10 * 60, 10 * 60],
   // The floodlit courts (ADR-0040): only courts 5 & 6 have lights, so only they may run on into the dark.
   // They are the overflow valve for a packed Saturday, reaching the 22:00 curfew while the four dark
   // courts must clear in daylight.
@@ -105,7 +107,7 @@ export const slotStartMinutes = (day: number, slot: number): number =>
  * The approximate clock time of a (day, slot) on the grid, "HH:MM" (24h). Times are explicitly a plan,
  * shown „ca." — the live truth is the match status, not a rewritten time (ADR-0032). Day-aware via
  * `dayStartMinutes` (ADR-0040), so each day carries its own first start and slot 0 is a different clock
- * time on each: Saturday opens at 10:30 (slot 0 = 10:30, slot 1 = 11:00, …), Sunday at 10:00 (ADR-0068).
+ * time on each; both currently open at 10:00 (slot 0 = 10:00, slot 1 = 10:30, … — ADR-0071).
  * An out-of-range day falls back to the first day's start rather than producing NaN. Public copy that
  * promises a start time derives it from here (`tournament.startTime`) rather than restating it.
  */

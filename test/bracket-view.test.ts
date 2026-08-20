@@ -162,20 +162,20 @@ describe('bracketView · the plan is joined, the result is not (ADR-0070)', () =
     expect(cell.slot1.winner).toBe(true)
   })
 
-  it('states the court and the floor when the plan is published', () => {
+  it('states the court and the published time when the plan is published', () => {
     const view = bview([decided], [match({ id: 1, court: 3, slot: 0 })])
-    expect(cellAt(view, 1, 0).schedule).toEqual({ where: 'Platz 3 · Sa', time: 'ab 10:30', followsOn: false })
+    expect(cellAt(view, 1, 0).schedule).toEqual({ where: 'Platz 3 · Sa', time: '10:00', followsOn: false })
   })
 
-  it('follows the floor rule in the footer rather than claiming „ca. HH:MM" (ADR-0069)', () => {
+  it('hedges the footer exactly where /spielplan hedges it (ADR-0071)', () => {
     const view = bview(
       [decided, bMatch({ round: 1, position: 1, number: 2 })],
       [match({ id: 1, court: 3, slot: 0, position: 0 }), match({ id: 2, court: 3, slot: 3, position: 1 })]
     )
-    expect(cellAt(view, 1, 0).schedule).toMatchObject({ time: 'ab 10:30', followsOn: false })
+    expect(cellAt(view, 1, 0).schedule).toMatchObject({ time: '10:00', followsOn: false })
     expect(cellAt(view, 1, 1).schedule).toMatchObject({
       where: 'Platz 3 · Sa',
-      time: 'im Anschluss · nicht vor ca. 12:00',
+      time: 'ca. 11:30',
       followsOn: true
     })
   })
@@ -191,12 +191,12 @@ describe('bracketView · the plan is joined, the result is not (ADR-0070)', () =
         match({ id: 1, court: 3, slot: 3, competition: 'mens', position: 0 })
       ]
     )
-    expect(cellAt(view, 1, 0).schedule).toMatchObject({ time: 'im Anschluss · nicht vor ca. 12:00' })
+    expect(cellAt(view, 1, 0).schedule).toMatchObject({ time: 'ca. 11:30' })
   })
 
   it('joins a match on the day it is actually played', () => {
     const view = bview([decided], [match({ id: 1, court: 1, slot: 0, day: 1 })])
-    expect(cellAt(view, 1, 0).schedule).toEqual({ where: 'Platz 1 · So', time: 'ab 10:00', followsOn: false })
+    expect(cellAt(view, 1, 0).schedule).toEqual({ where: 'Platz 1 · So', time: '10:00', followsOn: false })
   })
 })
 

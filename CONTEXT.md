@@ -508,10 +508,11 @@ reveal sequence }`. Randomness enters through an injected **`RandomSource`** por
   A placement reserves a **fixed 90 minutes** of court time — the planning estimate, not the match's
   length (ADR-0069) — while the **start** is set on a **30-minute** cadence, so a placement holds its court
   for the interval `[start, start+90)` — **court occupancy is interval overlap, not a shared cell**
-  (ADR-0040). Each event day carries its own first start — **Saturday 10:30**
-  (the courts hold a youth fixture that morning), **Sunday 10:00** — and each court its own evening window
-  (see Court). The grid is as tall as the **earliest-starting** day's reach to the last curfew start, so
-  the later day's last rows simply fall outside every court's window (ADR-0068). _Block (hard):_ a match before its real
+  (ADR-0040). Each event day carries its own first start — both currently **10:00** — and each court its
+  own evening window (see Court). Saturday's youth fixture occupies only two courts and the championship
+  needs four, so it no longer pushes the day's start back; the courts it holds are **not** modelled, because
+  Saturday's parallel cap is already the number of courts left over (ADR-0071). The per-day mechanism stays
+  even while the two values agree, so the days can diverge again (ADR-0068). _Block (hard):_ a match before its real
   (non-bye) feeder chain — enforced **structurally**, so it cannot sit earlier than that chain allows even
   before the feeders are placed; a same-court interval overlap; **a player in two time-overlapping matches**
   (physically impossible — one body, two courts); and a start past a court's evening window. _Warn (soft,
@@ -621,23 +622,24 @@ reveal sequence }`. Randomness enters through an injected **`RandomSource`** por
   shows the **current truth, never the stale plan**: a match's court is the **actual** live court once it
   is running (falling back to the planned court only before it starts), so a spectator is never sent to
   the wrong court. Published planned times stay static — they are stated as a **Published time** (below),
-  a floor rather than a point — and their drift is communicated through Match status (läuft/beendet), not
+  hedged with „ca." wherever a match waits on the one in front of it — and their drift is communicated
+  through Match status (läuft/beendet), not
   by continuously rescheduling; the **court** always reflects reality. It is **one event-wide page** across
   all competitions (a competition filter, not per-field pages), grouped **day → court** and led by a
   „jetzt auf dem Platz" courts board; the per-competition brackets stay separate surfaces that fill with
   the same results. _(See ADR-0008, ADR-0032, ADR-0069.)_
-- **Published time** (de: veröffentlichte Zeit) — what the public schedule says about _when_, given that
-  the 90 minutes is a reservation and not a match length (Schedule, ADR-0069). It is a **floor, never a
-  point**: a court's first match of the day — and every match that opens a fresh block after a **gap** in
-  that court's reservation chain — reads „**ab HH:MM**"; a match whose reservation directly abuts the one
-  before it reads „**im Anschluss · nicht vor ca. HH:MM**". „Im Anschluss" is therefore only ever said
-  where the reservations actually touch (the next start is exactly one match-width later); a planned gap —
-  the Mixer block, an evening window, plain air — **breaks the chain** and the row re-anchors with its own
-  clock time. „nicht vor" is honest in the one direction a tournament day moves: later, never earlier, and
-  it keeps a floor the players who drive home between matches can plan against — which a bare
-  „im Anschluss" would throw away. Because „im Anschluss" only means anything **inside one court's
-  column**, the public schedule groups **day → court** as a fixed hierarchy; there is no day-vs-court
-  grouping choice, and „what is on right now" is the Live board's job, not a grouping's. _(See ADR-0069.)_
+- **Published time** (de: veröffentlichte Zeit) — what the public schedule says about _when_. It is always a
+  **clock time**, and the only question is whether it carries a hedge, which is a statement about what can
+  still move it (ADR-0071): a court's first match of the day — and every match that opens a fresh block
+  after a **gap** in that court's reservation chain — reads a **plain „HH:MM"**, because nothing in front of
+  it can push it; a match whose reservation directly abuts the one before it reads „**ca. HH:MM**", because
+  the 90 minutes it waits on is a reservation width, not a match length (Schedule, ADR-0069 §1). The hedge is
+  therefore only ever said where the reservations actually touch (the next start is exactly one match-width
+  later); a planned gap — the Mixer block, an evening window, plain air — **breaks the chain** and the row
+  behind it re-anchors to a plain time. The number stays in front of the hedge, because the number is what a
+  player who drives home between matches plans against. The public schedule groups **day → court** as a fixed
+  hierarchy — the court is the column a player reads down for their own afternoon — and „what is on right
+  now" is the Live board's job, not a grouping's. _(See ADR-0071, revising ADR-0069.)_
 - **Match row** (de: Match-Zeile) — the one shape a match is displayed in on the public surfaces, in the
   anatomy a tennis spectator already reads fluently (ADR-0070): its two **contestant lines** — club crest,
   full name (never an initial), the **seed** as a small trailing token, and that slot's games — its

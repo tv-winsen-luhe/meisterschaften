@@ -375,8 +375,8 @@ const drawCompetitions = drawableCompetitions(competitions)
     position: relative;
   }
 
-  /* The caption above a matchup (#159): court + day, then the floor („ab 14:00" / „im Anschluss · nicht vor
-     ca. 14:00", ADR-0069) and — for a match on court right now — the „läuft" badge. Small, muted and tabular
+  /* The caption above a matchup (#159): court + day, then the published time („14:00" / „ca. 14:00",
+     ADR-0071) and — for a match on court right now — the „läuft" badge. Small, muted and tabular
      so the times align down a column.
 
      In the live tree it is emitted even when empty, because it is the **gated** half of the cell (ADR-0070):
@@ -398,9 +398,9 @@ const drawCompetitions = drawableCompetitions(competitions)
     font-variant-numeric: tabular-nums;
     color: color-mix(in srgb, var(--color-navy) 50%, transparent);
   }
-  /* The floor reads quieter as a follow-on than as an anchored start: „ab 14:00" is a time the court holds,
-     „im Anschluss …" is a bound on one that can only move later. It is also the longest string in the
-     header, so it takes the ellipsis rather than pushing the court out. */
+  /* The time reads quieter as a follow-on than as a court's first match: „14:00" is a time the court holds,
+     „ca. 14:00" one that can only move later. It is also the longest string in the header, so it takes the
+     ellipsis rather than pushing the court out. */
   .dm-when__time {
     min-width: 0;
     overflow: hidden;
@@ -945,9 +945,9 @@ const drawCompetitions = drawableCompetitions(competitions)
         const view = renderLive(
           { segments: segmentsEl, rounds: roundsEl, bracket },
           entry,
-          // The whole feed, not the per-node index: the cell footer states a floor („im Anschluss · nicht
-          // vor ca. 14:00", ADR-0069), which depends on the court's other reservations — including matches
-          // of fields this tree never draws. The score is not taken from here (ADR-0070).
+          // The whole feed, not the per-node index: whether the cell footer hedges its time („ca. 14:00",
+          // ADR-0071) depends on the court's other reservations — including matches of fields this tree
+          // never draws. The score is not taken from here (ADR-0070).
           schedule,
           { segment: segmentByComp.get(slug) ?? 'main', round: roundByComp.get(slug) ?? 1 },
           {

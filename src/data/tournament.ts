@@ -24,7 +24,7 @@ export interface Competition {
   status: CompetitionStatus
 }
 
-const TOURNAMENT_START = new Date('2026-08-22T10:30:00+02:00')
+const TOURNAMENT_START = new Date('2026-08-22T10:00:00+02:00')
 const SIGNUP_DEADLINE = new Date('2026-08-19T23:59:00+02:00')
 
 export const venue = {
@@ -162,9 +162,9 @@ export const tournament = {
   /** "Sa/So, 22.-23.08.2026" */
   longWithWeekdays: 'Sa/So, 22.-23.08.2026',
   /**
-   * "10:30" — Saturday's first start, *derived* from the grid rather than restated (ADR-0068). The two
-   * days no longer open at the same time, and the public copy that promises a start time must be the same
-   * number the schedule's first „ca." slot shows.
+   * "10:00" — Saturday's first start, *derived* from the grid rather than restated (ADR-0068, ADR-0071).
+   * The public copy that promises a start time must be the same number the schedule's first row shows, and
+   * the grid is where that number is decided.
    */
   startTime: slotTime(0, 0),
   saturday: { weekday: 'Samstag', short: '22.08.' },

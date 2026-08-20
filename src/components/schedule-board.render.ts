@@ -6,8 +6,8 @@ import type { CourtCell, DayGroup, MatchRow, CompetitionOption, RowSlot } from '
 // the finished schedule view into elements, split out of spielplan.astro so the page's `<script>` stays a
 // thin fetch/state/poll controller — the same split the public bracket already has (tournament-draw.render.ts).
 //
-// Deliberately **thin**. Every decision — the day → court grouping, the ordering, the „ab HH:MM" against
-// „im Anschluss · nicht vor ca. HH:MM" floor, the labels, the score line, the degradation to „offen" — lives
+// Deliberately **thin**. Every decision — the day → court grouping, the ordering, the plain „HH:MM" against
+// the hedged „ca. HH:MM", the labels, the score line, the degradation to „offen" — lives
 // behind `scheduleView` in shared/match-view. What is left here is a translation: this module sorts nothing
 // and concatenates no display string, it only puts finished German text into finished nodes. That is what
 // makes it uninteresting enough not to need a DOM test (#304).
@@ -102,9 +102,10 @@ const courtCell = (cell: CourtCell, logos: Logos): HTMLElement => {
 
 const matchRow = (row: MatchRow, logos: Logos): HTMLElement => {
   const el = elem('div', 'sched-match')
-  // „ab 10:30" or „im Anschluss · nicht vor ca. 14:00" — a floor, never a point (ADR-0069). Which of the
+  // „10:00" when nothing can push it, „ca. 14:00" when it follows on this court (ADR-0071). Which of the
   // two it is comes from the view as a fact, never from reading the German back: the follow-on line reads
-  // quieter than an anchored start, and a reworded label must not silently drop the distinction.
+  // quieter than an anchored start — the „ca." is two characters and the dimming carries the same fact a
+  // second time, which is what survives a phone in bright sunlight.
   const time = elem('div', 'sched-match__time', row.publishedTime)
   if (row.followsOn) time.classList.add('sched-match__time--follows')
   el.append(time)
@@ -118,8 +119,8 @@ const matchRow = (row: MatchRow, logos: Logos): HTMLElement => {
 }
 
 // One day: its heading, then one „Platz N" column per court that carries a match on it. The court is the
-// unit a spectator reads down — top to bottom is the order of play on that court, which is the only frame
-// in which „im Anschluss" is true.
+// unit a spectator reads down — top to bottom is the order of play on that court, and the frame in which a
+// „ca." earns its hedge (ADR-0071).
 const daySection = (day: DayGroup, logos: Logos): HTMLElement => {
   const el = elem('section', 'sched-day')
   el.append(elem('h2', 'sched-day__head', day.label))

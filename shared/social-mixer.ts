@@ -61,8 +61,8 @@ export const socialMixerCourts = (confirmed: number): number[] => {
 
 /**
  * The start slots the block may take on a given day: every 30-minute start whose three hours are over by
- * the ~20:00 daylight bound — that is 10:30 through 17:00 on Saturday and 10:00 through 17:00 on Sunday,
- * the same clock bound off two different first starts (ADR-0068).
+ * the ~20:00 daylight bound — that is 10:00 through 17:00 on both days, which now open at the same time
+ * (ADR-0071); the arithmetic stays per-day so a divergent first start would be picked up on its own.
  * Deliberately **one flat bound** rather than the per-court evening windows (ADR-0040) — court 4 is dark
  * while 5 and 6 are floodlit, so a per-court rule would make the legal start times a function of the
  * head-count, and a late registration could then invalidate a time the operator had already chosen
