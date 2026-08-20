@@ -12,8 +12,8 @@ const defaultMixerBlock = resolveSocialMixerBlock({ ...SOCIAL_MIXER_DEFAULT_PLAC
 // The public event-wide schedule + live board (ADR-0005, ADR-0032, ADR-0069, #91, #308): one page for the
 // whole weekend that always shows the current truth, never the stale plan. It leads with a „Jetzt auf dem
 // Platz" courts board — the 6 courts, each showing what is live on it right now (or „frei") — over a
-// schedule grouped **day → court** that reflects status (geplant/läuft/beendet) and shows results for
-// finished matches, and can be filtered by competition.
+// schedule grouped **day → court** that marks the match on court right now („läuft" — the page's only badge,
+// #327) and shows results for finished matches, and can be filtered by competition.
 //
 // The grouping is fixed, and the old „Nach Tag" / „Nach Platz" toggle stays gone (ADR-0071): the court is
 // the column a player reads down to find their own afternoon, and „what is on right now" is the courts
@@ -33,8 +33,8 @@ const defaultMixerBlock = resolveSocialMixerBlock({ ...SOCIAL_MIXER_DEFAULT_PLAC
       oben nach unten die Reihenfolge auf diesem Platz. Das erste Match auf einem Platz hat eine{' '}
       <strong>feste Zeit</strong> — davor liegt nichts, was es verschieben könnte. Alle weiteren stehen mit{' '}
       <strong>„ca."</strong>: sie fangen an, wenn das Match davor auf diesem Platz fertig ist, und 90 Minuten sind ein
-      Erfahrungswert, keine Regel. Früher fängt also nichts an, später schon. Was wirklich passiert, steht im Status:
-      läuft oder beendet mit Ergebnis.
+      Erfahrungswert, keine Regel. Früher fängt also nichts an, später schon. Was wirklich passiert, steht in der Zeile:
+      <strong>„läuft"</strong> beim Match, das gerade auf dem Platz ist — und beim fertigen das Ergebnis.
     </p>
 
     <!-- The Social mixer's reserved court-time (ADR-0064, ADR-0063). It sits **outside** `[data-board]` on
@@ -324,10 +324,13 @@ const defaultMixerBlock = resolveSocialMixerBlock({ ...SOCIAL_MIXER_DEFAULT_PLAC
     color: color-mix(in srgb, var(--color-navy) 55%, transparent);
   }
   /* Time · contestants · status. The time column now holds at most „ca. 14:00" on one line (ADR-0071), so it
-     is narrower than the two-line floor needed — the names get the width back. */
+     is narrower than the two-line floor needed — the names get the width back. The status column is
+     **implicit** (two declared tracks, flow by column), because only a running match carries a badge (#327):
+     a third declared track would hold a 12px gap open on every other row, reserving space for nothing. */
   .sched-match {
     display: grid;
-    grid-template-columns: 68px 1fr auto;
+    grid-template-columns: 68px 1fr;
+    grid-auto-flow: column;
     align-items: center;
     gap: 12px;
     padding: 12px 4px;
@@ -470,17 +473,11 @@ const defaultMixerBlock = resolveSocialMixerBlock({ ...SOCIAL_MIXER_DEFAULT_PLAC
     padding: 2px 7px;
     border-radius: 999px;
   }
-  .sched-status--planned {
-    color: color-mix(in srgb, var(--color-navy) 60%, transparent);
-    background: color-mix(in srgb, var(--color-navy) 7%, transparent);
-  }
+  /* „läuft" is the only badge the page prints, so it is the only one tinted — a planned or finished row
+     appends no status element at all, and the quiet grey pills those two used to wear are gone with them. */
   .sched-status--running {
     color: var(--color-live);
     background: color-mix(in srgb, var(--color-live) 12%, transparent);
-  }
-  .sched-status--done {
-    color: color-mix(in srgb, var(--color-navy) 55%, transparent);
-    background: color-mix(in srgb, var(--color-navy) 5%, transparent);
   }
 
   /* ── Print ────────────────────────────────────────────────────────────────────────────────────── */

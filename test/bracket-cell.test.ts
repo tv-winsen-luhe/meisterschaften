@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import { bracketView } from '../shared/bracket-view'
+import { scheduleView } from '../shared/match-view'
 import type { LiveBracket, LiveBracketMatch, LiveBracketSlot, MatchScore, ScheduleMatch, ScheduleSlot } from '../shared'
 import type { BracketViewOptions } from '../shared/bracket-view'
+import type { ScheduleViewOptions } from '../shared/match-view'
 
 // What one **bracket cell** reads like (ADR-0070, #311) — the sibling of bracket-view.test.ts the same way
 // match-row.test.ts is the sibling of match-view.test.ts. Split by question rather than by size: that file
@@ -187,6 +189,29 @@ describe('bracketView · the cell carries its own score (ADR-0070)', () => {
     const cell = cellAt(view, 1, 0)
     expect(cell.slot2).toMatchObject({ games: '', outcome: 'w.o.' })
     expect(cell.slot1.outcome).toBeNull()
+  })
+})
+
+// Which states earn a badge is one rule read by two surfaces (#327): the cell has marked „läuft" and only
+// that since ADR-0070, and the row now does the same. Asserted as an equality between the two views rather
+// than twice against the same literal, so the pair cannot drift apart again without a failure that says so.
+describe('the schedule row and the bracket cell mark the same states', () => {
+  const SCHEDULE_OPTIONS: ScheduleViewOptions = { days: DAYS, competitions: [{ slug: 'mens', label: 'Herren' }] }
+
+  const rowLabel = (status: ScheduleMatch['status']) =>
+    scheduleView({ matches: [match({ id: 1, court: 1, slot: 0, status })] }, SCHEDULE_OPTIONS).days[0].courts[0].rows[0]
+      .statusLabel
+
+  const cellLabel = (status: LiveBracketMatch['status']) =>
+    cellAt(bview([bMatch({ round: 1, position: 0, number: 1, status })]), 1, 0).statusLabel
+
+  it('agrees on every status a match can be in', () => {
+    // The expected label rides along, so the equality cannot be satisfied by both surfaces going silent.
+    const expected: Record<ScheduleMatch['status'], string | null> = { planned: null, running: 'läuft', done: null }
+    for (const status of ['planned', 'running', 'done'] satisfies ScheduleMatch['status'][]) {
+      expect(rowLabel(status)).toBe(cellLabel(status))
+      expect(rowLabel(status)).toBe(expected[status])
+    }
   })
 })
 
