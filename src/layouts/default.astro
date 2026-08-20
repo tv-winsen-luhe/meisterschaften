@@ -28,6 +28,8 @@ interface Props {
   headerCta?: { href: string; label: string; competition?: string }
   // Per-lead replacements for the header CTA, shipped hidden beside it (ADR-0042 revised, ADR-0060 §6).
   headerLeadCtas?: { lead: Lead; href: string; label: string }[]
+  // Pins the header to the top of the viewport (#349). Opt-in per page, read by the `legal` chrome only.
+  headerSticky?: boolean
 }
 
 const {
@@ -42,7 +44,8 @@ const {
   chrome = 'event',
   headerAnchors,
   headerCta,
-  headerLeadCtas
+  headerLeadCtas,
+  headerSticky = false
 } = Astro.props
 
 const canonicalUrl = Astro.site ? new URL(Astro.url.pathname, Astro.site).toString() : Astro.url.toString()
@@ -89,7 +92,13 @@ const ogImageUrl = ogImage && Astro.site ? new URL(ogImage, Astro.site).toString
   <body class:list={['font-sans text-text antialiased', bodyClass]}>
     {
       chrome !== 'none' && (
-        <SiteHeader variant={chrome} anchors={headerAnchors} cta={headerCta} leadCtas={headerLeadCtas} />
+        <SiteHeader
+          variant={chrome}
+          anchors={headerAnchors}
+          cta={headerCta}
+          leadCtas={headerLeadCtas}
+          sticky={headerSticky}
+        />
       )
     }
     <main id="main"><slot /></main>

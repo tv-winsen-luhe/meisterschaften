@@ -66,9 +66,15 @@ html {
   --color-border: #e5e5e5;
   --color-border-strong: #d4d4d4;
   --color-ring: #199cf9;
-  /* The „läuft" accent: marks a match on court right now (courts board, status pill). Its own hue
-     because it must not read as navy ink or a clay surface. */
-  --color-live: #1f7a3d;
+  /* The „läuft" accent: marks a match on court right now (Live board cell, row badge, bracket cell). It
+     is the **brand accent** — ADR-0072 rule 3 moved the lime off the signup CTA, which is absent during
+     `tournament` anyway (ADR-0042/0060), onto the one state worth badging. Read as a fill with navy ink,
+     never as text: lime on white is unreadable. And on the two surfaces where live and idle sit side by
+     side — the Live board cell and the schedule row — it is only half the signal: the filled navy rail
+     beside it is what survives greyscale and a colourblind reader, which the tint alone never did. (The
+     bracket cell needs no rail and says why at its own `.dm-live`: it prints this badge on a running match
+     and on nothing else, so the badge's presence is already the non-colour signal.) */
+  --color-live: var(--color-neon);
 }
 
 @utility text-stroke-ink {

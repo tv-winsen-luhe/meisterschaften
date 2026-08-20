@@ -116,20 +116,28 @@ export interface MatchRow {
   statusLabel: string | null
 }
 
+/** One match inside a collapsed block: which round it is and when it starts. */
+export interface UndeterminedMatch {
+  /** „Halbfinale", „Spiel um Platz 3", „Nebenrunde · Finale" — the shared `roundLabel` (ADR-0028). */
+  round: string
+  /** That match's Published time, hedged where the court's reservations touch it (ADR-0071). */
+  publishedTime: string
+}
+
 /**
- * What stands in for a group of matches that names nobody yet (#333): how many matches wait there and
- * roughly when the first of them starts, as one finished line.
+ * What stands in for a group of matches that names nobody yet (CONTEXT: Undetermined column): which rounds
+ * wait there and when each of them starts, as one finished line (#346). No match count — with the rounds
+ * listed it says nothing more, and it was all the block used to say.
  *
- * The block is specified as stating both facts (#333), so `matchCount` and `earliestTime` are carried as
- * facts rather than only baked into the sentence: what the block must say is then asserted directly instead
- * of by pattern-matching German that a rewording would silently break.
+ * The block is specified as stating those facts, so `matches` is carried as facts rather than only baked
+ * into the sentence: what the block must say is then asserted directly instead of by pattern-matching German
+ * that a rewording would silently break.
  */
-export interface UndeterminedRound {
-  /** „3 Spiele · ab ca. 11:30 · noch ohne Namen" — the whole block's line. */
+export interface UndeterminedColumn {
+  /** „Halbfinale 12:00 · Finale ca. 15:00 · noch ohne Namen" — the whole block's line. */
   summary: string
-  matchCount: number
-  /** The block's earliest Published time, hedged where the court's reservations touch it (ADR-0071). */
-  earliestTime: string
+  /** The matches it holds, in clock order — the order of play the rows behind it are in. */
+  matches: UndeterminedMatch[]
 }
 
 /** One court's column within a day: „Platz 3" and its matches in order of play. */
@@ -147,7 +155,7 @@ export interface CourtGroup {
    * discriminator back out of a finished tree, which is the seam leaking. Whether the block is **open** is
    * the renderer's own state; it is not a fact about the schedule.
    */
-  undetermined: UndeterminedRound | null
+  undetermined: UndeterminedColumn | null
 }
 
 /** One event day: „Samstag · 22.08." and the courts that carry a match on it, ascending. */
@@ -411,7 +419,7 @@ export const publishedTimes = (matches: readonly ScheduleMatch[]): Map<number, P
   return times
 }
 
-// ── The undetermined round (#333) ────────────────────────────────────────────────────────────────
+// ── The undetermined column (#333, #346) ─────────────────────────────────────────────────────────
 
 // A contestant that is still the *match in front of it* — „Sieger M9", „Verlierer M9". „Freilos" and „offen"
 // are placeholders too and deliberately not this: a bye is already decided, and „offen" is a slot that
@@ -420,7 +428,10 @@ export const publishedTimes = (matches: readonly ScheduleMatch[]): Map<number, P
 const isFeederPlaceholder = (slot: ScheduleSlot): boolean => slot.kind === 'feeder' || slot.kind === 'loser'
 
 /**
- * The summary a group collapses to, or null when it names somebody.
+ * The summary a group collapses to, or null when it names somebody. It lists each match's **round** and
+ * Published time (#346): collapsing the placeholder rows removed the one fact they carried that anybody
+ * wanted — when the Halbfinale and the Finale are — and the block is where it belongs now. Round names come
+ * from `roundText`, so „Spiel um Platz 3" and „Nebenrunde · Finale" read as they do on the bracket.
  *
  * Takes the group's `matches` **and** the rows they produced, index-aligned, because the two questions live
  * on different sides of the projection: „is every contestant a feeder" is only answerable on the wire
@@ -428,16 +439,18 @@ const isFeederPlaceholder = (slot: ScheduleSlot): boolean => slot.kind === 'feed
  * the row (the hedge is the row's, not the feed's). Both are the *rendered* set, so a filtered column
  * summarises exactly what it shows.
  *
- * `rows` arrives in order of play, so the earliest Published time is simply the first — hedge included,
- * because the block's start is a follow-on exactly as often as its first row is (ADR-0071).
+ * `rows` arrives in order of play, so the summary is in clock order for free — hedges included, because a
+ * start inside the block is a follow-on exactly as often as the row beneath it is (ADR-0071).
  */
-const undeterminedRound = (matches: readonly ScheduleMatch[], rows: readonly MatchRow[]): UndeterminedRound | null => {
+const undeterminedColumn = (
+  matches: readonly ScheduleMatch[],
+  rows: readonly MatchRow[]
+): UndeterminedColumn | null => {
   if (rows.length === 0) return null
   if (!matches.every(m => isFeederPlaceholder(m.slot1) && isFeederPlaceholder(m.slot2))) return null
-  const earliestTime = rows[0].publishedTime
-  const matchCount = rows.length
-  const plural = matchCount === 1 ? 'Spiel' : 'Spiele'
-  return { summary: `${matchCount} ${plural} · ab ${earliestTime} · noch ohne Namen`, matchCount, earliestTime }
+  const held = matches.map((m, i) => ({ round: roundText(m), publishedTime: rows[i].publishedTime }))
+  const listed = held.map(m => `${m.round} ${m.publishedTime}`).join(' · ')
+  return { summary: `${listed} · noch ohne Namen`, matches: held }
 }
 
 // ── The filter ───────────────────────────────────────────────────────────────────────────────────
@@ -514,7 +527,7 @@ export const scheduleView = (
             .sort((a, b) => a.slot - b.slot || a.id - b.id)
             .filter(m => selected === null || m.competition === selected)
           const rows = onCourt.map(row)
-          return { court, label: courtLabel(court), rows, undetermined: undeterminedRound(onCourt, rows) }
+          return { court, label: courtLabel(court), rows, undetermined: undeterminedColumn(onCourt, rows) }
         })
         .filter(group => group.rows.length > 0)
     }
