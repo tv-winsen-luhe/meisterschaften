@@ -662,7 +662,10 @@ beendet mit Score` in place rather than migrating to a separate results page (AD
   therefore only ever said where the reservations actually touch (the next start is exactly one match-width
   later); a planned gap — the Mixer block, an evening window, plain air — **breaks the chain** and the row
   behind it re-anchors to a plain time. The number stays in front of the hedge, because the number is what a
-  player who drives home between matches plans against. The public schedule groups **day → court** as a fixed
+  player who drives home between matches plans against. A planned start is an **anchor, not a floor**: play on
+  a court runs as a chain, and the organisers aim each next match at its planned time rather than holding it
+  there, so a match can be called **earlier** as well as later — which is why the hedge reads „ca." and not
+  „nicht vor". The public schedule groups **day → court** as a fixed
   hierarchy — the court is the column a player reads down for their own afternoon — and „what is on right
   now" is the Live board's job, not a grouping's. _(See ADR-0071, revising ADR-0069.)_
 - **Match row** (de: Match-Zeile) — the one shape a match is displayed in on the public surfaces, in the
