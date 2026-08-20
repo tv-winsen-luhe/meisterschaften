@@ -1,6 +1,8 @@
 # ADR-0064: The mixer block is operator-placed and count-sized
 
-- Status: accepted
+- Status: accepted; §6 superseded by ADR-0073 (the public line regains its court numbers, delivered as the
+  resolved list on `/api/phase` — the block moved into Sunday, and a field on the grid names where it is).
+  Everything else here still stands.
 - Date: 2026-08-16
 - Supersedes: ADR-0063 §1 (the block as a build-time constant) and §5 (its fixed concrete values)
 - Builds on: ADR-0063 (the block warns, is ungated, is not a match — all still standing), ADR-0006
@@ -110,7 +112,8 @@ is the one function, its two stored inputs are operator state, and its court set
   geometry lives, so there is no runtime cycle.
 - **The wire field is `socialMixerPlacement`, not the resolved block.** `/api/phase` carries the
   operator's two numbers; the courts are resolved per surface from a head-count that is not public and
-  that no public line names anyway.
+  that no public line names anyway. _(Superseded by ADR-0073 §2: the wire gains `socialMixerCourts`, the
+  resolved list — the head-count stays unpublished, the courts do not.)_
 - **The admin dialog states the derivation** („9 bestätigte Anmeldungen → 2 Plätze (5 und 6)"). Without
   it a shading that moves on its own reads as a bug.
 - **`scripts/social-mixer-rotation.mjs` relabels its columns** to the top-down court set and gains a

@@ -558,8 +558,12 @@ reveal sequence }`. Randomness enters through an injected **`RandomSource`** por
   14:30). It is deliberately **not** an entity: one block for one weekend, now two stored numbers — a
   **second reservation** is still the trigger to revisit. And it is **not gated by `schedule_published`**
   (Schedule publication): an appointment is neither the unfinished plan the gate hides nor live truth, and
-  its participants must be able to read it regardless — publicly as **day and time only**, without court
-  numbers. _(See ADR-0064, ADR-0063, ADR-0051.)_
+  its participants must be able to read it regardless — publicly as **day, time and courts**, the courts
+  carried as the **resolved list** rather than the head-count that produced it, so a reservation of one court
+  never reads as two. On the Schedule & results page the block sits **inside its own day**, as a single
+  day-level band at the head of that day's section rather than a tile above the board — it is one
+  appointment, so it is stated **once**, and repeating it down each reserved court's column would read as
+  several. _(See ADR-0064, ADR-0063, ADR-0051.)_
 - **Finaltag** (Sunday as finals day) — the auto-suggest reserves **semifinals → finals → third-place**
   for Sunday and packs Saturday through the **quarterfinals** (plus the consolation bracket). A soft
   preference, never a hard rule: a final _may_ be placed on Saturday, against a soft warning. _(See ADR-0040.)_
@@ -640,9 +644,12 @@ beendet mit Score` in place rather than migrating to a separate results page (AD
   results page: one cell per court, showing what is on that court **right now**. It names the strip, not
   the page around it — the page is the **Schedule & results page** (above), and the word was previously
   doing both jobs. Derived from the same match records as the rows beneath it, so the two can never
-  disagree. „Scoreboard" is **not** a term in this project: it is a useful word for arguing about how the
+  disagree. It is **present only while it has an answer**: with no match running the strip is **absent
+  entirely** — no heading, no row of „frei" cells, and no line announcing the absence. Six cells all saying
+  „nothing" is a screen of scroll spent before the schedule starts, and what is next is the rows' job, not
+  the strip's. „Scoreboard" is **not** a term in this project: it is a useful word for arguing about how the
   weekend surfaces should be _read_, but the things it would name already have names.
-  _(See ADR-0008, ADR-0032.)_
+  _(See ADR-0008, ADR-0032, ADR-0072.)_
 - **Published time** (de: veröffentlichte Zeit) — what the public schedule says about _when_. It is always a
   **clock time**, and the only question is whether it carries a hedge, which is a statement about what can
   still move it (ADR-0071): a court's first match of the day — and every match that opens a fresh block
@@ -655,19 +662,28 @@ beendet mit Score` in place rather than migrating to a separate results page (AD
   player who drives home between matches plans against. The public schedule groups **day → court** as a fixed
   hierarchy — the court is the column a player reads down for their own afternoon — and „what is on right
   now" is the Live board's job, not a grouping's. _(See ADR-0071, revising ADR-0069.)_
-- **Undetermined round** (de: noch offene Runde) — a **group** of the public schedule whose **every** match
+- **Undetermined column** (de: noch offene Spalte) — a **group** of the public schedule whose **every** match
   has a **feeder placeholder** („Sieger M9" / „Verlierer M9") for both contestants, so between them the rows
   name nobody. The group is the schedule's own unit — **one court's column within a day** — not the bracket
   round: the column is what a reader scrolls past, so it is what may collapse, and a column carrying one
-  named match keeps all its rows because that column is worth reading down. Such a group **collapses to one summarised block** — its match count and its earliest **Published
-  time**, hedged where the reservations touch — and expands to the unchanged rows on interaction: twelve
-  consecutive rows reading „Sieger M11 — Sieger M12" are noise in a list, and a reader looking for their own
-  afternoon should not have to scroll past them. „Freilos" and „offen" are deliberately **not** feeder
+  named match keeps all its rows because that column is worth reading down. It is called a **column** for
+  exactly that reason; „Undetermined round" was the earlier name and it fought this definition, because the
+  block does now **name the rounds inside it** (below). Such a group **collapses to one summarised block**
+  that states, in clock order, **each match's round and its Published time** — „Halbfinale 12:00 · Finale
+  ca. 15:00 · noch ohne Namen" — and expands to the unchanged rows on interaction: twelve consecutive rows
+  reading „Sieger M11 — Sieger M12" are noise in a list, and a reader looking for their own afternoon should
+  not have to scroll past them. The **round names are the point of the summary**: collapsing a column of
+  placeholders threw away the one fact those rows carried that anybody wanted — _when is the final_ — and a
+  Finaltag column is precisely where that matters. The **match count is not stated**: with the rounds listed
+  it is redundant. „noch ohne Namen" stays, because it is the part that explains _why_ a named round shows no
+  players. Collapsing **per round** instead of per column is rejected: on a two-parallel Finaltag it would
+  produce blocks of one match each, longer than the row they hide, and collapse only pays when it hides
+  several rows. „Freilos" and „offen" are deliberately **not** feeder
   placeholders here: a bye is already decided and „offen" is a slot that failed to resolve (ADR-0035), so
   summarising either would hide a fact. The dashed placeholder stays right in a **Bracket cell**, where
   topology makes „not yet" meaningful — this scopes that device, it does not retire it. Whether a group is
   undetermined is decided in the **projection** (`shared/match-view`), because it is a statement about the
-  content; whether the block is **open** is the renderer's own state. _(See ADR-0072, ADR-0071.)_
+  content; whether the block is **open** is the renderer's own state. _(See ADR-0072, ADR-0071, ADR-0068.)_
 - **Match row** (de: Match-Zeile) — the one shape a match is displayed in on the public surfaces, in the
   anatomy a tennis spectator already reads fluently (ADR-0070): its two **contestant lines** — club crest,
   full name (never an initial), the **seed** as a small trailing token, and that slot's games — its
