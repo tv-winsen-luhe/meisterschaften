@@ -127,7 +127,18 @@ const daySection = (day: DayGroup, logos: Logos): HTMLElement => {
   for (const court of day.courts) {
     const column = elem('div', 'sched-court')
     column.append(elem('h3', 'sched-court__head', court.label))
-    for (const row of court.rows) column.append(matchRow(row, logos))
+    const rows = court.rows.map(row => matchRow(row, logos))
+    // A column that names nobody yet collapses behind its summary (#333) — the view already decided that,
+    // and „is it open" is the browser's business: a native `<details>` needs no script for the toggle, no
+    // state for this module to hold, and hides nothing from a reader without one, since the rows are inside
+    // it either way. Still a translation: the summary line arrives finished.
+    if (court.undetermined) {
+      const block = elem('details', 'sched-round')
+      block.append(elem('summary', 'sched-round__summary', court.undetermined.summary), ...rows)
+      column.append(block)
+    } else {
+      column.append(...rows)
+    }
     el.append(column)
   }
   return el

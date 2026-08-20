@@ -323,6 +323,33 @@ const defaultMixerBlock = resolveSocialMixerBlock({ ...SOCIAL_MIXER_DEFAULT_PLAC
     letter-spacing: 0.06em;
     color: color-mix(in srgb, var(--color-navy) 55%, transparent);
   }
+  /* A round whose contestants are all still „Sieger M11" is one line until the reader asks for the rows
+     (#333). It reads as the quiet thing it is — no time column, no status, muted — because the loudest cell
+     in a block that names nobody used to be its timestamp. A native `<details>`, so the toggle needs no
+     script and the rows are in the document either way. */
+  .sched-round__summary {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 4px;
+    font-size: 13px;
+    font-weight: 700;
+    color: color-mix(in srgb, var(--color-navy) 55%, transparent);
+    border-bottom: 1px solid color-mix(in srgb, var(--color-navy) 12%, transparent);
+    cursor: pointer;
+    /* Our own caret instead of the platform marker, so it sits on the text baseline on every browser. */
+    list-style: none;
+  }
+  .sched-round__summary::-webkit-details-marker {
+    display: none;
+  }
+  .sched-round__summary::before {
+    content: '▸';
+    font-size: 10px;
+  }
+  .sched-round[open] > .sched-round__summary::before {
+    content: '▾';
+  }
   /* Time · contestants · status. The time column now holds at most „ca. 14:00" on one line (ADR-0071), so it
      is narrower than the two-line floor needed — the names get the width back. */
   .sched-match {
@@ -561,6 +588,16 @@ const defaultMixerBlock = resolveSocialMixerBlock({ ...SOCIAL_MIXER_DEFAULT_PLAC
     .sched-court {
       margin-top: 14pt;
       break-inside: avoid;
+    }
+    /* A collapsed round prints **expanded** (#333): paper has no disclosure to tap, so a summary line
+       standing in for three rows would be content lost rather than content deferred. The summary itself goes
+       — on a sheet the rows are right there under it. */
+    .sched-round__summary {
+      display: none;
+    }
+    .sched-round::details-content {
+      content-visibility: visible;
+      block-size: auto;
     }
     .sched-court__head {
       font-size: 10pt;

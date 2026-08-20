@@ -640,6 +640,17 @@ reveal sequence }`. Randomness enters through an injected **`RandomSource`** por
   player who drives home between matches plans against. The public schedule groups **day → court** as a fixed
   hierarchy — the court is the column a player reads down for their own afternoon — and „what is on right
   now" is the Live board's job, not a grouping's. _(See ADR-0071, revising ADR-0069.)_
+- **Undetermined round** (de: noch offene Runde) — a group of the public schedule whose **every** match has a
+  **feeder placeholder** („Sieger M9" / „Verlierer M9") for both contestants, so between them the rows name
+  nobody. Such a group **collapses to one summarised block** — its match count and its earliest **Published
+  time**, hedged where the reservations touch — and expands to the unchanged rows on interaction: twelve
+  consecutive rows reading „Sieger M11 — Sieger M12" are noise in a list, and a reader looking for their own
+  afternoon should not have to scroll past them. „Freilos" and „offen" are deliberately **not** feeder
+  placeholders here: a bye is already decided and „offen" is a slot that failed to resolve (ADR-0035), so
+  summarising either would hide a fact. The dashed placeholder stays right in a **Bracket cell**, where
+  topology makes „not yet" meaningful — this scopes that device, it does not retire it. Whether a group is
+  undetermined is decided in the **projection** (`shared/match-view`), because it is a statement about the
+  content; whether the block is **open** is the renderer's own state. _(See ADR-0072, ADR-0071.)_
 - **Match row** (de: Match-Zeile) — the one shape a match is displayed in on the public surfaces, in the
   anatomy a tennis spectator already reads fluently (ADR-0070): its two **contestant lines** — club crest,
   full name (never an initial), the **seed** as a small trailing token, and that slot's games — its
