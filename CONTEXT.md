@@ -683,7 +683,9 @@ beendet mit Score` in place rather than migrating to a separate results page (AD
   there, so a match can be called **earlier** as well as later — which is why the hedge reads „ca." and not
   „nicht vor". The public schedule groups **day → court** as a fixed
   hierarchy — the court is the column a player reads down for their own afternoon — and „what is on right
-  now" is the Live board's job, not a grouping's. _(See ADR-0071, revising ADR-0069.)_
+  now" is the Live board's job, not a grouping's. It is a **public** term: the **Admin** reads the same
+  placement as a plain clock time („Sa 14:00", never „ca."), because the hedge states what can still move a
+  start and the operator is what moves it (ADR-0077). _(See ADR-0071, revising ADR-0069; ADR-0077.)_
 - **Match row** (de: Match-Zeile) — the one shape a match is displayed in on the public surfaces, in the
   anatomy a tennis spectator already reads fluently (ADR-0070): its two **contestant lines** — club crest,
   full name (never an initial), the **seed** as a small trailing token, and that slot's games — its
