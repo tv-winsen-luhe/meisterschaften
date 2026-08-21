@@ -76,10 +76,16 @@ inherit the public hedge.** Six rules.
    match without a court.
 
 6. **Each view's row carries what its own headings do not.** In the court view the headings say the day and
-   the court, so the row reads `M7 · 14:00 · Viertelfinale · Herren` — the competition becomes **required**
+   the court, so the row reads `M7 · 14:00 · Herren · Viertelfinale` — the competition becomes **required**
    there, being the one thing a court group cannot tell you once the tabs are gone. In the round view the
    heading says the round, so the row reads `M7 · Sa 14:00 · Platz 3`. Not one identical meta line in both:
    the duplication would be loudest exactly where the surface is densest.
+
+   The court view's **round goes last**, behind the field. This reverses the order first written here, and
+   the reason is the consolation bracket: its round label is itself compound — „Nebenrunde · Viertelfinale" —
+   so with the field behind it the line read `M7 · 14:00 · Nebenrunde · Viertelfinale · Herren`, five parts
+   separated identically, and the field stopped being the line's own element. The one part that can carry an
+   internal separator has to be the last one.
 
 ## Considered and rejected
 

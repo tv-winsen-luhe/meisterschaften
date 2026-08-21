@@ -127,9 +127,13 @@ const competitionText = (competitions: readonly CompetitionOption[], slug: strin
 /**
  * A row's meta line, as the parts a renderer joins — each view carrying what its own headings do not.
  * The round view is headed by the round, so the row states the day, the time and the court. The court view
- * is headed by the day and the court, so the row states the bare time, the round, and the **field**: the
- * tabs are hidden there, which makes the competition the one thing a court group cannot tell you.
+ * is headed by the day and the court, so the row states the bare time, the **field** — the tabs are hidden
+ * there, which makes the competition the one thing a court group cannot tell you — and then the round.
  * Never one identical line for both — the duplication would be loudest where the surface is densest.
+ *
+ * The round goes **last** in that line because it is the one part that can itself be compound: a
+ * consolation row's label is „Nebenrunde · Viertelfinale", so anything behind it would sit past a separator
+ * the reader has already read as the line's own. Last, it reads as the trailing qualifier it is.
  */
 export const metaParts = (row: ResultMatch, grouping: Grouping, copy: ResultsCopy): string[] => {
   // A row with no court sits under „Nicht geplant" in the court view — a heading that names no day — so the
@@ -141,8 +145,8 @@ export const metaParts = (row: ResultMatch, grouping: Grouping, copy: ResultsCop
       ? [timeText(row.match, copy.days, true), courtText(row.match) ?? BACKLOG_LABEL]
       : [
           timeText(row.match, copy.days, !placed),
-          row.roundLabel,
-          competitionText(copy.competitions, row.match.competition)
+          competitionText(copy.competitions, row.match.competition),
+          row.roundLabel
         ]
   ).filter((p): p is string => p !== null)
 }

@@ -118,29 +118,36 @@ describe('metaParts, round view', () => {
 })
 
 describe('metaParts, court view', () => {
-  it('drops the day (the heading says it) and adds the round and the field (the headings cannot)', () => {
+  it('drops the day (the heading says it) and adds the field and the round (the headings cannot)', () => {
     // The field tabs are hidden in this view, so the competition is the one thing a court group cannot
     // tell you — required here, not optional (ADR-0077 rule 6).
-    expect(metaParts(row({ court: 3, day: 0, slot: 8 }), 'court', COPY)).toEqual(['14:00', 'Viertelfinale', 'Herren'])
+    expect(metaParts(row({ court: 3, day: 0, slot: 8 }), 'court', COPY)).toEqual(['14:00', 'Herren', 'Viertelfinale'])
+  })
+
+  it('puts the round last, so a compound consolation label cannot swallow the field behind it', () => {
+    // „Nebenrunde · Viertelfinale" already carries a separator; behind the field it would read as one part
+    // of a four-part line and the field would stop being the line's own (ADR-0077 rule 6).
+    const consolation = row({ court: 3, day: 0, slot: 8 }, { roundLabel: 'Nebenrunde · Viertelfinale' })
+    expect(metaParts(consolation, 'court', COPY)).toEqual(['14:00', 'Herren', 'Nebenrunde · Viertelfinale'])
   })
 
   it('falls back to the wire slug for a field whose label the copy does not know', () => {
     expect(metaParts(row({ competition: 'mens-challenger', court: 3, day: 0, slot: 0 }), 'court', COPY)).toEqual([
       '10:00',
-      'Viertelfinale',
-      'mens-challenger'
+      'mens-challenger',
+      'Viertelfinale'
     ])
   })
 
-  it('carries round and field with no time in the „Nicht geplant" group', () => {
-    expect(metaParts(row(), 'court', COPY)).toEqual(['Viertelfinale', 'Herren'])
+  it('carries field and round with no time in the „Nicht geplant" group', () => {
+    expect(metaParts(row(), 'court', COPY)).toEqual(['Herren', 'Viertelfinale'])
   })
 
   it('keeps the day on a timed row with no court, because its group heading names no day', () => {
     // Rule 2 — the day travels with the time, *always*. In the court view the day heading normally says it,
     // but a row without a court sits under „Nicht geplant", which does not: so the time re-takes its prefix
     // rather than reading as an unqualified „14:00" on one of two days.
-    expect(metaParts(row({ day: 0, slot: 8 }), 'court', COPY)).toEqual(['Sa 14:00', 'Viertelfinale', 'Herren'])
+    expect(metaParts(row({ day: 0, slot: 8 }), 'court', COPY)).toEqual(['Sa 14:00', 'Herren', 'Viertelfinale'])
   })
 })
 
