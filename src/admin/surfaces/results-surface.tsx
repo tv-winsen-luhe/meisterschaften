@@ -2,29 +2,27 @@ import { useMemo, useState } from 'react'
 import { Trophy } from 'lucide-react'
 import {
   type AdminRegistration,
-  bracketDepth,
   type CompetitionDraw,
   type CompetitionSlug,
-  COURT_NUMBERS,
   type EnteredOutcome,
   isFullyRevealed,
-  type Match,
   type MatchScore,
-  type MatchStatus,
-  resolveBracket,
-  roundLabel,
-  scoreLine,
-  slotLabel,
-  type SlotView,
-  STATUS_LABELS,
-  winningSlot
+  type MatchStatus
 } from '../../../shared'
-import { cn } from '@/admin/lib/utils'
 import { Button } from '@/admin/ui/button'
-import { Badge } from '@/admin/ui/badge'
-import { NativeSelect } from '@/admin/ui/native-select'
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/admin/ui/empty'
+import { competitions, tournament } from '@/data/tournament'
 import { competitionLabel } from './registration-detail'
+import { MatchRow } from './result-match-row'
+import {
+  courtSections,
+  type Grouping,
+  matchGroups,
+  metaParts,
+  type ResultMatch,
+  type ResultsCopy,
+  resultRows
+} from './results-grouping'
 import { ResultDrawer } from './result-drawer'
 import type { SetWrite } from './result-save'
 
@@ -34,6 +32,12 @@ import type { SetWrite } from './result-save'
 // players (or „Sieger M{n}" / „Verlierer M{n}" feeders until they resolve), its status, court, and score.
 // Entering a result advances the winner into the next round and routes a semifinal loser to the third-place
 // playoff (the pure transform server-side), so the list itself *is* the per-competition bracket filling in.
+//
+// It carries two readings of the same rows (ADR-0077): grouped by **Runde** — per field, the default — or by
+// **Platz**, which goes event-wide (a court holds matches from every field, so „was läuft auf Platz 3" has
+// no per-competition answer) and hides the field tabs to say the dimension changed. Both print a **plain**
+// clock time: the public „ca." hedge states what can still move a start, and the operator is what moves it.
+// The grouping and the two meta lines are pure, in results-grouping.ts.
 
 // The result the drawer hands back: the winning slot, the outcome (null ⇒ a normal scored result), and the
 // fixed best-of-2 + MTB score. The shell posts it to /api/admin/match/result.
@@ -56,41 +60,18 @@ interface ResultsSurfaceProps {
   onSaveSets: (id: number, writes: SetWrite[]) => Promise<boolean>
 }
 
-// One match resolved for the list: the wire row plus its display number and two slot views (player names
-// joined here, feeders/byes labelled by the shared copy). Both players known ⇒ a result can be entered.
-export interface ResultMatch {
-  match: Match
-  number: number
-  roundLabel: string
-  slot1: SlotView
-  slot2: SlotView
-}
+// Both players known ⇒ a result can be entered. The row shape itself lives with the grouping it feeds, so
+// that module and its tests never import a component to get at a type; re-exported because result-drawer.tsx
+// has always taken it from here.
+export type { ResultMatch }
 
-// One bracket's real matches, resolved + numbered over its whole set (so „Sieger M{n}" is stable) and
-// grouped by round label in match order — the third-place playoff sorts after the final (it shares the
-// final's round but a higher position). Runs per bracket, so the consolation labels read „Nebenrunde · …"
-// off its own depth; the caller concatenates a competition's brackets (main first, then consolation).
-const matchGroups = (draw: CompetitionDraw): [string, ResultMatch[]][] => {
-  const totalRounds = bracketDepth(draw.matches)
-  const rows: ResultMatch[] = []
-  for (const { match, number, slot1, slot2 } of resolveBracket(draw.matches)) {
-    if (match.outcome === 'bye') continue // a bye is never played, so it is never a result row
-    rows.push({
-      match,
-      number,
-      roundLabel: roundLabel({ bracket: draw.bracket, round: match.round, totalRounds, thirdPlace: match.thirdPlace }),
-      slot1,
-      slot2
-    })
-  }
-  const byLabel = new Map<string, ResultMatch[]>()
-  for (const r of [...rows].sort((a, b) => a.match.round - b.match.round || a.match.position - b.match.position)) {
-    const list = byLabel.get(r.roundLabel) ?? []
-    list.push(r)
-    byLabel.set(r.roundLabel, list)
-  }
-  return [...byLabel.entries()]
-}
+// The German the meta lines need, from the copy's home — the days for „Sa 14:00", the fields for the court
+// view's required competition part.
+const COPY: ResultsCopy = { days: [tournament.saturday, tournament.sunday], competitions }
+
+// The picker's two labels. Spelled out rather than derived from the `Grouping` union, because the union is
+// English wire vocabulary and these are German UI copy — the two must be free to diverge (ADR-0028).
+const GROUPING_LABELS: Record<Grouping, string> = { round: 'Runde', court: 'Platz' }
 
 export const ResultsSurface = ({
   registrations,
@@ -111,6 +92,10 @@ export const ResultsSurface = ({
   const fields = useMemo(() => draws.filter(d => d.bracket === 'main' && isFullyRevealed(d)), [draws])
 
   const [active, setActive] = useState<CompetitionSlug | null>(null)
+  // Which reading is on screen. „Runde" is the status quo, so it is the default, and it is plain component
+  // state: a stored preference is a thing to be wrong about across two event days and two devices, and
+  // deriving it from the phase would infer the operator's intent (ADR-0027, ADR-0077 rule 4).
+  const [grouping, setGrouping] = useState<Grouping>('round')
   // The match whose result drawer is open (null ⇒ closed).
   const [editing, setEditing] = useState<ResultMatch | null>(null)
 
@@ -135,6 +120,14 @@ export const ResultsSurface = ({
     [selected, consolation]
   )
 
+  // The court view's rows: **every** field's, because a court holds matches from all of them. Gated the way
+  // the Spielplan surface gates the grid it places them on (`bracket !== 'main' || isFullyRevealed`) — one
+  // predicate, and the same population as the surface that creates the placements this view displays.
+  const sections = useMemo(
+    () => courtSections(draws.filter(d => d.bracket !== 'main' || isFullyRevealed(d)).flatMap(resultRows), COPY),
+    [draws]
+  )
+
   if (fields.length === 0) {
     return (
       <Empty className="m-5 border">
@@ -155,8 +148,20 @@ export const ResultsSurface = ({
   return (
     <div className="min-h-0 flex-1 overflow-y-auto p-5">
       <div className="mx-auto flex w-full max-w-2xl flex-col gap-5">
-        {/* The field picker — one tab per drawn field. Hidden when only one field is drawn. */}
-        {fields.length > 1 && (
+        {/* The grouping picker — the same rows, one different axis. */}
+        <div className="flex items-center gap-2">
+          <span className="text-muted-foreground text-xs">Gruppierung</span>
+          {(['round', 'court'] as const).map(g => (
+            <Button key={g} size="sm" variant={g === grouping ? 'default' : 'outline'} onClick={() => setGrouping(g)}>
+              {GROUPING_LABELS[g]}
+            </Button>
+          ))}
+        </div>
+
+        {/* The field picker — one tab per drawn field. Hidden when only one field is drawn, and hidden in the
+            court view: that reading is event-wide, and a court has no per-field answer, so the tabs going
+            away is how the surface says the dimension changed (ADR-0077 rule 5). */}
+        {grouping === 'round' && fields.length > 1 && (
           <div className="flex flex-wrap gap-2">
             {fields.map(f => (
               <Button
@@ -171,7 +176,7 @@ export const ResultsSurface = ({
           </div>
         )}
 
-        {selected && (
+        {grouping === 'round' && selected && (
           <div className="flex flex-col gap-6">
             {groups.map(([label, rows]) => (
               <section key={label} className="flex flex-col gap-2">
@@ -181,12 +186,43 @@ export const ResultsSurface = ({
                     <MatchRow
                       key={row.match.id}
                       row={row}
+                      meta={metaParts(row, grouping, COPY)}
                       nameById={nameById}
                       onOpen={() => setEditing(row)}
                       onSetStatus={onSetStatus}
                     />
                   ))}
                 </div>
+              </section>
+            ))}
+          </div>
+        )}
+
+        {/* The court view: day → court → chronological, the public page's fixed hierarchy, so the operator
+            and the grounds read the same shape. Empty courts and days are already gone from `sections`. */}
+        {grouping === 'court' && (
+          <div className="flex flex-col gap-8">
+            {sections.map(day => (
+              <section key={day.label} className="flex flex-col gap-4">
+                <h2 className="border-b pb-1 text-sm font-semibold">{day.label}</h2>
+                {day.courts.map(court => (
+                  <div key={court.label ?? 'backlog'} className="flex flex-col gap-2">
+                    {/* The court heading carries full ink, not the round heading's muted whisper: it is the
+                        level the operator scans down, and ADR-0075 rule 1 is the record of what a quiet
+                        court heading costs. It stays a rank below the day by size, not by colour. */}
+                    {court.label && <h3 className="text-xs font-semibold tracking-wide uppercase">{court.label}</h3>}
+                    {court.rows.map(row => (
+                      <MatchRow
+                        key={row.match.id}
+                        row={row}
+                        meta={metaParts(row, grouping, COPY)}
+                        nameById={nameById}
+                        onOpen={() => setEditing(row)}
+                        onSetStatus={onSetStatus}
+                      />
+                    ))}
+                  </div>
+                ))}
               </section>
             ))}
           </div>
@@ -211,122 +247,3 @@ export const ResultsSurface = ({
     </div>
   )
 }
-
-// One match row: the number + round-status chips, the two contestant lines (winner emphasised, score
-// shown), and the actions — start („läuft", with the actual court) and enter/correct the result.
-interface MatchRowProps {
-  row: ResultMatch
-  nameById: Map<number, string>
-  onOpen: () => void
-  onSetStatus: (id: number, status: MatchStatus, liveCourt?: number) => Promise<boolean>
-}
-const MatchRow = ({ row, nameById, onOpen, onSetStatus }: MatchRowProps) => {
-  const { match, number, slot1, slot2 } = row
-  const bothKnown = slot1.kind === 'player' && slot2.kind === 'player'
-  // The court a läuft-start defaults to: the actual court if already set, else the planned court, else 1.
-  const [court, setCourt] = useState<number>(match.liveCourt ?? match.court ?? COURT_NUMBERS[0])
-
-  // The winning slot, or null when undecided (CONTEXT: Bracket topology). The load-bearing `winnerRegId ===
-  // null` guard lives in `winningSlot`, so an undecided match with an empty feeder slot never bolds a line.
-  const winnerSlot = winningSlot(match)
-
-  return (
-    <div className="rounded-lg border p-3">
-      <div className="mb-2 flex items-center gap-2">
-        <Badge variant="outline" className="tabular-nums">
-          M{number}
-        </Badge>
-        <StatusBadge status={match.status} />
-        {match.status === 'running' && match.liveCourt !== null && (
-          <span className="text-muted-foreground text-xs">Platz {match.liveCourt}</span>
-        )}
-      </div>
-
-      <Contestant
-        label={slotName(slot1, nameById)}
-        score={scoreLine(match.score, 1)}
-        winner={winnerSlot === 1}
-        muted={slot1.kind !== 'player'}
-      />
-      <Contestant
-        label={slotName(slot2, nameById)}
-        score={scoreLine(match.score, 2)}
-        winner={winnerSlot === 2}
-        muted={slot2.kind !== 'player'}
-      />
-
-      <div className="mt-3 flex flex-wrap items-center gap-2">
-        {match.status === 'done' ? (
-          <Button size="sm" variant="outline" onClick={onOpen}>
-            Korrigieren
-          </Button>
-        ) : (
-          bothKnown && (
-            <>
-              {/* „Läuft" needs a planned court so the live court has a home and the match shows on the
-                  public schedule (the feed serves only placed matches); an unplaced match is started from
-                  the Spielplan first. The dropdown still lets the operator override the actual court. */}
-              {match.status === 'planned' &&
-                (match.court !== null ? (
-                  <div className="flex items-center gap-1">
-                    <NativeSelect
-                      aria-label="Platz"
-                      className="h-8 w-auto"
-                      value={court}
-                      onChange={e => setCourt(Number(e.target.value))}
-                    >
-                      {COURT_NUMBERS.map(c => (
-                        <option key={c} value={c}>
-                          Platz {c}
-                        </option>
-                      ))}
-                    </NativeSelect>
-                    <Button size="sm" variant="outline" onClick={() => void onSetStatus(match.id, 'running', court)}>
-                      Läuft
-                    </Button>
-                  </div>
-                ) : (
-                  <span className="text-muted-foreground text-xs">Zum Starten erst im Spielplan platzieren</span>
-                ))}
-              <Button size="sm" onClick={onOpen}>
-                Ergebnis
-              </Button>
-            </>
-          )
-        )}
-      </div>
-    </div>
-  )
-}
-
-interface StatusBadgeProps {
-  status: MatchStatus
-}
-// The operator sees all three states — this is the desk where a match is moved between them, so „geplant"
-// is information here in a way it is not on the public row (#327). The labels come from the shared
-// vocabulary rather than a fourth hand-copied literal.
-const StatusBadge = ({ status }: StatusBadgeProps) => (
-  <Badge variant={status === 'running' ? 'default' : status === 'done' ? 'secondary' : 'outline'}>
-    {STATUS_LABELS[status]}
-  </Badge>
-)
-
-// One contestant line: name (or feeder label), its set/MTB score, the winner emphasised.
-interface ContestantProps {
-  label: string
-  score: string
-  winner: boolean
-  muted: boolean
-}
-const Contestant = ({ label, score, winner, muted }: ContestantProps) => (
-  <div className="flex items-center justify-between gap-2 py-0.5">
-    <span className={cn('truncate text-sm', winner && 'font-bold', muted && 'text-muted-foreground italic')}>
-      {label}
-    </span>
-    {score && <span className="text-muted-foreground shrink-0 text-sm tabular-nums">{score}</span>}
-  </div>
-)
-
-// A slot's display name: the joined player name, or the shared German label for a feeder/bye/loser/offen.
-const slotName = (view: SlotView, nameById: Map<number, string>): string =>
-  view.kind === 'player' ? (nameById.get(view.regId) ?? `#${view.regId}`) : slotLabel(view)

@@ -1,4 +1,4 @@
-import { courtLabel, publishedTimes, rowSlot, statusLabel } from './match-view'
+import { courtLabel, dayAbbr, publishedTimes, rowSlot, statusLabel } from './match-view'
 import { roundLabel, roundName, scheduleNodeKey } from './schedule'
 import type { DayCopy, RowSlot } from './match-view'
 import type {
@@ -184,10 +184,6 @@ export interface BracketViewOptions {
 
 /** The fully-revealed member of the public bracket union (ADR-0046) — the phase this view projects. */
 type LiveCompetition = Extract<PublicCompetitionBracket, { phase: 'live' }>
-
-// The compact day the tight cell footer carries — „Sa"/„So" from the event's own date copy, rather than a
-// second weekday list that could drift from /spielplan's „Samstag · 22.08.".
-const dayAbbr = (days: readonly DayCopy[], day: number): string => days[day]?.weekday.slice(0, 2) ?? `Tag ${day + 1}`
 
 // The LK as the cell prints it. A redacted field yields nothing at all — see `LkToken` on why „LK folgt"
 // would be the wrong thing to say there.

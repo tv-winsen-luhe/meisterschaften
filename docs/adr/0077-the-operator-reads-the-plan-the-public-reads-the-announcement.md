@@ -141,6 +141,14 @@ inherit the public hedge.** Six rules.
 - **The divergence form in rule 3 is a third state for the court cell** — planned, actual, actual-with-planned
   — where the surface previously had two (hidden, or `liveCourt` while running). The court is no longer
   absent as a way of saying „not started".
+- **Rules 2 and 3 needed one word each, found while building.** Rule 3's „no court at all is legible instead
+  of silent" does not fall out of showing a court whenever there is one: the row's own „Zum Starten erst im
+  Spielplan platzieren" hint renders only for a `planned` match with both players known, so a feeder row or a
+  running match whose placement was cleared said nothing. The round view therefore prints **„Nicht geplant"**
+  where the court would be — the same word as the court view's trailing group and the Spielplan's tray, held
+  as one constant because it is one fact. And rule 2's „always" is load-bearing in the court view too: a row
+  with a time but no court sits under that group, whose heading names no day, so **there** the time keeps its
+  day prefix. The court view drops the day because its heading says it — not because it is the court view.
 - **Nothing about the schedule, the validator, the feed or the public page changes.** No schema work, no new
   endpoint, no wire-contract change: `day`, `slot`, `court` and `liveCourt` were already on the wire, and
   this decision only prints them.
