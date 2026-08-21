@@ -326,6 +326,15 @@ export const courtLabel = (court: number): string => `Platz ${court}`
 export const dayLabel = (days: readonly DayCopy[], day: number): string =>
   days[day] ? `${days[day].weekday} · ${days[day].short}` : `Tag ${day + 1}`
 
+/**
+ * The compact day („Sa"/„So") — the day heading's short form, for the surfaces that name a day *inside* a
+ * line rather than above one: the bracket cell's tight footer and the admin's round-view meta line. Derived
+ * from the event's own date copy rather than a second weekday list that could drift, which is also why it
+ * lives here beside `dayLabel` and not in either caller.
+ */
+export const dayAbbr = (days: readonly DayCopy[], day: number): string =>
+  days[day]?.weekday.slice(0, 2) ?? `Tag ${day + 1}`
+
 // The field's German label; falls back to the wire slug rather than rendering nothing for a field whose
 // label the client's copy does not know.
 const competitionLabel = (competitions: readonly CompetitionOption[], slug: string): string =>
