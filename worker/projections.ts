@@ -56,6 +56,10 @@ export interface ScheduleFeed {
    * feed because this is the wire that carries the days; the page turns it into „which of the two days is
    * being played" and leads with that day's section. Nothing on the server reads it back — it is stated
    * here and consumed there.
+   *
+   * **Required here, optional on the wire** (`scheduleResponseSchema`), and the asymmetry is the fail-open
+   * (ADR-0081 §6): this projection always knows what time it is, so it always says so; a *reader* must cope
+   * with a response that does not, and gets plain chronological order when it does not.
    */
   now: string
 }

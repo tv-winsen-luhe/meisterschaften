@@ -40,6 +40,6 @@ describe('eventDayAt', () => {
     expect(eventDayAt(null)).toBeNull()
     expect(eventDayAt(undefined)).toBeNull()
     expect(eventDayAt('')).toBeNull()
-    expect(eventDayAt('irgendwann')).toBeNull()
+    expect(eventDayAt('not-a-time')).toBeNull()
   })
 })

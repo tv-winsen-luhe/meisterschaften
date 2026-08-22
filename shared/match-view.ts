@@ -572,6 +572,15 @@ export const scheduleView = (
     }
   }
 
+  // The leading day names itself „heute" (ADR-0081 §8): out of chronological order, a day section otherwise
+  // reads as a fault to anybody who saw the page yesterday. The word goes in the heading, where the surprise
+  // is — not into a badge, because that layer is sticky and already stands down under a suspension band
+  // (ADR-0078).
+  const heading = (day: number): string => {
+    const label = dayLabel(days, day)
+    return day === currentDay ? `${label} · heute` : label
+  }
+
   // Day → court, both ascending and both derived from what the feed carries, so a match is never dropped
   // because an axis was sized from a constant that has moved on.
   const dayIndices = [...new Set(matches.map(m => m.day))].sort((a, b) => a - b)
@@ -580,11 +589,7 @@ export const scheduleView = (
     const courts = [...new Set(onDay.map(m => m.court))].sort((a, b) => a - b)
     return {
       day,
-      // The leading day names itself „heute" (ADR-0081 §8): out of chronological order, a day section
-      // otherwise reads as a fault to anybody who saw the page yesterday. The word goes in the heading,
-      // where the surprise is — not into a badge, because that layer is sticky and already stands down
-      // under a suspension band (ADR-0078).
-      label: day === currentDay ? `${dayLabel(days, day)} · heute` : dayLabel(days, day),
+      label: heading(day),
       courts: courts
         .map(court => {
           const onCourt = onDay

@@ -148,17 +148,18 @@ const partsOf = (d: Date) => {
 
 const sdParts = partsOf(SIGNUP_DEADLINE)
 
-// One instant as its Europe/Berlin calendar date, „YYYY-MM-DD" — the comparable form of „welcher Tag ist
-// das dort". Built from `partsOf`, so the zone is stated once for the whole file.
+// One instant as its Europe/Berlin calendar date, „YYYY-MM-DD" — the comparable form of „which day is it
+// there". Built from `partsOf`, so the zone is stated once for the whole file.
 const berlinDateKey = (d: Date): string => {
   const { day, month, year } = partsOf(d)
   return `${year}-${month}-${day}`
 }
 
 // The event's days as Berlin calendar dates, in wire order — day 0 is `TOURNAMENT_START`'s date, each
-// further day one calendar day on. Sized from the grid (`SCHEDULE.days`) rather than from a literal 2, so a
-// three-day event needs no edit here. The +24h step is exact for this weekend (August has no DST edge in
-// Berlin) and the comparison is done on the formatted date either way.
+// further day one calendar day on. The count is the grid's (`SCHEDULE.days`), because that is where „how
+// many days does this event have" is already answered; restating it as a literal 2 here would be a second
+// answer to the same question. The +24h step is exact for this weekend (August has no DST edge in Berlin)
+// and the comparison is done on the formatted date either way.
 const DAY_MS = 24 * 60 * 60 * 1000
 const EVENT_DAY_KEYS = Array.from({ length: SCHEDULE.days }, (_, i) =>
   berlinDateKey(new Date(TOURNAMENT_START.getTime() + i * DAY_MS))

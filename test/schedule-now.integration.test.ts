@@ -35,7 +35,7 @@ describe('GET /api/schedule · the server says what time it is (ADR-0081)', () =
   })
 
   it('says it on an empty plan too', async () => {
-    // The state the page spends most of its life in. „Welcher Tag ist heute" is true before a single match
+    // The state the page spends most of its life in. Which day is being played is true before a single match
     // is on the grid — the mixer band heads its own day whether or not anything is placed.
     const served = await feed()
     expect(served.matches).toEqual([])

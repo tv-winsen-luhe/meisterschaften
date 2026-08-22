@@ -1018,11 +1018,10 @@ const defaultMixerBlock = resolveSocialMixerBlock({ ...SOCIAL_MIXER_DEFAULT_PLAC
       // being claimed on the next render either way (ADR-0078 rule 7). A list rather than a flag since
       // Amendment 2: only the courts the operator actually stopped hedge.
       stoppedCourts: suspendedCourts(playSuspension, Date.now()),
-      // The day the reader is standing in leads the board (ADR-0081). Derived from the **server's** clock
-      // off this very feed — never `Date.now()`, which would put a phone with a wrong date on a different
-      // page from everyone else on the grounds — and recomputed on every render, so an open page reorders
-      // itself at midnight instead of remembering a day it decided once. No `now`, no current day, plain
-      // chronological order: the fail-open is the schema's (`now` is optional) and `eventDayAt`'s.
+      // The day the reader is standing in leads the board (ADR-0081), off the **server's** clock on this
+      // very feed rather than the device's. Read here rather than at poll time for the same reason
+      // `stoppedCourts` is: a page left open across midnight then reorders itself on the next render
+      // instead of holding a day it decided once.
       currentDay: eventDayAt(feed.now)
     })
     // The view decides whether the stored selection still applies (a field the feed stopped carrying, or a
