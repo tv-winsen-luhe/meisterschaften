@@ -70,8 +70,12 @@ concept here drifts or a new one appears, update this file rather than inventing
   derives **which fields the page shows** and the one **derived FAQ line** a cancellation leaves behind
   (Competition cancellation): the front door is built statically, so it is the one surface that
   _applies_ the cancellation client-side instead of being served a shorter list — the decision is still
-  the single server signal, this page is only the surface. _(See ADR-0060, ADR-0062, ADR-0042,
-  ADR-0041.)_
+  the single server signal, this page is only the surface. A **Play suspension** sits **above** the lead
+  rather than inside it — it is not a stage and does not reorder anything — and says **less** here than on
+  the schedule: the state, the resume time, and a link onward. The front door **points**; the times it would
+  otherwise have to explain are not on it. Unlike the schedule it keeps its **single** `/api/phase` read on
+  load — nobody parks on the front door for forty minutes. _(See ADR-0060, ADR-0062, ADR-0042, ADR-0041,
+  ADR-0078.)_
 - **Seeding freeze** (de: Setzungs-Freeze) — before the draw, LKs keep updating and the **provisional
   seeding list** (de: provisorische Setzliste; the seeding preview) reflects them live. It has two
   surfaces: the gated operator Setzliste, and the public participant list, which renders as a **seeding
@@ -644,7 +648,34 @@ reveal sequence }`. Randomness enters through an injected **`RandomSource`** por
   what is on court now. The status transition is itself the **live signal**: set scores may be saved
   opportunistically per completed set (the **Zwischenstand**, above — a separate act that never moves the
   status, so `running` and its live court stay the operator's explicit statement), but there is **no game- or
-  point-level live scoring** — the single desk has no courtside data source. _(See ADR-0032.)_
+  point-level live scoring** — the single desk has no courtside data source. A **Play suspension** (below)
+  leaves it entirely untouched: a match waiting out the rain at 4:3 in the second set stays `running`.
+  _(See ADR-0032, ADR-0078.)_
+- **Play suspension** (de: Spielunterbrechung; code: `playSuspension`) — the event-wide statement that
+  **play is not happening right now**, set and lifted by the operator. It is the first fact the site carries
+  about the whole event _as reality_ rather than as plan: Match status is per-match, Schedule publication is
+  per-event but gates the **plan**, and nothing said „nobody is on court and every time below is wrong".
+  Being reality, it is **never gated by the publish flag** (ADR-0032 over ADR-0041).
+  - **A typed state, not a message.** Two facts and no prose: suspended yes/no, plus an **optional
+    resume time** — the clock time play is expected to resume. There is deliberately **no operator text
+    field**: a public string typed from a phone in the rain would be the one unreviewed publication on a site
+    where every public string is built by a projection. The accepted cost is that „heute geht nichts mehr"
+    **cannot be said** — that is a rescheduling, not a notice (ADR-0078).
+  - **The name carries no cause.** Rain, thunderstorm, an ambulance on court, floodlight failure on 5/6 —
+    one thing for the spectator. _Avoid_: „Regenpause", `rainDelay`, and „Flashmeldung" (a borrowed word for
+    something else; the rule that retired „Scoreboard" applies).
+  - **The time decays, the suspension does not.** Once the resume time has passed the surface falls back to
+    the plain state; the suspension stands until the operator lifts it. Lifting is **manual only** — an
+    automatic lift would announce, positively and silently, that play has resumed (ADR-0035's per-slot
+    degradation, applied to one statement).
+  - **Two surfaces, one band**: the Schedule & results page (above the Live board) and the front door (above
+    the front-door lead), in **clay** — the colour of the court that cannot be played on; neon is taken, it
+    means „läuft". The public draw carries **no** band, and consequently no hedge either (Published time).
+  - **Bound to `tournament`**, and the transition to `post-event` clears it — the last suspension of a
+    tournament is the one nobody remembers to lift.
+  - It rides **`GET /api/phase`** as one signal beside `phase`, `cancelledCompetitions` and the mixer block
+    (ADR-0048), which is what turns that endpoint into a **polled** wire on `/spielplan` (Live-data
+    delivery). _(See ADR-0078, ADR-0032, ADR-0071.)_
 - **Schedule & results page** (de: Spielplan & Ergebnisse) — the public weekend page at `/spielplan`, and
   the **one** surface that owns the schedule and the results together: a row moves `geplant → läuft →
 beendet mit Score` in place rather than migrating to a separate results page (ADR-0070 §1). It is **one
@@ -657,7 +688,11 @@ beendet mit Score` in place rather than migrating to a separate results page (AD
   spectator is never sent to the wrong court. Published planned times stay static — stated as a **Published
   time** (below), hedged with „ca." wherever a match waits on the one in front of it — and their drift is
   communicated through **Match status**, not by continuously rescheduling; the **court** always reflects
-  reality. _(See ADR-0008, ADR-0032, ADR-0069, ADR-0070.)_
+  reality. A **Play suspension** is the one thing that speaks for the whole page at once: a clay band above
+  the Live board, under which every not-yet-started time hedges. It is also why this page **polls
+  `/api/phase`** on its existing 15s timer instead of reading it once on load — the suspension would
+  otherwise be invisible to exactly the person who left the page open (ADR-0078).
+  _(See ADR-0008, ADR-0032, ADR-0069, ADR-0070, ADR-0078.)_
 - **Live board** (de: Live-Board) — the „jetzt auf dem Platz" **courts strip** that leads the Schedule &
   results page: one cell per court, showing what is on that court **right now**. It names the strip, not
   the page around it — the page is the **Schedule & results page** (above), and the word was previously
@@ -685,7 +720,11 @@ beendet mit Score` in place rather than migrating to a separate results page (AD
   hierarchy — the court is the column a player reads down for their own afternoon — and „what is on right
   now" is the Live board's job, not a grouping's. It is a **public** term: the **Admin** reads the same
   placement as a plain clock time („Sa 14:00", never „ca."), because the hedge states what can still move a
-  start and the operator is what moves it (ADR-0077). _(See ADR-0071, revising ADR-0069; ADR-0077.)_
+  start and the operator is what moves it (ADR-0077). The hedge has **two sources**, not one: the
+  **structural** chain abutment above, **or** a live **Play suspension**, which moves every not-yet-started
+  time including the ones nothing was in front of. The suspension's hedge is said **only on the Schedule &
+  results page**, where the band explains it — the Bracket cell's footer time stays plain, because a „ca."
+  a reader cannot resolve is noise (ADR-0078). _(See ADR-0071, revising ADR-0069; ADR-0077, ADR-0078.)_
 - **Match row** (de: Match-Zeile) — the one shape a match is displayed in on the public surfaces, in the
   anatomy a tennis spectator already reads fluently (ADR-0070): its two **contestant lines** — club crest,
   full name (never an initial), the **seed** as a small trailing token, and that slot's games — its
@@ -795,4 +834,8 @@ beendet mit Score` in place rather than migrating to a separate results page (AD
   `participant-list.astro` and `tournament-draw.astro` already do). The live bracket, schedule, and
   live board follow this same pattern — no SSR of dynamic pages, no rebuild-to-publish. Updates arrive
   by **polling** on a timer (live board ~10–20s; the public live bracket ~1–2s while a draw reveals) — no
-  SSE, WebSockets, or Durable Objects. _(See ADR-0008.)_
+  SSE, WebSockets, or Durable Objects. **`GET /api/phase` is read once on load on every surface except
+  `/spielplan`**, which polls it on the same 15s timer as the schedule feed, because the **Play suspension**
+  it carries is a live fact (ADR-0078). That makes it the one endpoint with two reading modes — worth
+  knowing before adding a field to it, since anything put there is now polled by every open schedule page.
+  _(See ADR-0008, ADR-0078.)_
