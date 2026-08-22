@@ -101,3 +101,37 @@ thing that block _is_.
   mail subsystem for n=9 four days before the event was rejected on sight.
 - **The block's values are event-specific and will need revisiting for 2027**, when both the format and the
   Damen championship question (ADR-0051 amendment) reopen.
+
+## Amendment (2026-08-22): the rotation gains a printed page, not a route — and the field's names never enter the repo
+
+The evening before the mixer, the ask arrived to turn the rotation into „eine HTML-Seite / Route" carrying
+the actual field: who plays with whom, when. That is a direct request for the thing the Consequences above
+declined, so the answer is recorded rather than assumed either way.
+
+**The rotation stays offline; `--html` is a print target, not a surface.** `scripts/social-mixer-rotation.mjs`
+gained `--html`, which emits the same sheets as one print-ready A4 page per head-count, and `--names`, which
+puts the real field in the cells. Nothing is served, nothing is deployed, no route exists. The alternative —
+an admin route reading the confirmed count out of D1 — would have been _more_ correct in one respect (it
+could never print a stale count) and was rejected on three: it needs a release-publish deploy (ADR-0015) the
+evening before, for a page that is dead after Sunday 15:00; it makes the rotation a thing the system knows,
+which is precisely what this ADR and ADR-0051 §6 keep it from being; and a page behind Cloudflare Access is
+worse than paper at the one moment it is needed — beside a court, on a fence, with nine people around it.
+
+**The field's names arrive as an argument and are never committed.** This repository is public (ADR-0013).
+`--names="…"` is therefore the only channel, the generated page is written to stdout so the caller redirects
+it somewhere outside the working tree, and no default name list exists in the file. Reading the names from D1
+directly was the tempting alternative and is the wrong one twice over: the script is plain Node with no build
+step and deliberately needs neither network nor `wrangler` on the day, and a script that writes participant
+data into the working tree is one `git add .` from publishing it.
+
+**Names are used only on the sheet whose head-count matches exactly.** The „a sheet per plausible N" design
+exists because the count is final only when everyone has turned up, and that is unchanged: at nine confirmed
+the sheets printed are 8, 9 and 10, and only the nine-sheet carries names. Which _eight_ of nine turned up is
+not knowable the evening before, so the 8- and 10-sheets keep numbers and a blank number-to-name legend.
+
+**The pause is the timekeeper, and the role rotates.** At nine players two courts take eight, so exactly one
+woman sits each round and the round count is nine — every player pauses exactly once, and no partnership
+repeats. The sheet therefore names the pause column „Pause · nimmt die Zeit": whoever sits calls the change
+at the printed time. It is a rotating role by construction, not a job for one person, and at a head-count
+divisible by four nobody sits at all — there the sheet says the Spielleiterin keeps time, because a rule that
+silently has no holder is how a block runs fifteen minutes long.
