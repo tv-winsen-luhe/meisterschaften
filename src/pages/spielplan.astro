@@ -607,6 +607,10 @@ const defaultMixerBlock = resolveSocialMixerBlock({ ...SOCIAL_MIXER_DEFAULT_PLAC
     font-weight: 800;
   }
   /* Right-aligned within its column, so the sets read down a column between the two lines. */
+  /* `tabular-nums` below is load-bearing rather than a nicety: `scoreLine` pads every entry to a digit-wide
+     column with U+2007 FIGURE SPACE, and a figure space is only a digit wide in tabular figures. Drop it and
+     the two lines' sets slide out of column again the moment a Match-Tie-Break makes one line's entries
+     wider than the other's. */
   .sched-match__games {
     flex-shrink: 0;
     justify-self: end;

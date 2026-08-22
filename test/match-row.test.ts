@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { scheduleView } from '../shared/match-view'
 import type { MatchScore, ScheduleMatch, ScheduleSlot } from '../shared'
 import type { ScheduleViewOptions } from '../shared/match-view'
+import { score } from './score-text'
 
 // The match row's tennis anatomy (#309, ADR-0070) — a sibling of match-view.test.ts, which pins the same
 // projection's grouping and its published-time floor. Split by question rather than by size: that file asks
@@ -113,7 +114,7 @@ describe('scheduleView · the match row reads like a tennis result', () => {
       score: { set1: [6, 3], set2: null, mtb: null }
     })
     // Quoted the way a result is — behind the winner's sets, not beside the name of whoever stopped.
-    expect(row.slot1.games).toBe('6')
+    expect(row.slot1.games).toBe(score('6'))
     expect(row.slot1.outcome).toBe('· Aufg.')
     expect(row.slot2.outcome).toBe(null)
   })
@@ -138,7 +139,7 @@ describe('scheduleView · the match row reads like a tennis result', () => {
 
   it('marks nobody while a match is still running, partial score and all', () => {
     const row = anatomy({ status: 'running', score: { set1: [6, 3], set2: [2, 1], mtb: null } })
-    expect(row.slot1.games).toBe('6 2')
+    expect(row.slot1.games).toBe(score('6 2'))
     expect(row.slot1.winner).toBe(false)
     expect(row.slot2.winner).toBe(false)
     expect(row.slot1.outcome).toBe(null)
