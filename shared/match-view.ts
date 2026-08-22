@@ -1,7 +1,7 @@
 import { COURT_NUMBERS, roundLabel, slotLabel, slotTime, SLOT_SPAN } from './schedule'
 import { scoreLine } from './score'
 import { SOCIAL_MIXER_COMPETITION } from './social-mixer'
-import type { LiveBracketSlot, MatchScore, ScheduleMatch, ScheduleResponse, ScheduleSlot } from './admin'
+import type { LiveBracketSlot, Match, MatchScore, ScheduleMatch, ScheduleResponse, ScheduleSlot } from './admin'
 import type { Club } from './club'
 
 /**
@@ -329,6 +329,21 @@ const scheduleRowSlot = (match: ScheduleMatch, slot: 1 | 2): RowSlot =>
   rowSlot(match, slot === 1 ? match.slot1 : match.slot2, slot)
 
 export const courtLabel = (court: number): string => `Platz ${court}`
+
+/**
+ * What the Spielplan card says when the match has left its reservation: „→ Platz 5", else nothing
+ * (ADR-0079 rule 3). The card does not move — its cell position *is* the reservation — so this token is
+ * the whole of what the grid says about reality, and it says it only while the two courts differ. An
+ * unplaced or unstarted match has no divergence to state.
+ *
+ * The Ergebnisse row's `courtText` reads the same two fields the other way round („Platz 3 (geplant 5)"):
+ * there the actual court is the heading and the plan is the aside, because that surface is where a
+ * mis-started match must be noticed.
+ */
+export const liveCourtNote = (match: Pick<Match, 'court' | 'liveCourt'>): string | null =>
+  match.liveCourt !== null && match.court !== null && match.liveCourt !== match.court
+    ? `→ ${courtLabel(match.liveCourt)}`
+    : null
 
 /**
  * One day section's heading („Samstag · 22.08."), from the date copy the client passes in. Exported because
