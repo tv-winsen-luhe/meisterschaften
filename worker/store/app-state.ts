@@ -6,6 +6,7 @@ import {
   COMPETITION_SLUGS,
   DEFAULT_PHASE,
   isValidSocialMixerPlacement,
+  canonicalCourts,
   NOT_SUSPENDED,
   phaseSchema,
   type PlaySuspension,
@@ -53,24 +54,48 @@ export interface AppStateStore {
    * set / on a read failure — fail-closed like the readers above, and here that means the site does not
    * announce a suspension nobody declared.
    *
-   * The two columns are independent below this layer; the impossible combination („not suspended, but a
-   * resume time is set", reachable by a hand-edited row) is normalised away **here**, so no caller can
-   * observe it. The *decay* of a passed resume time is not this Store's job — that is a function of the
-   * moment it is read at, and it lives in `shared/play-suspension.ts` where the surfaces apply it.
+   * The three columns are independent below this layer; the impossible combinations („not suspended, but a
+   * resume time is set", „suspended, but no court named" — both reachable by a hand-edited row) are
+   * normalised away **here**, so no caller can observe them. The *decay* of a passed resume time is not
+   * this Store's job — that is a function of the moment it is read at, and it lives in
+   * `shared/play-suspension.ts` where the surfaces apply it.
    */
   getPlaySuspension(): Promise<PlaySuspension>
   /** Suspend play, or lift it (upserts the single app-state row, leaving every other global untouched). */
   setPlaySuspension(suspension: PlaySuspension): Promise<void>
 }
 
+// The stored court set, degrading to empty. Same two failure modes `cancelled_competitions` has and the
+// same answer to both: a missing column value is a fresh row, and an unparseable one is only reachable via
+// a manual DB edit, where the repair is to overwrite it (ADR-0078 Amendment 2 rule 1).
+const courtsOf = (raw: string | undefined): number[] => {
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(raw ?? '[]')
+  } catch {
+    return []
+  }
+  return Array.isArray(parsed) ? parsed.filter((court): court is number => typeof court === 'number') : []
+}
+
+// A stored suspension, normalised. „Not suspended" wins over any resume time sitting beside it, and over a
+// suspension that names **no court** — the union above this layer cannot express either pair, so this is
+// where both stop (ADR-0078; Amendment 2 rule 1). The *decay* of a resume time is deliberately not applied
+// here: that is a function of the moment the state is read at, and it belongs to the surfaces. Shared by
+// both adapters.
+const suspensionOf = (
+  suspended: boolean | undefined,
+  resumesAt: number | null | undefined,
+  stored: readonly number[]
+): PlaySuspension => {
+  if (!suspended) return NOT_SUSPENDED
+  const courts = canonicalCourts(stored)
+  return courts.length === 0 ? NOT_SUSPENDED : { suspended: true, resumesAt: resumesAt ?? null, courts }
+}
+
 // A stored placement, or the planned one. The bound is re-checked on read, not only on write: the column
 // pair is two plain integers, and a hand-edited row must not be able to put the block somewhere the dialog
 // would never offer.
-// A stored suspension, normalised. „Not suspended" wins over any resume time sitting beside it: the union
-// above this layer cannot express that pair, so this is where it stops (ADR-0078). Shared by both adapters.
-const suspensionOf = (suspended: boolean | undefined, resumesAt: number | null | undefined): PlaySuspension =>
-  suspended ? { suspended: true, resumesAt: resumesAt ?? null } : NOT_SUSPENDED
-
 const placementOrDefault = (day: number | undefined, startSlot: number | undefined): SocialMixerPlacement => {
   if (day === undefined || startSlot === undefined) return SOCIAL_MIXER_DEFAULT_PLACEMENT
   const placement = { day, startSlot }
@@ -216,19 +241,21 @@ export const createD1AppStateStore = (d1: D1Database): AppStateStore => {
       // statement and a read that failed is not one.
       try {
         const rows = await db.select().from(appState).where(eq(appState.id, APP_STATE_ID)).limit(1)
-        return suspensionOf(rows[0]?.playSuspended, rows[0]?.playResumesAt)
+        return suspensionOf(rows[0]?.playSuspended, rows[0]?.playResumesAt, courtsOf(rows[0]?.suspensionCourts))
       } catch {
         return NOT_SUSPENDED
       }
     },
 
     async setPlaySuspension(suspension) {
-      // Both columns are written together, always. Lifting clears the resume time rather than leaving it
-      // behind, so the next suspension cannot inherit a stale „weiter ca. 14:30" from an hour ago — the
-      // impossible state is kept out of the row itself, not only out of the read.
+      // All three columns are written together, always. Lifting clears the resume time **and** the court set
+      // rather than leaving them behind, so the next suspension cannot inherit a stale „weiter ca. 14:30" or
+      // a stale „nur Platz 4" from an hour ago — the impossible state is kept out of the row itself, not only
+      // out of the read.
       const set = {
         playSuspended: suspension.suspended,
-        playResumesAt: suspension.suspended ? suspension.resumesAt : null
+        playResumesAt: suspension.suspended ? suspension.resumesAt : null,
+        suspensionCourts: JSON.stringify(suspension.suspended ? suspension.courts : [])
       }
       await db
         .insert(appState)
@@ -282,7 +309,11 @@ export const createInMemoryAppStateStore = (
     },
     async setPlaySuspension(next) {
       // Normalised on the way in, exactly as the D1 adapter writes it, so the two cannot drift.
-      playSuspension = suspensionOf(next.suspended, next.suspended ? next.resumesAt : null)
+      playSuspension = suspensionOf(
+        next.suspended,
+        next.suspended ? next.resumesAt : null,
+        next.suspended ? next.courts : []
+      )
     }
   }
 }

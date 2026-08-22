@@ -92,11 +92,13 @@ export interface DrawStore {
   placeMatch(id: number, placement: Placement | null): Promise<void>
 
   /**
-   * Move a match's live status (ADR-0032), the signal the public board keys off. Going `running` captures
-   * the **actual** court the match is on (`liveCourt`) — the operator's pick, defaulting to the planned
-   * court when none is given — so the board can send spectators to the right place even when a match moves
-   * to a freed court. `planned` clears the live court (the match has un-started); `done` keeps it (where it
-   * was played). A pure status/court write — it never touches the bracket.
+   * Move a match's live status (ADR-0032), the signal the public board keys off. Going `running` states the
+   * **actual** court the match is on (`liveCourt`) — the operator's pick, defaulting to the planned court
+   * when none is given — so the board can send spectators to the right place even when a match moves to a
+   * freed court. It may be restated as often as the match moves: the actual court is tracked for the life
+   * of the match, not captured at the transition (ADR-0079 rule 1). `planned` clears the live court (the
+   * match has un-started); `done` keeps it (where it was played). A pure status/court write — it never
+   * touches the bracket.
    */
   setMatchStatus(id: number, status: MatchStatus, liveCourt?: number): Promise<void>
 

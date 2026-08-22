@@ -414,10 +414,12 @@ export const createApp = (makeDeps: (env: Env) => Deps = createDepsFromEnv) =>
       return c.json({ ok: true } satisfies PlaceMatchResponse)
     })
     // POST /api/admin/match/status — move a match's live status (ADR-0032), the signal the public board
-    // keys off. Going `running` captures the **actual** court the match is on (`liveCourt`); the operator
+    // keys off. Going `running` states the **actual** court the match is on (`liveCourt`); the operator
     // picks it (the admin defaults to the planned court), and the store falls back to the planned court
-    // when none is sent, so the board never points at a stale planned court. A pure status write — the
-    // bracket is untouched; result entry is the separate /result endpoint.
+    // when none is sent, so the board never points at a stale planned court. Restating `running` with a new
+    // court is how a moved match is tracked (ADR-0079 rule 1) — every transition is representable and none
+    // is ordered, since a closed enum with no invariant needs no transition table (ADR-0079, rejected).
+    // A pure status write — the bracket is untouched; result entry is the separate /result endpoint.
     .post('/api/admin/match/status', parseGuard, v(matchStatusRequestSchema), async c => {
       const { id, status, liveCourt } = c.req.valid('json')
       await c.var.deps.draws.setMatchStatus(id, status, liveCourt)

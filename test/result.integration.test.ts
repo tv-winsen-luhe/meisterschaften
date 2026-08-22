@@ -191,6 +191,31 @@ describe('POST /api/admin/match/{status,result,set} (#90)', () => {
     expect(row).toMatchObject({ court: 5, status: 'running' })
   })
 
+  it('tracks the actual court for the whole life of the match, and forgets it on geplant (ADR-0079)', async () => {
+    // The day this came from: planned on 4, started there, moved to 5 because 5 came free, back to 4 after
+    // rain. The public board follows every move — the actual court is tracked, not captured at the start.
+    await drawField()
+    const semi = (await rowAt(1, 0))!
+    await post('/api/admin/match/place', { id: semi.id, placement: { court: 4, day: 0, slot: 0 } })
+    await post('/api/admin/schedule/publish', {}) // published, so the feed still carries it once un-started
+    await post('/api/admin/match/status', { id: semi.id, status: 'running' })
+    await post('/api/admin/match/status', { id: semi.id, status: 'running', liveCourt: 5 })
+    await post('/api/admin/match/status', { id: semi.id, status: 'running', liveCourt: 4 })
+    expect(await rowAt(1, 0)).toMatchObject({ status: 'running', live_court: 4 })
+
+    const courtOf = async () => {
+      const feed = scheduleResponseSchema.parse(await (await req('/api/schedule')).json())
+      return feed.matches.find(m => m.id === semi.id)!.court
+    }
+    expect(await courtOf()).toBe(4)
+
+    // A mis-clicked „läuft" set back: the match is un-started and on no court, so the board stops pointing
+    // at one (ADR-0079 rule 5). The reservation it was planned against survives.
+    expect((await post('/api/admin/match/status', { id: semi.id, status: 'planned' })).status).toBe(200)
+    expect(await rowAt(1, 0)).toMatchObject({ status: 'planned', live_court: null })
+    expect(await courtOf()).toBe(4) // the planned court, now the only court there is
+  })
+
   it('marks the third-place playoff on the public schedule wire so it is not mislabeled „Finale" (#90)', async () => {
     await drawField()
     const third = (await rowAt(2, 1))! // the third-place playoff shares the final's round

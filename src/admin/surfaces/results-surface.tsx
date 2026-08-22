@@ -52,7 +52,7 @@ interface ResultsSurfaceProps {
   draws: CompetitionDraw[]
   // Record (or correct) a completed result — the winner advances, a semifinal loser drops to the third-place
   // playoff, a winner change cascade-clears downstream. Resolves to whether it persisted (the drawer closes
-  // only on success). Mark a match läuft / beendet, capturing the actual court. Both via the shell's mutate.
+  // only on success). Move a match between „geplant" and „läuft", stating its court. Both via mutate.
   onRecordResult: (id: number, payload: ResultPayload) => Promise<boolean>
   onSetStatus: (id: number, status: MatchStatus, liveCourt?: number) => Promise<boolean>
   // Save a running match's interim score (ADR-0032, Amendment 2026-08-20): one /set call per changed set,
