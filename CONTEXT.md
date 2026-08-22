@@ -672,7 +672,11 @@ reveal sequence }`. Randomness enters through an injected **`RandomSource`** por
     empty set is not a state; it degrades to „play is happening". **The cause is a property of the court, not
     of a match**, which is why this is not a per-match state and why **Match status** is still untouched: a
     match waiting out the rain at 4:3 stays `running` on its court. One resume time covers the whole
-    suspension, never one per court. _(See ADR-0078 Amendment 2.)_
+    suspension, never one per court. Setting a match to „läuft" on a stopped court is **hinted, never
+    blocked** — „Platz 4 ist als unterbrochen markiert" beside the status control — and it **never releases
+    the court**: the court may simply have dried without anybody saying so, and releasing it silently would
+    announce that play has resumed there (block the impossible, warn the unwise).
+    _(See ADR-0078 Amendment 2, ADR-0033.)_
   - **The name carries no cause.** Rain, thunderstorm, an ambulance on court, floodlight failure on 5/6 —
     one thing for the spectator. _Avoid_: „Regenpause", `rainDelay`, and „Flashmeldung" (a borrowed word for
     something else; the rule that retired „Scoreboard" applies).
