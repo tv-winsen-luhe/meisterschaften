@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { hc } from 'hono/client'
 import type { AppType } from '../../worker/app'
-import { NOT_SUSPENDED, type PlaySuspension } from '../../shared'
+import { COURT_NUMBERS, NOT_SUSPENDED, type PlaySuspension } from '../../shared'
 
 // The Play suspension seam (ADR-0078), kept out of the admin shell like useCancellation and useSchedule:
 // whether play is suspended, when it is expected to resume, and the two writes that change it.
@@ -59,10 +59,17 @@ export const usePlaySuspension = (client: Client, mutate: Mutate): PlaySuspensio
     [client, mutate]
   )
 
+  // The shell switch means „alles unterbrechen" and writes **every** court (ADR-0078 Amendment 2 rule 3).
+  // All six is the total suspension, so this is the same statement it always made; releasing a single court
+  // is a second control, and it is deliberately not this one — the fast path stays one tap.
   const suspend = useCallback(
     (inMinutes: number | null) =>
       write(
-        { suspended: true, resumesAt: inMinutes === null ? null : Date.now() + inMinutes * 60_000 },
+        {
+          suspended: true,
+          resumesAt: inMinutes === null ? null : Date.now() + inMinutes * 60_000,
+          courts: [...COURT_NUMBERS]
+        },
         'Spielbetrieb unterbrochen.'
       ),
     [write]

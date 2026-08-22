@@ -2,7 +2,12 @@ import { applyD1Migrations, createExecutionContext, env, waitOnExecutionContext 
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { app } from '../worker/app'
 import worker from '../worker/index'
-import { isCancelledCompetition, resolveSocialMixerBlock, SOCIAL_MIXER_DEFAULT_PLACEMENT } from '../shared'
+import {
+  COURT_NUMBERS,
+  isCancelledCompetition,
+  resolveSocialMixerBlock,
+  SOCIAL_MIXER_DEFAULT_PLACEMENT
+} from '../shared'
 import type { PhaseResponse } from '../shared'
 
 // Thin integration smoke over a real local D1: proves the phase wiring (Hono → Zod → app-state
@@ -215,6 +220,13 @@ describe('POST /api/admin/phase', () => {
 
 describe('Play suspension · the wire', () => {
   const AT_1430 = Date.UTC(2026, 7, 22, 12, 30)
+  // Every court — the total suspension the shell switch writes (ADR-0078 Amendment 2 rules 1 and 3).
+  const EVERY_COURT = [...COURT_NUMBERS]
+  const stopped = (resumesAt: number | null, courts: number[] = EVERY_COURT) => ({
+    suspended: true,
+    resumesAt,
+    courts
+  })
 
   const setSuspension = (body: unknown) =>
     req('/api/admin/play-suspension', { method: 'POST', headers: JSON_HEADERS, body: JSON.stringify(body) })
@@ -224,23 +236,23 @@ describe('Play suspension · the wire', () => {
   })
 
   it('carries a suspension the operator declared, with its resume time', async () => {
-    const res = await setSuspension({ suspended: true, resumesAt: AT_1430 })
+    const res = await setSuspension(stopped(AT_1430))
     expect(res.status).toBe(200)
-    expect(await res.json()).toEqual({ ok: true, playSuspension: { suspended: true, resumesAt: AT_1430 } })
-    expect((await phaseResponse()).playSuspension).toEqual({ suspended: true, resumesAt: AT_1430 })
+    expect(await res.json()).toEqual({ ok: true, playSuspension: stopped(AT_1430) })
+    expect((await phaseResponse()).playSuspension).toEqual(stopped(AT_1430))
   })
 
   it('carries a suspension with no resume time', async () => {
-    await setSuspension({ suspended: true, resumesAt: null })
-    expect((await phaseResponse()).playSuspension).toEqual({ suspended: true, resumesAt: null })
+    await setSuspension(stopped(null))
+    expect((await phaseResponse()).playSuspension).toEqual(stopped(null))
   })
 
   it('lifts it, and the resume time does not come back with the next suspension', async () => {
-    await setSuspension({ suspended: true, resumesAt: AT_1430 })
+    await setSuspension(stopped(AT_1430))
     await setSuspension({ suspended: false })
     expect((await phaseResponse()).playSuspension).toEqual({ suspended: false })
-    await setSuspension({ suspended: true, resumesAt: null })
-    expect((await phaseResponse()).playSuspension).toEqual({ suspended: true, resumesAt: null })
+    await setSuspension(stopped(null))
+    expect((await phaseResponse()).playSuspension).toEqual(stopped(null))
   })
 
   it('refuses a resume time on a lifted suspension at the contract, not in the dialog', async () => {
@@ -250,8 +262,39 @@ describe('Play suspension · the wire', () => {
     expect((await phaseResponse()).playSuspension).toEqual({ suspended: false })
   })
 
+  it('carries the courts a partial suspension names, in canonical order', async () => {
+    // Not reachable from the shell switch yet — the control that creates one is the follow-up — but the wire
+    // and every reader below it are ready for it (ADR-0078 Amendment 2).
+    await setSuspension(stopped(AT_1430, [5, 3]))
+    expect((await phaseResponse()).playSuspension).toEqual(stopped(AT_1430, [3, 5]))
+  })
+
+  it('refuses a suspension that names no court, or one the event does not have', async () => {
+    expect((await setSuspension(stopped(null, []))).status).toBe(400)
+    expect((await setSuspension(stopped(null, [7]))).status).toBe(400)
+    expect((await phaseResponse()).playSuspension).toEqual({ suspended: false })
+  })
+
+  it('reads a row written before the courts column existed as „play is happening"', async () => {
+    // The migration's own case: an existing suspension keeps its two columns and gets the `[]` default, and
+    // „suspended, but no court named" degrades rather than putting an extent nobody declared on the site.
+    await env.DB.prepare('INSERT INTO app_state (id, play_suspended, play_resumes_at) VALUES (1, 1, ?)')
+      .bind(AT_1430)
+      .run()
+    expect((await phaseResponse()).playSuspension).toEqual({ suspended: false })
+  })
+
+  it('degrades an unparseable stored court set the same way', async () => {
+    // Only reachable via a manual DB edit; the repair is to overwrite it, and until then the site says the
+    // safe thing rather than the broken one.
+    await env.DB.prepare(
+      "INSERT INTO app_state (id, play_suspended, suspension_courts) VALUES (1, 1, 'not json')"
+    ).run()
+    expect((await phaseResponse()).playSuspension).toEqual({ suspended: false })
+  })
+
   it('is cleared by the transition to post-event', async () => {
-    await setSuspension({ suspended: true, resumesAt: AT_1430 })
+    await setSuspension(stopped(AT_1430))
     const res = await req('/api/admin/phase', {
       method: 'POST',
       headers: JSON_HEADERS,
@@ -264,13 +307,13 @@ describe('Play suspension · the wire', () => {
   })
 
   it('survives the transition into tournament, which is not an end of play', async () => {
-    await setSuspension({ suspended: true, resumesAt: AT_1430 })
+    await setSuspension(stopped(AT_1430))
     await req('/api/admin/phase', {
       method: 'POST',
       headers: JSON_HEADERS,
       body: JSON.stringify({ phase: 'tournament' })
     })
-    expect((await phaseResponse()).playSuspension).toEqual({ suspended: true, resumesAt: AT_1430 })
+    expect((await phaseResponse()).playSuspension).toEqual(stopped(AT_1430))
   })
 })
 
