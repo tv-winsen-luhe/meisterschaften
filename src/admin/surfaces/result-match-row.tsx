@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import {
   COURT_NUMBERS,
+  courtLabel,
   type MatchStatus,
   scoreLine,
   slotLabel,
@@ -31,22 +32,36 @@ interface MatchRowProps {
 export const MatchRow = ({ row, meta, nameById, onOpen, onSetStatus }: MatchRowProps) => {
   const { match, number, slot1, slot2 } = row
   const bothKnown = slot1.kind === 'player' && slot2.kind === 'player'
-  // The court the control shows: the actual court if the match is on one, else the planned court, else 1.
-  const [court, setCourt] = useState<number>(match.liveCourt ?? match.court ?? COURT_NUMBERS[0])
+  // The court the control shows. The server is the truth — the actual court while the match is on one,
+  // else the planned court — and `pick` is only the operator's un-written choice on top of it: a court
+  // armed for a „läuft" not yet stated, or one being written right now. The row lives for the whole match
+  // now, so a court that moved elsewhere (a re-place in the Spielplan, a second device) must reach this
+  // select; a `useState` seeded once would keep showing the court the row was mounted with and then write
+  // it back as the actual court, manufacturing a divergence nobody stated.
+  const [pick, setPick] = useState<number | null>(null)
+  const court = pick ?? match.liveCourt ?? match.court ?? COURT_NUMBERS[0]
+
+  // A status write, with the pick handed back to the server afterwards: on success the reload carries the
+  // new court, and on a rejected write the select drops back to what the server actually holds rather than
+  // asserting a court the match never moved to.
+  const write = async (status: SettableStatus, liveCourt?: number) => {
+    await onSetStatus(match.id, status, liveCourt)
+    setPick(null)
+  }
 
   // Picking a court while the match runs *is* the write (ADR-0079 rule 1) — the actual court is tracked for
   // the life of the match, so nothing sits between „sie sind jetzt auf Platz 5" and the public board saying
   // so. While the match is still planned the pick only arms the „läuft" the operator has yet to state.
   const pickCourt = (next: number) => {
-    setCourt(next)
-    if (match.status === 'running') void onSetStatus(match.id, 'running', next)
+    setPick(next)
+    if (match.status === 'running') void write('running', next)
   }
 
   // The status control writes what the operator states (ADR-0079 rule 4): „läuft" with the picked court,
   // „geplant" with none — the Store clears the actual court there (rule 5), since an un-started match is on
   // no court. No undo vocabulary and no confirm: the enum is small and the operator says what is true.
-  const pickStatus = (next: LiveStatus) => {
-    if (next !== match.status) void onSetStatus(match.id, next, next === 'running' ? court : undefined)
+  const pickStatus = (next: SettableStatus) => {
+    if (next !== match.status) void write(next, next === 'running' ? court : undefined)
   }
 
   // The winning slot, or null when undecided (CONTEXT: Bracket topology). The load-bearing `winnerRegId ===
@@ -101,7 +116,7 @@ export const MatchRow = ({ row, meta, nameById, onOpen, onSetStatus }: MatchRowP
                   >
                     {COURT_NUMBERS.map(c => (
                       <option key={c} value={c}>
-                        Platz {c}
+                        {courtLabel(c)}
                       </option>
                     ))}
                   </NativeSelect>
@@ -109,9 +124,9 @@ export const MatchRow = ({ row, meta, nameById, onOpen, onSetStatus }: MatchRowP
                     aria-label="Status"
                     className="h-8 w-auto"
                     value={match.status}
-                    onChange={e => pickStatus(e.target.value as LiveStatus)}
+                    onChange={e => pickStatus(e.target.value as SettableStatus)}
                   >
-                    {LIVE_STATUSES.map(s => (
+                    {SETTABLE_STATUSES.map(s => (
                       <option key={s} value={s}>
                         {STATUS_LABELS[s]}
                       </option>
@@ -130,11 +145,13 @@ export const MatchRow = ({ row, meta, nameById, onOpen, onSetStatus }: MatchRowP
   )
 }
 
-// The two states the row's status control moves between. „beendet" is deliberately not among them: it is
-// reached by entering a result, and nothing un-finishes a match — leaving `done` would have to decide what
-// happens to a winner already advanced into the parent match (ADR-0079 rule 6, a named gap).
-const LIVE_STATUSES = ['planned', 'running'] as const satisfies readonly MatchStatus[]
-type LiveStatus = (typeof LIVE_STATUSES)[number]
+// The two states the row's status control moves between, in either direction. „beendet" is deliberately not
+// among them: it is reached by entering a result, and nothing un-finishes a match — leaving `done` would
+// have to decide what happens to a winner already advanced into the parent match (ADR-0079 rule 6, a named
+// gap). Not „live" statuses: this event already calls a phase and a court „live", and what these two share
+// is only that the control may set them.
+const SETTABLE_STATUSES = ['planned', 'running'] as const satisfies readonly MatchStatus[]
+type SettableStatus = (typeof SETTABLE_STATUSES)[number]
 
 interface StatusBadgeProps {
   status: MatchStatus

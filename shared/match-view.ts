@@ -331,19 +331,24 @@ const scheduleRowSlot = (match: ScheduleMatch, slot: 1 | 2): RowSlot =>
 export const courtLabel = (court: number): string => `Platz ${court}`
 
 /**
+ * Whether the match is being played somewhere other than where it was planned — the fact both admin
+ * surfaces word differently (ADR-0079). It needs both courts: an unplaced match has no reservation to
+ * diverge from, and an un-started one is on no court at all.
+ */
+export const courtsDiverge = (match: Pick<Match, 'court' | 'liveCourt'>): boolean =>
+  match.liveCourt !== null && match.court !== null && match.liveCourt !== match.court
+
+/**
  * What the Spielplan card says when the match has left its reservation: „→ Platz 5", else nothing
  * (ADR-0079 rule 3). The card does not move — its cell position *is* the reservation — so this token is
- * the whole of what the grid says about reality, and it says it only while the two courts differ. An
- * unplaced or unstarted match has no divergence to state.
+ * the whole of what the grid says about reality, and it says it only while the two courts differ.
  *
- * The Ergebnisse row's `courtText` reads the same two fields the other way round („Platz 3 (geplant 5)"):
- * there the actual court is the heading and the plan is the aside, because that surface is where a
- * mis-started match must be noticed.
+ * The Ergebnisse row's `courtText` reads the same fact the other way round („Platz 3 (geplant 5)"): there
+ * the actual court is the heading and the plan is the aside, because that surface is where a mis-started
+ * match must be noticed. Two wordings, one predicate.
  */
 export const liveCourtNote = (match: Pick<Match, 'court' | 'liveCourt'>): string | null =>
-  match.liveCourt !== null && match.court !== null && match.liveCourt !== match.court
-    ? `→ ${courtLabel(match.liveCourt)}`
-    : null
+  courtsDiverge(match) ? `→ ${courtLabel(match.liveCourt!)}` : null
 
 /**
  * One day section's heading („Samstag · 22.08."), from the date copy the client passes in. Exported because

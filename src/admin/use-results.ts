@@ -16,8 +16,9 @@ type Client = ReturnType<typeof hc<AppType>>
 type Mutate = (run: () => Promise<Response>, success: string | null) => Promise<boolean>
 
 interface ResultsApi {
-  // Move a match's live status (ADR-0032): „läuft" captures the actual court (may differ from the planned
-  // one), „beendet" follows result entry. Silent on success — the Ergebnisse list reflects it on reload.
+  // Move a match's live status (ADR-0032), or restate the court it is on: „läuft" carries the actual court
+  // (which may differ from the planned one, and may move again while it runs — ADR-0079 rule 1), „geplant"
+  // clears it, „beendet" follows result entry. Silent on success — the Ergebnisse list reflects it on reload.
   setMatchStatus: (id: number, status: MatchStatus, liveCourt?: number) => Promise<boolean>
   // Record (or correct) a completed result (CONTEXT: Advancement): the winner advances, a semifinal loser
   // drops to the third-place playoff, a winner change cascade-clears downstream — all server-side.

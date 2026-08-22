@@ -3,6 +3,7 @@ import {
   type CompetitionDraw,
   type CompetitionOption,
   courtLabel,
+  courtsDiverge,
   dayAbbr,
   type DayCopy,
   dayLabel,
@@ -86,11 +87,11 @@ export const matchGroups = (draw: CompetitionDraw): [string, ResultMatch[]][] =>
 }
 
 /**
- * The court a match is actually on: the actual court once one is captured, else the planned court, else
- * null. ADR-0032 captures the actual court at the `running` transition *because* it diverges, and the court
- * view answers „was läuft auf Platz 3" — so it has to group by reality, exactly as the public page does.
- * Not conditioned on the status: a `liveCourt` is only ever written by that transition, and it stays true
- * after the match is done.
+ * The court a match is actually on: the actual court while it has one, else the planned court, else null.
+ * The actual court is tracked for the life of the match (ADR-0079 rule 1) *because* it diverges — and may
+ * diverge again an hour later — and the court view answers „was läuft auf Platz 3", so it has to group by
+ * reality, exactly as the public page does. Not conditioned on the status: a `liveCourt` is only ever
+ * written by a running match, and it stays true after that match is done.
  */
 export const effectiveCourt = (match: Pick<Match, 'court' | 'liveCourt'>): number | null =>
   match.liveCourt ?? match.court
@@ -105,8 +106,8 @@ export const effectiveCourt = (match: Pick<Match, 'court' | 'liveCourt'>): numbe
 export const courtText = (match: Pick<Match, 'court' | 'liveCourt'>): string | null => {
   const court = effectiveCourt(match)
   if (court === null) return null
-  const diverged = match.liveCourt !== null && match.court !== null && match.court !== match.liveCourt
-  return diverged ? `${courtLabel(court)} (geplant ${match.court})` : courtLabel(court)
+  // The predicate is shared with the grid card's „→ Platz 5" (`liveCourtNote`): one fact, two wordings.
+  return courtsDiverge(match) ? `${courtLabel(court)} (geplant ${match.court})` : courtLabel(court)
 }
 
 // A placement's plain clock time — never hedged with „ca.", which is the public announcement's device
