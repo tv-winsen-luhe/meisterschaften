@@ -699,7 +699,8 @@ reveal sequence }`. Randomness enters through an injected **`RandomSource`** por
   the **one** surface that owns the schedule and the results together: a row moves `geplant → läuft →
 beendet mit Score` in place rather than migrating to a separate results page (ADR-0070 §1). It is **one
   event-wide page** across all competitions (a competition filter, not per-field pages), grouped **day →
-  court** and led by the **Live board** (below). The per-competition brackets stay separate surfaces that
+  court** and led by the **Live board** (below); on an event day the **Current event day** (below) is the
+  day section that comes first. The per-competition brackets stay separate surfaces that
   fill with the same results. Do **not** call it the „public schedule" — `publicSchedule()` is the
   projection carrying only the _gated plan_, and the page also carries ungated results (Public bracket,
   ADR-0070 §3). The page always shows the **current truth, never the stale plan**: a match's court is the
@@ -712,6 +713,17 @@ beendet mit Score` in place rather than migrating to a separate results page (AD
   `/api/phase`** on its existing 15s timer instead of reading it once on load — the suspension would
   otherwise be invisible to exactly the person who left the page open (ADR-0078).
   _(See ADR-0008, ADR-0032, ADR-0069, ADR-0070, ADR-0078.)_
+- **Current event day** (de: heute) — which of the event's two days is being played **now**: day 0 while
+  it is 22.08., day 1 while it is 23.08., and **nothing at all** on every other date. It exists for one
+  purpose: the **Schedule & results page** leads with the day the reader on the grounds is standing in —
+  that day's section is ordered **first**, the other follows it whole, and the leading day's heading says
+  „heute", so the order reads as a statement rather than as a fault. It is read from the **server's**
+  clock in Europe/Berlin and from nothing else — neither the reader's device, nor which matches are
+  running, nor an operator switch — and it turns over at **calendar midnight**, which is what keeps
+  „heute" literally true. Outside the two dates there is no current day and the page is plainly
+  **chronological**; so is a page whose server time is missing or unreadable. It is a **reading order and
+  nothing else**: it moves no match, rewrites no time, hides nothing, and it stops at the public page —
+  the operator reads the plan in the order the plan has. _(See ADR-0081, ADR-0077.)_
 - **Live board** (de: Live-Board) — the „jetzt auf dem Platz" **courts strip** that leads the Schedule &
   results page: one cell per court, showing what is on that court **right now**. It names the strip, not
   the page around it — the page is the **Schedule & results page** (above), and the word was previously
