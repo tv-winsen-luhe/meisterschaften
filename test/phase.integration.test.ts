@@ -46,7 +46,8 @@ describe('GET /api/phase', () => {
       phase: 'signup',
       cancelledCompetitions: [],
       socialMixerPlacement: SOCIAL_MIXER_DEFAULT_PLACEMENT,
-      socialMixerCourts: [6]
+      socialMixerCourts: [6],
+      playSuspension: { suspended: false }
     })
   })
 
@@ -56,7 +57,8 @@ describe('GET /api/phase', () => {
       phase: 'tournament',
       cancelledCompetitions: [],
       socialMixerPlacement: SOCIAL_MIXER_DEFAULT_PLACEMENT,
-      socialMixerCourts: [6]
+      socialMixerCourts: [6],
+      playSuspension: { suspended: false }
     })
   })
 })
@@ -87,6 +89,7 @@ describe('GET /api/phase · the mixer courts (ADR-0073)', () => {
     expect(Object.keys(body).sort()).toEqual([
       'cancelledCompetitions',
       'phase',
+      'playSuspension',
       'socialMixerCourts',
       'socialMixerPlacement'
     ])
@@ -165,7 +168,8 @@ describe('POST /api/admin/phase', () => {
       phase: 'tournament',
       cancelledCompetitions: [],
       socialMixerPlacement: SOCIAL_MIXER_DEFAULT_PLACEMENT,
-      socialMixerCourts: [6]
+      socialMixerCourts: [6],
+      playSuspension: { suspended: false }
     })
   })
 
@@ -186,7 +190,8 @@ describe('POST /api/admin/phase', () => {
       phase: 'post-event',
       cancelledCompetitions: [],
       socialMixerPlacement: SOCIAL_MIXER_DEFAULT_PLACEMENT,
-      socialMixerCourts: [6]
+      socialMixerCourts: [6],
+      playSuspension: { suspended: false }
     })
   })
 
@@ -198,6 +203,74 @@ describe('POST /api/admin/phase', () => {
     })
     expect(res.status).toBe(400)
     expect(await res.json()).toEqual({ error: 'Ungültige Phase.' })
+  })
+})
+
+// ── Play suspension (ADR-0078) ───────────────────────────────────────────────────────────────────
+//
+// The suspension rides `/api/phase` as one signal (ADR-0048) and is set through an operator route under
+// `/api/admin/*`. Asserted here at the HTTP seam: that the public wire carries it, that the operator route
+// persists both halves, and that the `post-event` transition clears it — the one automatic act in the
+// feature, and the one nobody would remember to do by hand on a Sunday evening.
+
+describe('Play suspension · the wire', () => {
+  const AT_1430 = Date.UTC(2026, 7, 22, 12, 30)
+
+  const setSuspension = (body: unknown) =>
+    req('/api/admin/play-suspension', { method: 'POST', headers: JSON_HEADERS, body: JSON.stringify(body) })
+
+  it('reports play as happening on a fresh app-state', async () => {
+    expect((await phaseResponse()).playSuspension).toEqual({ suspended: false })
+  })
+
+  it('carries a suspension the operator declared, with its resume time', async () => {
+    const res = await setSuspension({ suspended: true, resumesAt: AT_1430 })
+    expect(res.status).toBe(200)
+    expect(await res.json()).toEqual({ ok: true, playSuspension: { suspended: true, resumesAt: AT_1430 } })
+    expect((await phaseResponse()).playSuspension).toEqual({ suspended: true, resumesAt: AT_1430 })
+  })
+
+  it('carries a suspension with no resume time', async () => {
+    await setSuspension({ suspended: true, resumesAt: null })
+    expect((await phaseResponse()).playSuspension).toEqual({ suspended: true, resumesAt: null })
+  })
+
+  it('lifts it, and the resume time does not come back with the next suspension', async () => {
+    await setSuspension({ suspended: true, resumesAt: AT_1430 })
+    await setSuspension({ suspended: false })
+    expect((await phaseResponse()).playSuspension).toEqual({ suspended: false })
+    await setSuspension({ suspended: true, resumesAt: null })
+    expect((await phaseResponse()).playSuspension).toEqual({ suspended: true, resumesAt: null })
+  })
+
+  it('refuses a resume time on a lifted suspension at the contract, not in the dialog', async () => {
+    // The union is the request schema, so the impossible state cannot even be asked for.
+    const res = await setSuspension({ suspended: false, resumesAt: AT_1430 })
+    expect(res.status).toBe(200)
+    expect((await phaseResponse()).playSuspension).toEqual({ suspended: false })
+  })
+
+  it('is cleared by the transition to post-event', async () => {
+    await setSuspension({ suspended: true, resumesAt: AT_1430 })
+    const res = await req('/api/admin/phase', {
+      method: 'POST',
+      headers: JSON_HEADERS,
+      body: JSON.stringify({ phase: 'post-event' })
+    })
+    expect(res.status).toBe(200)
+    // „Spielbetrieb unterbrochen" over the archive would be absurd, and the last suspension of a tournament
+    // is exactly the one nobody lifts by hand (ADR-0078 rule 6).
+    expect((await phaseResponse()).playSuspension).toEqual({ suspended: false })
+  })
+
+  it('survives the transition into tournament, which is not an end of play', async () => {
+    await setSuspension({ suspended: true, resumesAt: AT_1430 })
+    await req('/api/admin/phase', {
+      method: 'POST',
+      headers: JSON_HEADERS,
+      body: JSON.stringify({ phase: 'tournament' })
+    })
+    expect((await phaseResponse()).playSuspension).toEqual({ suspended: true, resumesAt: AT_1430 })
   })
 })
 

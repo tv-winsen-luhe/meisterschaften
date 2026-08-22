@@ -60,7 +60,18 @@ export const appState = sqliteTable('app_state', {
   // relative to the day's first start, so moving Sunday's start re-points it — the 9:00 → 10:00 move
   // (ADR-0068) turned the same 12:00 from slot 6 into slot 4, migrated for existing rows.
   socialMixerDay: integer('social_mixer_day').notNull().default(1),
-  socialMixerSlot: integer('social_mixer_slot').notNull().default(4)
+  socialMixerSlot: integer('social_mixer_slot').notNull().default(4),
+  // The Play suspension (ADR-0078): the event-wide „play is not happening right now", plus the moment it is
+  // expected to resume. Two loose columns rather than one, because „suspended with no known resume time" is
+  // a real and common state — the shape is a discriminated union *above* this layer
+  // (`shared/play-suspension.ts`), and the Store normalises the impossible combination away on read, the
+  // same posture `cancelled_competitions` has in this row.
+  //
+  // The resume time is **epoch milliseconds**, not a „HH:MM" string. The event runs at UTC+2 in August and
+  // Workers run UTC, so a clock string would need a timezone to mean anything and a second one to compare
+  // against; an instant needs neither, and Europe/Berlin appears only where the value is displayed.
+  playSuspended: integer('play_suspended', { mode: 'boolean' }).notNull().default(false),
+  playResumesAt: integer('play_resumes_at')
 })
 
 export type AppStateRow = typeof appState.$inferSelect

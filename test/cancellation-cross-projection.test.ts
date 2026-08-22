@@ -126,7 +126,8 @@ describe('a cancelled competition is missing from every public wire (ADR-0062 §
       phase: 'tournament',
       cancelledCompetitions: ['womens'],
       socialMixerPlacement: SOCIAL_MIXER_DEFAULT_PLACEMENT,
-      socialMixerCourts: [6]
+      socialMixerCourts: [6],
+      playSuspension: { suspended: false }
     })
   })
 
@@ -157,7 +158,8 @@ describe('a cancelled competition is missing from every public wire (ADR-0062 §
       phase: 'tournament',
       cancelledCompetitions: [],
       socialMixerPlacement: SOCIAL_MIXER_DEFAULT_PLACEMENT,
-      socialMixerCourts: [6]
+      socialMixerCourts: [6],
+      playSuspension: { suspended: false }
     })
   })
 })

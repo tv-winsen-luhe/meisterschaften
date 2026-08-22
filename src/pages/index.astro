@@ -1,6 +1,7 @@
 ---
 import Layout from '@/layouts/default.astro'
 import SectionHeader from '@/components/section-header.astro'
+import SuspensionBand from '@/components/suspension-band.astro'
 import CompetitionCard from '@/components/competition-card.astro'
 import FieldFlip from '@/components/field-flip.astro'
 import FaqItem from '@/components/faq-item.astro'
@@ -92,6 +93,13 @@ const sunday = [
       themselves with padding, never margins, so nothing was collapsing here to begin with. */
   }
   <div class="mx-auto flex max-w-[1280px] flex-col px-5 pt-6 text-navy md:px-10 md:pt-8">
+    <!-- The Play suspension (ADR-0078). It sits **above** the front-door lead rather than inside it: it is
+         not one of the three `tournament` stages, it reorders nothing, and it must not be able to move when
+         the results order flips. `order: -1` keeps it first in both orders — the hero's implicit 0 is what
+         it has to beat. It says less here than on the schedule and points onward, because the front door
+         points and the schedule owns its content (CONTEXT: Front-door lead). -->
+    <SuspensionBand surface="front-door" />
+
     <!-- Hero — no order class, so order 0 keeps it first in both orders. -->
     <section class="flex min-h-dvh flex-col justify-center pt-16 pb-[72px] md:pt-24 md:pb-[104px]">
       <div class="hero-head">

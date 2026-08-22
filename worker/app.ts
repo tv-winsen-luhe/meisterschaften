@@ -13,6 +13,7 @@ import {
   drawRequestSchema,
   drawsResponseSchema,
   isCancelledCompetition,
+  NOT_SUSPENDED,
   matchResultRequestSchema,
   matchSetRequestSchema,
   matchStatusRequestSchema,
@@ -24,6 +25,7 @@ import {
   scheduleResponseSchema,
   setCompetitionCancelledRequestSchema,
   setPhaseRequestSchema,
+  setPlaySuspensionRequestSchema,
   setSocialMixerBlockRequestSchema,
   undrawRequestSchema,
   validatePlacement,
@@ -49,6 +51,7 @@ import {
   type ScheduleStateResponse,
   type SetCompetitionCancelledResponse,
   type SetPhaseResponse,
+  type SetPlaySuspensionResponse,
   type UndrawResponse
 } from '../shared'
 import { createDepsFromEnv, type Deps } from './deps'
@@ -126,30 +129,24 @@ export const createApp = (makeDeps: (env: Env) => Deps = createDepsFromEnv) =>
         return c.json({ enabled: false, participants: [] } satisfies ParticipantsResponse, 200, NO_STORE)
       }
 
-      // A cancelled competition leaves the wire server-side (ADR-0062): the list must not name players
-      // for a field that does not take place. Filtered here rather than in the Store, so the projection
-      // stays the same shape for the admin — the admin is the record, not the stage.
-      const [confirmed, cancelled] = await Promise.all([
-        c.var.deps.registrations.listConfirmed(),
-        c.var.deps.appState.getCancelledCompetitions()
-      ])
-      const participants = confirmed.filter(p => !isCancelledCompetition(cancelled, p.competition))
+      // A cancelled competition leaves the wire server-side (ADR-0062): the list must not name players for a
+      // field that does not take place. The filter lives in the projection beside the other public wires.
+      const participants = await c.var.deps.projections.publicParticipants()
       return c.json(participantsResponseSchema.parse({ enabled: true, participants }), 200, NO_STORE)
     })
     // GET /api/phase — the current operator-controlled phase (ADR-0006). Public and outside
     // Access: every surface (the public list, later the draw/live views) reads it at runtime.
     // PUBLIC_LIST_ENABLED stays an orthogonal kill-switch — the phase does not gate the list.
     .get('/api/phase', async c => {
-      // Three independent reads, issued together rather than serially. The cancelled set and the mixer's
-      // signal ride this response rather than endpoints of their own (ADR-0062, ADR-0064): one poll, one
-      // signal every public surface already makes, so nothing has to re-derive „does this field take place"
-      // — or where the mixer is and on which courts (ADR-0073, resolved in the projection).
-      const [phase, cancelledCompetitions, mixer] = await Promise.all([
-        c.var.deps.appState.getPhase(),
-        c.var.deps.appState.getCancelledCompetitions(),
-        c.var.deps.projections.socialMixerSignal()
-      ])
-      return c.json({ phase, cancelledCompetitions, ...mixer } satisfies PhaseResponse, 200, NO_STORE)
+      // Four facts on one wire — the phase, the cancelled set, the mixer's signal and the play suspension
+      // (ADR-0062, ADR-0064, ADR-0073, ADR-0078): one poll, one signal every public surface already makes,
+      // so nothing has to re-derive „does this field take place", where the mixer is, or whether play is
+      // happening at all. Assembled in the projection, because building a public wire is what those do.
+      //
+      // The suspension is what makes this endpoint **polled** on `/spielplan` (ADR-0078 rule 5): every other
+      // surface still reads it once on load, so anything added here is now on a 15s timer for open schedule
+      // pages and should be cheap enough to be.
+      return c.json((await c.var.deps.projections.phaseSignal()) satisfies PhaseResponse, 200, NO_STORE)
     })
     // GET /api/draw — the public two-phase bracket (ADR-0046). Per competition: while its main bracket is
     // still revealing it carries the cursor-sliced reveal steps (the suspense invariant, ADR-0003); once
@@ -287,7 +284,22 @@ export const createApp = (makeDeps: (env: Env) => Deps = createDepsFromEnv) =>
     .post('/api/admin/phase', parseGuard, v(setPhaseRequestSchema), async c => {
       const { phase } = c.req.valid('json')
       await c.var.deps.appState.setPhase(phase)
+      // Entering post-event ends the event, and with it any Play suspension (ADR-0078 rule 6). „Spielbetrieb
+      // unterbrochen" over the archive would be absurd, and the last suspension of a tournament is exactly
+      // the one nobody lifts by hand — on a Sunday evening one switches phases, not banners. The one
+      // automatic act in that feature, and it can break nothing, because play is over.
+      if (phase === 'post-event') await c.var.deps.appState.setPlaySuspension(NOT_SUSPENDED)
       return c.json({ ok: true, phase } satisfies SetPhaseResponse)
+    })
+    // POST /api/admin/play-suspension — the operator suspends play, or lifts it (ADR-0078). The request is
+    // the state itself: a discriminated union, so „not suspended, but a resume time is set" cannot be asked
+    // for. Nothing else is reconciled — a suspension deliberately touches **no match**: one waiting out the
+    // rain at 4:3 in the second set is still `running` (rule 3), and reverting it would be a data loss
+    // nobody undoes. Lifting is manual only; the resume time's decay is a read-time rule, not a write.
+    .post('/api/admin/play-suspension', parseGuard, v(setPlaySuspensionRequestSchema), async c => {
+      const playSuspension = c.req.valid('json')
+      await c.var.deps.appState.setPlaySuspension(playSuspension)
+      return c.json({ ok: true, playSuspension } satisfies SetPlaySuspensionResponse)
     })
     // POST /api/admin/social-mixer-block — the operator moves the Social mixer's court block (ADR-0064).
     // Zod carries the whole rule (a real event day, a start whose three hours end by the ~20:00 daylight

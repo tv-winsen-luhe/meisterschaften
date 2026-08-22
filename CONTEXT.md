@@ -667,7 +667,9 @@ reveal sequence }`. Randomness enters through an injected **`RandomSource`** por
   - **The time decays, the suspension does not.** Once the resume time has passed the surface falls back to
     the plain state; the suspension stands until the operator lifts it. Lifting is **manual only** — an
     automatic lift would announce, positively and silently, that play has resumed (ADR-0035's per-slot
-    degradation, applied to one statement).
+    degradation, applied to one statement). The time is stored as an **instant**, not a clock string, so
+    „has it passed?" needs no timezone; Europe/Berlin appears only where it is displayed. The operator sets
+    it as **+15 / +30 / +60** — the language of a rain day — which resolves to that instant on the tap.
   - **Two surfaces, one band**: the Schedule & results page (above the Live board) and the front door (above
     the front-door lead), in **clay** — the colour of the court that cannot be played on; neon is taken, it
     means „läuft". The public draw carries **no** band, and consequently no hedge either (Published time).
@@ -675,7 +677,9 @@ reveal sequence }`. Randomness enters through an injected **`RandomSource`** por
     tournament is the one nobody remembers to lift.
   - It rides **`GET /api/phase`** as one signal beside `phase`, `cancelledCompetitions` and the mixer block
     (ADR-0048), which is what turns that endpoint into a **polled** wire on `/spielplan` (Live-data
-    delivery). _(See ADR-0078, ADR-0032, ADR-0071.)_
+    delivery). The operator's switch lives in the **admin shell**, not on a surface: one tap from anywhere,
+    and loud wherever the operator looks, so a suspension nobody lifted is a visible error rather than a
+    quiet one. _(See ADR-0078, ADR-0032, ADR-0071.)_
 - **Schedule & results page** (de: Spielplan & Ergebnisse) — the public weekend page at `/spielplan`, and
   the **one** surface that owns the schedule and the results together: a row moves `geplant → läuft →
 beendet mit Score` in place rather than migrating to a separate results page (ADR-0070 §1). It is **one

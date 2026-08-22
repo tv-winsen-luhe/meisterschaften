@@ -6,7 +6,9 @@ import {
   COMPETITION_SLUGS,
   DEFAULT_PHASE,
   isValidSocialMixerPlacement,
+  NOT_SUSPENDED,
   phaseSchema,
+  type PlaySuspension,
   SOCIAL_MIXER_DEFAULT_PLACEMENT,
   type CompetitionSlug,
   type Phase,
@@ -46,11 +48,29 @@ export interface AppStateStore {
   getSocialMixerPlacement(): Promise<SocialMixerPlacement>
   /** Move the block (upserts the single app-state row, leaving every other global untouched). */
   setSocialMixerPlacement(placement: SocialMixerPlacement): Promise<void>
+  /**
+   * Whether play is suspended, and when it is expected to resume (ADR-0078). „Play is happening" when never
+   * set / on a read failure — fail-closed like the readers above, and here that means the site does not
+   * announce a suspension nobody declared.
+   *
+   * The two columns are independent below this layer; the impossible combination („not suspended, but a
+   * resume time is set", reachable by a hand-edited row) is normalised away **here**, so no caller can
+   * observe it. The *decay* of a passed resume time is not this Store's job — that is a function of the
+   * moment it is read at, and it lives in `shared/play-suspension.ts` where the surfaces apply it.
+   */
+  getPlaySuspension(): Promise<PlaySuspension>
+  /** Suspend play, or lift it (upserts the single app-state row, leaving every other global untouched). */
+  setPlaySuspension(suspension: PlaySuspension): Promise<void>
 }
 
 // A stored placement, or the planned one. The bound is re-checked on read, not only on write: the column
 // pair is two plain integers, and a hand-edited row must not be able to put the block somewhere the dialog
 // would never offer.
+// A stored suspension, normalised. „Not suspended" wins over any resume time sitting beside it: the union
+// above this layer cannot express that pair, so this is where it stops (ADR-0078). Shared by both adapters.
+const suspensionOf = (suspended: boolean | undefined, resumesAt: number | null | undefined): PlaySuspension =>
+  suspended ? { suspended: true, resumesAt: resumesAt ?? null } : NOT_SUSPENDED
+
 const placementOrDefault = (day: number | undefined, startSlot: number | undefined): SocialMixerPlacement => {
   if (day === undefined || startSlot === undefined) return SOCIAL_MIXER_DEFAULT_PLACEMENT
   const placement = { day, startSlot }
@@ -188,6 +208,32 @@ export const createD1AppStateStore = (d1: D1Database): AppStateStore => {
         .insert(appState)
         .values({ id: APP_STATE_ID, ...set })
         .onConflictDoUpdate({ target: appState.id, set })
+    },
+
+    async getPlaySuspension() {
+      // Fail-closed like the readers above, and here that is „play is happening": a transient D1 error must
+      // never put „Spielbetrieb unterbrochen" on the site, because a suspension is the operator's explicit
+      // statement and a read that failed is not one.
+      try {
+        const rows = await db.select().from(appState).where(eq(appState.id, APP_STATE_ID)).limit(1)
+        return suspensionOf(rows[0]?.playSuspended, rows[0]?.playResumesAt)
+      } catch {
+        return NOT_SUSPENDED
+      }
+    },
+
+    async setPlaySuspension(suspension) {
+      // Both columns are written together, always. Lifting clears the resume time rather than leaving it
+      // behind, so the next suspension cannot inherit a stale „weiter ca. 14:30" from an hour ago — the
+      // impossible state is kept out of the row itself, not only out of the read.
+      const set = {
+        playSuspended: suspension.suspended,
+        playResumesAt: suspension.suspended ? suspension.resumesAt : null
+      }
+      await db
+        .insert(appState)
+        .values({ id: APP_STATE_ID, ...set })
+        .onConflictDoUpdate({ target: appState.id, set })
     }
   }
 }
@@ -198,12 +244,14 @@ export const createInMemoryAppStateStore = (
   initial: Phase = DEFAULT_PHASE,
   initialPublished = false,
   initialCancelled: readonly CompetitionSlug[] = [],
-  initialMixerPlacement: SocialMixerPlacement = SOCIAL_MIXER_DEFAULT_PLACEMENT
+  initialMixerPlacement: SocialMixerPlacement = SOCIAL_MIXER_DEFAULT_PLACEMENT,
+  initialSuspension: PlaySuspension = NOT_SUSPENDED
 ): AppStateStore => {
   let phase = initial
   let schedulePublished = initialPublished
   let cancelledCompetitions = canonical(initialCancelled)
   let socialMixerPlacement = initialMixerPlacement
+  let playSuspension = initialSuspension
   return {
     async getPhase() {
       return phase
@@ -228,6 +276,13 @@ export const createInMemoryAppStateStore = (
     },
     async setSocialMixerPlacement(next) {
       socialMixerPlacement = next
+    },
+    async getPlaySuspension() {
+      return playSuspension
+    },
+    async setPlaySuspension(next) {
+      // Normalised on the way in, exactly as the D1 adapter writes it, so the two cannot drift.
+      playSuspension = suspensionOf(next.suspended, next.suspended ? next.resumesAt : null)
     }
   }
 }

@@ -181,12 +181,23 @@ validation above, fail-closed. The resume time is an **absolute clock time**, fr
   public-only concept after ADR-0077; it is now also a **stateful** one.
 - **This is the first notice/banner component in the codebase.** `src/components/` has cards, headers,
   explainers and lists — nothing that speaks to the visitor about the site itself. The next one has to look
-  like this one.
+  like this one. It is **square**, like everything else: ADR-0076 rule 1 names „bands, or notices" outright,
+  and the front door's existing full-bleed clay band is the shape it inherits.
+- **Two public wires moved into the projection while building.** `/api/phase`'s payload is now
+  `projections.phaseSignal()` and the participant list's cancellation filter is `publicParticipants()` —
+  both were assembled inline in the route. The rule they now follow is the one this decision leaned on
+  anyway: building a public wire is a projection, and a route's job is to serve one. The immediate trigger
+  was the 300-line cap on `worker/app.ts`, which is a lint rule doing what it is for rather than a reason of
+  its own.
 - **Clay acquires a meaning.** It was a decorative surface tone (`--color-surface-warm`); it now says
   „unplayable" in one place. That is a small claim on the palette, and it should not be spent twice.
 - **The write endpoint must live under `/api/admin/*`.** Not a choice — a route outside it is born public
   (CONTEXT: Admin), which is why the token-only `/export` route was removed rather than kept.
-- **The resume time crosses a timezone.** Workers run UTC and the event is UTC+2 in August; the time must go
-  through the same helper the schedule's `slotTime` uses, not through a fresh conversion.
+- **The resume time is an instant, which is how the timezone stops being a problem.** Workers run UTC and the
+  event is UTC+2 in August, so a stored „14:30" would need a timezone to mean anything and a second one to be
+  compared against. Storing epoch milliseconds instead makes the decay rule a plain `<=` and confines
+  Europe/Berlin to `formatResumeTime`, where the value is _said_ rather than reasoned about. It deliberately
+  does **not** go through the schedule's `slotTime`: that helper answers „what clock time is grid slot N",
+  which is the reservation vocabulary this decision already refused to reuse.
 - **There is no way to say „today is over".** Named in the rejections above as an accepted gap, and repeated
   here so it is not discovered as a bug during a wet Saturday.

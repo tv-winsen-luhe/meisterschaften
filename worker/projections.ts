@@ -23,7 +23,7 @@ import {
   strengthRedacted,
   winningSlot
 } from '../shared'
-import type { Club } from '../shared'
+import type { Club, PhaseResponse } from '../shared'
 import type { AppStateStore } from './store/app-state'
 import type { DrawStore } from './store/draw'
 import type { RegistrationsStore, RevealPlayer } from './store/registrations'
@@ -194,6 +194,43 @@ export const createProjections = (deps: ProjectionsDeps) => {
       ])
       const entries = confirmed.filter(p => isUnseededCompetition(p.competition)).length
       return { socialMixerPlacement, socialMixerCourts: socialMixerCourts(entries) }
+    },
+
+    /**
+     * The whole `/api/phase` payload: the one signal every public surface reads (ADR-0048). Four
+     * independent facts, issued together rather than serially — the phase (ADR-0006), the cancelled set
+     * (ADR-0062), the mixer's placement + resolved courts (ADR-0064, ADR-0073) and whether play is
+     * suspended (ADR-0078).
+     *
+     * It lives here, beside the mixer signal it composes, rather than inline in the route: assembling a
+     * public wire *is* a projection, and the route's job is to serve one. It is also where the cost of the
+     * ADR-0078 promotion is paid — this response is now polled every 15s by every open `/spielplan`, so
+     * anything added here has to be cheap enough to be.
+     */
+    /**
+     * The public participant list's rows: every confirmed entry minus the ones in a cancelled field
+     * (ADR-0062). Filtered here rather than in the Store, so the Store's projection stays the same shape
+     * for the admin — the admin is the record, not the stage, and never hides a cancelled field.
+     *
+     * The `PUBLIC_LIST_ENABLED` kill-switch stays at the route: it is an environment fact, not a
+     * projection, and this method has no business reading env.
+     */
+    async publicParticipants() {
+      const [confirmed, cancelled] = await Promise.all([
+        registrationsStore.listConfirmed(),
+        appStateStore.getCancelledCompetitions()
+      ])
+      return confirmed.filter(p => !isCancelledCompetition(cancelled, p.competition))
+    },
+
+    async phaseSignal(): Promise<PhaseResponse> {
+      const [phase, cancelledCompetitions, mixer, playSuspension] = await Promise.all([
+        appStateStore.getPhase(),
+        appStateStore.getCancelledCompetitions(),
+        this.socialMixerSignal(),
+        appStateStore.getPlaySuspension()
+      ])
+      return { phase, cancelledCompetitions, ...mixer, playSuspension }
     },
 
     /**
