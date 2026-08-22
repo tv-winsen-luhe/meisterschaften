@@ -4,6 +4,7 @@ import { scheduleView } from '../shared/match-view'
 import type { LiveBracket, LiveBracketMatch, LiveBracketSlot, MatchScore, ScheduleMatch, ScheduleSlot } from '../shared'
 import type { BracketViewOptions } from '../shared/bracket-view'
 import type { ScheduleViewOptions } from '../shared/match-view'
+import { score } from './score-text'
 
 // What one **bracket cell** reads like (ADR-0070, #311) — the sibling of bracket-view.test.ts the same way
 // match-row.test.ts is the sibling of match-view.test.ts. Split by question rather than by size: that file
@@ -124,8 +125,8 @@ describe('bracketView · the cell carries its own score (ADR-0070)', () => {
     const cell = cellAt(view, 1, 0)
     // The one score formatter (#305) — the same separator the schedule row prints, because it is the same
     // call. Two formatters was the state this replaced.
-    expect(cell.slot1.games).toBe('6 4 8')
-    expect(cell.slot2.games).toBe('3 6 10')
+    expect(cell.slot1.games).toBe(score('6 4 8'))
+    expect(cell.slot2.games).toBe(score('3 6 10'))
     expect(cell.slot2).toMatchObject({ winner: true, loser: false })
     expect(cell.slot1).toMatchObject({ winner: false, loser: true })
   })
@@ -135,8 +136,8 @@ describe('bracketView · the cell carries its own score (ADR-0070)', () => {
       bMatch({ round: 1, position: 0, number: 1, status: 'running', score: { set1: [6, 3], set2: null, mtb: null } })
     ])
     const cell = cellAt(view, 1, 0)
-    expect(cell.slot1.games).toBe('6')
-    expect(cell.slot2.games).toBe('3')
+    expect(cell.slot1.games).toBe(score('6'))
+    expect(cell.slot2.games).toBe(score('3'))
     expect(cell.statusLabel).toBe('läuft')
   })
 
@@ -180,7 +181,7 @@ describe('bracketView · the cell carries its own score (ADR-0070)', () => {
       })
     ])
     const cell = cellAt(view, 1, 0)
-    expect(cell.slot1).toMatchObject({ games: '6 3', outcome: '· Aufg.' })
+    expect(cell.slot1).toMatchObject({ games: score('6 3'), outcome: '· Aufg.' })
     expect(cell.slot2.outcome).toBeNull()
   })
 

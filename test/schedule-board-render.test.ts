@@ -2,6 +2,7 @@ import { beforeAll, describe, expect, it } from 'vitest'
 import { scheduleView } from '../shared/match-view'
 import type { MatchScore, ScheduleMatch } from '../shared'
 import type { ScheduleViewOptions } from '../shared/match-view'
+import { score } from './score-text'
 
 // Feedback loop for the „the contestant lines shift a cell" bug (#343): the schedule row appended the
 // outcome span only when there was an outcome, so a normally scored match handed two items to a
@@ -140,8 +141,8 @@ describe('schedule board · a contestant line always occupies all three columns 
     const grid = players({ status: 'done', winner: 1, score: { set1: [6, 3], set2: [6, 4], mtb: null } })
 
     expect(classes(grid)).toEqual(LINE_CELLS)
-    expect(cells(grid)[1].textContent).toBe('6 6')
-    expect(cells(grid)[4].textContent).toBe('3 4')
+    expect(cells(grid)[1].textContent).toBe(score('6 6'))
+    expect(cells(grid)[4].textContent).toBe(score('3 4'))
     // Present and empty, not absent: the cell is what holds the column open.
     expect(cells(grid)[2].textContent).toBe('')
     expect(cells(grid)[5].textContent).toBe('')
@@ -247,5 +248,58 @@ describe('schedule board · the follow-on time is the block boundary hook (ADR-0
 
     expect(times.map(t => t.text)).toEqual(['10:00', '13:00'])
     expect(times[1].className).toBe('sched-match__time')
+  })
+})
+
+// Feedback loop for the „the score columns shift when there is a Match-Tie-Break" bug: on the schedule the
+// two contestant lines share one grid, and their sets live in **one** right-aligned cell holding a joined
+// string („6 3 10" over „4 6 8"). Right alignment lines the *ends* up, not the sets: the MTB is two digits
+// on the winner's line and one on the loser's, so the loser's whole line slid a character along and no set
+// sat under its own set any more. `scoreLine` pads every entry out to a digit-wide column to close it.
+//
+// The assertion models the geometry exactly rather than approximating it. Both cells sit in the same grid
+// track, in the same font, with `font-variant-numeric: tabular-nums` — every digit and every U+2007 pad
+// therefore has the same advance width, so a character offset *is* an x position and the column can be read
+// off the text the renderer emits, no browser required. Two facts make it up, and both are load-bearing:
+//
+//   * the **cell length**, because the cell is right-aligned — two lines of unequal length start at
+//     different x, which is the bug itself; and
+//   * each entry's **left edge**, because that is the column a reader scans: „10" over „8" puts the 1 above
+//     the 8 and lets the 0 overhang to the right, rather than punching a gap into the shorter line.
+const scoreColumns = (line: FakeEl): { length: number; starts: number[] }[] =>
+  line.children
+    .filter(c => c.className === 'sched-match__games')
+    .map(cell => ({
+      length: cell.textContent.length,
+      starts: [...cell.textContent.matchAll(/\d+/g)].map(m => m.index)
+    }))
+
+const lines = (grid: FakeEl): FakeEl[] => grid.children.filter(c => c.className.startsWith('sched-match__player'))
+
+describe('schedule board · the sets line up between the two contestant lines', () => {
+  it('keeps the columns aligned when a Match-Tie-Break decides the match', () => {
+    // 6:4 3:6 10:8 — the reported case. The MTB is the only score entry that can run to two digits on one
+    // line and one on the other, which is why it is the case that breaks.
+    const grid = players({ status: 'done', winner: 1, score: { set1: [6, 4], set2: [3, 6], mtb: [10, 8] } })
+    const [first, second] = lines(grid)
+
+    expect(scoreColumns(first)).toEqual(scoreColumns(second))
+    // Spelled out once, so the shape the invariant admits is visible rather than only self-consistent: three
+    // two-character columns back to back, the sets starting at 0, 2 and 4 on both lines.
+    expect(scoreColumns(first)).toEqual([{ length: 6, starts: [0, 2, 4] }])
+  })
+
+  it('keeps the columns aligned for two straight sets', () => {
+    const grid = players({ status: 'done', winner: 1, score: { set1: [6, 3], set2: [6, 4], mtb: null } })
+    const [first, second] = lines(grid)
+
+    expect(scoreColumns(first)).toEqual(scoreColumns(second))
+  })
+
+  it('keeps the columns aligned on the partial score of a match still on court', () => {
+    const grid = players({ status: 'running', liveCourt: 1, score: { set1: [6, 3], set2: null, mtb: null } })
+    const [first, second] = lines(grid)
+
+    expect(scoreColumns(first)).toEqual(scoreColumns(second))
   })
 })

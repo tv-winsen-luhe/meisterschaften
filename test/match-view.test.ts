@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { scheduleView } from '../shared/match-view'
 import type { MatchScore, ScheduleMatch, ScheduleSlot } from '../shared'
 import type { ScheduleViewOptions } from '../shared/match-view'
+import { score } from './score-text'
 
 // The public schedule's projection (ADR-0071, #308): the one place that turns the schedule feed
 // into the tree the page renders — day → court → rows — and the one place that decides how a planned time
@@ -196,8 +197,8 @@ describe('scheduleView · the tree is finished — grouped, ordered, labelled', 
     ]).days[0].courts[0].rows
     expect(row.status).toBe('running')
     expect(row.statusLabel).toBe('läuft')
-    expect(row.slot1.games).toBe('6')
-    expect(row.slot2.games).toBe('3')
+    expect(row.slot1.games).toBe(score('6'))
+    expect(row.slot2.games).toBe(score('3'))
     expect(row.slot1.winner).toBe(false)
   })
 
@@ -214,8 +215,8 @@ describe('scheduleView · the tree is finished — grouped, ordered, labelled', 
     ]).days[0].courts[0].rows
     // No „beendet" either — the score is what says the match is over.
     expect(row.statusLabel).toBe(null)
-    expect(row.slot1.games).toBe('6 4 8')
-    expect(row.slot2.games).toBe('3 6 10')
+    expect(row.slot1.games).toBe(score('6 4 8'))
+    expect(row.slot2.games).toBe(score('3 6 10'))
     expect(row.slot2.winner).toBe(true)
     expect(row.slot1.winner).toBe(false)
   })
@@ -320,7 +321,7 @@ describe('scheduleView · the courts board reads live truth', () => {
     // Narrow the union — a free cell carries no contestants to ask about.
     if (two.free) throw new Error('Platz 2 should be live')
     expect(two.meta).toBe('Viertelfinale · Herren')
-    expect(two.slot1).toMatchObject({ text: 'Jan Behrens', games: '6' })
+    expect(two.slot1).toMatchObject({ text: 'Jan Behrens', games: score('6') })
     // A planned match never occupies a court on the board — only a running one does (ADR-0032).
     expect(result.courts![2]).toMatchObject({ court: 3, free: true })
   })

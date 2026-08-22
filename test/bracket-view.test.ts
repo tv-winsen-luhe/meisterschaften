@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { bracketView } from '../shared/bracket-view'
 import type { LiveBracket, LiveBracketMatch, LiveBracketSlot, MatchScore, ScheduleMatch, ScheduleSlot } from '../shared'
 import type { BracketViewOptions } from '../shared/bracket-view'
+import { score } from './score-text'
 
 // The public bracket's projection (ADR-0070, #311): the tree a page renders — round columns, the „Spiel um
 // Platz 3", the segment choice — and the schedule join that puts a court and a floor under each cell. How one
@@ -157,8 +158,8 @@ describe('bracketView · the plan is joined, the result is not (ADR-0070)', () =
     const view = bview([decided], [])
     const cell = cellAt(view, 1, 0)
     expect(cell.schedule).toBeNull()
-    expect(cell.slot1.games).toBe('6 6')
-    expect(cell.slot2.games).toBe('3 4')
+    expect(cell.slot1.games).toBe(score('6 6'))
+    expect(cell.slot2.games).toBe(score('3 4'))
     expect(cell.slot1.winner).toBe(true)
   })
 
@@ -229,7 +230,7 @@ describe('bracketView · the tree is finished — rounds, the playoff, the segme
     expect(view.rounds[1].playoff?.number).toBe(4)
     expect(view.rounds[1].playoff?.label).toBe('Spiel um Platz 3')
     // It shows its score exactly like any other cell.
-    expect(view.rounds[1].playoff?.slot1).toMatchObject({ games: '6 6', winner: true })
+    expect(view.rounds[1].playoff?.slot1).toMatchObject({ games: score('6 6'), winner: true })
     // No earlier round carries one.
     expect(view.rounds[0].playoff).toBeNull()
   })
@@ -262,7 +263,7 @@ describe('bracketView · the tree is finished — rounds, the playoff, the segme
     expect(view.rounds.map(r => r.label)).toEqual(['Nebenrunde · Finale'])
     // The round control sits *inside* the Nebenrunde tab, so its buttons drop the prefix the column keeps.
     expect(view.rounds.map(r => r.name)).toEqual(['Finale'])
-    expect(view.rounds[0].cells[0]?.slot2).toMatchObject({ games: '4 4', winner: true })
+    expect(view.rounds[0].cells[0]?.slot2).toMatchObject({ games: score('4 4'), winner: true })
     // The consolation has no playoff (ADR-0004).
     expect(view.rounds[0].playoff).toBeNull()
   })
