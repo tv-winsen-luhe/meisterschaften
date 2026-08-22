@@ -51,6 +51,13 @@ export interface ProjectionsDeps {
 export interface ScheduleFeed {
   published: boolean
   matches: ScheduleMatch[]
+  /**
+   * The server's clock as an ISO instant, the **Current event day**'s only source (ADR-0081). It rides this
+   * feed because this is the wire that carries the days; the page turns it into „which of the two days is
+   * being played" and leads with that day's section. Nothing on the server reads it back — it is stated
+   * here and consumed there.
+   */
+  now: string
 }
 
 // The Social mixer's two public facts, as `/api/phase` carries them (ADR-0073). They do not replace each
@@ -484,7 +491,9 @@ export const createProjections = (deps: ProjectionsDeps) => {
         }
       })
 
-      return { published, matches }
+      // The clock is read at the end of the projection, so it is as close as it can be to what the reader
+      // receives. It is the *only* thing on this feed that is not derived from stored state (ADR-0081).
+      return { published, matches, now: new Date().toISOString() }
     }
   }
 }

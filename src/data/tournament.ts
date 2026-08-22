@@ -148,6 +148,43 @@ const partsOf = (d: Date) => {
 
 const sdParts = partsOf(SIGNUP_DEADLINE)
 
+// One instant as its Europe/Berlin calendar date, „YYYY-MM-DD" — the comparable form of „welcher Tag ist
+// das dort". Built from `partsOf`, so the zone is stated once for the whole file.
+const berlinDateKey = (d: Date): string => {
+  const { day, month, year } = partsOf(d)
+  return `${year}-${month}-${day}`
+}
+
+// The event's days as Berlin calendar dates, in wire order — day 0 is `TOURNAMENT_START`'s date, each
+// further day one calendar day on. Sized from the grid (`SCHEDULE.days`) rather than from a literal 2, so a
+// three-day event needs no edit here. The +24h step is exact for this weekend (August has no DST edge in
+// Berlin) and the comparison is done on the formatted date either way.
+const DAY_MS = 24 * 60 * 60 * 1000
+const EVENT_DAY_KEYS = Array.from({ length: SCHEDULE.days }, (_, i) =>
+  berlinDateKey(new Date(TOURNAMENT_START.getTime() + i * DAY_MS))
+)
+
+/**
+ * The **Current event day** (CONTEXT: Current event day, ADR-0081): which of the event's days the given
+ * instant falls on — `0` on 22.08., `1` on 23.08., and `null` on every other date.
+ *
+ * It lives here because this file owns the event's dates; `shared/` stays calendar-free and is handed the
+ * finished index (`scheduleView`'s `currentDay`). The instant is the **server's** (`/api/schedule`'s `now`),
+ * never the reader's device — a wrong device clock would be wrong by a whole day section and would never
+ * correct itself.
+ *
+ * **Fails open**: a missing, empty or unparseable time is `null`, which is „no current day" and leaves the
+ * schedule in plain chronological order. It never throws and never returns a NaN-shaped answer, because the
+ * caller is a render path with no better plan than „show the plan as it always was".
+ */
+export const eventDayAt = (now: string | null | undefined): number | null => {
+  if (!now) return null
+  const at = new Date(now)
+  if (Number.isNaN(at.getTime())) return null
+  const index = EVENT_DAY_KEYS.indexOf(berlinDateKey(at))
+  return index === -1 ? null : index
+}
+
 /** Tournament weekend (Sat/Sun). */
 export const tournament = {
   start: TOURNAMENT_START,

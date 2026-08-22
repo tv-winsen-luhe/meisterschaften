@@ -906,7 +906,7 @@ const defaultMixerBlock = resolveSocialMixerBlock({ ...SOCIAL_MIXER_DEFAULT_PLAC
   } from '../../shared'
   import { renderCourts, renderFilter, renderSchedule } from '../components/schedule-board.render'
   import { renderSuspensionBand } from '../scripts/suspension-band'
-  import { competitions, socialMixerWhen, tournament } from '../data/tournament'
+  import { competitions, eventDayAt, socialMixerWhen, tournament } from '../data/tournament'
   import type { AppType } from '../../worker/app'
   import type { PlaySuspension, ScheduleResponse } from '../../shared'
 
@@ -1017,7 +1017,13 @@ const defaultMixerBlock = resolveSocialMixerBlock({ ...SOCIAL_MIXER_DEFAULT_PLAC
       // Read at render time rather than at poll time, so a resume time that passes between two polls stops
       // being claimed on the next render either way (ADR-0078 rule 7). A list rather than a flag since
       // Amendment 2: only the courts the operator actually stopped hedge.
-      stoppedCourts: suspendedCourts(playSuspension, Date.now())
+      stoppedCourts: suspendedCourts(playSuspension, Date.now()),
+      // The day the reader is standing in leads the board (ADR-0081). Derived from the **server's** clock
+      // off this very feed — never `Date.now()`, which would put a phone with a wrong date on a different
+      // page from everyone else on the grounds — and recomputed on every render, so an open page reorders
+      // itself at midnight instead of remembering a day it decided once. No `now`, no current day, plain
+      // chronological order: the fail-open is the schema's (`now` is optional) and `eventDayAt`'s.
+      currentDay: eventDayAt(feed.now)
     })
     // The view decides whether the stored selection still applies (a field the feed stopped carrying, or a
     // page with nothing left to choose between), so the controller adopts its verdict rather than holding
