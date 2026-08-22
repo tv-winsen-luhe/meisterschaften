@@ -420,6 +420,14 @@ const defaultMixerBlock = resolveSocialMixerBlock({ ...SOCIAL_MIXER_DEFAULT_PLAC
     padding-top: 8px;
     background-color: var(--color-surface);
   }
+  /* While a suspension stands, the day heading stands down (ADR-0078 rule 8 as amended). The band pins below
+     the bar, so keeping this pinned too would make three layers — the exact count the comment above refuses
+     for the court heading, and it would be most of a phone viewport for as long as the rain lasts. The
+     heading stays perfectly legible in flow on the way past, and „when does play continue" outranks „which
+     day am I looking at" for precisely the period the band is up. */
+  :root.is-play-suspended .sched-day > .sched-day__head {
+    position: static;
+  }
   /* The three vertical gaps inside a day are a **ranked set**, and the numbers are chosen against each other
      rather than each on its own (ADR-0075 rule 4): 8px between two cards on the same court, 22px at a block
      boundary within a court, 36px between two courts — on top of which only the court gets a heading and a

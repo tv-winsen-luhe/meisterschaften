@@ -76,10 +76,22 @@ export const formatResumeTime = (at: number): string => clockFmt.format(new Date
  */
 export type NoticeSurface = 'schedule' | 'front-door'
 
-/** The band's finished German. Every string is complete; a renderer iterates and never concatenates. */
+/**
+ * The band's finished German. Every string is complete; a renderer iterates and never concatenates.
+ *
+ * Two forms of the same statement, because the band is pinned and therefore read twice (ADR-0078 rule 8, as
+ * amended): the **full** form on arrival — headline plus lines — and the **condensed** form once the reader
+ * has scrolled past it, which is a single line and has to survive on one row of a 360px phone. The condensed
+ * form is authored here rather than derived by the renderer from `lines`, because there is no position that
+ * holds the right half: on the front door `lines` is empty whenever no resume time is known, and on the
+ * schedule the only line left after the time decays is the one about shifted times, which is the wrong half
+ * to keep.
+ */
 export interface SuspensionNotice {
   headline: string
   lines: string[]
+  /** The pinned one-liner. Never uppercased by the renderer — it carries a clock time, and a shouted time reads as an error. */
+  condensed: string
 }
 
 /**
@@ -102,10 +114,17 @@ export const suspensionNotice = (
 ): SuspensionNotice | null => {
   const resolved = resolveSuspension(state, now)
   if (!resolved.suspended) return null
-  const resume = resolved.resumesAt === null ? [] : [`Weiter geht es ca. ${formatResumeTime(resolved.resumesAt)} Uhr.`]
+  const time = resolved.resumesAt === null ? null : formatResumeTime(resolved.resumesAt)
+  const resume = time === null ? [] : [`Weiter geht es ca. ${time} Uhr.`]
+  const headline = 'Spielbetrieb unterbrochen'
   return {
-    headline: 'Spielbetrieb unterbrochen',
-    lines: surface === 'schedule' ? [...resume, 'Alle geplanten Startzeiten verschieben sich.'] : resume
+    headline,
+    lines: surface === 'schedule' ? [...resume, 'Alle geplanten Startzeiten verschieben sich.'] : resume,
+    // The front door's condensed bar keeps its „Zum Spielplan" link and gives up the time: the front door
+    // **points**, and the time it drops is one tap away on the page it points at. The schedule keeps the
+    // time, because it is the page whose every „ca." that time explains — and drops the shifted-times
+    // sentence, which the reader has already read on the way past.
+    condensed: surface === 'schedule' && time !== null ? `${headline} · weiter ca. ${time} Uhr` : headline
   }
 }
 

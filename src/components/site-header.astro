@@ -323,6 +323,15 @@ const home = import.meta.env.BASE_URL || '/'
      the bar ever gains a state that changes its height, this is the one place that has to learn about it. */
   :root {
     --site-header-legal-h: 57px;
+    /* The **event** header's condensed height, stated for the same reason and read by the same kind of
+       consumer (the Play suspension's band pins below it on the front door, ADR-0078 rule 8 as amended).
+       Only the condensed state gets a number, and that is not a gap: the tall state exists at scroll 0
+       only, where anything pinning below this bar is still in flow and needs no offset at all. The
+       arithmetic, measured rather than assumed: 10px padding × 2 + a 34px row + the 1px border. The row is
+       the CTA's height (8px padding × 2 + an 18px line), and it is the tallest item at every width — the
+       condensed brand is 28px, and even wrapped to two lines below the nav breakpoint it stays under it. Like
+       its sibling above, this is the one place that has to learn about a change to `.is-stuck`. */
+    --site-header-event-stuck-h: 55px;
   }
   .site-header__back {
     margin-right: auto;

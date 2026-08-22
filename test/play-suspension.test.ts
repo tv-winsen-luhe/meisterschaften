@@ -97,35 +97,67 @@ describe('the notice', () => {
   it('states the shifted times on the schedule when no resume time is known', () => {
     expect(suspensionNotice({ suspended: true, resumesAt: null }, AT_1400, 'schedule')).toEqual({
       headline: 'Spielbetrieb unterbrochen',
-      lines: ['Alle geplanten Startzeiten verschieben sich.']
+      lines: ['Alle geplanten Startzeiten verschieben sich.'],
+      condensed: 'Spielbetrieb unterbrochen'
     })
   })
 
   it('puts the resume time in front of the shifted-times line', () => {
     expect(suspensionNotice({ suspended: true, resumesAt: AT_1430 }, AT_1400, 'schedule')).toEqual({
       headline: 'Spielbetrieb unterbrochen',
-      lines: ['Weiter geht es ca. 14:30 Uhr.', 'Alle geplanten Startzeiten verschieben sich.']
+      lines: ['Weiter geht es ca. 14:30 Uhr.', 'Alle geplanten Startzeiten verschieben sich.'],
+      condensed: 'Spielbetrieb unterbrochen · weiter ca. 14:30 Uhr'
     })
   })
 
   it('drops the resume line once that time has passed', () => {
     expect(suspensionNotice({ suspended: true, resumesAt: AT_1430 }, AT_1440, 'schedule')).toEqual({
       headline: 'Spielbetrieb unterbrochen',
-      lines: ['Alle geplanten Startzeiten verschieben sich.']
+      lines: ['Alle geplanten Startzeiten verschieben sich.'],
+      condensed: 'Spielbetrieb unterbrochen'
     })
   })
 
   it('says less on the front door, which has no times to explain', () => {
     expect(suspensionNotice({ suspended: true, resumesAt: AT_1430 }, AT_1400, 'front-door')).toEqual({
       headline: 'Spielbetrieb unterbrochen',
-      lines: ['Weiter geht es ca. 14:30 Uhr.']
+      lines: ['Weiter geht es ca. 14:30 Uhr.'],
+      condensed: 'Spielbetrieb unterbrochen'
     })
   })
 
   it('leaves the front door with the headline alone when no time is known', () => {
     expect(suspensionNotice({ suspended: true, resumesAt: null }, AT_1400, 'front-door')).toEqual({
       headline: 'Spielbetrieb unterbrochen',
-      lines: []
+      lines: [],
+      condensed: 'Spielbetrieb unterbrochen'
     })
+  })
+})
+
+// The condensed form is the pinned band's one line (ADR-0078 rule 8 as amended). It is authored here rather
+// than sliced out of `lines` by the renderer, and these are the cases that show why no slice would do: the
+// half worth keeping is not at a fixed position, and on the front door there is often nothing there at all.
+describe('the condensed notice', () => {
+  it('keeps the resume time on the schedule, and drops the shifted-times sentence', () => {
+    const notice = suspensionNotice({ suspended: true, resumesAt: AT_1430 }, AT_1400, 'schedule')
+    expect(notice?.condensed).toBe('Spielbetrieb unterbrochen · weiter ca. 14:30 Uhr')
+  })
+
+  it('falls back to the headline alone once the resume time has decayed', () => {
+    // The pinned line decays with the state it states — at 14:40 „weiter ca. 14:30" has been refuted, and
+    // the last line standing on the schedule is the one the condensed form deliberately does not keep.
+    const notice = suspensionNotice({ suspended: true, resumesAt: AT_1430 }, AT_1440, 'schedule')
+    expect(notice?.condensed).toBe('Spielbetrieb unterbrochen')
+  })
+
+  it('gives up the time on the front door, which keeps its pointer instead', () => {
+    const notice = suspensionNotice({ suspended: true, resumesAt: AT_1430 }, AT_1400, 'front-door')
+    expect(notice?.condensed).toBe('Spielbetrieb unterbrochen')
+  })
+
+  it('never shouts: the line carries a clock time and is not uppercased', () => {
+    const notice = suspensionNotice({ suspended: true, resumesAt: AT_1430 }, AT_1400, 'schedule')
+    expect(notice?.condensed).not.toBe(notice?.condensed.toUpperCase())
   })
 })

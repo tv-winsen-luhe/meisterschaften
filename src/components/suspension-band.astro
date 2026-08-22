@@ -1,18 +1,25 @@
 ---
-// The Play suspension's band (CONTEXT: Play suspension; ADR-0078 rule 8) — the site's first element that
-// speaks to the visitor about the event itself rather than about a match.
+// The Play suspension's band (CONTEXT: Play suspension; ADR-0078 rule 8, as amended) — the site's first
+// element that speaks to the visitor about the event itself rather than about a match.
 //
 // It ships **empty and hidden** and is filled by whichever page mounts it, from the one `/api/phase` signal:
 // both surfaces that carry it are static (ADR-0008), and a suspension is live truth, so there is nothing to
-// render at build time. Its two texts come finished from `suspensionNotice` — this file authors no German.
+// render at build time. Its texts come finished from `suspensionNotice` — this file authors no German.
 //
 // **Clay**, not a warning colour: the palette has none, and adding one for a state visible perhaps two hours
 // a year is a permanent word for a temporary thing. Neon was unavailable on meaning rather than on taste —
 // it is `--color-live`, it says „läuft", and using it for the opposite would destroy the one colour meaning
 // this site has. Clay is the colour of the court that cannot be played on.
 //
-// Not sticky and not dismissible: dismissal state is per visitor, i.e. `localStorage`, a whole second
-// concept for a notice that should not be dismissible in the first place.
+// **Pinned, and it condenses** (the amendment): the statement is true for as long as it stands, so it has to
+// be readable wherever the reader is, not only at the top of the document — on the front door it used to sit
+// above a `min-h-dvh` hero and was gone after one flick. Below the page's own header, never above it: the
+// header is site chrome, the band is content about the event, and a clay band over the wordmark and the
+// „Zurück"-link reads as a takeover. Full on arrival, one line thereafter, because at full height a pinned
+// band is a third of a phone viewport for as long as the rain lasts.
+//
+// Still **not dismissible**: dismissal state is per visitor, i.e. `localStorage`, a whole second concept for
+// a notice that should not be dismissible in the first place.
 
 interface Props {
   /** Where the band sits, which decides what it says — the schedule explains its times, the front door points. */
@@ -22,10 +29,33 @@ interface Props {
 const { surface } = Astro.props
 ---
 
+{
+  /* The condense trigger, in flow at the band's **resting** position — a sibling, and deliberately not a
+     child. A sentinel inside the band would be carried along by the very `position: sticky` it exists to
+     detect and would never leave the viewport, which is the trap the header's own sentinel avoids by sitting
+     outside it. `order: -2` keeps it ahead of the band in the front door's flex column (the band is `-1`);
+     on the schedule the parent is not a flex container and the declaration is simply inert. */
+}
+<div class="suspension__sentinel" data-suspension-sentinel aria-hidden="true"></div>
+
 <aside data-suspension data-surface={surface} class="suspension" role="status" aria-live="polite" hidden>
-  <p class="suspension__headline" data-suspension-headline></p>
-  <div class="suspension__lines" data-suspension-lines></div>
+  <div class="suspension__full">
+    <p class="suspension__headline" data-suspension-headline></p>
+    <div class="suspension__lines" data-suspension-lines></div>
+  </div>
+
   {
+    /* The pinned one-liner. `aria-hidden`, and always in the DOM: the band is a live region, so a second
+      readable copy of the same statement would double the announcement, and toggling `display` on a live
+      region's child re-announces a state that has not changed. A screen reader hears the full notice once,
+      when the suspension is declared, and scroll position never speaks. */
+  }
+  <p class="suspension__condensed" data-suspension-condensed aria-hidden="true"></p>
+
+  {
+    /* The link is a sibling of both forms, not a child of either: it survives the condense. That is the
+      front door's whole job here — it **points**, and what the condensed line gives up is the resume time,
+      which is one tap away on the page this link leads to. */
     surface === 'front-door' && (
       <a class="suspension__link" href="/spielplan">
         Zum Spielplan
@@ -36,6 +66,14 @@ const { surface } = Astro.props
 
 <style>
   .suspension {
+    position: sticky;
+    /* Below the header, whose height each surface states as a constant. The fallback is 0 so a surface that
+       pins nothing — or a page whose header is not pinned at all — needs no declaration of its own. */
+    top: var(--suspension-top, 0px);
+    /* Between the header's 50 and the schedule's day headings at 20, so the three stack in reading order
+       rather than fighting — the convention the day heading's own comment states. */
+    z-index: 40;
+
     display: flex;
     flex-direction: column;
     gap: 4px;
@@ -58,6 +96,29 @@ const { surface } = Astro.props
   .suspension[data-surface='front-door'] {
     order: -1;
     margin-top: 8px;
+    /* The event header's condensed height. By the time this band is ever pinned, that header is always
+       condensed — the tall state exists only at scroll 0, where the band is still in flow. */
+    --suspension-top: var(--site-header-event-stuck-h);
+  }
+
+  .suspension[data-surface='schedule'] {
+    --suspension-top: var(--site-header-legal-h);
+  }
+
+  /* One pixel, and it pays for itself with a negative margin so it changes no layout. It is observed against
+     a root shrunk by the band's own pinned offset, so it stops intersecting at exactly the scroll position
+     where the band starts being pinned. */
+  .suspension__sentinel {
+    order: -2;
+    height: 1px;
+    margin-bottom: -1px;
+    pointer-events: none;
+  }
+
+  .suspension__full {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
   }
 
   .suspension__headline {
@@ -83,4 +144,65 @@ const { surface } = Astro.props
     text-decoration: underline;
     text-underline-offset: 3px;
   }
+
+  /* Condensed — the pinned state. A hard swap, with no transition and therefore no `prefers-reduced-motion`
+     escape to write: the header above animates because it only changes its padding, whereas this changes
+     *which sentence is shown*, and a cross-faded text swap reads as a glitch rather than as a condense. */
+  .suspension__condensed {
+    display: none;
+    margin: 0;
+    font-size: 15px;
+    font-weight: 700;
+    line-height: 1.45;
+  }
+
+  /* Condensed layout: one row. The line and — on the front door — the link sit side by side, because the
+     link is the half the front door keeps (the time is the half it gives up). `baseline` rather than
+     `center`, so the two different sizes sit on one line of text rather than on one box. */
+  .suspension.is-condensed {
+    flex-direction: row;
+    align-items: baseline;
+    gap: 12px;
+    padding: 10px 20px;
+    margin-bottom: 0;
+  }
+
+  .suspension.is-condensed .suspension__link {
+    margin-top: 0;
+    margin-left: auto;
+    flex-shrink: 0;
+  }
+
+  .suspension.is-condensed .suspension__full {
+    display: none;
+  }
+
+  .suspension.is-condensed .suspension__condensed {
+    display: block;
+  }
 </style>
+
+<script>
+  import { CONDENSED_CLASS } from '../scripts/suspension-band'
+
+  // One mechanism for both surfaces, and the same one the event header already uses for its own condense —
+  // an `IntersectionObserver` on a 1px sentinel. There is no dependable CSS-only „am I stuck": the band's
+  // pinned offset is a variable per surface, so a scroll-driven rule would have to be told the number twice.
+  document.querySelectorAll<HTMLElement>('[data-suspension]').forEach(band => {
+    const sentinel = band.previousElementSibling
+    if (!sentinel || !('IntersectionObserver' in window)) return
+
+    // The root is shrunk from the top by the band's pinned offset — the same number the CSS resolved for
+    // this surface, read back rather than restated, so the two can never disagree. Without it the sentinel
+    // would leave the viewport a whole header-height too late and the band would sit pinned and full-size
+    // for those pixels.
+    const top = Math.round(parseFloat(getComputedStyle(band).top) || 0)
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        band.classList.toggle(CONDENSED_CLASS, !entry.isIntersecting)
+      },
+      { threshold: 0, rootMargin: `-${top}px 0px 0px 0px` }
+    )
+    observer.observe(sentinel)
+  })
+</script>
