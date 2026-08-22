@@ -547,8 +547,14 @@ reveal sequence }`. Randomness enters through an injected **`RandomSource`** por
   (so a deep run, or a main-bracket exit plus the consolation bracket, tends to spread across both event
   days), a **semifinal/final off Sunday** (Finaltag), a placement inside the **Mixer block** (below), and
   one **over the day's Parallel limit** (below). The schedule is **private until published**, and
-  **reset** wipes the placements to rebuild (see Schedule publication). _(See ADR-0005, ADR-0033, ADR-0040,
-  ADR-0041, ADR-0068.)_
+  **reset** wipes the placements to rebuild (see Schedule publication). During the event the grid is also a
+  **live** surface, not only a planning one: a placed card carries the **Match status** control and a
+  **second door into the same result drawer** the Ergebnisse list opens — one drawer, two doors, so every
+  rule a result is bound by is enforced identically whichever door was used. What the grid still refuses to
+  be is the **lever for the actual court** (it only reads the divergence), because a cell's position means
+  the reservation; and the card's **tap** stays the pick-up gesture, so the two new affordances are distinct
+  elements in its chrome. _(See ADR-0005, ADR-0033, ADR-0038, ADR-0040, ADR-0041, ADR-0068, ADR-0079,
+  ADR-0080.)_
 - **Parallel limit** (de: Parallelitätsgrenze) — how many championship matches the organiser wants on court
   at one moment, **per event day**: **Saturday 4** (the grounds also hold a youth fixture, so the
   championship works four of the six courts), **Sunday 2** (the finals day exists to be watched, and a

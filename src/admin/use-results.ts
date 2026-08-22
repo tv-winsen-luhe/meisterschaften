@@ -2,7 +2,7 @@ import { useCallback } from 'react'
 import { hc } from 'hono/client'
 import type { AppType } from '../../worker/app'
 import type { MatchStatus } from '../../shared'
-import type { ResultPayload } from './surfaces/results-surface'
+import type { ResultPayload } from './surfaces/result-drawer'
 import type { SetWrite } from './surfaces/result-save'
 
 // The result-entry seams (ADR-0032, ADR-0026), kept out of the admin shell like useSchedule/useReveal: the
@@ -15,7 +15,10 @@ type Client = ReturnType<typeof hc<AppType>>
 // is the deliberate silence for self-evident edits (a status flip the list already shows).
 type Mutate = (run: () => Promise<Response>, success: string | null) => Promise<boolean>
 
-interface ResultsApi {
+// The three result-entry seams, as one thing. They are one thing because they travel as one: both match
+// surfaces need all three (ADR-0080 — the Spielplan card opens the same drawer the Ergebnisse row does),
+// and a surface holding two of them could not offer the drawer, whose Zwischenstand path is the third.
+export interface ResultsApi {
   // Move a match's live status (ADR-0032), or restate the court it is on: „läuft" carries the actual court
   // (which may differ from the planned one, and may move again while it runs — ADR-0079 rule 1), „geplant"
   // clears it, „beendet" follows result entry. Silent on success — the Ergebnisse list reflects it on reload.

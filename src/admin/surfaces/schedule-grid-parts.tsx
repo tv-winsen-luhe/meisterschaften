@@ -1,6 +1,6 @@
 import { type CSSProperties } from 'react'
-import { Lightbulb, X } from 'lucide-react'
-import { useDraggable, useDroppable } from '@dnd-kit/core'
+import { Lightbulb } from 'lucide-react'
+import { useDroppable } from '@dnd-kit/core'
 import {
   absoluteSlot,
   COURT_NUMBERS,
@@ -14,25 +14,15 @@ import {
   withinEveningWindow
 } from '../../../shared'
 import { cn } from '@/admin/lib/utils'
-import { type GridMatch, MatchCard } from './schedule-match-card'
+import { type SettableStatus } from './match-actions'
+import { CHIP_CHROME, type GridMatch, MatchCard, useDraggableCard } from './schedule-match-card'
+import { PlacedCell } from './schedule-placed-cell'
 
 // The presentational half of the schedule surface (ADR-0038): the backlog, the courts × time grids, and
 // the drag overlay chip. Every card here is both draggable (the primary gesture) and tappable (the
 // fallback) — dnd-kit's mouse sensor only starts a drag past a movement threshold, so a plain click still
-// fires the tap handler. The owning surface (schedule-surface.tsx) holds the state and the placement path.
-
-// The shared chip chrome — its width and box — so the backlog card and the drag overlay that lifts off it
-// stay the same size and shape (a mismatch makes the card visibly jump when picked up).
-const CHIP_CHROME = 'w-52 rounded-lg border p-2 text-left'
-
-// The draggable-card wiring shared by the backlog chip and a placed cell: the node ref to attach, the
-// listeners + attributes to spread onto the element, and whether it is the card currently lifted (dimmed
-// in place while its overlay follows the pointer). Both cards are draggable the same way; only their
-// chrome differs.
-const useDraggableCard = (id: number) => {
-  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id })
-  return { setNodeRef, isDragging, dragProps: { ...listeners, ...attributes } }
-}
+// fires the tap handler. The occupied cell, which grew its own chrome in ADR-0080, lives next door in
+// schedule-placed-cell.tsx. The owning surface (schedule-surface.tsx) holds the state and the placement path.
 
 interface BacklogProps {
   matches: GridMatch[]
@@ -105,6 +95,10 @@ interface DayGridProps {
   socialMixerBlock: SocialMixerBlock | null
   onCellClick: (day: number, slot: number, court: number) => void
   onUnplace: (id: number) => void
+  // A placed card's two live affordances (ADR-0080): open the result drawer on that match, and state its
+  // status. Both are handed down untouched — the grid draws them, the surface performs them.
+  onOpenResult: (id: number) => void
+  onSetStatus: (id: number, status: SettableStatus, liveCourt?: number) => void
 }
 // One day's courts × time grid: a row per 30-minute slot (its „ca." time), a column per court. A placed
 // 90-minute match spans SLOT_SPAN rows (ADR-0040), so cells are placed explicitly on the grid lines and
@@ -120,7 +114,9 @@ export const DayGrid = ({
   inHandEarliest,
   socialMixerBlock,
   onCellClick,
-  onUnplace
+  onUnplace,
+  onOpenResult,
+  onSetStatus
 }: DayGridProps) => {
   // The interior rows covered by a placed match's 90-minute footprint, keyed `slot-court` for this day —
   // a match starting at slot s on a court owns slots s+1 … s+SLOT_SPAN−1, which its 3-row card draws over
@@ -191,9 +187,12 @@ export const DayGrid = ({
                     key={`${day}-${slot}-${court}`}
                     cell={cell}
                     selected={selected === cell.match.id}
+                    inHand={cell.match.id === inHand}
                     style={{ gridColumn: ci + 2, gridRow: `${slot + 2} / span ${span}` }}
                     onClick={() => onCellClick(day, slot, court)}
                     onUnplace={onUnplace}
+                    onOpenResult={onOpenResult}
+                    onSetStatus={onSetStatus}
                   />
                 )
               }
@@ -231,68 +230,6 @@ export const DayGrid = ({
     </section>
   )
 }
-
-interface PlacedCellProps {
-  cell: GridMatch
-  selected: boolean
-  style: CSSProperties
-  onClick: () => void
-  onUnplace: (id: number) => void
-}
-// An occupied cell: the placed match, draggable to another cell and tappable to pick up. Spans its full
-// 90-minute footprint (SLOT_SPAN rows) via the `style` grid placement the day grid hands down. The „aus
-// dem Plan nehmen" affordance clears it back to the backlog.
-const PlacedCell = ({ cell, selected, style, onClick, onUnplace }: PlacedCellProps) => {
-  const { setNodeRef, isDragging, dragProps } = useDraggableCard(cell.match.id)
-  return (
-    <button
-      ref={setNodeRef}
-      type="button"
-      onClick={onClick}
-      style={style}
-      {...dragProps}
-      className={cn(
-        'bg-background relative rounded-md border p-1.5 text-left transition-colors',
-        selected && 'border-foreground ring-foreground/20 ring-2',
-        isDragging && 'opacity-40'
-      )}
-    >
-      <MatchCard match={cell} reserveAction />
-      <RemoveControl onRemove={() => onUnplace(cell.match.id)} />
-    </button>
-  )
-}
-
-interface RemoveControlProps {
-  onRemove: () => void
-}
-// „Aus dem Plan nehmen" — clears a placed match back to the backlog. A nested control inside the cell
-// button (a real <button> would be invalid DOM here), so it carries its own keyboard handler for Enter /
-// Space, and it swallows the drag sensors' activator events (mouse + touch) so pressing it never starts a
-// drag of the cell beneath.
-const RemoveControl = ({ onRemove }: RemoveControlProps) => (
-  <span
-    role="button"
-    tabIndex={0}
-    aria-label="Aus dem Plan nehmen"
-    onClick={e => {
-      e.stopPropagation()
-      onRemove()
-    }}
-    onKeyDown={e => {
-      if (e.key === 'Enter' || e.key === ' ') {
-        e.preventDefault()
-        e.stopPropagation()
-        onRemove()
-      }
-    }}
-    onMouseDown={e => e.stopPropagation()}
-    onTouchStart={e => e.stopPropagation()}
-    className="text-muted-foreground hover:bg-muted hover:text-foreground absolute top-1 right-1 inline-flex size-5 items-center justify-center rounded"
-  >
-    <X className="size-3.5" />
-  </span>
-)
 
 interface EmptyCellProps {
   day: number

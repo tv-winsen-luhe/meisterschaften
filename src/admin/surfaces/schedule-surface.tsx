@@ -13,33 +13,28 @@ import {
 } from '@dnd-kit/core'
 import {
   type AdminRegistration,
-  bracketDepth,
   type CompetitionDraw,
   DAY_INDICES,
   earliestPlaceableSlot,
-  isFullyRevealed,
   isUnplaced,
   type Match,
   overlapsSocialMixerBlock,
   type Placement,
-  resolveBracket,
   resolveSocialMixerBlock,
-  roundLabel,
   type SchedulableMatch,
   type SocialMixerBlock,
   type SocialMixerPlacement,
   type SoftViolation,
-  slotLabel,
-  type SlotView,
   suggestSchedule,
   validatePlacement
 } from '../../../shared'
 import { tournament } from '@/data/tournament'
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/admin/ui/empty'
-import { competitionLabel } from './registration-detail'
 import { MixerBlockDialog, ScheduleControls } from './schedule-controls'
+import type { ResultsApi } from '../use-results'
+import { ResultDrawer } from './result-drawer'
 import { Backlog, DayGrid, DragChip } from './schedule-grid-parts'
-import { type GridMatch, type SlotLabel } from './schedule-match-card'
+import { gridCards, type GridMatch } from './schedule-match-card'
 import { hardBlockMessage, SoftWarningDialog } from './schedule-warnings'
 
 // The schedule surface (UI: „Spielplan", ADR-0005, issue #88): the operator places drawn matches onto a
@@ -75,6 +70,11 @@ interface ScheduleSurfaceProps {
   socialMixerPlacement: SocialMixerPlacement
   socialMixerConfirmed: number
   onMoveSocialMixerBlock: (placement: SocialMixerPlacement) => Promise<boolean>
+  // The grid's second door into result entry (ADR-0080): the *same* three seams the Ergebnisse surface
+  // holds, handed to the *same* drawer, so a result entered here is identical in every respect — the
+  // legal-score gate, the Zwischenstand path, the advancement cascade. Not a second entry path; a second
+  // caller of the one that exists.
+  results: ResultsApi
 }
 
 // A drop the operator must confirm: a sound-but-unwise placement (soft warnings only). Held until the
@@ -95,7 +95,8 @@ export const ScheduleSurface = ({
   socialMixerBlock,
   socialMixerPlacement,
   socialMixerConfirmed,
-  onMoveSocialMixerBlock
+  onMoveSocialMixerBlock,
+  results
 }: ScheduleSurfaceProps) => {
   // The match the operator has picked up by *tap*, waiting for a cell (or a second tap to drop it).
   // Cleared on a successful place.
@@ -107,6 +108,10 @@ export const ScheduleSurface = ({
   const [pending, setPending] = useState<PendingDrop | null>(null)
   // The „Vorschlag" auto-fill in flight — locks out the manual gestures while it writes (#122).
   const [suggesting, setSuggesting] = useState(false)
+  // The match whose result drawer is open (null ⇒ closed). Held as an **id**, not the card object: every
+  // write here reloads the draws, so a held card would be a stale copy of a match the server has just
+  // moved on. The drawer is keyed on the match id, so re-deriving the card never re-seeds its form.
+  const [editingId, setEditingId] = useState<number | null>(null)
 
   // Drag is the desktop gesture; tap stays the phone/keyboard path (ADR-0038). A small movement
   // threshold on the mouse keeps a plain click a click (so tap-to-select still fires), and a short
@@ -127,54 +132,9 @@ export const ScheduleSurface = ({
     return map
   }, [registrations])
 
-  // The schedulable matches: every bracket's real matches (a bye is auto-resolved, never played, so it
-  // is never schedulable). A main bracket still being revealed keeps its *unplaced* matches hidden —
-  // projecting the admin must not spoil the reveal — but a *placed* match is always shown even if its
-  // reveal was later rewound, so the operator can still move or unplace it (the public feed withholds it
-  // again while the bracket is rewound, ADR-0036 — but the operator must still be able to manage it). The
-  // consolation bracket has no reveal show (ADR-0004), so all its matches show at once. Feeders are
-  // resolved per bracket so „Sieger M3" reads stable.
-  const gridMatches = useMemo<GridMatch[]>(() => {
-    // The slot label: a player's name (the grid's own regId→name join, with a `#id` fallback), or the
-    // shared German copy for every undecided slot. The unresolved flag is derivable from the kind —
-    // `unknown` is the only unresolved („offen") slot — so it tags the same label, rather than repeating
-    // `unresolved: false` on every other branch.
-    const slotText = (view: SlotView): SlotLabel => {
-      const text = view.kind === 'player' ? (nameById.get(view.regId) ?? `#${view.regId}`) : slotLabel(view)
-      return { text, unresolved: view.kind === 'unknown' }
-    }
-
-    const out: GridMatch[] = []
-    for (const draw of draws) {
-      // The consolation bracket is published directly (no reveal show, ADR-0004), so it is always shown;
-      // a main bracket honours its reveal cursor (unplaced matches stay hidden until fully revealed).
-      const revealed = draw.bracket !== 'main' || isFullyRevealed(draw)
-      // The bracket's depth (its highest round) — the shared `roundLabel` reads round names from the end,
-      // so this turns each match's round into „Achtelfinale" … „Finale" (#142).
-      const totalRounds = bracketDepth(draw.matches)
-      // Number + resolve the whole bracket through the shared resolver — the same pipeline the public
-      // feed reads (#109) — then drop byes and, while unrevealed, any still-unplaced match.
-      for (const { match, number, slot1, slot2 } of resolveBracket(draw.matches)) {
-        if (match.outcome === 'bye') continue
-        if (!revealed && isUnplaced(match)) continue
-        out.push({
-          match,
-          number,
-          roundLabel: roundLabel({
-            bracket: draw.bracket,
-            round: match.round,
-            totalRounds,
-            thirdPlace: match.thirdPlace
-          }),
-          competition: draw.competition,
-          competitionLabel: competitionLabel(draw.competition),
-          slot1: slotText(slot1),
-          slot2: slotText(slot2)
-        })
-      }
-    }
-    return out
-  }, [draws, nameById])
+  // The cards the grid draws — the whole projection lives with the type it produces
+  // (schedule-match-card.tsx), so this surface holds only the state and the placement path.
+  const gridMatches = useMemo<GridMatch[]>(() => gridCards(draws, nameById), [draws, nameById])
 
   // The match "in hand" — picked up by tap or held mid-drag. Drives the grid's drop-target highlight and
   // the too-early greying for whichever gesture is active, so drag and tap surface the same guard.
@@ -304,6 +264,9 @@ export const ScheduleSurface = ({
   }
 
   const dragged = gridMatches.find(g => g.match.id === dragId) ?? null
+  // The card the drawer is open on, re-derived from the current cards rather than held — see `editingId`.
+  // `GridMatch` satisfies the drawer's `DrawerMatch` structurally, so the grid builds no results row.
+  const editing = gridMatches.find(g => g.match.id === editingId) ?? null
 
   // How many placed matches a candidate placement would put inside the block — the number the move dialog
   // states up front, so the warnings that appear afterwards are not a surprise (ADR-0064). Counted against
@@ -370,9 +333,33 @@ export const ScheduleSurface = ({
               socialMixerBlock={socialMixerBlock}
               onCellClick={onCellClick}
               onUnplace={id => void place(id, null)}
+              onOpenResult={setEditingId}
+              onSetStatus={(id, status, liveCourt) => void results.setMatchStatus(id, status, liveCourt)}
             />
           ))}
         </div>
+
+        {/* One drawer, two doors (ADR-0080 rule 1): the component Ergebnisse opens, on the same match,
+            with the same props. The card it is handed is re-derived each render rather than held, so the
+            drawer never keeps a copy of a match the server has since moved on — the form itself is keyed
+            on the match id and so keeps the operator's typing across a reload, exactly as on Ergebnisse.
+            A match that leaves the grid entirely (unplaced from a second device, a reveal rewound) closes
+            the drawer, which is the honest end: there is no card left to have opened it. */}
+        <ResultDrawer
+          editing={editing}
+          nameById={nameById}
+          onClose={() => setEditingId(null)}
+          onSubmit={async (id, payload) => {
+            const ok = await results.recordResult(id, payload)
+            if (ok) setEditingId(null)
+            return ok
+          }}
+          onSaveSets={async (id, writes) => {
+            const ok = await results.saveSets(id, writes)
+            if (ok) setEditingId(null)
+            return ok
+          }}
+        />
 
         <SoftWarningDialog
           soft={pending?.soft ?? null}

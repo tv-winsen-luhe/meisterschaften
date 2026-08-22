@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import type { EnteredOutcome, MatchScore } from '../../../shared'
+import type { EnteredOutcome, Match, MatchScore } from '../../../shared'
 import {
   RESULT_SCORE_ERROR_MESSAGE,
   checkNormalScore,
@@ -21,7 +21,6 @@ import {
   AlertDialogHeader,
   AlertDialogTitle
 } from '@/admin/ui/alert-dialog'
-import type { ResultMatch, ResultPayload } from './results-surface'
 import { changedSets, offersPartialSave, type SetWrite } from './result-save'
 import { type Pair, ScoreRow } from './result-score-row'
 
@@ -40,8 +39,28 @@ import { type Pair, ScoreRow } from './result-score-row'
 // surfaces print in their score column beside the „läuft" badge. It never resolves the match and never moves
 // its status. Which path a given drawer state takes lives in result-save.ts.
 
+// The result the drawer hands back: the winning slot, the outcome (null ⇒ a normal scored result), and the
+// fixed best-of-2 + MTB score. The caller posts it to /api/admin/match/result. It lives with the drawer
+// rather than with either surface, because both surfaces now open this drawer (ADR-0080).
+export interface ResultPayload {
+  winner: 1 | 2
+  outcome: EnteredOutcome | null
+  score: MatchScore
+}
+
+// The match the drawer needs: the match itself, and the two things its header says. Narrower than either
+// caller's row on purpose — Ergebnisse's `ResultMatch` and the Spielplan's `GridMatch` both satisfy it
+// structurally, which is how one drawer serves two doors (ADR-0080 rule 1) without the grid having to
+// build a results row or the drawer knowing which surface opened it. The slot *names* are not part of it:
+// the drawer resolves them from the match's own regIds through `nameById`, which both surfaces hold.
+export interface DrawerMatch {
+  match: Match
+  number: number
+  roundLabel: string
+}
+
 interface ResultDrawerProps {
-  editing: ResultMatch | null
+  editing: DrawerMatch | null
   nameById: Map<number, string>
   onClose: () => void
   // Resolves to whether the result persisted — the parent closes the drawer only on success.
@@ -87,7 +106,7 @@ const winnerOf = ([a, b]: Pair): 0 | 1 | 2 => {
 const toScorePair = ([a, b]: Pair): [number, number] | null => (a !== '' && b !== '' ? [Number(a), Number(b)] : null)
 
 interface ResultFormProps {
-  match: ResultMatch
+  match: DrawerMatch
   nameById: Map<number, string>
   onSubmit: (id: number, payload: ResultPayload) => Promise<boolean>
   onSaveSets: (id: number, writes: SetWrite[]) => Promise<boolean>
