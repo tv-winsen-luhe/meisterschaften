@@ -97,8 +97,9 @@ export const createInMemoryDrawStore = (): DrawStore => {
       const row = matchRows.find(m => m.id === id)
       if (!row) return
       row.status = status
-      // Going running captures the actual court (the pick, defaulting to the planned court); planned forgets
-      // it; done keeps where it was played.
+      // Going running states the actual court (the pick, defaulting to the planned court), and restating
+      // it moves the match while it runs (ADR-0079 rule 1); planned forgets it; done keeps where it was
+      // played.
       if (status === 'running') row.liveCourt = liveCourt ?? row.court ?? null
       else if (status === 'planned') row.liveCourt = null
     },
