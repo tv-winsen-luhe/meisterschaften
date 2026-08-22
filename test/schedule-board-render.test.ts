@@ -1,4 +1,5 @@
 import { beforeAll, describe, expect, it } from 'vitest'
+import { COURT_NUMBERS } from '../shared'
 import { scheduleView } from '../shared/match-view'
 import type { MatchScore, ScheduleMatch } from '../shared'
 import type { ScheduleViewOptions } from '../shared/match-view'
@@ -207,6 +208,40 @@ describe('schedule board · a contestant line always occupies all three columns 
         'sched-match__outcome'
       ])
     }
+  })
+
+  // A court a partial Play suspension has stopped (ADR-0078 Amendment 2 rule 5). The cell keeps everything
+  // it says — the match on it is still running, and rule 3 is untouched — and gains the one thing the band
+  // above the board cannot say for it: *this* is the stopped court.
+  it('marks a stopped court on the board, without taking its running match apart', () => {
+    const boardEl = createElement('section')
+    const view = scheduleView(
+      { published: true, matches: [match({ status: 'running', liveCourt: 1 })] },
+      { ...OPTIONS, stoppedCourts: [1] }
+    )
+    renderCourts(boardEl as unknown as HTMLElement, view.courts, LOGOS)
+
+    const grid = boardEl.children.find(c => c.className === 'courts')!
+    const live = grid.children.find(c => c.className.includes('court--live'))!
+    expect(live.className).toContain('court--stopped')
+    expect(live.children.find(c => c.className === 'court__stopped')!.textContent).toBe('unterbrochen')
+    expect(live.children.find(c => c.className === 'court__players')!.children).toHaveLength(2)
+  })
+
+  it('leaves the board exactly as it was under a total suspension', () => {
+    // Every court stopped is the total suspension, and the band already states it once for all six — so the
+    // cells say what they always said. This is the case the site is actually in today.
+    const boardEl = createElement('section')
+    const view = scheduleView(
+      { published: true, matches: [match({ status: 'running', liveCourt: 1 })] },
+      { ...OPTIONS, stoppedCourts: [...COURT_NUMBERS] }
+    )
+    renderCourts(boardEl as unknown as HTMLElement, view.courts, LOGOS)
+
+    const grid = boardEl.children.find(c => c.className === 'courts')!
+    const live = grid.children.find(c => c.className.includes('court--live'))!
+    expect(live.className).not.toContain('court--stopped')
+    expect(live.children.some(c => c.className === 'court__stopped')).toBe(false)
   })
 })
 

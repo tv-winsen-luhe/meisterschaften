@@ -341,6 +341,23 @@ const defaultMixerBlock = resolveSocialMixerBlock({ ...SOCIAL_MIXER_DEFAULT_PLAC
     font-weight: 700;
     color: color-mix(in srgb, var(--color-navy) 35%, transparent);
   }
+  /* A live court a partial suspension has stopped (ADR-0078 Amendment 2 rule 5). The live wash comes off and
+     the rail turns clay — the suspension band's own colour, so the cell and the statement above it read as
+     one fact — while the match's own content stays exactly where it was. Two signals again, for the same
+     reason `.court--live` carries two: the rail survives greyscale and forced colours, where a tint does
+     not, and the „unterbrochen" line says it in words either way. */
+  .court--stopped {
+    background: color-mix(in srgb, var(--color-clay) 12%, transparent);
+    border-left-color: var(--color-clay);
+  }
+  .court__stopped {
+    margin-top: 2px;
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--color-clay);
+  }
   .court__players {
     display: flex;
     flex-direction: column;
@@ -880,12 +897,12 @@ const defaultMixerBlock = resolveSocialMixerBlock({ ...SOCIAL_MIXER_DEFAULT_PLAC
   import { hc } from 'hono/client'
   import {
     dayLabel,
-    isPlaySuspended,
     NOT_SUSPENDED,
     scheduleView,
     socialMixerBlockOn,
     SOCIAL_MIXER_COMPETITION,
-    SOCIAL_MIXER_DEFAULT_PLACEMENT
+    SOCIAL_MIXER_DEFAULT_PLACEMENT,
+    suspendedCourts
   } from '../../shared'
   import { renderCourts, renderFilter, renderSchedule } from '../components/schedule-board.render'
   import { renderSuspensionBand } from '../scripts/suspension-band'
@@ -998,8 +1015,9 @@ const defaultMixerBlock = resolveSocialMixerBlock({ ...SOCIAL_MIXER_DEFAULT_PLAC
       competition: selectedCompetition,
       socialMixer: mixerTakesPlace,
       // Read at render time rather than at poll time, so a resume time that passes between two polls stops
-      // being claimed on the next render either way (ADR-0078 rule 7).
-      suspended: isPlaySuspended(playSuspension, Date.now())
+      // being claimed on the next render either way (ADR-0078 rule 7). A list rather than a flag since
+      // Amendment 2: only the courts the operator actually stopped hedge.
+      stoppedCourts: suspendedCourts(playSuspension, Date.now())
     })
     // The view decides whether the stored selection still applies (a field the feed stopped carrying, or a
     // page with nothing left to choose between), so the controller adopts its verdict rather than holding
