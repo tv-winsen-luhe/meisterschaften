@@ -21,6 +21,7 @@ interface AdminHeaderProps {
   suspension: PlaySuspension
   onSuspend: (inMinutes: number | null) => Promise<boolean>
   onResume: () => Promise<boolean>
+  onToggleCourt: (court: number) => Promise<boolean>
 }
 
 export const AdminHeader = ({
@@ -30,7 +31,8 @@ export const AdminHeader = ({
   onGoToCompetitions,
   suspension,
   onSuspend,
-  onResume
+  onResume,
+  onToggleCourt
 }: AdminHeaderProps) => (
   <header className="bg-background flex items-center gap-2 border-b px-4 py-3">
     <SidebarTrigger className="-ml-1" />
@@ -47,6 +49,7 @@ export const AdminHeader = ({
       suspension={suspension}
       onSuspend={onSuspend}
       onResume={onResume}
+      onToggleCourt={onToggleCourt}
       visible={phase === 'tournament'}
     />
   </header>
