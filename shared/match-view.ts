@@ -67,7 +67,7 @@ export interface RowSlot extends SlotText {
   club: Club | null
   seed: SeedToken | null
   /**
-   * „6  3 10", or „" when nothing is recorded — the one score formatter (#305). Every entry sits in a
+   * „6 3 10", or „" when nothing is recorded — the one score formatter (#305). Every entry sits in a
    * digit-wide column (padded with U+2007), which is what lines the two contestant lines up under each
    * other; the renderer prints the string as it arrives.
    */

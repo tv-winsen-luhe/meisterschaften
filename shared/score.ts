@@ -110,29 +110,33 @@ const FIGURE_SPACE = '\u2007'
 const ENTRY_WIDTH = 2
 
 /**
- * One slot's score as the line a reader sees — e.g. „6  3 10", or „" when nothing is recorded. The **one**
+ * One slot's score as the line a reader sees — e.g. „6 3 10", or „" when nothing is recorded. The **one**
  * score formatter: the admin results list, the public schedule and the public bracket all print this string,
- * so they cannot disagree about separators the way the two inline joins it replaced did (#305).
+ * so they cannot disagree about spacing the way the two inline joins it replaced did (#305).
  *
  * A leaf on top of `slotGames`, which stays the single „which games" rule (ADR-0045) — this adds only the
- * separator and the column. So an unplayed match and a walkover render empty (no trailing numbers to
- * explain), and a match still on court renders just the sets already saved (ADR-0032 §20).
+ * column. So an unplayed match and a walkover render empty (no trailing numbers to explain), and a match
+ * still on court renders just the sets already saved (ADR-0032 §20).
  *
- * Each entry is padded to a digit-wide column, which is what makes the two contestant lines **line up**.
- * All three surfaces print this line right-aligned, and right alignment lines up the line's *end*, not its
- * sets: a Match-Tie-Break is two digits on the winner's line („6 3 10") and one on the loser's („4 6 8"),
- * so without the padding the loser's whole line slid a character along and no set sat under its own set.
- * The alignment rule belongs *here*, beside the separator, for the same reason the separator does — it is
- * one rule, and three stylesheets each solving it is three chances to disagree.
+ * Every entry sits in a digit-wide column, and that is what makes the two contestant lines **line up**. All
+ * three surfaces print this line right-aligned, and right alignment lines up the line's *end*, not its sets:
+ * a Match-Tie-Break is two digits on the winner's line and one on the loser's, so unpadded, the loser's whole
+ * line slid a character along and no set sat under its own set (#368). The rule belongs *here* rather than in
+ * three stylesheets, which would be three chances to disagree.
  *
- * The pad rides **behind** the entry, not in front of it: a column's numbers then line up on their left
- * edge and the second digit of a „10" overhangs to the right, which is how a tennis reader scans a tie-break
- * („10" over „8", the 1 above the 8). Padding in front would right-align inside the column instead and read
- * as a gap punched into the middle of the shorter line. The pad on the *last* entry is what keeps both lines
- * the same length, and equal length is what stops the shared right alignment from shifting one of them —
- * so it is load-bearing rather than trailing noise.
+ * The pad rides **behind** the entry, not in front of it: a column's numbers then line up on their left edge
+ * and the second digit of a „10" overhangs to the right, which is how a tennis reader scans a tie-break („10"
+ * over „8", the 1 above the 8). Padding in front would right-align inside the column instead and read as a
+ * gap punched into the middle of the shorter line. The pad on the *last* entry is what keeps both lines the
+ * same length, and equal length is what stops the shared right alignment from shifting one of them — so it
+ * is load-bearing rather than trailing noise.
+ *
+ * The pad is also the **whole** gap between two entries: they are joined with nothing. A separator on top of
+ * it put two blanks between every pair of numbers and the score read airy, drifting apart down the column.
+ * One figure space is as tight as this can go while a one-digit entry still holds a two-digit entry's column,
+ * so it is the floor rather than a taste call.
  */
 export const scoreLine = (score: MatchScore, slot: 1 | 2): string =>
   slotGames(score, slot)
     .map(games => String(games).padEnd(ENTRY_WIDTH, FIGURE_SPACE))
-    .join(' ')
+    .join('')

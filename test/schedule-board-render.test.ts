@@ -285,8 +285,8 @@ describe('schedule board · the sets line up between the two contestant lines', 
 
     expect(scoreColumns(first)).toEqual(scoreColumns(second))
     // Spelled out once, so the shape the invariant admits is visible rather than only self-consistent: three
-    // two-character columns, the sets starting at 0, 3 and 6 on both lines.
-    expect(scoreColumns(first)).toEqual([{ length: 8, starts: [0, 3, 6] }])
+    // two-character columns back to back, the sets starting at 0, 2 and 4 on both lines.
+    expect(scoreColumns(first)).toEqual([{ length: 6, starts: [0, 2, 4] }])
   })
 
   it('keeps the columns aligned for two straight sets', () => {
