@@ -1,12 +1,6 @@
 import { useMemo, useState } from 'react'
 import { Trophy } from 'lucide-react'
-import {
-  type AdminRegistration,
-  type CompetitionDraw,
-  type CompetitionSlug,
-  isFullyRevealed,
-  type MatchStatus
-} from '../../../shared'
+import { type AdminRegistration, type CompetitionDraw, type CompetitionSlug, isFullyRevealed } from '../../../shared'
 import { Button } from '@/admin/ui/button'
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/admin/ui/empty'
 import { competitions, tournament } from '@/data/tournament'
@@ -21,8 +15,8 @@ import {
   type ResultsCopy,
   resultRows
 } from './results-grouping'
-import { ResultDrawer, type ResultPayload } from './result-drawer'
-import type { SetWrite } from './result-save'
+import { ResultDrawer } from './result-drawer'
+import type { ResultsApi } from '../use-results'
 
 // The Ergebnisse surface (UI: „Ergebnisse", ADR-0032, issue #90): the operator's result workbench. It is
 // phone-first — one operator at the desk (ADR-0001) — so it reads as a round-grouped list, not a wide
@@ -43,14 +37,11 @@ interface ResultsSurfaceProps {
   // The courts a standing Play suspension stops, resolved by the shell. The row hints when a match would
   // start on one of them (ADR-0078 Amendment 2 rule 5) — it never blocks, and it never releases the court.
   stoppedCourts: readonly number[]
-  // Record (or correct) a completed result — the winner advances, a semifinal loser drops to the third-place
-  // playoff, a winner change cascade-clears downstream. Resolves to whether it persisted (the drawer closes
-  // only on success). Move a match between „geplant" and „läuft", stating its court. Both via mutate.
-  onRecordResult: (id: number, payload: ResultPayload) => Promise<boolean>
-  onSetStatus: (id: number, status: MatchStatus, liveCourt?: number) => Promise<boolean>
-  // Save a running match's interim score (ADR-0032, Amendment 2026-08-20): one /set call per changed set,
-  // no winner, no advancement, no status move.
-  onSaveSets: (id: number, writes: SetWrite[]) => Promise<boolean>
+  // The three result-entry seams (use-results.ts): record or correct a result (the winner advances, a
+  // semifinal loser drops to the third-place playoff, a winner change cascade-clears downstream), move a
+  // match between „geplant" and „läuft" stating its court, and save a running match's interim score. All
+  // ride the shell's `mutate`, and each resolves to whether it persisted — the drawer closes only on success.
+  results: ResultsApi
 }
 
 // The German the meta lines need, from the copy's home — the days for „Sa 14:00", the fields for the court
@@ -61,14 +52,7 @@ const COPY: ResultsCopy = { days: [tournament.saturday, tournament.sunday], comp
 // English wire vocabulary and these are German UI copy — the two must be free to diverge (ADR-0028).
 const GROUPING_LABELS: Record<Grouping, string> = { round: 'Runde', court: 'Platz' }
 
-export const ResultsSurface = ({
-  registrations,
-  draws,
-  stoppedCourts,
-  onRecordResult,
-  onSetStatus,
-  onSaveSets
-}: ResultsSurfaceProps) => {
+export const ResultsSurface = ({ registrations, draws, stoppedCourts, results }: ResultsSurfaceProps) => {
   const nameById = useMemo(() => {
     const map = new Map<number, string>()
     for (const r of registrations) map.set(r.id, `${r.firstName} ${r.lastName}`.trim())
@@ -179,7 +163,7 @@ export const ResultsSurface = ({
                       nameById={nameById}
                       stoppedCourts={stoppedCourts}
                       onOpen={() => setEditing(row)}
-                      onSetStatus={onSetStatus}
+                      onSetStatus={results.setMatchStatus}
                     />
                   ))}
                 </div>
@@ -209,7 +193,7 @@ export const ResultsSurface = ({
                         nameById={nameById}
                         stoppedCourts={stoppedCourts}
                         onOpen={() => setEditing(row)}
-                        onSetStatus={onSetStatus}
+                        onSetStatus={results.setMatchStatus}
                       />
                     ))}
                   </div>
@@ -225,12 +209,12 @@ export const ResultsSurface = ({
         nameById={nameById}
         onClose={() => setEditing(null)}
         onSubmit={async (id, payload) => {
-          const ok = await onRecordResult(id, payload)
+          const ok = await results.recordResult(id, payload)
           if (ok) setEditing(null)
           return ok
         }}
         onSaveSets={async (id, writes) => {
-          const ok = await onSaveSets(id, writes)
+          const ok = await results.saveSets(id, writes)
           if (ok) setEditing(null)
           return ok
         }}

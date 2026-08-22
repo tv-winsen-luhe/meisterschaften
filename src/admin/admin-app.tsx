@@ -221,7 +221,7 @@ export const AdminApp = () => {
   // status transition (with the actual court), the result write that advances the bracket, and the interim
   // set write (the Zwischenstand). All ride the shared `mutate`, so the success reload re-fetches the draws
   // and the bracket reflects the new result.
-  const { recordResult, setMatchStatus, saveSets } = useResults(client, mutate)
+  const results = useResults(client, mutate)
 
   // The debug-only reset levers (ADR-0029): all three go through mutate, so they share the
   // 401-regate/error/toast behaviour, and the success reload re-fetches draws + phase so the UI
@@ -362,19 +362,10 @@ export const AdminApp = () => {
             socialMixerPlacement={socialMixerPlacement}
             socialMixerConfirmed={confirmedEntries}
             onMoveSocialMixerBlock={moveSocialMixerBlock}
-            onRecordResult={recordResult}
-            onSetStatus={setMatchStatus}
-            onSaveSets={saveSets}
+            results={results}
           />
         ) : surface === 'results' ? (
-          <ResultsSurface
-            registrations={registrations}
-            draws={draws}
-            stoppedCourts={stoppedCourts}
-            onRecordResult={recordResult}
-            onSetStatus={setMatchStatus}
-            onSaveSets={saveSets}
-          />
+          <ResultsSurface registrations={registrations} draws={draws} stoppedCourts={stoppedCourts} results={results} />
         ) : surface === 'debug' && resetEnabled ? (
           <DebugSurface draws={draws} onUndraw={undraw} onReadmit={readmit} onBackToSignup={backToSignup} />
         ) : (

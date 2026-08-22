@@ -31,9 +31,8 @@ import {
 import { tournament } from '@/data/tournament'
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/admin/ui/empty'
 import { MixerBlockDialog, ScheduleControls } from './schedule-controls'
-import { type SettableStatus } from './match-actions'
-import { ResultDrawer, type ResultPayload } from './result-drawer'
-import type { SetWrite } from './result-save'
+import type { ResultsApi } from '../use-results'
+import { ResultDrawer } from './result-drawer'
 import { Backlog, DayGrid, DragChip } from './schedule-grid-parts'
 import { gridCards, type GridMatch } from './schedule-match-card'
 import { hardBlockMessage, SoftWarningDialog } from './schedule-warnings'
@@ -75,9 +74,7 @@ interface ScheduleSurfaceProps {
   // holds, handed to the *same* drawer, so a result entered here is identical in every respect — the
   // legal-score gate, the Zwischenstand path, the advancement cascade. Not a second entry path; a second
   // caller of the one that exists.
-  onRecordResult: (id: number, payload: ResultPayload) => Promise<boolean>
-  onSetStatus: (id: number, status: SettableStatus, liveCourt?: number) => Promise<boolean>
-  onSaveSets: (id: number, writes: SetWrite[]) => Promise<boolean>
+  results: ResultsApi
 }
 
 // A drop the operator must confirm: a sound-but-unwise placement (soft warnings only). Held until the
@@ -99,9 +96,7 @@ export const ScheduleSurface = ({
   socialMixerPlacement,
   socialMixerConfirmed,
   onMoveSocialMixerBlock,
-  onRecordResult,
-  onSetStatus,
-  onSaveSets
+  results
 }: ScheduleSurfaceProps) => {
   // The match the operator has picked up by *tap*, waiting for a cell (or a second tap to drop it).
   // Cleared on a successful place.
@@ -339,7 +334,7 @@ export const ScheduleSurface = ({
               onCellClick={onCellClick}
               onUnplace={id => void place(id, null)}
               onOpenResult={setEditingId}
-              onSetStatus={(id, status, liveCourt) => void onSetStatus(id, status, liveCourt)}
+              onSetStatus={(id, status, liveCourt) => void results.setMatchStatus(id, status, liveCourt)}
             />
           ))}
         </div>
@@ -355,12 +350,12 @@ export const ScheduleSurface = ({
           nameById={nameById}
           onClose={() => setEditingId(null)}
           onSubmit={async (id, payload) => {
-            const ok = await onRecordResult(id, payload)
+            const ok = await results.recordResult(id, payload)
             if (ok) setEditingId(null)
             return ok
           }}
           onSaveSets={async (id, writes) => {
-            const ok = await onSaveSets(id, writes)
+            const ok = await results.saveSets(id, writes)
             if (ok) setEditingId(null)
             return ok
           }}
