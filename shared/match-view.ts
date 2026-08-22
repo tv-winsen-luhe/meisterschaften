@@ -231,6 +231,16 @@ export interface ScheduleViewOptions {
    * absent) means „play is happening", so a caller that knows nothing about it gets today's schedule.
    */
   stoppedCourts?: readonly number[]
+  /**
+   * The **Current event day** (CONTEXT: Current event day, ADR-0081): the wire `day` being played right
+   * now, or `null` when none is — before the weekend, after it, and whenever the server did not say.
+   *
+   * A finished index, handed in like `socialMixer` and `stoppedCourts` above and for the stronger version
+   * of the same reason: „which day is it" is a calendar question, the calendar lives with the event's dates
+   * in the client (src/data/tournament.ts), and this module reads no clock of any kind. Absent or `null`
+   * leaves the days in plain chronological order.
+   */
+  currentDay?: number | null
 }
 
 // ── The pieces every row is made of ──────────────────────────────────────────────────────────────
@@ -523,7 +533,14 @@ const effectiveSelection = (offered: CompetitionOption[], selected: string | nul
  */
 export const scheduleView = (
   feed: Pick<ScheduleResponse, 'matches'>,
-  { days, competitions, competition = null, socialMixer = false, stoppedCourts = [] }: ScheduleViewOptions
+  {
+    days,
+    competitions,
+    competition = null,
+    socialMixer = false,
+    stoppedCourts = [],
+    currentDay = null
+  }: ScheduleViewOptions
 ): ScheduleView => {
   const { matches } = feed
   // The stopped set as a membership question, asked once per row and once per board cell.
@@ -555,6 +572,15 @@ export const scheduleView = (
     }
   }
 
+  // The leading day names itself „heute" (ADR-0081 §8): out of chronological order, a day section otherwise
+  // reads as a fault to anybody who saw the page yesterday. The word goes in the heading, where the surprise
+  // is — not into a badge, because that layer is sticky and already stands down under a suspension band
+  // (ADR-0078).
+  const heading = (day: number): string => {
+    const label = dayLabel(days, day)
+    return day === currentDay ? `${label} · heute` : label
+  }
+
   // Day → court, both ascending and both derived from what the feed carries, so a match is never dropped
   // because an axis was sized from a constant that has moved on.
   const dayIndices = [...new Set(matches.map(m => m.day))].sort((a, b) => a - b)
@@ -563,7 +589,7 @@ export const scheduleView = (
     const courts = [...new Set(onDay.map(m => m.court))].sort((a, b) => a - b)
     return {
       day,
-      label: dayLabel(days, day),
+      label: heading(day),
       courts: courts
         .map(court => {
           const onCourt = onDay
@@ -602,5 +628,13 @@ export const scheduleView = (
           }
         })
 
-  return { competitions: offered, selected, courts, days: dayGroups.filter(d => d.courts.length > 0) }
+  // The current day leads (ADR-0081 §1): its section moves to the front, the other follows it **whole** —
+  // Sunday reads Saturday's results, and the consolation bracket is fed from them, so nothing is collapsed
+  // and nothing is dropped. A stable sort on one predicate, so with no current day (or one that carries no
+  // matches) the order is exactly the chronological one this returned before.
+  const sections = dayGroups
+    .filter(d => d.courts.length > 0)
+    .sort((a, b) => Number(b.day === currentDay) - Number(a.day === currentDay))
+
+  return { competitions: offered, selected, courts, days: sections }
 }

@@ -698,7 +698,10 @@ reveal sequence }`. Randomness enters through an injected **`RandomSource`** por
     (ADR-0048), which is what turns that endpoint into a **polled** wire on `/spielplan` (Live-data
     delivery). The operator's switch lives in the **admin shell**, not on a surface: one tap from anywhere,
     and loud wherever the operator looks, so a suspension nobody lifted is a visible error rather than a
-    quiet one. _(See ADR-0078, ADR-0032, ADR-0071.)_
+    quiet one. That switch means **„alles unterbrechen"** and writes every court; **releasing a single court
+    is a second control** — six court chips beside it, present only while a suspension stands, tap to release
+    and tap to stop again. Releasing the **last** stopped court lifts the suspension entirely, since „stopped
+    on no court" is not a state. _(See ADR-0078, ADR-0032, ADR-0071.)_
 - **Schedule & results page** (de: Spielplan & Ergebnisse) — the public weekend page at `/spielplan`, and
   the **one** surface that owns the schedule and the results together: a row moves `geplant → läuft →
 beendet mit Score` in place rather than migrating to a separate results page (ADR-0070 §1). It is **one

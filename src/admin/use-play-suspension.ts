@@ -1,10 +1,18 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { hc } from 'hono/client'
 import type { AppType } from '../../worker/app'
-import { COURT_NUMBERS, NOT_SUSPENDED, type PlaySuspension, suspendedCourts } from '../../shared'
+import {
+  COURT_NUMBERS,
+  courtLabel,
+  NOT_SUSPENDED,
+  type PlaySuspension,
+  suspendedCourts,
+  toggleCourt
+} from '../../shared'
 
 // The Play suspension seam (ADR-0078), kept out of the admin shell like useCancellation and useSchedule:
-// whether play is suspended, when it is expected to resume, and the two writes that change it.
+// whether play is suspended, on which courts, when it is expected to resume, and the three writes that
+// change it — the two global ones, and a single court released or stopped again.
 //
 // Read once on mount from the public GET /api/phase — the one signal every surface keys off, so the admin
 // shows exactly what the public wire carries — and each write applies its **own** known outcome rather than
@@ -34,17 +42,32 @@ interface PlaySuspensionApi {
   suspend: (inMinutes: number | null) => Promise<boolean>
   /** Lift it. Always manual — see ADR-0078 rule 7. */
   resume: () => Promise<boolean>
+  /**
+   * Release one stopped court, or stop a released one again (ADR-0078 Amendment 2 rule 3) — the second
+   * control, beside the switch rather than inside it. Releasing the last stopped court lifts the whole
+   * suspension, which is `toggleCourt`'s rule and not this hook's.
+   */
+  releaseOrStopCourt: (court: number) => Promise<boolean>
 }
 
 export const usePlaySuspension = (client: Client, mutate: Mutate): PlaySuspensionApi => {
   const [playSuspension, setPlaySuspension] = useState<PlaySuspension>(NOT_SUSPENDED)
+  // The same state as the render reads it, but readable *now* rather than at the next render. The court
+  // toggle is this hook's first **relative** write — „the state minus court 3" rather than a whole state
+  // named by the operator — so it is the first one for which a render-old value is a wrong answer rather
+  // than a stale display.
+  const known = useRef<PlaySuspension>(NOT_SUSPENDED)
+  const remember = useCallback((next: PlaySuspension) => {
+    known.current = next
+    setPlaySuspension(next)
+  }, [])
 
   useEffect(() => {
     let ignore = false
     void (async () => {
       try {
         const res = await client.api.phase.$get()
-        if (res.ok && !ignore) setPlaySuspension((await res.json()).playSuspension)
+        if (res.ok && !ignore) remember((await res.json()).playSuspension)
       } catch {
         // ignore — keep „play is happening"
       }
@@ -52,15 +75,15 @@ export const usePlaySuspension = (client: Client, mutate: Mutate): PlaySuspensio
     return () => {
       ignore = true
     }
-  }, [client])
+  }, [client, remember])
 
   const write = useCallback(
     async (next: PlaySuspension, success: string) => {
       const ok = await mutate(() => client.api.admin['play-suspension'].$post({ json: next }), success)
-      if (ok) setPlaySuspension(next)
+      if (ok) remember(next)
       return ok
     },
-    [client, mutate]
+    [client, mutate, remember]
   )
 
   // The shell switch means „alles unterbrechen" and writes **every** court (ADR-0078 Amendment 2 rule 3).
@@ -86,5 +109,35 @@ export const usePlaySuspension = (client: Client, mutate: Mutate): PlaySuspensio
   // honest rather than pretending the state has no time in it.
   const stoppedCourts = useMemo(() => suspendedCourts(playSuspension, Date.now()), [playSuspension])
 
-  return { playSuspension, stoppedCourts, suspend, resume }
+  // A single court, in either direction. The transition itself is the projection's (`toggleCourt`), so the
+  // one rule that could surprise an operator — releasing the last stopped court lifts the suspension — is
+  // stated once, tested without React, and merely *said* here: the toast names what actually happened
+  // rather than what was tapped.
+  //
+  // **Queued, and computed from `known.current` rather than from the render's value**, because this is a
+  // read-modify-write and two taps in the rain are one gesture: release court 3, then court 4 a moment
+  // later. Both would otherwise start from the same six-court state, and the second write would re-stop
+  // court 3 — silently, right after a toast said it was playing again. So each toggle waits for the previous
+  // one to land and then reads the state that landed. The two absolute writes above need none of this: they
+  // name a whole state instead of amending one.
+  const queue = useRef<Promise<unknown>>(Promise.resolve())
+  const releaseOrStopCourt = useCallback(
+    (court: number) => {
+      const run = queue.current.then(() => {
+        const next = toggleCourt(known.current, court)
+        const success = !next.suspended
+          ? 'Spielbetrieb läuft wieder.'
+          : next.courts.includes(court)
+            ? `${courtLabel(court)} unterbrochen.`
+            : `${courtLabel(court)} spielt wieder.`
+        return write(next, success)
+      })
+      // The chain must survive a failed write, or one rejection would strand every later tap.
+      queue.current = run.catch(() => undefined)
+      return run
+    },
+    [write]
+  )
+
+  return { playSuspension, stoppedCourts, suspend, resume, releaseOrStopCourt }
 }

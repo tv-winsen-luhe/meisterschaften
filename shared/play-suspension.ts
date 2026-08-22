@@ -118,6 +118,31 @@ const clockFmt = new Intl.DateTimeFormat('de-DE', {
 export const formatResumeTime = (at: number): string => clockFmt.format(new Date(at))
 
 /**
+ * Whether a suspension stops the whole event. **Derived, never stored** (ADR-0078 Amendment 2 rule 1): this
+ * event *is* six courts, so „every court is stopped" and „the event is stopped" are one fact, and a second
+ * encoding of it would be two ways to say the same thing forever.
+ *
+ * It is what makes `COURT_NUMBERS.length` load-bearing for public copy: a seventh court would silently turn
+ * every historical total suspension into a partial one.
+ */
+const isTotal = (courts: readonly number[]): boolean => courts.length === COURT_NUMBERS.length
+
+/**
+ * The stopped courts as a German list: „Platz 4", „Platz 4 und 5", „Platz 3, 4 und 6".
+ *
+ * „Platz" stays singular in front of the enumeration, the way the grounds say it. This is the first public
+ * string in this codebase whose **length varies with data**, which is why it is authored here rather than
+ * assembled by a renderer: rule 1 is untouched, and a renderer that concatenated „ und" would be the first
+ * one that writes German.
+ */
+const courtsPhrase = (courts: readonly number[]): string => {
+  const numbers = courts.map(String)
+  const last = numbers[numbers.length - 1]
+  const front = numbers.slice(0, -1)
+  return `Platz ${front.length === 0 ? last : `${front.join(', ')} und ${last}`}`
+}
+
+/**
  * Which surface is asking. The two say different things because they have different things to explain: the
  * schedule carries the times the suspension moves, the front door carries none (ADR-0078, and the
  * Front-door lead's standing rule — the front door **points**, the schedule owns its content).
@@ -164,10 +189,20 @@ export const suspensionNotice = (
   if (!resolved.suspended) return null
   const time = resolved.resumesAt === null ? null : formatResumeTime(resolved.resumesAt)
   const resume = time === null ? [] : [`Weiter geht es ca. ${time} Uhr.`]
-  const headline = 'Spielbetrieb unterbrochen'
+  const total = isTotal(resolved.courts)
+  // The band is **not** conditional on totality (Amendment 2 rule 4): a partial suspension that said
+  // nothing here would leave every „ca." on the page below it unexplained, which is the failure rule 4
+  // exists to prevent. It names what is stopped instead — and so does the shifted-times line, because under
+  // a partial suspension the courts that are playing keep their ordinary times.
+  const headline = total
+    ? 'Spielbetrieb unterbrochen'
+    : `Spielbetrieb auf ${courtsPhrase(resolved.courts)} unterbrochen`
+  const shifted = total
+    ? 'Alle geplanten Startzeiten verschieben sich.'
+    : `Die geplanten Startzeiten auf ${resolved.courts.length === 1 ? 'diesem Platz' : 'diesen Plätzen'} verschieben sich.`
   return {
     headline,
-    lines: surface === 'schedule' ? [...resume, 'Alle geplanten Startzeiten verschieben sich.'] : resume,
+    lines: surface === 'schedule' ? [...resume, shifted] : resume,
     // The front door's condensed bar keeps its „Zum Spielplan" link and gives up the time: the front door
     // **points**, and the time it drops is one tap away on the page it points at. The schedule keeps the
     // time, because it is the page whose every „ca." that time explains — and drops the shifted-times
@@ -206,3 +241,28 @@ export const suspendedCourts = (state: PlaySuspension, now: number): readonly nu
  */
 export const courtStoppedHint = (court: number, stoppedCourts: readonly number[]): string | null =>
   stoppedCourts.includes(court) ? `${courtLabel(court)} ist als unterbrochen markiert` : null
+
+/**
+ * The operator's second control (ADR-0078 Amendment 2 rule 3): one court is **released** from a standing
+ * suspension, or **stopped again**.
+ *
+ * A pure transition rather than a rule inside the admin hook, because two of the three cases are the
+ * interesting ones and neither is about React:
+ *
+ * - **Releasing the last stopped court lifts the suspension**, and lifting is the only honest reading —
+ *   „suspended, no courts" is not a state (rule 1), and it degrades to this anyway one read later.
+ * - **While play is happening nothing happens.** The chips exist only while a suspension stands, so this is
+ *   unreachable from the shell; answering it fail-closed is cheaper than inventing a one-court suspension
+ *   out of the resting state, which no control asks for.
+ *
+ * The **one resume time survives** either act (rule 2): releasing a court changes the extent of the
+ * suspension, not the promise it carries. The shell switch is untouched by all of this — it still means
+ * „alles unterbrechen" and stays one tap.
+ */
+export const toggleCourt = (state: PlaySuspension, court: number): PlaySuspension => {
+  if (!state.suspended) return NOT_SUSPENDED
+  const stopped = canonicalCourts(state.courts)
+  const courts = canonicalCourts(stopped.includes(court) ? stopped.filter(c => c !== court) : [...stopped, court])
+  if (courts.length === 0) return NOT_SUSPENDED
+  return { suspended: true, resumesAt: state.resumesAt, courts }
+}

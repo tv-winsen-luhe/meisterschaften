@@ -490,7 +490,15 @@ export type ScheduleMatch = z.infer<typeof scheduleMatchSchema>
 // matches the spectator may see. The page groups by day and orders by slot/court. Public like /api/draw.
 // `published` false ⇒ the planned schedule is withheld and the page shows „noch nicht veröffentlicht";
 // a running/done match's live truth is served regardless (the plan gate, never a feed kill).
-export const scheduleResponseSchema = z.object({ published: z.boolean(), matches: z.array(scheduleMatchSchema) })
+// `now` is the server's clock as an ISO instant, and the **Current event day**'s only source (ADR-0081):
+// the page derives which day is being played from it and leads with that day's section. **Optional on
+// purpose** — the fail-open lives in the contract, so a response without it is a valid feed that simply has
+// no current day. It hangs off `.extend` rather than sitting in the literal because this file is at its
+// 300-line budget; the split also happens to say the true thing, that the wire is the stored feed plus the
+// one value that is not stored.
+export const scheduleResponseSchema = z
+  .object({ published: z.boolean(), matches: z.array(scheduleMatchSchema) })
+  .extend({ now: z.string().optional() })
 export type ScheduleResponse = z.infer<typeof scheduleResponseSchema>
 
 // GET /api/admin/schedule — the operator's lightweight publish-state read (ADR-0041): just the global
