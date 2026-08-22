@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { COURT_NUMBERS } from '../shared'
 import { scheduleView } from '../shared/match-view'
 import type { MatchScore, ScheduleMatch, ScheduleSlot } from '../shared'
 import type { ScheduleViewOptions } from '../shared/match-view'
@@ -340,18 +341,22 @@ describe('scheduleView · the courts board reads live truth', () => {
   })
 })
 
+// Every court stopped — the total suspension, which is what the shell switch writes and therefore the only
+// one the site can currently be in (ADR-0078 Amendment 2 rule 1: all six *is* total).
+const EVERY_COURT = [...COURT_NUMBERS]
+
 describe('scheduleView · a Play suspension hedges every not-yet-started time (ADR-0078 rule 4)', () => {
   it('hedges a court’s first match of the day, which nothing structural could push', () => {
     // The plain 10:00 of the anchoring case above. Suspended, it is no longer unpushable: the suspension is
     // precisely „what can still move this start" — ADR-0071's own definition of what a hedge is about — and
     // it moves everything, including the row that had nothing in front of it.
     expect(times([match({ id: 1, court: 1, slot: 0 })])).toEqual(['10:00'])
-    const { rows } = view([match({ id: 1, court: 1, slot: 0 })], { suspended: true }).days[0].courts[0]
+    const { rows } = view([match({ id: 1, court: 1, slot: 0 })], { stoppedCourts: EVERY_COURT }).days[0].courts[0]
     expect(rows.map(r => r.publishedTime)).toEqual(['ca. 10:00'])
   })
 
   it('carries the hedge as a fact, so the renderer styles it like any other', () => {
-    const { rows } = view([match({ id: 1, court: 1, slot: 0 })], { suspended: true }).days[0].courts[0]
+    const { rows } = view([match({ id: 1, court: 1, slot: 0 })], { stoppedCourts: EVERY_COURT }).days[0].courts[0]
     expect(rows.map(r => r.followsOn)).toEqual([true])
   })
 
@@ -361,7 +366,7 @@ describe('scheduleView · a Play suspension hedges every not-yet-started time (A
     const { rows } = view(
       [match({ id: 1, court: 1, slot: 0, status: 'running' }), match({ id: 2, court: 1, slot: 3 })],
       {
-        suspended: true
+        stoppedCourts: EVERY_COURT
       }
     ).days[0].courts[0]
     expect(rows.map(r => r.publishedTime)).toEqual(['10:00', 'ca. 11:30'])
@@ -369,7 +374,7 @@ describe('scheduleView · a Play suspension hedges every not-yet-started time (A
 
   it('does not double the hedge on a time that already carried one', () => {
     const { rows } = view([match({ id: 1, court: 1, slot: 0 }), match({ id: 2, court: 1, slot: 3 })], {
-      suspended: true
+      stoppedCourts: EVERY_COURT
     }).days[0].courts[0]
     expect(rows.map(r => r.publishedTime)).toEqual(['ca. 10:00', 'ca. 11:30'])
   })

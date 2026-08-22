@@ -1,7 +1,7 @@
 import { COURT_NUMBERS, roundLabel, slotLabel, slotTime, SLOT_SPAN } from './schedule'
 import { scoreLine } from './score'
 import { SOCIAL_MIXER_COMPETITION } from './social-mixer'
-import type { LiveBracketSlot, MatchScore, ScheduleMatch, ScheduleResponse, ScheduleSlot } from './admin'
+import type { LiveBracketSlot, Match, MatchScore, ScheduleMatch, ScheduleResponse, ScheduleSlot } from './admin'
 import type { Club } from './club'
 
 /**
@@ -153,6 +153,17 @@ export interface LiveCourtCell extends CourtCellBase {
   slot1: RowSlot
   slot2: RowSlot
   meta: string
+  /**
+   * Whether this court is stopped by a **partial** Play suspension (ADR-0078 Amendment 2 rule 5). The match
+   * on it is still `running` — rule 3 is untouched, and its Zwischenstand belongs to it — but the cell says
+   * so rather than reading as live play.
+   *
+   * False under a *total* suspension, and that is not an oversight: the band standing above the board
+   * already says „Spielbetrieb unterbrochen" once, for all six, and repeating it on every cell is the same
+   * screenful the board's own presence rule refused. Only a partial suspension has something the band does
+   * not already say here — *which* of the courts you are looking at is the stopped one.
+   */
+  stopped: boolean
 }
 
 /**
@@ -210,13 +221,16 @@ export interface ScheduleViewOptions {
    */
   socialMixer?: boolean
   /**
-   * Whether play is suspended **right now** (CONTEXT: Play suspension; ADR-0078 rule 4). The caller's to
-   * answer, like `socialMixer` above and for the same reason: it is operator state off the `/api/phase`
-   * read, not a fact the schedule feed carries. While it holds, every not-yet-started row hedges — see
-   * `underSuspension`. Absent means „play is happening", so a caller that knows nothing about it gets
-   * today's schedule.
+   * The courts a Play suspension has stopped **right now** (CONTEXT: Play suspension; ADR-0078 rule 4, as
+   * narrowed by Amendment 2 rule 4). The caller's to answer, like `socialMixer` above and for the same
+   * reason: it is operator state off the `/api/phase` read, not a fact the schedule feed carries.
+   *
+   * A list rather than a flag, because the hedge is per court: while courts 1–3 play normally, hedging
+   * *their* times asserts something false. Every not-yet-started row **on a stopped court** hedges — see
+   * `underSuspension`. All six is a total suspension and produces exactly the page it always did; empty (or
+   * absent) means „play is happening", so a caller that knows nothing about it gets today's schedule.
    */
-  suspended?: boolean
+  stoppedCourts?: readonly number[]
 }
 
 // ── The pieces every row is made of ──────────────────────────────────────────────────────────────
@@ -331,6 +345,26 @@ const scheduleRowSlot = (match: ScheduleMatch, slot: 1 | 2): RowSlot =>
 export const courtLabel = (court: number): string => `Platz ${court}`
 
 /**
+ * Whether the match is being played somewhere other than where it was planned — the fact both admin
+ * surfaces word differently (ADR-0079). It needs both courts: an unplaced match has no reservation to
+ * diverge from, and an un-started one is on no court at all.
+ */
+export const courtsDiverge = (match: Pick<Match, 'court' | 'liveCourt'>): boolean =>
+  match.liveCourt !== null && match.court !== null && match.liveCourt !== match.court
+
+/**
+ * What the Spielplan card says when the match has left its reservation: „→ Platz 5", else nothing
+ * (ADR-0079 rule 3). The card does not move — its cell position *is* the reservation — so this token is
+ * the whole of what the grid says about reality, and it says it only while the two courts differ.
+ *
+ * The Ergebnisse row's `courtText` reads the same fact the other way round („Platz 3 (geplant 5)"): there
+ * the actual court is the heading and the plan is the aside, because that surface is where a mis-started
+ * match must be noticed. Two wordings, one predicate.
+ */
+export const liveCourtNote = (match: Pick<Match, 'court' | 'liveCourt'>): string | null =>
+  courtsDiverge(match) ? `→ ${courtLabel(match.liveCourt!)}` : null
+
+/**
  * One day section's heading („Samstag · 22.08."), from the date copy the client passes in. Exported because
  * the schedule is not the only thing that heads a day: the Social mixer's band names its own day when that
  * day has no section of its own (ADR-0073), and the two must read identically.
@@ -402,9 +436,10 @@ const publishedTime = (day: number, slot: number, previousSlot: number | null): 
  * The same time, said under a **Play suspension** (ADR-0078 rule 4).
  *
  * A suspension is exactly what ADR-0071 defines a hedge to be about — „what can still move this start" — and
- * it moves *everything*, including a court's first match of the day, which nothing structural could push.
- * So while play is suspended every **not-yet-started** row hedges; a running or finished match's start is
- * history rather than a claim about the future, and keeps its plain time.
+ * on the courts it stops it moves *everything*, including a court's first match of the day, which nothing
+ * structural could push. So while a court is stopped every **not-yet-started** row on it hedges; a running
+ * or finished match's start is history rather than a claim about the future, and keeps its plain time.
+ * A court that is playing normally under a partial suspension hedges nothing — see `stoppedCourts`.
  *
  * Deliberately applied **here and not inside `publishedTimes`**, which the Bracket cell also reads
  * (`shared/bracket-view`): the band that explains the hedge stands on the schedule alone, and a „ca." a
@@ -488,9 +523,15 @@ const effectiveSelection = (offered: CompetitionOption[], selected: string | nul
  */
 export const scheduleView = (
   feed: Pick<ScheduleResponse, 'matches'>,
-  { days, competitions, competition = null, socialMixer = false, suspended = false }: ScheduleViewOptions
+  { days, competitions, competition = null, socialMixer = false, stoppedCourts = [] }: ScheduleViewOptions
 ): ScheduleView => {
   const { matches } = feed
+  // The stopped set as a membership question, asked once per row and once per board cell.
+  const stopped = new Set(stoppedCourts)
+  // A suspension that stops every court is the **total** one — „all six is total" is derived from the set's
+  // size, never stored (ADR-0078 Amendment 2 rule 1) — and the band above the board already states it for
+  // all six, so only a partial suspension marks its cells (rule 5).
+  const partialSuspension = stopped.size > 0 && stopped.size < COURT_NUMBERS.length
   const offered = filterOptions(competitions, matches, socialMixer)
   const selected = effectiveSelection(offered, competition)
 
@@ -499,8 +540,9 @@ export const scheduleView = (
 
   const row = (m: ScheduleMatch): MatchRow => {
     const structural = published.get(m.id)!
-    // The suspension's hedge sits on top of the structural one and only for a match still ahead (ADR-0078).
-    const { label, followsOn } = suspended ? underSuspension(structural, m.status !== 'planned') : structural
+    // The suspension's hedge sits on top of the structural one, only on a stopped court and only for a match
+    // still ahead (ADR-0078, Amendment 2 rule 4).
+    const { label, followsOn } = stopped.has(m.court) ? underSuspension(structural, m.status !== 'planned') : structural
     return {
       id: m.id,
       publishedTime: label,
@@ -555,7 +597,8 @@ export const scheduleView = (
             free: false,
             slot1: scheduleRowSlot(live, 1),
             slot2: scheduleRowSlot(live, 2),
-            meta: `${roundText(live)} · ${competitionLabel(competitions, live.competition)}`
+            meta: `${roundText(live)} · ${competitionLabel(competitions, live.competition)}`,
+            stopped: partialSuspension && stopped.has(court)
           }
         })
 

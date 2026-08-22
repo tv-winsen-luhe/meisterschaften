@@ -1,0 +1,1 @@
+ALTER TABLE `app_state` ADD `suspension_courts` text DEFAULT '[]' NOT NULL;

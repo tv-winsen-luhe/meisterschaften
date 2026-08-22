@@ -1,5 +1,5 @@
 import { TriangleAlert } from 'lucide-react'
-import type { CompetitionSlug, Match } from '../../../shared'
+import { type CompetitionSlug, liveCourtNote, type Match } from '../../../shared'
 import { cn } from '@/admin/lib/utils'
 import { competitionAccent, competitionTextAccent } from './competition-accent'
 
@@ -59,6 +59,7 @@ interface MatchCardProps {
 // lighter — it is live truth on the board, not something still to be placed (ADR-0032).
 export const MatchCard = ({ match, reserveAction }: MatchCardProps) => {
   const settled = match.match.status === 'running' || match.match.status === 'done'
+  const note = liveCourtNote(match.match)
   return (
     <div
       className={cn(
@@ -74,13 +75,21 @@ export const MatchCard = ({ match, reserveAction }: MatchCardProps) => {
         <span className="truncate text-sm font-semibold">{match.roundLabel}</span>
         <span className="text-muted-foreground shrink-0 text-[11px] font-semibold tabular-nums">· M{match.number}</span>
       </div>
-      <div
-        className={cn(
-          'truncate text-[11px] font-semibold tracking-wide uppercase',
-          competitionTextAccent(match.competition)
-        )}
-      >
-        {match.competitionLabel}
+      {/* The competition, and — pinned right — where the match actually is when that has left the cell it
+          sits in (ADR-0079 rule 3). „→ Platz 5" is the whole of what the grid says about reality: the card
+          stays parked on its reservation, because the cell's position *is* the reservation, and the write
+          lever lives on the Ergebnisse row. It is full ink rather than a warning colour — a moved match is
+          normal tournament day, not a fault. */}
+      <div className="flex items-baseline justify-between gap-1">
+        <span
+          className={cn(
+            'truncate text-[11px] font-semibold tracking-wide uppercase',
+            competitionTextAccent(match.competition)
+          )}
+        >
+          {match.competitionLabel}
+        </span>
+        {note && <span className="shrink-0 text-[11px] font-semibold tabular-nums">{note}</span>}
       </div>
       <div className="mt-auto flex flex-col gap-0.5 pt-0.5">
         <SlotLine label={match.slot1} />

@@ -4,8 +4,11 @@ import {
   formatResumeTime,
   playSuspensionSchema,
   resolveSuspension,
+  suspendedCourts,
   suspensionNotice
 } from '../shared/play-suspension'
+import { COURT_NUMBERS } from '../shared/schedule'
+import type { PlaySuspension } from '../shared/play-suspension'
 
 // The Play suspension (CONTEXT: Play suspension; ADR-0078) — the event-wide statement that play is not
 // happening right now. A typed state, never a message: suspended yes/no plus an optional resume time, and
@@ -24,36 +27,45 @@ const AT_1400 = Date.UTC(2026, 7, 22, 12, 0)
 const AT_1430 = Date.UTC(2026, 7, 22, 12, 30)
 const AT_1440 = Date.UTC(2026, 7, 22, 12, 40)
 
+// Every court stopped — the total suspension (ADR-0078 Amendment 2 rule 1: all six *is* total), and the one
+// the shell switch writes. The cases about a *subset* name their courts themselves.
+const EVERY_COURT = [...COURT_NUMBERS]
+const stopped = (resumesAt: number | null, courts: number[] = EVERY_COURT): PlaySuspension => ({
+  suspended: true,
+  resumesAt,
+  courts
+})
+
 describe('the state', () => {
   it('is not suspended by default', () => {
     expect(NOT_SUSPENDED).toEqual({ suspended: false })
   })
 
   it('carries a suspension with no resume time', () => {
-    const state = resolveSuspension({ suspended: true, resumesAt: null }, AT_1400)
-    expect(state).toEqual({ suspended: true, resumesAt: null })
+    const state = resolveSuspension(stopped(null), AT_1400)
+    expect(state).toEqual(stopped(null))
   })
 
   it('carries a resume time that is still ahead', () => {
-    const state = resolveSuspension({ suspended: true, resumesAt: AT_1430 }, AT_1400)
-    expect(state).toEqual({ suspended: true, resumesAt: AT_1430 })
+    const state = resolveSuspension(stopped(AT_1430), AT_1400)
+    expect(state).toEqual(stopped(AT_1430))
   })
 })
 
 describe('the time decays, the suspension does not', () => {
   it('drops a resume time that has passed, keeping the suspension', () => {
-    const state = resolveSuspension({ suspended: true, resumesAt: AT_1430 }, AT_1440)
-    expect(state).toEqual({ suspended: true, resumesAt: null })
+    const state = resolveSuspension(stopped(AT_1430), AT_1440)
+    expect(state).toEqual(stopped(null))
   })
 
   it('drops it at the exact moment it is reached', () => {
-    const state = resolveSuspension({ suspended: true, resumesAt: AT_1430 }, AT_1430)
-    expect(state).toEqual({ suspended: true, resumesAt: null })
+    const state = resolveSuspension(stopped(AT_1430), AT_1430)
+    expect(state).toEqual(stopped(null))
   })
 
   it('never lifts the suspension itself', () => {
     // A day later, and still suspended: only the operator lifts it.
-    const state = resolveSuspension({ suspended: true, resumesAt: AT_1430 }, AT_1430 + 24 * 60 * 60 * 1000)
+    const state = resolveSuspension(stopped(AT_1430), AT_1430 + 24 * 60 * 60 * 1000)
     expect(state.suspended).toBe(true)
   })
 })
@@ -61,18 +73,49 @@ describe('the time decays, the suspension does not', () => {
 describe('the impossible state does not survive the read', () => {
   it('drops a resume time on a state that is not suspended', () => {
     // Reachable only by a hand-edited row: the two columns are independent below the Store.
-    const state = resolveSuspension({ suspended: false, resumesAt: AT_1430 } as never, AT_1400)
+    const state = resolveSuspension({ suspended: false, resumesAt: AT_1430, courts: EVERY_COURT } as never, AT_1400)
     expect(state).toEqual({ suspended: false })
+  })
+})
+
+// The set of stopped courts (ADR-0078 Amendment 2 rule 1). All six is the total suspension; the empty set is
+// not a state at all, and the normalisation that turns it back into „play is happening" is the same
+// fail-closed one that drops a resume time from a lifted suspension.
+describe('the suspension names its courts', () => {
+  it('carries a subset through the read, in ascending order whatever order it was written in', () => {
+    expect(resolveSuspension(stopped(null, [5, 3]), AT_1400)).toEqual(stopped(null, [3, 5]))
+  })
+
+  it('drops a duplicate and a court the event does not have', () => {
+    // Reachable only by a hand-edited row; the canonical list is what every reader then asks against.
+    expect(resolveSuspension(stopped(null, [4, 4, 99]), AT_1400)).toEqual(stopped(null, [4]))
+  })
+
+  it('degrades a suspension of no courts to „play is happening"', () => {
+    expect(resolveSuspension(stopped(null, []), AT_1400)).toEqual(NOT_SUSPENDED)
+    // And so does one whose every named court was nonsense — the same fact by the time it is normalised.
+    expect(resolveSuspension(stopped(AT_1430, [99]), AT_1400)).toEqual(NOT_SUSPENDED)
+  })
+
+  it('answers the hedge with the stopped courts, and with nothing when play is happening', () => {
+    expect(suspendedCourts(stopped(null, [4]), AT_1400)).toEqual([4])
+    expect(suspendedCourts(NOT_SUSPENDED, AT_1400)).toEqual([])
+    // The set outlives the resume time: the time decays, the suspension — and its extent — does not.
+    expect(suspendedCourts(stopped(AT_1430, [4]), AT_1440)).toEqual([4])
   })
 })
 
 describe('the wire form', () => {
   it('accepts the two legal shapes', () => {
     expect(playSuspensionSchema.parse({ suspended: false })).toEqual({ suspended: false })
-    expect(playSuspensionSchema.parse({ suspended: true, resumesAt: null })).toEqual({
-      suspended: true,
-      resumesAt: null
-    })
+    expect(playSuspensionSchema.parse(stopped(null))).toEqual(stopped(null))
+  })
+
+  it('rejects a suspension that names no court, and one that names a court the event does not have', () => {
+    // Non-empty and validated against COURT_NUMBERS (Amendment 2 rule 1). The empty set is not a state — a
+    // *stored* one degrades on read (see below), but nothing may ask for it over the wire.
+    expect(playSuspensionSchema.safeParse(stopped(null, [])).success).toBe(false)
+    expect(playSuspensionSchema.safeParse(stopped(null, [7])).success).toBe(false)
   })
 
   it('strips a resume time off a lifted suspension rather than carrying it through', () => {
@@ -95,7 +138,7 @@ describe('the notice', () => {
   })
 
   it('states the shifted times on the schedule when no resume time is known', () => {
-    expect(suspensionNotice({ suspended: true, resumesAt: null }, AT_1400, 'schedule')).toEqual({
+    expect(suspensionNotice(stopped(null), AT_1400, 'schedule')).toEqual({
       headline: 'Spielbetrieb unterbrochen',
       lines: ['Alle geplanten Startzeiten verschieben sich.'],
       condensed: 'Spielbetrieb unterbrochen'
@@ -103,7 +146,7 @@ describe('the notice', () => {
   })
 
   it('puts the resume time in front of the shifted-times line', () => {
-    expect(suspensionNotice({ suspended: true, resumesAt: AT_1430 }, AT_1400, 'schedule')).toEqual({
+    expect(suspensionNotice(stopped(AT_1430), AT_1400, 'schedule')).toEqual({
       headline: 'Spielbetrieb unterbrochen',
       lines: ['Weiter geht es ca. 14:30 Uhr.', 'Alle geplanten Startzeiten verschieben sich.'],
       condensed: 'Spielbetrieb unterbrochen · weiter ca. 14:30 Uhr'
@@ -111,7 +154,7 @@ describe('the notice', () => {
   })
 
   it('drops the resume line once that time has passed', () => {
-    expect(suspensionNotice({ suspended: true, resumesAt: AT_1430 }, AT_1440, 'schedule')).toEqual({
+    expect(suspensionNotice(stopped(AT_1430), AT_1440, 'schedule')).toEqual({
       headline: 'Spielbetrieb unterbrochen',
       lines: ['Alle geplanten Startzeiten verschieben sich.'],
       condensed: 'Spielbetrieb unterbrochen'
@@ -119,7 +162,7 @@ describe('the notice', () => {
   })
 
   it('says less on the front door, which has no times to explain', () => {
-    expect(suspensionNotice({ suspended: true, resumesAt: AT_1430 }, AT_1400, 'front-door')).toEqual({
+    expect(suspensionNotice(stopped(AT_1430), AT_1400, 'front-door')).toEqual({
       headline: 'Spielbetrieb unterbrochen',
       lines: ['Weiter geht es ca. 14:30 Uhr.'],
       condensed: 'Spielbetrieb unterbrochen'
@@ -127,7 +170,7 @@ describe('the notice', () => {
   })
 
   it('leaves the front door with the headline alone when no time is known', () => {
-    expect(suspensionNotice({ suspended: true, resumesAt: null }, AT_1400, 'front-door')).toEqual({
+    expect(suspensionNotice(stopped(null), AT_1400, 'front-door')).toEqual({
       headline: 'Spielbetrieb unterbrochen',
       lines: [],
       condensed: 'Spielbetrieb unterbrochen'
@@ -140,24 +183,24 @@ describe('the notice', () => {
 // half worth keeping is not at a fixed position, and on the front door there is often nothing there at all.
 describe('the condensed notice', () => {
   it('keeps the resume time on the schedule, and drops the shifted-times sentence', () => {
-    const notice = suspensionNotice({ suspended: true, resumesAt: AT_1430 }, AT_1400, 'schedule')
+    const notice = suspensionNotice(stopped(AT_1430), AT_1400, 'schedule')
     expect(notice?.condensed).toBe('Spielbetrieb unterbrochen · weiter ca. 14:30 Uhr')
   })
 
   it('falls back to the headline alone once the resume time has decayed', () => {
     // The pinned line decays with the state it states — at 14:40 „weiter ca. 14:30" has been refuted, and
     // the last line standing on the schedule is the one the condensed form deliberately does not keep.
-    const notice = suspensionNotice({ suspended: true, resumesAt: AT_1430 }, AT_1440, 'schedule')
+    const notice = suspensionNotice(stopped(AT_1430), AT_1440, 'schedule')
     expect(notice?.condensed).toBe('Spielbetrieb unterbrochen')
   })
 
   it('gives up the time on the front door, which keeps its pointer instead', () => {
-    const notice = suspensionNotice({ suspended: true, resumesAt: AT_1430 }, AT_1400, 'front-door')
+    const notice = suspensionNotice(stopped(AT_1430), AT_1400, 'front-door')
     expect(notice?.condensed).toBe('Spielbetrieb unterbrochen')
   })
 
   it('never shouts: the line carries a clock time and is not uppercased', () => {
-    const notice = suspensionNotice({ suspended: true, resumesAt: AT_1430 }, AT_1400, 'schedule')
+    const notice = suspensionNotice(stopped(AT_1430), AT_1400, 'schedule')
     expect(notice?.condensed).not.toBe(notice?.condensed.toUpperCase())
   })
 })
