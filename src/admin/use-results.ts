@@ -2,7 +2,7 @@ import { useCallback } from 'react'
 import { hc } from 'hono/client'
 import type { AppType } from '../../worker/app'
 import type { MatchStatus } from '../../shared'
-import type { ResultPayload } from './surfaces/results-surface'
+import type { ResultPayload } from './surfaces/result-drawer'
 import type { SetWrite } from './surfaces/result-save'
 
 // The result-entry seams (ADR-0032, ADR-0026), kept out of the admin shell like useSchedule/useReveal: the

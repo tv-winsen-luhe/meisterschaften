@@ -4,9 +4,7 @@ import {
   type AdminRegistration,
   type CompetitionDraw,
   type CompetitionSlug,
-  type EnteredOutcome,
   isFullyRevealed,
-  type MatchScore,
   type MatchStatus
 } from '../../../shared'
 import { Button } from '@/admin/ui/button'
@@ -23,7 +21,7 @@ import {
   type ResultsCopy,
   resultRows
 } from './results-grouping'
-import { ResultDrawer } from './result-drawer'
+import { ResultDrawer, type ResultPayload } from './result-drawer'
 import type { SetWrite } from './result-save'
 
 // The Ergebnisse surface (UI: „Ergebnisse", ADR-0032, issue #90): the operator's result workbench. It is
@@ -38,14 +36,6 @@ import type { SetWrite } from './result-save'
 // no per-competition answer) and hides the field tabs to say the dimension changed. Both print a **plain**
 // clock time: the public „ca." hedge states what can still move a start, and the operator is what moves it.
 // The grouping and the two meta lines are pure, in results-grouping.ts.
-
-// The result the drawer hands back: the winning slot, the outcome (null ⇒ a normal scored result), and the
-// fixed best-of-2 + MTB score. The shell posts it to /api/admin/match/result.
-export interface ResultPayload {
-  winner: 1 | 2
-  outcome: EnteredOutcome | null
-  score: MatchScore
-}
 
 interface ResultsSurfaceProps {
   registrations: AdminRegistration[]
@@ -62,11 +52,6 @@ interface ResultsSurfaceProps {
   // no winner, no advancement, no status move.
   onSaveSets: (id: number, writes: SetWrite[]) => Promise<boolean>
 }
-
-// Both players known ⇒ a result can be entered. The row shape itself lives with the grouping it feeds, so
-// that module and its tests never import a component to get at a type; re-exported because result-drawer.tsx
-// has always taken it from here.
-export type { ResultMatch }
 
 // The German the meta lines need, from the copy's home — the days for „Sa 14:00", the fields for the court
 // view's required competition part.

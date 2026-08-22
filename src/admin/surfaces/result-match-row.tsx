@@ -15,6 +15,7 @@ import { Badge } from '@/admin/ui/badge'
 import { Button } from '@/admin/ui/button'
 import { NativeSelect } from '@/admin/ui/native-select'
 import type { ResultMatch } from './results-grouping'
+import { bothPlayersKnown, SETTABLE_STATUSES, type SettableStatus } from './match-actions'
 
 // The Ergebnisse surface's row (results-surface.tsx owns the two readings it sits in). Split out when that
 // file hit its line cap, the way schedule-match-card.tsx carves the card off the grid.
@@ -34,7 +35,9 @@ interface MatchRowProps {
 }
 export const MatchRow = ({ row, meta, nameById, stoppedCourts, onOpen, onSetStatus }: MatchRowProps) => {
   const { match, number, slot1, slot2 } = row
-  const bothKnown = slot1.kind === 'player' && slot2.kind === 'player'
+  // The same predicate the Spielplan card's doors read (ADR-0080): both slots hold a player, so there is a
+  // match to start and a result to enter. One definition, two surfaces.
+  const bothKnown = bothPlayersKnown(match)
   // The court the control shows. The server is the truth — the actual court while the match is on one,
   // else the planned court — and `pick` is only the operator's un-written choice on top of it: a court
   // armed for a „läuft" not yet stated, or one being written right now. The row lives for the whole match
@@ -172,14 +175,6 @@ export const MatchRow = ({ row, meta, nameById, stoppedCourts, onOpen, onSetStat
     </div>
   )
 }
-
-// The two states the row's status control moves between, in either direction. „beendet" is deliberately not
-// among them: it is reached by entering a result, and nothing un-finishes a match — leaving `done` would
-// have to decide what happens to a winner already advanced into the parent match (ADR-0079 rule 6, a named
-// gap). Not „live" statuses: this event already calls a phase and a court „live", and what these two share
-// is only that the control may set them.
-const SETTABLE_STATUSES = ['planned', 'running'] as const satisfies readonly MatchStatus[]
-type SettableStatus = (typeof SETTABLE_STATUSES)[number]
 
 interface StatusBadgeProps {
   status: MatchStatus

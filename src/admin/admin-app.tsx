@@ -362,6 +362,9 @@ export const AdminApp = () => {
             socialMixerPlacement={socialMixerPlacement}
             socialMixerConfirmed={confirmedEntries}
             onMoveSocialMixerBlock={moveSocialMixerBlock}
+            onRecordResult={recordResult}
+            onSetStatus={setMatchStatus}
+            onSaveSets={saveSets}
           />
         ) : surface === 'results' ? (
           <ResultsSurface
