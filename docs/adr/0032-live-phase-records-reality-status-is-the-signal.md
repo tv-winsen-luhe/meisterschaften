@@ -4,6 +4,10 @@
 - Date: 2026-06-28
 - Builds on: ADR-0001, ADR-0005 (site owns the data; the Live phase includes scheduling)
 - Amended: 2026-08-20 (see Amendment below — the Zwischenstand gets a surface; set-level stays the floor)
+- Revised by: ADR-0079 (the actual court is **tracked** for the life of a match, not captured at the
+  `running` transition — §Context's „the desk reliably knows only two events per match" is the claim that
+  narrows: the desk also knows _where_, continuously. The status/score granularity decided below is
+  unaffected.)
 
 ## Context
 

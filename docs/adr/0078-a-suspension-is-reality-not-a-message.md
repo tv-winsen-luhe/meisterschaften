@@ -2,7 +2,8 @@
 
 - Status: accepted
 - Date: 2026-08-22
-- Amended: 2026-08-22 (see Amendment below — the band is pinned and it condenses)
+- Amended: 2026-08-22 (see Amendments below — the band is pinned and it condenses; the suspension names
+  its courts, so play can resume on one court while another stays stopped)
 - Relates to: ADR-0032 (the live phase records reality; status is the signal), ADR-0041 (the schedule
   publish gate — the plan is what the organiser withholds), ADR-0071 (the hedge moves behind the number),
   ADR-0077 (the operator reads the plan, the public reads the announcement), ADR-0048 (a wire decision, read
@@ -203,7 +204,7 @@ validation above, fail-closed. The resume time is an **absolute clock time**, fr
 - **There is no way to say „today is over".** Named in the rejections above as an accepted gap, and repeated
   here so it is not discovered as a bug during a wet Saturday.
 
-## Amendment (2026-08-22): the band is pinned and it condenses — rule 8's „not sticky" was asserted, never argued
+## Amendment 1 (2026-08-22): the band is pinned and it condenses — rule 8's „not sticky" was asserted, never argued
 
 The ask came back the same day the feature shipped, and it is a bug report rather than a wish: the band is
 only visible at the top of the page. On the front door it sits above a `min-h-dvh` hero, so it is gone after
@@ -308,3 +309,97 @@ trade-off; it is filling a hole. **Not dismissible still stands, unamended.**
   the page that carries it.
 - **`SuspensionNotice` has three fields, and a fourth surface would need three strings.** The projection is
   still the only place German is written, which is what rule 1 is for.
+
+## Amendment 2 (2026-08-22): the suspension names its courts — partial resumption, and rule 3 is what survives because of it
+
+The organiser's case: it rains, everything stops, and then **court 3 is playable while court 4 still has
+puddles**. The shipped suspension is all-or-nothing, so the only moves are to lift it entirely (and lie about
+court 4) or hold it (and lie about court 3). This is the one thing the rejection list above never considered —
+every alternative it weighed was about the _form_ of an event-wide statement, never about its _extent_.
+
+The ask arrived as „a `suspended` state per match, and a bulk lever that fans out over all running matches".
+That is the wrong object, and taking it literally would have reopened **rule 3**. The cause in the organiser's
+own example is a property of a **court** — puddles are on court 4, not on Brettschneider vs. Kraatz — and once
+the state is per-court, rule 3 needs no reopening at all: no match row changes, and the bulk-versus-individual
+levers the ask described fall out of set membership rather than out of a fan-out write.
+
+1. **The suspension carries the set of stopped courts.** The suspended arm of `playSuspension` gains
+   `courts: number[]`, non-empty, validated against `COURT_NUMBERS`. **All six is a total suspension** — this
+   event _is_ six courts, so „every court is stopped" and „the event is stopped" are one fact, and the copy
+   derives the difference rather than storing it. The empty set is not a state: `resolveSuspension` degrades it
+   to `NOT_SUSPENDED`, the same fail-closed normalisation it already applies to a resume time on a lifted
+   suspension. Storage follows `cancelled_competitions` exactly — JSON text on the singleton row, defaulting to
+   `[]`, unparseable degrading to empty.
+
+2. **One resume time for the whole suspension, never one per court.** „Court 3 at 14:30, court 4 not before
+   15:15" is expressible only with per-court times, and it costs more than it says: rule 7's decay stops being
+   one refuted claim and becomes six, the band can carry one sentence anyway, and each extra time is another
+   write that gets forgotten in the rain. The operator who knows court 4 needs another 45 minutes says so by
+   **releasing court 3 now** and leaving court 4 stopped.
+
+3. **The shell switch is unchanged and still means „alles unterbrechen".** Rule 8's „one tap from anywhere" is
+   about the common case — it rains on the whole club — and that path must not get slower to buy a rarer one.
+   Releasing a single court is a **second** control, present only while a suspension stands: six court chips in
+   the shell's suspension popover, tap to release, tap to stop again. The muscle memory of the fast path is
+   preserved for the one person who uses it under stress.
+
+4. **The band stands for a partial suspension and names the stopped courts**, and rule 4's hedge narrows to
+   match. A partial suspension that said nothing at the top of the page would leave every „ca." below it
+   unexplained, which is the precise failure rule 4 exists to prevent — so the band is not conditional on
+   totality. But the hedge is: while courts 1–3 are playing normally, hedging _their_ times asserts something
+   false. So rule 4's „every not-yet-started Published time hedges" becomes **„every not-yet-started Published
+   time on a stopped court hedges"**, and for a total suspension that is the same sentence it always was.
+
+5. **Rule 3 stands, untouched, and this is the amendment's whole point.** A match on a stopped court **is**
+   `running`; it is neither unplayed nor finished, and its Zwischenstand belongs to it. Nothing here writes a
+   match row. Two smaller rules follow from the same posture:
+   - **The Live board's presence rule is untouched** (#347): a stopped court with no match on it gets no cell.
+     The board still shows only courts with a running match, and such a cell is now _marked_ as stopped rather
+     than reading as live play. The band already names the empty ones.
+   - **Starting a match on a stopped court is hinted, never blocked, and never auto-releases the court.** It may
+     simply mean the court dried and the operator has not said so yet — neither impossible nor obviously unwise
+     (ADR-0033). The „Läuft" button carries a soft inline „Platz 4 ist als unterbrochen markiert", which puts
+     the contradiction in front of the only person who can resolve it. Auto-releasing on a start is the
+     tempting version and it fails exactly the way rule 7 rejects auto-lifting: it would announce, positively
+     and silently, that play has resumed there.
+
+### Considered and rejected
+
+- **A fourth `MatchStatus` value, `suspended`, with the shell switch fanning out over every running match.**
+  The ask as it was literally phrased, and the design this amendment replaced after two rounds of working it
+  through. It reopens rule 3 (a waiting match stops being `running`, and its Zwischenstand's home becomes
+  ambiguous); it puts a fourth value into a closed enum consumed by the public wire, the bracket, the Live
+  board and the admin; it needs a fan-out write and therefore a story about the write that half-failed; and
+  it re-earns the rejection already recorded above — „the band above the board already says it once, for all
+  of them". It also cannot express a **not-yet-started** match on an unplayable court, because a match that
+  never began is not interrupted. The court-set model expresses that one for free.
+- **A per-match suspension _in addition_ to the court set**, for „this match is stopped but its court is
+  fine" — an injury while court 4 is dry. Named because it is the one case the court model genuinely cannot
+  say. It buys a second, rarer vocabulary for a state the desk can already communicate by leaving the match
+  `running` and nobody starting the next one, and it would put two independent sources on one question.
+- **`courts: number[] | null`, with `null` for „the whole event"**, distinct from all six being listed. Two
+  encodings of one state, forever, for a distinction this event does not have.
+- **Collapsing the boolean — the suspension _is_ the set, empty means play is happening.** Tidier on paper and
+  it throws away the discriminated union's one purpose: `suspended: false` beside a stale court list becomes
+  representable again, which is exactly what the union was written to prevent.
+- **Requiring a court selection on the shell switch.** See rule 3. It taxes the common case to serve the rare
+  one and slows down the tap that happens in the rain.
+- **Showing stopped courts with no match on the Live board.** See rule 5. Six „frei" cells was already the
+  argument against the strip existing when nothing runs; „frei, aber unbespielbar" is the same screenful.
+
+### Consequences
+
+- **The hedge's input stops being a boolean.** After the original decision it was `structural OR suspended`;
+  it is now `structural OR (suspended AND this match's court is stopped)`, so `shared/match-view`'s time
+  projection needs the match's court, not just the suspension. That is a wider signature on the one projection
+  every public time goes through.
+- **`COURT_NUMBERS.length` becomes load-bearing for public copy.** „Total" is now derived from the set's size,
+  so a seventh court would silently turn every historical total suspension into a partial one. The event's
+  court count was already a constant; it is now a constant the German depends on.
+- **The band's copy gains an enumeration**, authored in the projection like every other public string (rule 1,
+  untouched): „Spielbetrieb auf Platz 4 und 5 unterbrochen" beside the existing total form. A list inside a
+  sentence is the first public string in this codebase whose length varies with data.
+- **The admin gains a second suspension control**, and it is the first control in the shell that is not a
+  single switch. The popover exists only while a suspension stands, so the shell's resting state is unchanged.
+- **„Today is over" is still unsayable**, and partial resumption does not change that. Repeated from the
+  original consequences because a court set looks like it might help and does not.

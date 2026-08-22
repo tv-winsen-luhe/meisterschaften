@@ -641,26 +641,38 @@ reveal sequence }`. Randomness enters through an injected **`RandomSource`** por
   half-empty grid mid-rebuild; its confirm escalates if a match is already running/done. _(See ADR-0041;
   ADR-0006, ADR-0027.)_
 - **Match status** (de: Match-Status; stored/wire values English `planned` → `running` → `done`, UI
-  labels „geplant" → „läuft" → „beendet" per ADR-0028). The transition to `running` captures the
+  labels „geplant" → „läuft" → „beendet" per ADR-0028). The transition to `running` first states the
   **actual court** the match is on — which may differ from its planned court (a court frees up early), so
-  the planned court/slot stay as the published plan while the live court reflects reality. The operator
+  the planned court/slot stay as the published plan while the live court reflects reality. That court is
+  **tracked, not captured** (ADR-0079): it stays editable for the whole life of a running match, because a
+  match that moved once can move again — to a freed court, and back after the rain. `planned` ↔ `running` is
+  an ordinary **control** settable in either direction (setting `planned` clears the live court: an
+  un-started match is on no court), so a mis-clicked „läuft" needs no undo vocabulary. `beendet` is the one
+  one-way door, because leaving it would have to unwind an **Advancement** already written. The operator
   updates the status; the public live view reflects it in near-real-time so off-site followers can track
   what is on court now. The status transition is itself the **live signal**: set scores may be saved
   opportunistically per completed set (the **Zwischenstand**, above — a separate act that never moves the
   status, so `running` and its live court stay the operator's explicit statement), but there is **no game- or
   point-level live scoring** — the single desk has no courtside data source. A **Play suspension** (below)
-  leaves it entirely untouched: a match waiting out the rain at 4:3 in the second set stays `running`.
-  _(See ADR-0032, ADR-0078.)_
-- **Play suspension** (de: Spielunterbrechung; code: `playSuspension`) — the event-wide statement that
-  **play is not happening right now**, set and lifted by the operator. It is the first fact the site carries
+  leaves it entirely untouched: a match waiting out the rain at 4:3 in the second set stays `running` on its court.
+  _(See ADR-0032, ADR-0078, ADR-0079.)_
+- **Play suspension** (de: Spielunterbrechung; code: `playSuspension`) — the operator's statement that
+  **play is not happening right now**, and on **which courts**. It is the first fact the site carries
   about the whole event _as reality_ rather than as plan: Match status is per-match, Schedule publication is
   per-event but gates the **plan**, and nothing said „nobody is on court and every time below is wrong".
   Being reality, it is **never gated by the publish flag** (ADR-0032 over ADR-0041).
-  - **A typed state, not a message.** Two facts and no prose: suspended yes/no, plus an **optional
-    resume time** — the clock time play is expected to resume. There is deliberately **no operator text
+  - **A typed state, not a message.** Three facts and no prose: suspended yes/no, the **set of stopped
+    courts**, plus an **optional resume time** — the clock time play is expected to resume. There is deliberately **no operator text
     field**: a public string typed from a phone in the rain would be the one unreviewed publication on a site
     where every public string is built by a projection. The accepted cost is that „heute geht nichts mehr"
     **cannot be said** — that is a rescheduling, not a notice (ADR-0078).
+  - **It names its courts, so play can resume on one and not another.** The stopped set is the suspension:
+    **all six courts is a total suspension** (this event _is_ six courts, so the copy derives „total" rather
+    than storing it) and any smaller set is a partial one — court 3 has dried, court 4 still has puddles. The
+    empty set is not a state; it degrades to „play is happening". **The cause is a property of the court, not
+    of a match**, which is why this is not a per-match state and why **Match status** is still untouched: a
+    match waiting out the rain at 4:3 stays `running` on its court. One resume time covers the whole
+    suspension, never one per court. _(See ADR-0078 Amendment 2.)_
   - **The name carries no cause.** Rain, thunderstorm, an ambulance on court, floodlight failure on 5/6 —
     one thing for the spectator. _Avoid_: „Regenpause", `rainDelay`, and „Flashmeldung" (a borrowed word for
     something else; the rule that retired „Scoreboard" applies).
@@ -670,8 +682,11 @@ reveal sequence }`. Randomness enters through an injected **`RandomSource`** por
     degradation, applied to one statement). The time is stored as an **instant**, not a clock string, so
     „has it passed?" needs no timezone; Europe/Berlin appears only where it is displayed. The operator sets
     it as **+15 / +30 / +60** — the language of a rain day — which resolves to that instant on the tap.
-  - **Two surfaces, one band**: the Schedule & results page (above the Live board) and the front door (above
-    the front-door lead), in **clay** — the colour of the court that cannot be played on; neon is taken, it
+  - **Two surfaces, one band**, and it stands for a partial suspension too — naming the stopped courts, so
+    the „ca." times below it are never unexplained. The **hedge follows the courts**: while a partial
+    suspension stands, only a not-yet-started match **on a stopped court** hedges, because hedging a court
+    that is playing normally asserts something false. The two surfaces are the Schedule & results page (above
+    the Live board) and the front door (above the front-door lead), in **clay** — the colour of the court that cannot be played on; neon is taken, it
     means „läuft". The public draw carries **no** band, and consequently no hedge either (Published time).
   - **Bound to `tournament`**, and the transition to `post-event` clears it — the last suspension of a
     tournament is the one nobody remembers to lift.
@@ -705,6 +720,9 @@ beendet mit Score` in place rather than migrating to a separate results page (AD
   entirely** — no heading, no row of „frei" cells, and no line announcing the absence. Six cells all saying
   „nothing" is a screen of scroll spent before the schedule starts, and what is next is the rows' job, not
   the strip's. The presence rule reads the **Match status** alone and admits no clock (#347).
+  A court in a **Play suspension**'s stopped set is _marked_ as stopped in its cell rather than reading as
+  live play; a stopped court with **no** match on it still gets no cell — the presence rule is about what is
+  on court, and the band above already names the empty ones.
   „Scoreboard" is **not** a term in this project: it is a useful word for arguing about how the
   weekend surfaces should be _read_, but the things it would name already have names.
   _(See ADR-0008, ADR-0032, ADR-0072.)_
