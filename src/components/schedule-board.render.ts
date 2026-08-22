@@ -108,6 +108,14 @@ const courtCell = (cell: CourtCell, logos: Logos): HTMLElement => {
   const players = elem('div', 'court__players')
   players.append(playerLine(cell.slot1, logos), playerLine(cell.slot2, logos))
   el.append(players, elem('div', 'court__meta', cell.meta))
+  // A court a partial suspension has stopped (ADR-0078 Amendment 2 rule 5). The match on it is still
+  // running — nothing here touches its Zwischenstand — so the cell keeps everything it says and only stops
+  // reading as live play: the live wash steps back and the clay note names the state. The view decides when
+  // this applies; under a total suspension the band above the board already says it once, for all six.
+  if (cell.stopped) {
+    el.classList.add('court--stopped')
+    el.append(elem('div', 'court__stopped', 'unterbrochen'))
+  }
   return el
 }
 

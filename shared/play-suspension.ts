@@ -1,11 +1,13 @@
 import { z } from 'zod'
+import { COURT_NUMBERS } from './schedule'
 
 // Play suspension (CONTEXT: Play suspension; ADR-0078) — the event-wide statement that play is **not
 // happening right now**. The first fact this site carries about the whole event as *reality* rather than as
 // plan: Match status is per-match, Schedule publication is per-event but gates the *plan*, and nothing said
 // „nobody is on court and every time below is wrong".
 //
-// It is a **typed state, not a message** (ADR-0078 rule 1): two facts and no prose. A public string typed
+// It is a **typed state, not a message** (ADR-0078 rule 1): three facts and no prose — suspended yes/no,
+// the set of stopped courts, and an optional resume time. A public string typed
 // from a phone in the rain would be the one unreviewed publication on a site where every public string is
 // built by a projection, so the surfaces derive their finished German from here — `suspensionNotice` below
 // is the only place that authors it.
@@ -25,18 +27,58 @@ import { z } from 'zod'
 const resumesAtSchema = z.number().int().nullable()
 
 /**
+ * The courts a suspension stops (ADR-0078 Amendment 2 rule 1) — a **non-empty set of court numbers**,
+ * validated against the event's own six.
+ *
+ * **All six is a total suspension.** This event *is* six courts, so „every court is stopped" and „the event
+ * is stopped" are one fact; the copy derives the difference rather than storing it, and there is no second
+ * encoding (`null` for „everything") of a state the list already says.
+ *
+ * Non-empty on the wire, because the empty set is not a suspension — but a *stored* empty list is reachable
+ * (a hand-edited row, or a value written before this column existed), and `resolveSuspension` degrades it
+ * to „play is happening" rather than trusting the boolean beside it.
+ */
+export const suspendedCourtsSchema = z
+  .array(
+    z
+      .number()
+      .int()
+      .refine(court => COURT_NUMBERS.includes(court), { error: 'Diesen Platz gibt es nicht.' })
+  )
+  .min(1, { error: 'Eine Unterbrechung braucht mindestens einen Platz.' })
+
+/**
  * The wire form: a **discriminated union**, so „not suspended, but a resume time is set" is not
  * representable above the Store. The two columns below it are independent and a hand-edited row can put
  * them in that combination; `resolveSuspension` is where it stops.
+ *
+ * The union survives the court set rather than being collapsed into it (Amendment 2's rejections): „the
+ * suspension *is* the set, empty means play is happening" is tidier on paper and makes „`suspended: false`
+ * beside a stale court list" representable again, which is the one thing the union was written to prevent.
  */
 export const playSuspensionSchema = z.discriminatedUnion('suspended', [
   z.object({ suspended: z.literal(false) }),
-  z.object({ suspended: z.literal(true), resumesAt: resumesAtSchema })
+  z.object({ suspended: z.literal(true), resumesAt: resumesAtSchema, courts: suspendedCourtsSchema })
 ])
 export type PlaySuspension = z.infer<typeof playSuspensionSchema>
 
 /** Play is happening — the state a fresh database is in, and the one a lift returns to. */
 export const NOT_SUSPENDED: PlaySuspension = { suspended: false }
+
+/**
+ * A stopped set as every reader should see it: ascending, no duplicates, and nothing the event does not
+ * have. The **empty result is the answer** „this is not a suspension" — the caller decides what to do with
+ * it, and both callers do the same thing (`resolveSuspension` below, and the Store on the way out of the
+ * row).
+ *
+ * It is a function rather than a rule spelled twice because it is where the wire's `min(1)` stops being
+ * enough: a stored list is not parsed through the schema, so this is the only thing standing between a
+ * hand-edited row and a court number nobody has.
+ */
+export const canonicalCourts = (courts: readonly number[]): number[] => {
+  const stopped = new Set(courts)
+  return COURT_NUMBERS.filter(court => stopped.has(court))
+}
 
 /**
  * The state as a surface should read it, given the moment it is read at. Two normalisations, and both are
@@ -49,12 +91,17 @@ export const NOT_SUSPENDED: PlaySuspension = { suspended: false }
  *   playing" is not. Same instinct as the feed's per-slot degradation (ADR-0035): the claim that no longer
  *   holds falls away, the claim that holds stays.
  * - **The impossible combination is dropped**, fail-closed like the Store's other readers: a resume time on
- *   a lifted suspension is not a suspension.
+ *   a lifted suspension is not a suspension, and **a suspension of no courts is not one either** (ADR-0078
+ *   Amendment 2 rule 1). The court set is put back into canonical order on the way through — ascending, no
+ *   duplicates, nothing the event does not have — so every reader sees one stable list whatever order it
+ *   was written in.
  */
 export const resolveSuspension = (state: PlaySuspension, now: number): PlaySuspension => {
   if (!state.suspended) return NOT_SUSPENDED
+  const courts = canonicalCourts(state.courts)
+  if (courts.length === 0) return NOT_SUSPENDED
   const resumesAt = state.resumesAt !== null && state.resumesAt > now ? state.resumesAt : null
-  return { suspended: true, resumesAt }
+  return { suspended: true, resumesAt, courts }
 }
 
 // Europe/Berlin, once. Built at module load like the tournament page's formatter, because an
@@ -128,5 +175,16 @@ export const suspensionNotice = (
   }
 }
 
-/** Whether play is suspended *as read now* — the one input the Published time's hedge takes (ADR-0078 rule 4). */
-export const isPlaySuspended = (state: PlaySuspension, now: number): boolean => resolveSuspension(state, now).suspended
+/**
+ * The courts that are stopped *as read now*, or the empty list when play is happening — the input the
+ * Published time's hedge takes (ADR-0078 rule 4 as amended by Amendment 2 rule 4).
+ *
+ * The hedge stopped being a boolean with that amendment: while courts 1–3 play normally, hedging *their*
+ * times asserts something false, so „every not-yet-started Published time hedges" became „every
+ * not-yet-started Published time **on a stopped court** hedges". For a total suspension that is the same
+ * sentence it always was.
+ */
+export const suspendedCourts = (state: PlaySuspension, now: number): readonly number[] => {
+  const resolved = resolveSuspension(state, now)
+  return resolved.suspended ? resolved.courts : []
+}

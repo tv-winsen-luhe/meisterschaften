@@ -71,7 +71,13 @@ export const appState = sqliteTable('app_state', {
   // Workers run UTC, so a clock string would need a timezone to mean anything and a second one to compare
   // against; an instant needs neither, and Europe/Berlin appears only where the value is displayed.
   playSuspended: integer('play_suspended', { mode: 'boolean' }).notNull().default(false),
-  playResumesAt: integer('play_resumes_at')
+  playResumesAt: integer('play_resumes_at'),
+  // The courts that suspension stops (ADR-0078 Amendment 2) — a JSON array of court numbers, stored as
+  // text for exactly the reasons `cancelled_competitions` above is: small N, set at most a handful of times
+  // per event, and a list nothing ever queries *by*. The default `[]` means „no court named", so the rows
+  // an earlier suspension already wrote need no data migration — the Store degrades that pair (suspended,
+  // but no court) to „play is happening" on read, the same fail-closed posture the resume time gets.
+  suspensionCourts: text('suspension_courts').notNull().default('[]')
 })
 
 export type AppStateRow = typeof appState.$inferSelect

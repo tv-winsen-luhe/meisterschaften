@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { COURT_NUMBERS } from '../shared'
 import { createInMemoryAppStateStore } from '../worker/store/app-state'
 
 describe('in-memory app-state store', () => {
@@ -76,18 +77,22 @@ describe('in-memory app-state store', () => {
   // ── Play suspension (ADR-0078) ─────────────────────────────────────────────────────────────────
 
   const AT_1430 = Date.UTC(2026, 7, 22, 12, 30)
+  // The total suspension the shell switch writes: every court (ADR-0078 Amendment 2 rule 1).
+  const EVERY_COURT = [...COURT_NUMBERS]
+  const stopped = (resumesAt: number | null, courts: number[] = EVERY_COURT) =>
+    ({ suspended: true, resumesAt, courts }) as const
 
   it('defaults to „play is happening" and suspends with no resume time', async () => {
     const store = createInMemoryAppStateStore()
     expect(await store.getPlaySuspension()).toEqual({ suspended: false })
-    await store.setPlaySuspension({ suspended: true, resumesAt: null })
-    expect(await store.getPlaySuspension()).toEqual({ suspended: true, resumesAt: null })
+    await store.setPlaySuspension(stopped(null))
+    expect(await store.getPlaySuspension()).toEqual(stopped(null))
   })
 
   it('carries a resume time and lifts back to the plain state', async () => {
     const store = createInMemoryAppStateStore()
-    await store.setPlaySuspension({ suspended: true, resumesAt: AT_1430 })
-    expect(await store.getPlaySuspension()).toEqual({ suspended: true, resumesAt: AT_1430 })
+    await store.setPlaySuspension(stopped(AT_1430))
+    expect(await store.getPlaySuspension()).toEqual(stopped(AT_1430))
     await store.setPlaySuspension({ suspended: false })
     expect(await store.getPlaySuspension()).toEqual({ suspended: false })
   })
@@ -96,10 +101,26 @@ describe('in-memory app-state store', () => {
     // The impossible state („not suspended, but a time is set") must not survive a lift and reappear on the
     // next suspension as a stale „weiter ca. 14:30" from an hour ago.
     const store = createInMemoryAppStateStore()
-    await store.setPlaySuspension({ suspended: true, resumesAt: AT_1430 })
+    await store.setPlaySuspension(stopped(AT_1430))
     await store.setPlaySuspension({ suspended: false })
-    await store.setPlaySuspension({ suspended: true, resumesAt: null })
-    expect(await store.getPlaySuspension()).toEqual({ suspended: true, resumesAt: null })
+    await store.setPlaySuspension(stopped(null))
+    expect(await store.getPlaySuspension()).toEqual(stopped(null))
+  })
+
+  it('round-trips the courts a partial suspension names, and clears them on a lift', async () => {
+    const store = createInMemoryAppStateStore()
+    await store.setPlaySuspension(stopped(null, [4, 5]))
+    expect(await store.getPlaySuspension()).toEqual(stopped(null, [4, 5]))
+    await store.setPlaySuspension({ suspended: false })
+    expect(await store.getPlaySuspension()).toEqual({ suspended: false })
+  })
+
+  it('degrades a suspension that names no court to „play is happening"', async () => {
+    // The empty set is not a state (ADR-0078 Amendment 2 rule 1). The wire schema refuses one; this is the
+    // Store making sure no caller can observe one either, whichever adapter it is talking to.
+    const store = createInMemoryAppStateStore()
+    await store.setPlaySuspension({ suspended: true, resumesAt: AT_1430, courts: [] })
+    expect(await store.getPlaySuspension()).toEqual({ suspended: false })
   })
 
   it('keeps the suspension independent of the phase, the publish flag and the cancelled set', async () => {
@@ -107,10 +128,10 @@ describe('in-memory app-state store', () => {
     await store.setPhase('tournament')
     await store.setSchedulePublished(true)
     await store.setCompetitionCancelled('womens', true)
-    await store.setPlaySuspension({ suspended: true, resumesAt: AT_1430 })
+    await store.setPlaySuspension(stopped(AT_1430))
     expect(await store.getPhase()).toBe('tournament')
     expect(await store.getSchedulePublished()).toBe(true)
     expect(await store.getCancelledCompetitions()).toEqual(['womens'])
-    expect(await store.getPlaySuspension()).toEqual({ suspended: true, resumesAt: AT_1430 })
+    expect(await store.getPlaySuspension()).toEqual(stopped(AT_1430))
   })
 })
