@@ -50,6 +50,9 @@ export interface ResultPayload {
 interface ResultsSurfaceProps {
   registrations: AdminRegistration[]
   draws: CompetitionDraw[]
+  // The courts a standing Play suspension stops, resolved by the shell. The row hints when a match would
+  // start on one of them (ADR-0078 Amendment 2 rule 5) — it never blocks, and it never releases the court.
+  stoppedCourts: readonly number[]
   // Record (or correct) a completed result — the winner advances, a semifinal loser drops to the third-place
   // playoff, a winner change cascade-clears downstream. Resolves to whether it persisted (the drawer closes
   // only on success). Move a match between „geplant" and „läuft", stating its court. Both via mutate.
@@ -76,6 +79,7 @@ const GROUPING_LABELS: Record<Grouping, string> = { round: 'Runde', court: 'Plat
 export const ResultsSurface = ({
   registrations,
   draws,
+  stoppedCourts,
   onRecordResult,
   onSetStatus,
   onSaveSets
@@ -188,6 +192,7 @@ export const ResultsSurface = ({
                       row={row}
                       meta={metaParts(row, grouping, COPY)}
                       nameById={nameById}
+                      stoppedCourts={stoppedCourts}
                       onOpen={() => setEditing(row)}
                       onSetStatus={onSetStatus}
                     />
@@ -217,6 +222,7 @@ export const ResultsSurface = ({
                         row={row}
                         meta={metaParts(row, grouping, COPY)}
                         nameById={nameById}
+                        stoppedCourts={stoppedCourts}
                         onOpen={() => setEditing(row)}
                         onSetStatus={onSetStatus}
                       />

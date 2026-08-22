@@ -2,6 +2,7 @@ import { useState } from 'react'
 import {
   COURT_NUMBERS,
   courtLabel,
+  courtStoppedHint,
   type MatchStatus,
   scoreLine,
   slotLabel,
@@ -26,10 +27,12 @@ interface MatchRowProps {
   row: ResultMatch
   meta: string[]
   nameById: Map<number, string>
+  // The courts a standing Play suspension stops, as the shell resolved them.
+  stoppedCourts: readonly number[]
   onOpen: () => void
   onSetStatus: (id: number, status: MatchStatus, liveCourt?: number) => Promise<boolean>
 }
-export const MatchRow = ({ row, meta, nameById, onOpen, onSetStatus }: MatchRowProps) => {
+export const MatchRow = ({ row, meta, nameById, stoppedCourts, onOpen, onSetStatus }: MatchRowProps) => {
   const { match, number, slot1, slot2 } = row
   const bothKnown = slot1.kind === 'player' && slot2.kind === 'player'
   // The court the control shows. The server is the truth — the actual court while the match is on one,
@@ -40,6 +43,11 @@ export const MatchRow = ({ row, meta, nameById, onOpen, onSetStatus }: MatchRowP
   // it back as the actual court, manufacturing a divergence nobody stated.
   const [pick, setPick] = useState<number | null>(null)
   const court = pick ?? match.liveCourt ?? match.court ?? COURT_NUMBERS[0]
+  // Whether the two controls are on screen at all: „läuft" needs a planned court, so an unplaced match
+  // that has not started is sent to the Spielplan instead — and has no court for the hint below to be
+  // about either.
+  const controllable = match.court !== null || match.status !== 'planned'
+  const stoppedHintId = `match-${match.id}-court-stopped`
 
   // A status write, with the pick handed back to the server afterwards: on success the reload carries the
   // new court, and on a rejected write the select drops back to what the server actually holds rather than
@@ -63,6 +71,19 @@ export const MatchRow = ({ row, meta, nameById, onOpen, onSetStatus }: MatchRowP
   const pickStatus = (next: SettableStatus) => {
     if (next !== match.status) void write(next, next === 'running' ? court : undefined)
   }
+
+  // The contradiction between the „läuft" the operator is about to state and a court they have marked as
+  // stopped, said out loud and never acted on (ADR-0078 Amendment 2 rule 5). It reads the court the match
+  // would actually start on — the pick above, not the reservation — and it neither blocks the write nor
+  // releases the court: a start there may simply mean the court dried and nobody has said so yet, and
+  // releasing it silently would announce that play has resumed there (ADR-0078 rule 7's reason, one level
+  // down).
+  //
+  // It speaks about the **start**, so only a match still `geplant` carries it. A match already `läuft` on a
+  // stopped court is not a contradiction at all — it is the normal shape of a rain delay, a match waiting
+  // it out at 4:3 in the second set (ADR-0078 rule 3) — and during a total suspension every running row
+  // would otherwise shout the same non-news on the busiest screen of the day.
+  const stoppedHint = controllable && match.status === 'planned' ? courtStoppedHint(court, stoppedCourts) : null
 
   // The winning slot, or null when undecided (CONTEXT: Bracket topology). The load-bearing `winnerRegId ===
   // null` guard lives in `winningSlot`, so an undecided match with an empty feeder slot never bolds a line.
@@ -104,7 +125,7 @@ export const MatchRow = ({ row, meta, nameById, onOpen, onSetStatus }: MatchRowP
                   the Spielplan first. Once it is placed both controls stay for the whole life of the match:
                   the court, because reality moves it (ADR-0079 rule 1), and the status, because a
                   mis-clicked „läuft" is taken back by stating „geplant", not by an undo (rule 4). */}
-              {match.court === null && match.status === 'planned' ? (
+              {!controllable ? (
                 <span className="text-muted-foreground text-xs">Zum Starten erst im Spielplan platzieren</span>
               ) : (
                 <div className="flex items-center gap-1">
@@ -122,6 +143,7 @@ export const MatchRow = ({ row, meta, nameById, onOpen, onSetStatus }: MatchRowP
                   </NativeSelect>
                   <NativeSelect
                     aria-label="Status"
+                    aria-describedby={stoppedHint ? stoppedHintId : undefined}
                     className="h-8 w-auto"
                     value={match.status}
                     onChange={e => pickStatus(e.target.value as SettableStatus)}
@@ -137,6 +159,12 @@ export const MatchRow = ({ row, meta, nameById, onOpen, onSetStatus }: MatchRowP
               <Button size="sm" onClick={onOpen}>
                 Ergebnis
               </Button>
+              {/* Soft, and on its own row on a phone — a hint that shouted would read as a block. */}
+              {stoppedHint && (
+                <span id={stoppedHintId} className="text-muted-foreground basis-full text-xs">
+                  {stoppedHint}
+                </span>
+              )}
             </>
           )
         )}

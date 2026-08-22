@@ -1,7 +1,14 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { hc } from 'hono/client'
 import type { AppType } from '../../worker/app'
-import { COURT_NUMBERS, NOT_SUSPENDED, courtLabel, toggleCourt, type PlaySuspension } from '../../shared'
+import {
+  COURT_NUMBERS,
+  courtLabel,
+  NOT_SUSPENDED,
+  type PlaySuspension,
+  suspendedCourts,
+  toggleCourt
+} from '../../shared'
 
 // The Play suspension seam (ADR-0078), kept out of the admin shell like useCancellation and useSchedule:
 // whether play is suspended, on which courts, when it is expected to resume, and the three writes that
@@ -27,6 +34,10 @@ export const RESUME_OFFSETS_MINUTES = [15, 30, 60] as const
 
 interface PlaySuspensionApi {
   playSuspension: PlaySuspension
+  /** The courts the standing suspension stops, canonical and empty while play is happening — the reading
+   * the Ergebnisse row's „läuft"-on-a-stopped-court hint takes (ADR-0078 Amendment 2 rule 5). Resolved
+   * here, beside the state it reads, so no surface resolves a suspension of its own. */
+  stoppedCourts: readonly number[]
   /** Suspend play, optionally naming the minutes until it is expected to resume. */
   suspend: (inMinutes: number | null) => Promise<boolean>
   /** Lift it. Always manual — see ADR-0078 rule 7. */
@@ -93,6 +104,11 @@ export const usePlaySuspension = (client: Client, mutate: Mutate): PlaySuspensio
 
   const resume = useCallback(() => write(NOT_SUSPENDED, 'Spielbetrieb läuft wieder.'), [write])
 
+  // Only the resume time decays, never the court set, so the clock read here settles nothing this reading
+  // depends on — it is the argument `suspendedCourts` takes, and passing the real one keeps this seam
+  // honest rather than pretending the state has no time in it.
+  const stoppedCourts = useMemo(() => suspendedCourts(playSuspension, Date.now()), [playSuspension])
+
   // A single court, in either direction. The transition itself is the projection's (`toggleCourt`), so the
   // one rule that could surprise an operator — releasing the last stopped court lifts the suspension — is
   // stated once, tested without React, and merely *said* here: the toast names what actually happened
@@ -123,5 +139,5 @@ export const usePlaySuspension = (client: Client, mutate: Mutate): PlaySuspensio
     [write]
   )
 
-  return { playSuspension, suspend, resume, releaseOrStopCourt }
+  return { playSuspension, stoppedCourts, suspend, resume, releaseOrStopCourt }
 }

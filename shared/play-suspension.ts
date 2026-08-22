@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { courtLabel } from './match-view'
 import { COURT_NUMBERS } from './schedule'
 
 // Play suspension (CONTEXT: Play suspension; ADR-0078) — the event-wide statement that play is **not
@@ -223,6 +224,23 @@ export const suspendedCourts = (state: PlaySuspension, now: number): readonly nu
   const resolved = resolveSuspension(state, now)
   return resolved.suspended ? resolved.courts : []
 }
+
+/**
+ * What the Ergebnisse row says when the match would start on a court the operator has marked as stopped:
+ * „Platz 4 ist als unterbrochen markiert", else nothing (ADR-0078 Amendment 2 rule 5).
+ *
+ * A **hint, not a block** (ADR-0033 — block the impossible, warn the unwise). Starting there is neither:
+ * the court may simply have dried and the operator has not said so yet. So the row states the
+ * contradiction in front of the only person who can resolve it and lets them resolve it either way —
+ * releasing the court, or starting the match anyway. It deliberately does **not** release the court
+ * itself, which is the tempting version and fails exactly the way rule 7 rejects auto-lifting: it would
+ * announce, positively and silently, that play has resumed there.
+ *
+ * The court is the one the match would actually be on — the row's own pick, not its reservation — because
+ * that is the court whose state the operator is contradicting.
+ */
+export const courtStoppedHint = (court: number, stoppedCourts: readonly number[]): string | null =>
+  stoppedCourts.includes(court) ? `${courtLabel(court)} ist als unterbrochen markiert` : null
 
 /**
  * The operator's second control (ADR-0078 Amendment 2 rule 3): one court is **released** from a standing
