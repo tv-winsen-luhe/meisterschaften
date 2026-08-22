@@ -12,4 +12,4 @@ export const score = (line: string): string =>
     : line
         .split(' ')
         .map(entry => entry.padEnd(2, FIGURE_SPACE))
-        .join(' ')
+        .join('')
