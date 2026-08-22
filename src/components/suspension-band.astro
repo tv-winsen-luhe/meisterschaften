@@ -1,0 +1,86 @@
+---
+// The Play suspension's band (CONTEXT: Play suspension; ADR-0078 rule 8) — the site's first element that
+// speaks to the visitor about the event itself rather than about a match.
+//
+// It ships **empty and hidden** and is filled by whichever page mounts it, from the one `/api/phase` signal:
+// both surfaces that carry it are static (ADR-0008), and a suspension is live truth, so there is nothing to
+// render at build time. Its two texts come finished from `suspensionNotice` — this file authors no German.
+//
+// **Clay**, not a warning colour: the palette has none, and adding one for a state visible perhaps two hours
+// a year is a permanent word for a temporary thing. Neon was unavailable on meaning rather than on taste —
+// it is `--color-live`, it says „läuft", and using it for the opposite would destroy the one colour meaning
+// this site has. Clay is the colour of the court that cannot be played on.
+//
+// Not sticky and not dismissible: dismissal state is per visitor, i.e. `localStorage`, a whole second
+// concept for a notice that should not be dismissible in the first place.
+
+interface Props {
+  /** Where the band sits, which decides what it says — the schedule explains its times, the front door points. */
+  surface: 'schedule' | 'front-door'
+}
+
+const { surface } = Astro.props
+---
+
+<aside data-suspension data-surface={surface} class="suspension" role="status" aria-live="polite" hidden>
+  <p class="suspension__headline" data-suspension-headline></p>
+  <div class="suspension__lines" data-suspension-lines></div>
+  {
+    surface === 'front-door' && (
+      <a class="suspension__link" href="/spielplan">
+        Zum Spielplan
+      </a>
+    )
+  }
+</aside>
+
+<style>
+  .suspension {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin-bottom: 24px;
+    padding: 16px 20px;
+    /* Square, like everything else on this site: ADR-0076 rule 1 names „bands, or notices" outright, and a
+       flat fill is one of the boundaries it says carries the work a radius used to. The front door already
+       flies a full-bleed clay band, so this is the existing vocabulary rather than a new element's look. */
+    background: var(--color-clay);
+    color: var(--color-text-inverted);
+  }
+
+  .suspension[hidden] {
+    display: none;
+  }
+
+  /* The front door carries two section orders on one DOM (ADR-0060 §5), switched by a body class. The band
+     belongs above both, so it beats the hero's implicit `order: 0` rather than joining the ordering scheme —
+     it is not a section and the results-order flip must not be able to move it. */
+  .suspension[data-surface='front-door'] {
+    order: -1;
+    margin-top: 8px;
+  }
+
+  .suspension__headline {
+    margin: 0;
+    font-size: clamp(18px, 3vw, 22px);
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    text-transform: uppercase;
+  }
+
+  .suspension__lines p {
+    margin: 0;
+    font-size: 15px;
+    line-height: 1.45;
+  }
+
+  .suspension__link {
+    align-self: flex-start;
+    margin-top: 8px;
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--color-text-inverted);
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+</style>

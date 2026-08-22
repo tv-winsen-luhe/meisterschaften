@@ -205,6 +205,14 @@ export interface ScheduleViewOptions {
    * Absent means „do not offer it", so a caller that knows nothing about the mixer gets today's filter.
    */
   socialMixer?: boolean
+  /**
+   * Whether play is suspended **right now** (CONTEXT: Play suspension; ADR-0078 rule 4). The caller's to
+   * answer, like `socialMixer` above and for the same reason: it is operator state off the `/api/phase`
+   * read, not a fact the schedule feed carries. While it holds, every not-yet-started row hedges — see
+   * `underSuspension`. Absent means „play is happening", so a caller that knows nothing about it gets
+   * today's schedule.
+   */
+  suspended?: boolean
 }
 
 // ── The pieces every row is made of ──────────────────────────────────────────────────────────────
@@ -387,6 +395,21 @@ const publishedTime = (day: number, slot: number, previousSlot: number | null): 
 }
 
 /**
+ * The same time, said under a **Play suspension** (ADR-0078 rule 4).
+ *
+ * A suspension is exactly what ADR-0071 defines a hedge to be about — „what can still move this start" — and
+ * it moves *everything*, including a court's first match of the day, which nothing structural could push.
+ * So while play is suspended every **not-yet-started** row hedges; a running or finished match's start is
+ * history rather than a claim about the future, and keeps its plain time.
+ *
+ * Deliberately applied **here and not inside `publishedTimes`**, which the Bracket cell also reads
+ * (`shared/bracket-view`): the band that explains the hedge stands on the schedule alone, and a „ca." a
+ * reader cannot resolve is noise. Same placement, two readings, by rule — ADR-0077's stance.
+ */
+const underSuspension = (time: PublishedTime, started: boolean): PublishedTime =>
+  started || time.followsOn ? time : { label: `ca. ${time.label}`, followsOn: true }
+
+/**
  * Every placed match's published time, keyed by match id.
  *
  * Built over the **whole feed** rather than per rendered group, because a court's reservation chain is a
@@ -461,7 +484,7 @@ const effectiveSelection = (offered: CompetitionOption[], selected: string | nul
  */
 export const scheduleView = (
   feed: Pick<ScheduleResponse, 'matches'>,
-  { days, competitions, competition = null, socialMixer = false }: ScheduleViewOptions
+  { days, competitions, competition = null, socialMixer = false, suspended = false }: ScheduleViewOptions
 ): ScheduleView => {
   const { matches } = feed
   const offered = filterOptions(competitions, matches, socialMixer)
@@ -471,7 +494,9 @@ export const scheduleView = (
   const published = publishedTimes(matches)
 
   const row = (m: ScheduleMatch): MatchRow => {
-    const { label, followsOn } = published.get(m.id)!
+    const structural = published.get(m.id)!
+    // The suspension's hedge sits on top of the structural one and only for a match still ahead (ADR-0078).
+    const { label, followsOn } = suspended ? underSuspension(structural, m.status !== 'planned') : structural
     return {
       id: m.id,
       publishedTime: label,

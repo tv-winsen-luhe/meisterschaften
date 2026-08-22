@@ -151,7 +151,8 @@ describe('POST /api/admin/competition/cancel + the public wires', () => {
       phase: 'signup',
       cancelledCompetitions: [],
       socialMixerPlacement: SOCIAL_MIXER_DEFAULT_PLACEMENT,
-      socialMixerCourts: [6]
+      socialMixerCourts: [6],
+      playSuspension: { suspended: false }
     })
 
     const res = await setCancelled('womens-social', true)
@@ -161,7 +162,8 @@ describe('POST /api/admin/competition/cancel + the public wires', () => {
       phase: 'signup',
       cancelledCompetitions: ['womens-social'],
       socialMixerPlacement: SOCIAL_MIXER_DEFAULT_PLACEMENT,
-      socialMixerCourts: [6]
+      socialMixerCourts: [6],
+      playSuspension: { suspended: false }
     })
 
     // Taking it back needs no confirmation and no reconciliation — the flag materialized nothing.
@@ -170,7 +172,8 @@ describe('POST /api/admin/competition/cancel + the public wires', () => {
       phase: 'signup',
       cancelledCompetitions: [],
       socialMixerPlacement: SOCIAL_MIXER_DEFAULT_PLACEMENT,
-      socialMixerCourts: [6]
+      socialMixerCourts: [6],
+      playSuspension: { suspended: false }
     })
   })
 

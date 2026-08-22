@@ -338,3 +338,38 @@ describe('scheduleView · the courts board reads live truth', () => {
     expect(result.courts![2]).toMatchObject({ free: true, dim: true })
   })
 })
+
+describe('scheduleView · a Play suspension hedges every not-yet-started time (ADR-0078 rule 4)', () => {
+  it('hedges a court’s first match of the day, which nothing structural could push', () => {
+    // The plain 10:00 of the anchoring case above. Suspended, it is no longer unpushable: the suspension is
+    // precisely „what can still move this start" — ADR-0071's own definition of what a hedge is about — and
+    // it moves everything, including the row that had nothing in front of it.
+    expect(times([match({ id: 1, court: 1, slot: 0 })])).toEqual(['10:00'])
+    const { rows } = view([match({ id: 1, court: 1, slot: 0 })], { suspended: true }).days[0].courts[0]
+    expect(rows.map(r => r.publishedTime)).toEqual(['ca. 10:00'])
+  })
+
+  it('carries the hedge as a fact, so the renderer styles it like any other', () => {
+    const { rows } = view([match({ id: 1, court: 1, slot: 0 })], { suspended: true }).days[0].courts[0]
+    expect(rows.map(r => r.followsOn)).toEqual([true])
+  })
+
+  it('leaves a match that has already started alone', () => {
+    // „Not yet started" is the whole scope: a running match's start is history, not a claim about the
+    // future. Only the plan ahead moves.
+    const { rows } = view(
+      [match({ id: 1, court: 1, slot: 0, status: 'running' }), match({ id: 2, court: 1, slot: 3 })],
+      {
+        suspended: true
+      }
+    ).days[0].courts[0]
+    expect(rows.map(r => r.publishedTime)).toEqual(['10:00', 'ca. 11:30'])
+  })
+
+  it('does not double the hedge on a time that already carried one', () => {
+    const { rows } = view([match({ id: 1, court: 1, slot: 0 }), match({ id: 2, court: 1, slot: 3 })], {
+      suspended: true
+    }).days[0].courts[0]
+    expect(rows.map(r => r.publishedTime)).toEqual(['ca. 10:00', 'ca. 11:30'])
+  })
+})

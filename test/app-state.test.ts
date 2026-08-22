@@ -72,4 +72,45 @@ describe('in-memory app-state store', () => {
     expect(await store.getPhase()).toBe('tournament')
     expect(await store.getSchedulePublished()).toBe(true)
   })
+
+  // ── Play suspension (ADR-0078) ─────────────────────────────────────────────────────────────────
+
+  const AT_1430 = Date.UTC(2026, 7, 22, 12, 30)
+
+  it('defaults to „play is happening" and suspends with no resume time', async () => {
+    const store = createInMemoryAppStateStore()
+    expect(await store.getPlaySuspension()).toEqual({ suspended: false })
+    await store.setPlaySuspension({ suspended: true, resumesAt: null })
+    expect(await store.getPlaySuspension()).toEqual({ suspended: true, resumesAt: null })
+  })
+
+  it('carries a resume time and lifts back to the plain state', async () => {
+    const store = createInMemoryAppStateStore()
+    await store.setPlaySuspension({ suspended: true, resumesAt: AT_1430 })
+    expect(await store.getPlaySuspension()).toEqual({ suspended: true, resumesAt: AT_1430 })
+    await store.setPlaySuspension({ suspended: false })
+    expect(await store.getPlaySuspension()).toEqual({ suspended: false })
+  })
+
+  it('drops the resume time when the suspension is lifted, so it cannot come back with the next one', async () => {
+    // The impossible state („not suspended, but a time is set") must not survive a lift and reappear on the
+    // next suspension as a stale „weiter ca. 14:30" from an hour ago.
+    const store = createInMemoryAppStateStore()
+    await store.setPlaySuspension({ suspended: true, resumesAt: AT_1430 })
+    await store.setPlaySuspension({ suspended: false })
+    await store.setPlaySuspension({ suspended: true, resumesAt: null })
+    expect(await store.getPlaySuspension()).toEqual({ suspended: true, resumesAt: null })
+  })
+
+  it('keeps the suspension independent of the phase, the publish flag and the cancelled set', async () => {
+    const store = createInMemoryAppStateStore()
+    await store.setPhase('tournament')
+    await store.setSchedulePublished(true)
+    await store.setCompetitionCancelled('womens', true)
+    await store.setPlaySuspension({ suspended: true, resumesAt: AT_1430 })
+    expect(await store.getPhase()).toBe('tournament')
+    expect(await store.getSchedulePublished()).toBe(true)
+    expect(await store.getCancelledCompetitions()).toEqual(['womens'])
+    expect(await store.getPlaySuspension()).toEqual({ suspended: true, resumesAt: AT_1430 })
+  })
 })

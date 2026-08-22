@@ -1,6 +1,7 @@
 import { hc } from 'hono/client'
 import type { AppType } from '../../worker/app'
 import { frontDoorLead, matchesLead, type FrontDoor } from './front-door-lead'
+import { renderSuspensionBand } from './suspension-band'
 import { socialMixerBlockOn, type SocialMixerPlacement } from '../../shared'
 import { socialMixerWhen } from '../data/tournament'
 
@@ -110,7 +111,7 @@ export const projectPhaseOnLoad = async ({ frontDoor = false }: Options = {}) =>
   try {
     const res = await client.api.phase.$get()
     if (!res.ok) return
-    const { phase, cancelledCompetitions, socialMixerPlacement, socialMixerCourts } = await res.json()
+    const { phase, cancelledCompetitions, socialMixerPlacement, socialMixerCourts, playSuspension } = await res.json()
     // The mixer's appointment first, and **before** the signup early-return: the block is never gated by a
     // phase or by the schedule publish flag (ADR-0063 §3), it is simply where the operator has put it
     // (ADR-0064). Every surface that renders the line carries `data-mixer-when`; a surface without one is
@@ -120,6 +121,13 @@ export const projectPhaseOnLoad = async ({ frontDoor = false }: Options = {}) =>
     // takes effect from `tournament` on: during signup the „ab 4" notice is the recruiting call the
     // cancellation replaces, and a field is not cancelled before its window has even closed.
     if (phase === 'signup') return
+    // The Play suspension's band (ADR-0078), on the surfaces that mount one. Bound to `tournament`: before
+    // it there is no play to suspend, and `post-event` clears the state server-side anyway — asking the
+    // phase here rather than trusting that keeps the two from having to agree. Unlike the schedule this is
+    // the **single** read on load, not a poll: nobody parks on the front door for forty minutes.
+    if (phase === 'tournament') {
+      renderSuspensionBand(document.querySelector('[data-suspension]'), playSuspension, Date.now(), 'front-door')
+    }
     const bits =
       frontDoor && phase === 'tournament' ? await readStageFlags(client) : { drawn: false, schedulePublished: false }
     project(frontDoorLead({ phase, ...bits, cancelled: cancelledCompetitions }))

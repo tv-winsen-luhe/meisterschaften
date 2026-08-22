@@ -99,6 +99,13 @@
       "when": 1787000821428,
       "tag": "0013_flaky_wasp",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "6",
+      "when": 1787391111602,
+      "tag": "0014_slippery_amphibian",
+      "breakpoints": true
     }
   ]
 }

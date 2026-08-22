@@ -5,17 +5,18 @@ import type { AppType } from '../../worker/app'
 import { type AdminRegistration, type CompetitionDraw, type CompetitionSlug, type Phase } from '../../shared'
 import { errorMessage, isAuthRedirect } from './lib/api'
 import { useCancellation } from './use-cancellation'
+import { usePlaySuspension } from './use-play-suspension'
 import { useSocialMixer } from './use-social-mixer'
 import { useDraw } from './use-draw'
 import { useReveal } from './use-reveal'
 import { useResults } from './use-results'
 import { useSchedule } from './use-schedule'
-import { Separator } from '@/admin/ui/separator'
 import { Toaster } from '@/admin/ui/sonner'
-import { SidebarInset, SidebarProvider, SidebarTrigger } from '@/admin/ui/sidebar'
+import { SidebarInset, SidebarProvider } from '@/admin/ui/sidebar'
 import { AppSidebar, type Surface } from './app-sidebar'
 import { BootScreen } from './boot-screen'
-import { PHASE_LABELS, PhaseStepper } from './phase-stepper'
+import { PHASE_LABELS } from './phase-stepper'
+import { AdminHeader } from './admin-header'
 import { CompetitionsSurface } from './surfaces/competitions-surface'
 import { ScheduleSurface } from './surfaces/schedule-surface'
 import { ResultsSurface } from './surfaces/results-surface'
@@ -149,6 +150,8 @@ export const AdminApp = () => {
   // set the competitions surface marks, the toggle that cancels one or takes it back, and the
   // under-threshold list the „Anmeldung schließen" dialog names.
   const { cancelledCompetitions, setCompetitionCancelled, underfilled } = useCancellation(client, mutate, registrations)
+  // The Play suspension (ADR-0078). Beside the cancellation seam and read from the same one signal.
+  const { playSuspension, suspend, resume } = usePlaySuspension(client, mutate)
 
   // The Social mixer's court block (ADR-0064): where it sits, the move, and the resolved block the
   // schedule surfaces shade and validate against. Depends on the cancelled set — a cancelled mixer has no
@@ -308,24 +311,20 @@ export const AdminApp = () => {
         showDebug={resetEnabled}
       />
       <SidebarInset className="min-h-0 overflow-hidden">
-        {/* The phase stepper sits above every surface (ADR-0019). Non-sticky so the registrations
-            filter bar below can pin to the top while a long list scrolls, as it did before. The
-            trigger stays hard-left; the stepper is centered in the remaining width (ADR-0023). */}
-        <header className="bg-background flex items-center gap-2 border-b px-4 py-3">
-          <SidebarTrigger className="-ml-1" />
-          <Separator orientation="vertical" className="mr-1 !h-5" />
-          <div className="flex flex-1 justify-center">
-            <PhaseStepper
-              phase={phase}
-              onChange={changePhase}
-              underfilled={underfilled}
-              onGoToCompetitions={() => {
-                setSelectId(null)
-                setSurface('competitions')
-              }}
-            />
-          </div>
-        </header>
+        {/* The shell's bar above every surface (ADR-0019): phase stepper plus the Play suspension's
+            switch. Its own component so this file stays the shell's state and wiring, not its chrome. */}
+        <AdminHeader
+          phase={phase}
+          onChangePhase={changePhase}
+          underfilled={underfilled}
+          onGoToCompetitions={() => {
+            setSelectId(null)
+            setSurface('competitions')
+          }}
+          suspension={playSuspension}
+          onSuspend={suspend}
+          onResume={resume}
+        />
         {surface === 'overview' ? (
           <OverviewSurface
             registrations={registrations}

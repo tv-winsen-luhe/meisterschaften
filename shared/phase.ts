@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { cancelledCompetitionsSchema } from './cancellation'
+import { playSuspensionSchema } from './play-suspension'
 import { socialMixerCourtsSchema, socialMixerPlacementSchema } from './social-mixer'
 
 // The operator-controlled phase contract (ADR-0006, ADR-0027) — the single source of truth for
@@ -32,11 +33,15 @@ export const DEFAULT_PHASE: Phase = 'signup'
 // (ADR-0048). The mixer carries two things that do not replace each other (ADR-0073): its *placement*, the
 // operator's own state, and its **resolved court list**, derived here from the confirmed head-count so the
 // public line can name the courts without the count ever being published.
+// The **Play suspension** rides here too (ADR-0078), for the same one-signal reason — and it is what turns
+// this endpoint from a read-once wire into a polled one on `/spielplan`, where a suspension declared while
+// someone has the page open must actually reach them. Every other surface still reads it once on load.
 export const phaseResponseSchema = z.object({
   phase: phaseSchema,
   cancelledCompetitions: cancelledCompetitionsSchema,
   socialMixerPlacement: socialMixerPlacementSchema,
-  socialMixerCourts: socialMixerCourtsSchema
+  socialMixerCourts: socialMixerCourtsSchema,
+  playSuspension: playSuspensionSchema
 })
 export type PhaseResponse = z.infer<typeof phaseResponseSchema>
 
@@ -59,3 +64,16 @@ export const setSocialMixerBlockResponseSchema = z.object({
   socialMixerPlacement: socialMixerPlacementSchema
 })
 export type SetSocialMixerBlockResponse = z.infer<typeof setSocialMixerBlockResponseSchema>
+
+// POST /api/admin/play-suspension — the operator suspends play, or lifts it (ADR-0078). The request *is*
+// the state: the same discriminated union the read side carries, so „not suspended, but a resume time is
+// set" cannot even be asked for. Under Access like every operator endpoint — a route outside
+// `/api/admin/*` is born public (CONTEXT: Admin).
+export const setPlaySuspensionRequestSchema = playSuspensionSchema
+export type SetPlaySuspensionRequest = z.infer<typeof setPlaySuspensionRequestSchema>
+
+export const setPlaySuspensionResponseSchema = z.object({
+  ok: z.literal(true),
+  playSuspension: playSuspensionSchema
+})
+export type SetPlaySuspensionResponse = z.infer<typeof setPlaySuspensionResponseSchema>

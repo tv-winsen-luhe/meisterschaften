@@ -1,5 +1,6 @@
 ---
 import Layout from '@/layouts/default.astro'
+import SuspensionBand from '@/components/suspension-band.astro'
 import { socialMixerWhen, tournament } from '@/data/tournament'
 import tvLogo from '@/assets/logo.svg'
 import tsvLogo from '@/assets/tsv-winsen.png'
@@ -43,6 +44,13 @@ const defaultMixerBlock = resolveSocialMixerBlock({ ...SOCIAL_MIXER_DEFAULT_PLAC
          the first poll resolves — and if the inline script fails to load at all, this benign „lädt…" holding
          message stays put instead of a fake-empty board during a live event. The first successful render (or
          a failed poll) clears it. -->
+    <!-- The Play suspension (ADR-0078). Above the Live board and outside `[data-board]`, because it is a
+         statement about the whole page rather than a state of the board: the board's loading/error/unpublished
+         classes must not be able to take it away, and a suspension is true even when the plan is withheld
+         (ADR-0032 over ADR-0041). It also explains the „ca." this suspension puts on every not-yet-started
+         row below — without this band that hedge would be unexplained. -->
+    <SuspensionBand surface="schedule" />
+
     <!-- The two club crests the match row flies (#309), handed to the controller through the dataset: Astro
       fingerprints the bundled assets, so their URLs are the page's to know and never the render module's —
       the same wiring the participant list uses. -->
@@ -860,15 +868,18 @@ const defaultMixerBlock = resolveSocialMixerBlock({ ...SOCIAL_MIXER_DEFAULT_PLAC
   import { hc } from 'hono/client'
   import {
     dayLabel,
+    isPlaySuspended,
+    NOT_SUSPENDED,
     scheduleView,
     socialMixerBlockOn,
     SOCIAL_MIXER_COMPETITION,
     SOCIAL_MIXER_DEFAULT_PLACEMENT
   } from '../../shared'
   import { renderCourts, renderFilter, renderSchedule } from '../components/schedule-board.render'
+  import { renderSuspensionBand } from '../scripts/suspension-band'
   import { competitions, socialMixerWhen, tournament } from '../data/tournament'
   import type { AppType } from '../../worker/app'
-  import type { ScheduleResponse } from '../../shared'
+  import type { PlaySuspension, ScheduleResponse } from '../../shared'
 
   // The public schedule board's controller: fetch → state → poll → project → render. Every decision lives
   // in `scheduleView` (shared/match-view) and all the DOM building in ../components/schedule-board.render;
@@ -937,6 +948,12 @@ const defaultMixerBlock = resolveSocialMixerBlock({ ...SOCIAL_MIXER_DEFAULT_PLAC
   // participants cannot find their own slot" — fail-open, like everything else on that read (ADR-0063 §3).
   let mixerTakesPlace = true
 
+  // Whether play is suspended (ADR-0078). Starts „play is happening" — the safe default and the one a failed
+  // phase read leaves standing: a suspension is the operator's explicit statement, so the site must never
+  // announce one nobody declared. The band and the schedule's hedge both read this.
+  let playSuspension: PlaySuspension = NOT_SUSPENDED
+  const suspensionEl = document.querySelector<HTMLElement>('[data-suspension]')
+
   // Put the band at the head of its day: after that day's heading, above its first „Platz N" column. The
   // day section is re-created on every render, so the band is re-inserted on every render too — and when
   // its day is not on the page (nothing published, a failed poll, or the plan reset) it goes back to where
@@ -967,7 +984,10 @@ const defaultMixerBlock = resolveSocialMixerBlock({ ...SOCIAL_MIXER_DEFAULT_PLAC
     } = scheduleView(feed, {
       ...VIEW_COPY,
       competition: selectedCompetition,
-      socialMixer: mixerTakesPlace
+      socialMixer: mixerTakesPlace,
+      // Read at render time rather than at poll time, so a resume time that passes between two polls stops
+      // being claimed on the next render either way (ADR-0078 rule 7).
+      suspended: isPlaySuspended(playSuspension, Date.now())
     })
     // The view decides whether the stored selection still applies (a field the feed stopped carrying, or a
     // page with nothing left to choose between), so the controller adopts its verdict rather than holding
@@ -982,6 +1002,7 @@ const defaultMixerBlock = resolveSocialMixerBlock({ ...SOCIAL_MIXER_DEFAULT_PLAC
     renderCourts(courtsEl, courts, LOGOS)
     renderSchedule(sectionsEl, days, LOGOS)
     placeMixerBand()
+    renderSuspensionBand(suspensionEl, playSuspension, Date.now(), 'schedule')
   }
 
   let lastJson = ''
@@ -1009,7 +1030,13 @@ const defaultMixerBlock = resolveSocialMixerBlock({ ...SOCIAL_MIXER_DEFAULT_PLAC
 
   let timer: ReturnType<typeof setInterval> | undefined
   const start = () => {
-    if (timer === undefined) timer = setInterval(load, POLL_MS)
+    if (timer === undefined)
+      timer = setInterval(() => {
+        void load()
+        // The phase signal rides the same tick (ADR-0078): the suspension has to reach a page somebody left
+        // open, and giving it a timer of its own would be a second cadence for one poll's worth of work.
+        void applyPhaseState()
+      }, POLL_MS)
   }
   const stop = () => {
     if (timer !== undefined) {
@@ -1018,24 +1045,44 @@ const defaultMixerBlock = resolveSocialMixerBlock({ ...SOCIAL_MIXER_DEFAULT_PLAC
     }
   }
 
-  // The Social mixer's appointment is built statically, but three facts about it are the server's: whether
-  // the competition still takes place (ADR-0062), where the operator has put the block (ADR-0064) and which
-  // courts its confirmed head-count earns (ADR-0073 — the count itself is not public, so the wire carries
-  // the resolved list). All three ride the one `/api/phase` read, done once on load — an appointment does
-  // not need polling — and all three fail open: a failed read leaves the built line standing rather than
-  // withholding it (see the markup).
-  const applyMixerState = async () => {
-    if (!mixerEl) return
+  // The `/api/phase` signal, and the one place this page reads it. Four facts ride it: whether the mixer
+  // still takes place (ADR-0062), where its block sits (ADR-0064), which courts its head-count earns
+  // (ADR-0073 — the count itself is not public, so the wire carries the resolved list), and whether **play
+  // is suspended** (ADR-0078). All of them fail open: a failed read leaves the built line standing and
+  // leaves play reading as happening, rather than withholding or inventing (see the markup).
+  //
+  // **This is polled, not read once** — the ADR-0078 change. An appointment does not need polling and the
+  // mixer facts were the whole payload before; a suspension does, because it is declared and lifted *while*
+  // someone has this page open, and that spectator is exactly who the band exists for. It rides the board's
+  // own 15s timer rather than one of its own: same cadence, one signal, no second clock to reason about.
+  const applyPhaseState = async () => {
     try {
       const res = await client.api.phase.$get()
       if (!res.ok) return
-      const { cancelledCompetitions, socialMixerPlacement, socialMixerCourts } = await res.json()
+      const { cancelledCompetitions, socialMixerPlacement, socialMixerCourts, playSuspension: next } = await res.json()
+
+      // The suspension is independent of the mixer's band — it applies even when this page carries no mixer
+      // element at all — so it lands before every early return below.
+      const changed = JSON.stringify(next) !== JSON.stringify(playSuspension)
+      playSuspension = next
+      // The band is repainted on every poll, not only on a change: a resume time can pass between two polls
+      // without the state changing at all, and that is exactly when the line has to go (ADR-0078 rule 7).
+      // It is painted here rather than left to `render()` because the band is not part of the board and must
+      // not depend on the board being renderable.
+      renderSuspensionBand(suspensionEl, playSuspension, Date.now(), 'schedule')
+      // A *changed* suspension moves the hedge on every row, which is the board's job.
+      if (changed) render()
+
+      if (!mixerEl) return
       if (cancelledCompetitions.includes(SOCIAL_MIXER_COMPETITION)) {
         mixerEl.hidden = true
         // A cancelled field is not a field to filter by either, so the chip goes with the band — and the
-        // board is re-rendered, because the first render already offered it (see `mixerTakesPlace`).
-        mixerTakesPlace = false
-        render()
+        // board is re-rendered, because the first render already offered it (see `mixerTakesPlace`). Guarded
+        // now that this read repeats: without it every poll would re-render a page nothing changed on.
+        if (mixerTakesPlace) {
+          mixerTakesPlace = false
+          render()
+        }
         return
       }
       const when = mixerEl.querySelector<HTMLElement>('[data-mixer-when]')
@@ -1055,10 +1102,13 @@ const defaultMixerBlock = resolveSocialMixerBlock({ ...SOCIAL_MIXER_DEFAULT_PLAC
 
   load()
   start()
-  void applyMixerState()
+  void applyPhaseState()
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible') {
       load()
+      // Coming back to the tab re-reads the phase too: a pocketed phone can miss an hour of polls, and
+      // „Spielbetrieb unterbrochen" is exactly the thing that must not be an hour stale on the first look.
+      void applyPhaseState()
       start()
     } else {
       stop()
