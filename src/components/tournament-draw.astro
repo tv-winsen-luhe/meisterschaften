@@ -686,6 +686,10 @@ const drawCompetitions = drawableCompetitions(competitions)
   /* The sets, right-aligned and tabular so they line up between the two contestant lines and read down a
      column. Emitted even when empty, so a walkover's „w.o." can never slide into the sets' place. The
      winner's sets ink fully; the loser's line fades as a whole (`.dm-slot--loser`). */
+  /* `tabular-nums` below is load-bearing rather than a nicety: `scoreLine` pads every entry to a digit-wide
+     column with U+2007 FIGURE SPACE, and a figure space is only a digit wide in tabular figures. Drop it and
+     the two lines' sets slide out of column again the moment a Match-Tie-Break makes one line's entries
+     wider than the other's. */
   .dm-games {
     flex-shrink: 0;
     min-width: 34px;
