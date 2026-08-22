@@ -151,7 +151,7 @@ export const AdminApp = () => {
   // under-threshold list the „Anmeldung schließen" dialog names.
   const { cancelledCompetitions, setCompetitionCancelled, underfilled } = useCancellation(client, mutate, registrations)
   // The Play suspension (ADR-0078). Beside the cancellation seam and read from the same one signal.
-  const { playSuspension, suspend, resume } = usePlaySuspension(client, mutate)
+  const { playSuspension, suspend, resume, releaseOrStopCourt } = usePlaySuspension(client, mutate)
 
   // The Social mixer's court block (ADR-0064): where it sits, the move, and the resolved block the
   // schedule surfaces shade and validate against. Depends on the cancelled set — a cancelled mixer has no
@@ -324,6 +324,7 @@ export const AdminApp = () => {
           suspension={playSuspension}
           onSuspend={suspend}
           onResume={resume}
+          onToggleCourt={releaseOrStopCourt}
         />
         {surface === 'overview' ? (
           <OverviewSurface

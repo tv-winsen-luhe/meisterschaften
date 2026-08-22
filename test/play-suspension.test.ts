@@ -5,7 +5,8 @@ import {
   playSuspensionSchema,
   resolveSuspension,
   suspendedCourts,
-  suspensionNotice
+  suspensionNotice,
+  toggleCourt
 } from '../shared/play-suspension'
 import { COURT_NUMBERS } from '../shared/schedule'
 import type { PlaySuspension } from '../shared/play-suspension'
@@ -202,5 +203,88 @@ describe('the condensed notice', () => {
   it('never shouts: the line carries a clock time and is not uppercased', () => {
     const notice = suspensionNotice(stopped(AT_1430), AT_1400, 'schedule')
     expect(notice?.condensed).not.toBe(notice?.condensed.toUpperCase())
+  })
+})
+
+// The band stands for a **partial** suspension too, and names what is stopped (ADR-0078 Amendment 2 rule
+// 4). It is deliberately not conditional on totality: a partial suspension that said nothing at the top of
+// the page would leave every „ca." below it unexplained, which is the precise failure rule 4 exists to
+// prevent.
+//
+// „All six is total" is derived from the set's size, so these cases are also what makes
+// `COURT_NUMBERS.length` load-bearing for public copy — a seventh court would turn every total suspension
+// into a partial one.
+describe('the notice names the stopped courts when some are still playing', () => {
+  it('keeps the total copy when every court is stopped', () => {
+    const notice = suspensionNotice(stopped(null), AT_1400, 'schedule')
+    expect(notice?.headline).toBe('Spielbetrieb unterbrochen')
+    expect(notice?.lines).toEqual(['Alle geplanten Startzeiten verschieben sich.'])
+  })
+
+  it('names one stopped court', () => {
+    expect(suspensionNotice(stopped(null, [4]), AT_1400, 'schedule')).toEqual({
+      headline: 'Spielbetrieb auf Platz 4 unterbrochen',
+      lines: ['Die geplanten Startzeiten auf diesem Platz verschieben sich.'],
+      condensed: 'Spielbetrieb auf Platz 4 unterbrochen'
+    })
+  })
+
+  it('joins two stopped courts with „und"', () => {
+    const notice = suspensionNotice(stopped(null, [5, 4]), AT_1400, 'schedule')
+    expect(notice?.headline).toBe('Spielbetrieb auf Platz 4 und 5 unterbrochen')
+    expect(notice?.lines).toEqual(['Die geplanten Startzeiten auf diesen Plätzen verschieben sich.'])
+  })
+
+  it('separates several with commas and keeps „und" before the last', () => {
+    const notice = suspensionNotice(stopped(null, [3, 4, 6]), AT_1400, 'schedule')
+    expect(notice?.headline).toBe('Spielbetrieb auf Platz 3, 4 und 6 unterbrochen')
+  })
+
+  it('says the same thing on the front door, which explains no times', () => {
+    expect(suspensionNotice(stopped(AT_1430, [4, 5]), AT_1400, 'front-door')).toEqual({
+      headline: 'Spielbetrieb auf Platz 4 und 5 unterbrochen',
+      lines: ['Weiter geht es ca. 14:30 Uhr.'],
+      condensed: 'Spielbetrieb auf Platz 4 und 5 unterbrochen'
+    })
+  })
+
+  it('carries the courts into the condensed line, with the one resume time behind them', () => {
+    // One resume time covers the whole suspension, never one per court (Amendment 2 rule 2), so the pinned
+    // line reads exactly as it did — only its headline half grew.
+    const notice = suspensionNotice(stopped(AT_1430, [4]), AT_1400, 'schedule')
+    expect(notice?.condensed).toBe('Spielbetrieb auf Platz 4 unterbrochen · weiter ca. 14:30 Uhr')
+  })
+})
+
+// The operator's second control (ADR-0078 Amendment 2 rule 3): the shell switch still means „alles
+// unterbrechen", and a single court is released — or stopped again — from the chips beside it. The
+// transition is a pure function so the hook holds no rule of its own.
+describe('releasing and stopping a single court', () => {
+  it('releases one court and leaves the rest stopped', () => {
+    expect(toggleCourt(stopped(AT_1430), 3)).toEqual(stopped(AT_1430, [1, 2, 4, 5, 6]))
+  })
+
+  it('stops a released court again', () => {
+    expect(toggleCourt(stopped(AT_1430, [1, 2, 4, 5, 6]), 3)).toEqual(stopped(AT_1430, EVERY_COURT))
+  })
+
+  it('keeps the one resume time when the extent changes', () => {
+    // Never one time per court (Amendment 2 rule 2): releasing a court changes the extent of the
+    // suspension, not the promise it carries.
+    expect(toggleCourt(stopped(AT_1430, [4, 5]), 5)).toEqual(stopped(AT_1430, [4]))
+  })
+
+  it('lifts the suspension entirely when the last stopped court is released', () => {
+    expect(toggleCourt(stopped(AT_1430, [4]), 4)).toEqual(NOT_SUSPENDED)
+  })
+
+  it('does nothing while play is happening', () => {
+    // The chips exist only while a suspension stands, so this is unreachable from the shell — and
+    // fail-closed here rather than inventing a one-court suspension out of the resting state.
+    expect(toggleCourt(NOT_SUSPENDED, 4)).toEqual(NOT_SUSPENDED)
+  })
+
+  it('ignores a court the event does not have', () => {
+    expect(toggleCourt(stopped(null, [4]), 99)).toEqual(stopped(null, [4]))
   })
 })

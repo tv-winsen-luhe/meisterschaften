@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useState } from 'react'
 import { hc } from 'hono/client'
 import type { AppType } from '../../worker/app'
-import { COURT_NUMBERS, NOT_SUSPENDED, type PlaySuspension } from '../../shared'
+import { COURT_NUMBERS, NOT_SUSPENDED, courtLabel, toggleCourt, type PlaySuspension } from '../../shared'
 
 // The Play suspension seam (ADR-0078), kept out of the admin shell like useCancellation and useSchedule:
-// whether play is suspended, when it is expected to resume, and the two writes that change it.
+// whether play is suspended, on which courts, when it is expected to resume, and the three writes that
+// change it — the two global ones, and a single court released or stopped again.
 //
 // Read once on mount from the public GET /api/phase — the one signal every surface keys off, so the admin
 // shows exactly what the public wire carries — and each write applies its **own** known outcome rather than
@@ -30,6 +31,12 @@ interface PlaySuspensionApi {
   suspend: (inMinutes: number | null) => Promise<boolean>
   /** Lift it. Always manual — see ADR-0078 rule 7. */
   resume: () => Promise<boolean>
+  /**
+   * Release one stopped court, or stop a released one again (ADR-0078 Amendment 2 rule 3) — the second
+   * control, beside the switch rather than inside it. Releasing the last stopped court lifts the whole
+   * suspension, which is `toggleCourt`'s rule and not this hook's.
+   */
+  releaseOrStopCourt: (court: number) => Promise<boolean>
 }
 
 export const usePlaySuspension = (client: Client, mutate: Mutate): PlaySuspensionApi => {
@@ -77,5 +84,22 @@ export const usePlaySuspension = (client: Client, mutate: Mutate): PlaySuspensio
 
   const resume = useCallback(() => write(NOT_SUSPENDED, 'Spielbetrieb läuft wieder.'), [write])
 
-  return { playSuspension, suspend, resume }
+  // A single court, in either direction. The transition itself is the projection's (`toggleCourt`), so the
+  // one rule that could surprise an operator — releasing the last stopped court lifts the suspension — is
+  // stated once, tested without React, and merely *said* here: the toast names what actually happened
+  // rather than what was tapped.
+  const releaseOrStopCourt = useCallback(
+    (court: number) => {
+      const next = toggleCourt(playSuspension, court)
+      const success = !next.suspended
+        ? 'Spielbetrieb läuft wieder.'
+        : next.courts.includes(court)
+          ? `${courtLabel(court)} unterbrochen.`
+          : `${courtLabel(court)} spielt wieder.`
+      return write(next, success)
+    },
+    [playSuspension, write]
+  )
+
+  return { playSuspension, suspend, resume, releaseOrStopCourt }
 }
