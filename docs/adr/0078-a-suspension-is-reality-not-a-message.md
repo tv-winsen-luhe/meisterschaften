@@ -2,6 +2,7 @@
 
 - Status: accepted
 - Date: 2026-08-22
+- Amended: 2026-08-22 (see Amendment below — the band is pinned and it condenses)
 - Relates to: ADR-0032 (the live phase records reality; status is the signal), ADR-0041 (the schedule
   publish gate — the plan is what the organiser withholds), ADR-0071 (the hedge moves behind the number),
   ADR-0077 (the operator reads the plan, the public reads the announcement), ADR-0048 (a wire decision, read
@@ -201,3 +202,109 @@ validation above, fail-closed. The resume time is an **absolute clock time**, fr
   which is the reservation vocabulary this decision already refused to reuse.
 - **There is no way to say „today is over".** Named in the rejections above as an accepted gap, and repeated
   here so it is not discovered as a bug during a wet Saturday.
+
+## Amendment (2026-08-22): the band is pinned and it condenses — rule 8's „not sticky" was asserted, never argued
+
+The ask came back the same day the feature shipped, and it is a bug report rather than a wish: the band is
+only visible at the top of the page. On the front door it sits above a `min-h-dvh` hero, so it is gone after
+one flick; on `/spielplan` a spectator scrolled into Sunday has no statement above them at all. **A
+suspension is true for as long as it stands, so it has to be readable wherever the reader is** — a notice
+that is only visible at scroll 0 tells the one person the feature exists for nothing, which is the same
+failure mode rule 5 already refused when it promoted `/api/phase` to a live wire.
+
+Rule 8 says „not sticky and not dismissible". Reading it again: **only the dismissible half was ever
+argued.** The reason given — dismissal state is per visitor, i.e. `localStorage`, a whole second concept —
+defends non-dismissibility and says nothing about pinning. So this amendment is not overturning a reasoned
+trade-off; it is filling a hole. **Not dismissible still stands, unamended.**
+
+1. **The band is pinned, on both surfaces.** The front door is where it was noticed and `/spielplan` is
+   where it matters more — that is the page somebody leaves open for forty minutes, and the page whose every
+   „ca." (rule 4) the band explains. One component, one rule.
+
+2. **It pins _below_ the page's own header, never above it.** The header is site chrome and the band is
+   content about the event; a clay band over the wordmark and the „Zurück"-link reads as a takeover. The
+   alternative — the band at `top: 0` with the header beneath it — would also make the header's offset
+   conditional on a live state.
+
+3. **The statement is pinned, not the whole band: it condenses.** Full on arrival (headline, lines, and on
+   the front door its link), one line thereafter. At full height a pinned band is a third of a phone viewport
+   for as long as the rain lasts, which is how a notice becomes an obstruction. The posture is the event
+   header's own — full, then condensed past a sentinel — so it is an existing vocabulary rather than a new
+   behaviour.
+
+4. **The front door's condensed bar keeps its link and gives up the time.** The front door **points**; the
+   time it drops is one tap away on the page it points at. The schedule keeps the time and drops
+   „Alle geplanten Startzeiten verschieben sich.", which the reader has already read on the way past.
+
+5. **The condensed line is authored in the projection, like every other public string** (rule 1 is
+   untouched): `SuspensionNotice` gains a finished `condensed`. It is deliberately **not** sliced out of
+   `lines` by the renderer, because no position holds the right half — on the front door `lines` is empty
+   whenever no resume time is known, and on the schedule the only line left after the time decays is the one
+   the condensed form does not keep. It is never uppercased: it carries a clock time, and a shouted time
+   reads as an error.
+
+6. **The live region announces once.** The condensed copy is `aria-hidden` and permanently in the DOM: a
+   second readable copy would double the announcement, and toggling `display` inside a live region
+   re-announces a state that has not changed. A screen reader hears the full notice when the suspension is
+   declared; **scroll position never speaks.**
+
+7. **The layout shift when the band appears is accepted, not compensated.** It arrives on a 15s poll, so a
+   reader parked mid-board gets ~40px inserted above them. Adjusting `scrollTop` to hide that would be
+   invisible machinery fighting the browser's own anchoring — and the jolt is the moment the reader _should_
+   look up. It happens perhaps twice a tournament, in each direction.
+
+8. **While the band stands, `/spielplan`'s day heading stands down.** That page caps itself at two pinned
+   layers on purpose — the court heading is already excluded because „three pinned layers on a phone is most
+   of the viewport" — and the pinned band would be the third. So the day heading drops to `position: static`
+   while a suspension is up, on a root class the band's renderer toggles. „When does play continue" outranks
+   „which day am I looking at" for exactly the period the band is up, and the heading stays perfectly legible
+   in flow on the way past. **Nothing stacks below the band**, which is why this is a state a page reacts to
+   and not an offset anyone has to add up.
+
+9. **Two heights are now stated constants, and one of them was measured.** The band reads its own pinned
+   offset per surface: `--site-header-legal-h` on the schedule, and a new `--site-header-event-stuck-h` on
+   the front door, declared beside it and for the same reason. Only the event header's **condensed** height
+   gets a number, which is not a gap — the tall state exists at scroll 0 only, where the band is still in
+   flow and needs no offset. The number is **55px**, measured in a browser rather than derived: the CSS
+   arithmetic said 52 and would have shipped a 3px gap with the page showing through it.
+
+10. **The condense trigger is a 1px sibling in flow, and the JS reads the offset back out of the CSS.** Two
+    mistakes are recorded here because both were made and only a browser caught them. A sentinel **inside**
+    the band is carried along by the very `position: sticky` it exists to detect and never leaves the
+    viewport — the band pins and stays full-size forever. And the observer's root must be shrunk from the top
+    by the band's pinned offset, or the sentinel exits a whole header-height too late. That offset is read
+    from the band's own computed style rather than restated in JS, so the constant lives in exactly one place.
+
+### Considered and rejected
+
+- **Putting the statement into the header instead of pinning the band.** The header is already pinned on both
+  pages, so this needs no second sticky layer and no offset — genuinely the smaller layout change. It loses
+  because it makes a chrome shared with `/impressum`, `/datenschutz` and `/abmelden` carry a tournament-only
+  state, and it would shorten the copy a second time in a component that authors none of it.
+- **A `--pinned-top` sum published for whatever stacks below the band.** The obvious design, and rule 8's
+  own answer made it unnecessary: the one thing that used to stack below is exactly what steps aside (rule 8
+  above). A state is not an offset.
+- **Compensating the scroll position** when the band appears or lifts. See rule 7.
+- **Deriving the condensed line from `lines`** in the renderer, with no new string. See rule 5 — the cheapest
+  option, and it keeps the wrong half.
+- **A sentinel inside the band**, and **a CSS-only „am I stuck"**. See rule 10; the second does not exist
+  reliably, and a scroll-driven rule would have to be told the pinned offset a second time.
+- **Animating the condense**, matching the event header's `padding 0.3s`. That header only changes its
+  padding; this changes _which sentence is shown_, and a cross-faded text swap reads as a glitch. A hard swap
+  needs no `prefers-reduced-motion` escape either, which is its own small argument.
+- **A dismiss button**, again. Rule 8's argued half stands: a pinned notice is more tempting to dismiss, and
+  the reason not to has not changed.
+
+### Consequences
+
+- **The event header's condensed height is now load-bearing.** `--site-header-event-stuck-h` joins
+  `--site-header-legal-h` as a number a change to `.is-stuck` has to update, and the file says so in both
+  places. If that row ever grows a taller item than its CTA, the front door's band gains a gap.
+- **`/spielplan` has two pinned layers in both states, and they are different layers.** Playing: bar + day
+  heading. Suspended: bar + band. That is a deliberate swap, not a coincidence, and it is the reason the
+  count never reaches three.
+- **The band now emits two root elements**, the sentinel and the `aside`. A page mounting it inside a flex
+  container inherits an `order: -2` sentinel it does not have to know about — the band still asks nothing of
+  the page that carries it.
+- **`SuspensionNotice` has three fields, and a fourth surface would need three strings.** The projection is
+  still the only place German is written, which is what rule 1 is for.
